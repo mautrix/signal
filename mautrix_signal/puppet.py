@@ -91,7 +91,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     @property
     def is_registered(self) -> bool:
-        return (self.uuid is not None and self.uuid_registered) or self.number_registered
+        return self.uuid_registered if self.uuid is not None else self.number_registered
 
     @is_registered.setter
     def is_registered(self, value: bool) -> None:
@@ -119,6 +119,8 @@ class Puppet(DBPuppet, BasePuppet):
         self.default_mxid = self.get_mxid_from_id(self.address)
         self.default_mxid_intent = self.az.intent.user(self.default_mxid)
         self.intent = self._fresh_intent()
+        await self.intent.ensure_registered()
+        await self.intent.set_displayname(self.name)
         self.log = self.log.getChild(str(uuid))
         self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {self.default_mxid_intent}")
         for room_id in await prev_intent.get_joined_rooms():
