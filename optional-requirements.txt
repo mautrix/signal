@@ -1,0 +1,17 @@
+# Format: #/name defines a new extras_require group called name
+# Uncommented lines after the group definition insert things into that group.
+
+#/e2be
+python-olm>=3,<4
+pycryptodome>=3,<4
+unpaddedbase64>=1,<2
+
+#/metrics
+prometheus_client>=0.6,<0.9
+
+#/formattednumbers
+phonenumbers>=8,<9
+
+#/qrlink
+qrcode>=6,<7
+Pillow>=4,<8

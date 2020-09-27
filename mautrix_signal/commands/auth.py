@@ -1,0 +1,92 @@
+# mautrix-signal - A Matrix-Signal puppeting bridge
+# Copyright (C) 2020 Tulir Asokan
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import io
+
+from mausignald.errors import UnexpectedResponse
+from mausignald.types import Account
+
+from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
+
+from . import command_handler, CommandEvent, SECTION_AUTH
+from .. import puppet as pu
+
+try:
+    import qrcode
+    import PIL as _
+except ImportError:
+    qrcode = None
+
+
+@command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,
+                 help_text="Link the bridge as a secondary device", help_args="[device name]")
+async def link(evt: CommandEvent) -> None:
+    if qrcode is None:
+        await evt.reply("Can't generate QR code: qrcode and/or PIL not installed")
+        return
+    # TODO make default device name configurable
+    device_name = " ".join(evt.args) or "Mautrix-Signal bridge"
+
+    async def callback(uri: str) -> None:
+        buffer = io.BytesIO()
+        image = qrcode.make(uri)
+        size = image.pixel_size
+        image.save(buffer, "PNG")
+        qr = buffer.getvalue()
+        mxc = await evt.az.intent.upload_media(qr, "image/png", "link-qr.png", len(qr))
+        content = MediaMessageEventContent(body=uri, url=mxc, msgtype=MessageType.IMAGE,
+                                           info=ImageInfo(mimetype="image/png", size=len(qr),
+                                                          width=size, height=size))
+        await evt.az.intent.send_message(evt.room_id, content)
+
+    account = await evt.bridge.signal.link(callback, device_name=device_name)
+    await evt.sender.on_signin(account)
+    await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
+
+
+@command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,
+                 help_text="Sign into Signal as the primary device", help_args="<phone>")
+async def register(evt: CommandEvent) -> None:
+    if len(evt.args) == 0:
+        await evt.reply("**Usage**: $cmdprefix+sp register <phone>")
+        return
+    phone = evt.args[0]
+    if not phone.startswith("+") or not phone[1:].isdecimal():
+        await evt.reply(f"Please enter the phone number in international format (E.164)")
+        return
+    resp = await evt.bridge.signal.request("register", "verification_required")
+    evt.sender.command_status = {
+        "action": "Register",
+        "room_id": evt.room_id,
+        "next": enter_register_code,
+        "username": resp["username"],
+    }
+    await evt.reply("Register SMS requested, please enter the code here.")
+
+
+async def enter_register_code(evt: CommandEvent) -> None:
+    try:
+        username = evt.sender.command_status["username"]
+        resp = await evt.bridge.signal.request("verify", "verification_succeeded",
+                                               code=evt.args[0], username=username)
+    except UnexpectedResponse as e:
+        if e.resp_type == "error":
+            await evt.reply(e.data)
+        else:
+            raise
+    else:
+        account = Account.deserialize(resp)
+        await evt.sender.on_signin(account)
+        await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
