@@ -5,9 +5,10 @@
     * [x] Text
     * [ ] ‡Formatting
     * [ ] Media
-      * [ ] Images
+      * [x] Images
+      * [x] Audio files
       * [x] Files
-      * [ ] Gifs
+      * [x] Gifs
       * [ ] Locations
       * [ ] Stickers
   * [x] Message reactions
@@ -18,7 +19,7 @@
     * [x] Text
     * [x] Media
       * [x] Images
-	  * [x] Voice notes
+      * [x] Voice notes
       * [x] Files
       * [x] Gifs
       * [ ] Contacts
@@ -40,5 +41,5 @@
     * [ ] Manual login with `login-matrix`
   * [x] E2EE in Matrix rooms
 
-† Not possible in signald
+† Not possible in signald  
 ‡ Not possible in Signal
