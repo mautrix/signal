@@ -16,10 +16,12 @@
 from typing import (Dict, Tuple, Optional, List, Deque, Set, Any, Union, AsyncGenerator,
                     Awaitable, TYPE_CHECKING, cast)
 from collections import deque
-from uuid import UUID
+from uuid import UUID, uuid4
 import mimetypes
 import asyncio
+import os.path
 import time
+import os
 
 from mausignald.types import (Address, MessageData, Reaction, Quote, FullGroup, Group, Contact,
                               Profile, Attachment)
@@ -134,6 +136,29 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Matrix event handling
 
+    @staticmethod
+    def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
+        attachment = Attachment(custom_filename=message.body, content_type=message.info.mimetype,
+                                outgoing_filename=path)
+        info = message.info
+        attachment.width = info.get("w", info.get("width", 0))
+        attachment.height = info.get("h", info.get("height", 0))
+        attachment.voice_note = message.msgtype == MessageType.AUDIO
+        return attachment
+
+    async def _download_matrix_media(self, message: MediaMessageEventContent) -> str:
+        if message.file:
+            data = await self.main_intent.download_media(message.file.url)
+            data = decrypt_attachment(data, message.file.key.key,
+                                      message.file.hashes.get("sha256"), message.file.iv)
+        else:
+            data = await self.main_intent.download_media(message.url)
+        path = os.path.join(self.config["signal.outgoing_attachment_dir"],
+                            f"mautrix-signal-{str(uuid4())}")
+        with open(path, "wb") as file:
+            file.write(data)
+        return path
+
     async def handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
                                     event_id: EventID) -> None:
         if ((message.get(self.bridge.real_user_content_key, False)
@@ -150,18 +175,28 @@ class Portal(DBPortal, BasePortal):
             quote = Quote(id=reply.timestamp, author=Address(uuid=reply.sender), text="")
 
         text = message.body
+        attachments: Optional[List[Attachment]] = None
+        attachment_path: Optional[str] = None
         if message.msgtype == MessageType.EMOTE:
             text = f"/me {text}"
         elif message.msgtype.is_media:
-            # TODO media support
-            return
-        await self.signal.send(username=sender.username, recipient=self.recipient,
-                               body=text, quote=quote, timestamp=request_id)
+            attachment_path = await self._download_matrix_media(message)
+            attachment = self._make_attachment(message, attachment_path)
+            attachments = [attachment]
+            text = None
+            self.log.trace("Formed outgoing attachment %s", attachment)
+        await self.signal.send(username=sender.username, recipient=self.recipient, body=text,
+                               quote=quote, attachments=attachments, timestamp=request_id)
         msg = DBMessage(mxid=event_id, mx_room=self.mxid, sender=sender.uuid, timestamp=request_id,
                         signal_chat_id=self.chat_id, signal_receiver=self.receiver)
         await msg.insert()
         await self._send_delivery_receipt(event_id)
         self.log.debug(f"Handled Matrix message {event_id} -> {request_id}")
+        if attachment_path and self.config["signal.remove_file_after_handling"]:
+            try:
+                os.remove(attachment_path)
+            except FileNotFoundError:
+                pass
 
     async def handle_matrix_reaction(self, sender: 'u.User', event_id: EventID,
                                      reacting_to: EventID, emoji: str) -> None:
@@ -310,21 +345,25 @@ class Portal(DBPortal, BasePortal):
         else:
             msgtype = MessageType.FILE
             info = FileInfo(mimetype=attachment.content_type)
-        # TODO add something to signald so we can get the actual file name if one is set
-        ext = mimetypes.guess_extension(attachment.content_type) or ""
-        return MediaMessageEventContent(msgtype=msgtype, body=attachment.id + ext, info=info)
+        if not attachment.custom_filename:
+            ext = mimetypes.guess_extension(attachment.content_type) or ""
+            attachment.custom_filename = attachment.id + ext
+        return MediaMessageEventContent(msgtype=msgtype, info=info,
+                                        body=attachment.custom_filename)
 
     async def _handle_signal_attachment(self, intent: IntentAPI, attachment: Attachment
                                         ) -> Optional[MediaMessageEventContent]:
         self.log.trace(f"Reuploading attachment {attachment}")
         if not attachment.content_type:
-            attachment.content_type = (magic.from_file(attachment.stored_filename, mime=True)
+            attachment.content_type = (magic.from_file(attachment.incoming_filename, mime=True)
                                        if magic is not None else "application/octet-stream")
 
         content = self._make_media_content(attachment)
 
-        with open(attachment.stored_filename, "rb") as file:
+        with open(attachment.incoming_filename, "rb") as file:
             data = file.read()
+        if self.config["signal.remove_file_after_handling"]:
+            os.remove(attachment.incoming_filename)
 
         upload_mime_type = attachment.content_type
         if self.encrypted and encrypt_attachment:
@@ -332,7 +371,7 @@ class Portal(DBPortal, BasePortal):
             upload_mime_type = "application/octet-stream"
 
         content.url = await intent.upload_media(data, mime_type=upload_mime_type,
-                                                filename=content.body)
+                                                filename=attachment.id)
         if content.file:
             content.file.url = content.url
             content.url = None

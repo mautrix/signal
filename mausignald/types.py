@@ -68,21 +68,20 @@ class FullGroup(Group, SerializableAttrs['FullGroup']):
 class Attachment(SerializableAttrs['Attachment']):
     width: int = 0
     height: int = 0
+    caption: Optional[str] = None
+    preview: Optional[str] = None
+    blurhash: Optional[str] = None
     voice_note: bool = attr.ib(default=False, metadata={"json": "voiceNote"})
     content_type: Optional[str] = attr.ib(default=None, metadata={"json": "contentType"})
+    custom_filename: Optional[str] = attr.ib(default=None, metadata={"json": "customFilename"})
 
     # Only for incoming
     id: Optional[str] = None
-    stored_filename: Optional[str] = attr.ib(default=None, metadata={"json": "storedFilename"})
-
-    blurhash: Optional[str] = None
+    incoming_filename: Optional[str] = attr.ib(default=None, metadata={"json": "storedFilename"})
     digest: Optional[str] = None
 
     # Only for outgoing
-    filename: Optional[str] = None
-
-    caption: Optional[str] = None
-    preview: Optional[str] = None
+    outgoing_filename: Optional[str] = attr.ib(default=None, metadata={"json": "filename"})
 
 
 @dataclass

@@ -6,7 +6,7 @@
     * [ ] ‡Formatting
     * [ ] Media
       * [ ] Images
-      * [ ] Files
+      * [x] Files
       * [ ] Gifs
       * [ ] Locations
       * [ ] Stickers

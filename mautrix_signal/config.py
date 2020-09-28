@@ -54,6 +54,8 @@ class Config(BaseBridgeConfig):
         copy("appservice.community_id")
 
         copy("signal.socket_path")
+        copy("signal.outgoing_attachment_dir")
+        copy("signal.remove_file_after_handling")
 
         copy("metrics.enabled")
         copy("metrics.listen_port")

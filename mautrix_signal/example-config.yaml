@@ -66,6 +66,12 @@ metrics:
 signal:
     # Path to signald unix socket
     socket_path: /var/run/signald/signald.sock
+    # Directory for temp files when sending files to Signal. This should be an
+    # absolute path that signald can read. For attachments in the other direction,
+    # make sure signald is configured to use an absolute path as the data directory.
+    outgoing_attachment_dir: /tmp
+    # Whether or not message attachments should be removed from disk after they're bridged.
+    remove_file_after_handling: true
 
 # Bridge config
 bridge:
