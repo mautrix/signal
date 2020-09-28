@@ -129,15 +129,18 @@ class Puppet(DBPuppet, BasePuppet):
             await prev_intent.leave_room(room_id)
 
     async def update_info(self, info: Union[Profile, Contact]) -> None:
-        if isinstance(info, Contact):
-            if info.address.uuid and not self.uuid:
-                await self.handle_uuid_receive(info.address.uuid)
+        if isinstance(info, (Contact, Address)):
+            address = info.address if isinstance(info, Contact) else info
+            if address.uuid and not self.uuid:
+                await self.handle_uuid_receive(address.uuid)
             if not self.config["bridge.allow_contact_list_name_updates"] and self.name is not None:
                 return
 
+        name = info.name if isinstance(info, (Contact, Profile)) else None
+
         async with self._update_info_lock:
             update = False
-            update = await self._update_name(info.name) or update
+            update = await self._update_name(name) or update
             if update:
                 await self.update()
 

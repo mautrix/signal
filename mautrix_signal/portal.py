@@ -17,15 +17,17 @@ from typing import (Dict, Tuple, Optional, List, Deque, Set, Any, Union, AsyncGe
                     Awaitable, TYPE_CHECKING, cast)
 from collections import deque
 from uuid import UUID
+import mimetypes
 import asyncio
 import time
 
 from mausignald.types import (Address, MessageData, Reaction, Quote, FullGroup, Group, Contact,
-                              Profile)
+                              Profile, Attachment)
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
-                           TextMessageEventContent, MessageEvent, EncryptedEvent)
+                           TextMessageEventContent, MessageEvent, EncryptedEvent,
+                           MediaMessageEventContent, ImageInfo, VideoInfo, FileInfo, AudioInfo)
 from mautrix.errors import MatrixError, MForbidden
 
 from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
@@ -40,9 +42,14 @@ try:
 except ImportError:
     encrypt_attachment = decrypt_attachment = None
 
+try:
+    import magic
+except ImportError:
+    magic = None
+
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
-ChatInfo = Union[FullGroup, Group, Contact, Profile]
+ChatInfo = Union[FullGroup, Group, Contact, Profile, Address]
 
 
 class Portal(DBPortal, BasePortal):
@@ -255,16 +262,28 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Ignoring message {message.timestamp} by {sender.uuid}"
                            " as it was already handled (message.id found in database)")
             return
+        self.log.debug(f"Started handling message {message.timestamp} by {sender.uuid}")
+        self.log.trace(f"Message content: {message}")
         self._msgts_dedup.appendleft((sender.uuid, message.timestamp))
         intent = sender.intent_for(self)
         event_id = None
         reply_to = await self._find_quote_event_id(message.quote)
-        # TODO attachments
+
+        for attachment in message.all_attachments:
+            content = await self._handle_signal_attachment(intent, attachment)
+            if content:
+                if reply_to and not message.body:
+                    # If there's no text, set the first image as the reply
+                    content.set_reply(reply_to)
+                    reply_to = None
+                event_id = await self._send_message(intent, content, timestamp=message.timestamp)
+
         if message.body:
             content = TextMessageEventContent(msgtype=MessageType.TEXT, body=message.body)
             if reply_to:
                 content.set_reply(reply_to)
             event_id = await self._send_message(intent, content, timestamp=message.timestamp)
+
         if event_id:
             msg = DBMessage(mxid=event_id, mx_room=self.mxid,
                             sender=sender.uuid, timestamp=message.timestamp,
@@ -272,6 +291,52 @@ class Portal(DBPortal, BasePortal):
             await msg.insert()
             await self._send_delivery_receipt(event_id)
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
+        else:
+            self.log.debug(f"Didn't get event ID for {message.timestamp}")
+
+    @staticmethod
+    def _make_media_content(attachment: Attachment) -> MediaMessageEventContent:
+        if attachment.content_type.startswith("image/"):
+            msgtype = MessageType.IMAGE
+            info = ImageInfo(mimetype=attachment.content_type,
+                             width=attachment.width, height=attachment.height)
+        elif attachment.content_type.startswith("video/"):
+            msgtype = MessageType.VIDEO
+            info = VideoInfo(mimetype=attachment.content_type,
+                             width=attachment.width, height=attachment.height)
+        elif attachment.voice_note or attachment.content_type.startswith("audio/"):
+            msgtype = MessageType.AUDIO
+            info = AudioInfo(mimetype=attachment.content_type)
+        else:
+            msgtype = MessageType.FILE
+            info = FileInfo(mimetype=attachment.content_type)
+        # TODO add something to signald so we can get the actual file name if one is set
+        ext = mimetypes.guess_extension(attachment.content_type) or ""
+        return MediaMessageEventContent(msgtype=msgtype, body=attachment.id + ext, info=info)
+
+    async def _handle_signal_attachment(self, intent: IntentAPI, attachment: Attachment
+                                        ) -> Optional[MediaMessageEventContent]:
+        self.log.trace(f"Reuploading attachment {attachment}")
+        if not attachment.content_type:
+            attachment.content_type = (magic.from_file(attachment.stored_filename, mime=True)
+                                       if magic is not None else "application/octet-stream")
+
+        content = self._make_media_content(attachment)
+
+        with open(attachment.stored_filename, "rb") as file:
+            data = file.read()
+
+        upload_mime_type = attachment.content_type
+        if self.encrypted and encrypt_attachment:
+            data, content.file = encrypt_attachment(data)
+            upload_mime_type = "application/octet-stream"
+
+        content.url = await intent.upload_media(data, mime_type=upload_mime_type,
+                                                filename=content.body)
+        if content.file:
+            content.file.url = content.url
+            content.url = None
+        return content
 
     async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction) -> None:
         author_uuid = await self._find_address_uuid(reaction.target_author)
@@ -318,12 +383,13 @@ class Portal(DBPortal, BasePortal):
 
     async def update_info(self, info: ChatInfo) -> None:
         if self.is_direct:
-            # TODO do we need to do something here?
-            #      I think all profile updates should just call puppet.update_info() directly
-            # if not isinstance(info, (Contact, Profile)):
-            #     raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
-            # puppet = await p.Puppet.get_by_address(Address(uuid=self.chat_id))
-            # await puppet.update_info(info)
+            if not isinstance(info, (Contact, Profile, Address)):
+                raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
+            if not self.name:
+                puppet = await p.Puppet.get_by_address(Address(uuid=self.chat_id))
+                if not puppet.name:
+                    await puppet.update_info(info)
+                self.name = puppet.name
             return
 
         if not isinstance(info, Group):
@@ -381,7 +447,7 @@ class Portal(DBPortal, BasePortal):
                 "avatar_url": self.config["appservice.bot_avatar"],
             },
             "channel": {
-                "id": self.chat_id,
+                "id": str(self.chat_id),
                 "displayname": self.name,
             }
         }
@@ -406,7 +472,7 @@ class Portal(DBPortal, BasePortal):
     async def update_matrix_room(self, source: 'u.User', info: ChatInfo) -> None:
         if not self.is_direct and not isinstance(info, Group):
             raise ValueError(f"Unexpected type for updating group portal: {type(info)}")
-        elif self.is_direct and not isinstance(info, (Contact, Profile)):
+        elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
             raise ValueError(f"Unexpected type for updating direct chat portal: {type(info)}")
         try:
             await self._update_matrix_room(source, info)
@@ -416,8 +482,11 @@ class Portal(DBPortal, BasePortal):
     async def create_matrix_room(self, source: 'u.User', info: ChatInfo) -> Optional[RoomID]:
         if not self.is_direct and not isinstance(info, Group):
             raise ValueError(f"Unexpected type for creating group portal: {type(info)}")
-        elif self.is_direct and not isinstance(info, (Contact, Profile)):
+        elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
             raise ValueError(f"Unexpected type for creating direct chat portal: {type(info)}")
+        if isinstance(info, Group):
+            groups = await self.signal.list_groups(source.username)
+            info = next((g for g in groups if g.group_id == info.group_id), info)
         if self.mxid:
             await self.update_matrix_room(source, info)
             return self.mxid
@@ -494,7 +563,7 @@ class Portal(DBPortal, BasePortal):
         await self.update()
         self.log.debug(f"Matrix room created: {self.mxid}")
         self.by_mxid[self.mxid] = self
-        if not self.is_direct:
+        if not self.is_direct and isinstance(info, FullGroup):
             await self._update_participants(info.members)
         else:
             puppet = await p.Puppet.get_by_custom_mxid(source.mxid)

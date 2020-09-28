@@ -61,27 +61,26 @@ class SignalHandler(SignaldClient):
                 pass
             if evt.sync_message.sent:
                 await self.handle_message(user, sender, evt.sync_message.sent.message,
-                                          recipient_override=evt.sync_message.sent.destination)
+                                          addr_override=evt.sync_message.sent.destination)
             if evt.sync_message.typing:
                 # Typing notification from own device
                 pass
 
     @staticmethod
     async def handle_message(user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
-                             recipient_override: Optional[Address] = None) -> None:
+                             addr_override: Optional[Address] = None) -> None:
         if msg.group:
-            portal = await po.Portal.get_by_chat_id(msg.group.group_id, receiver=user.username)
+            portal = await po.Portal.get_by_chat_id(msg.group.group_id, receiver=user.username,
+                                                    create=True)
         else:
-            portal = await po.Portal.get_by_chat_id(recipient_override.uuid
-                                                    if recipient_override else sender.uuid,
-                                                    receiver=user.username)
+            portal = await po.Portal.get_by_chat_id(addr_override.uuid
+                                                    if addr_override else sender.uuid,
+                                                    receiver=user.username, create=True)
         if not portal.mxid:
-            # TODO create room?
-            # TODO definitely at least log
-            return
+            await portal.create_matrix_room(user, msg.group or addr_override or sender.address)
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction)
-        if msg.body:
+        if msg.body or msg.attachments or msg.sticker:
             await portal.handle_signal_message(sender, msg)
 
     @staticmethod

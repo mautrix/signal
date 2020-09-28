@@ -9,22 +9,23 @@
       * [ ] Files
       * [ ] Gifs
       * [ ] Locations
-      * [ ] †Stickers
+      * [ ] Stickers
   * [x] Message reactions
   * [ ] Typing notifications
   * [ ] Read receipts
 * Signal → Matrix
   * [ ] Message content
     * [x] Text
-    * [ ] Media
-      * [ ] Images
-      * [ ] Files
-      * [ ] Gifs
+    * [x] Media
+      * [x] Images
+	  * [x] Voice notes
+      * [x] Files
+      * [x] Gifs
       * [ ] Contacts
-      * [ ] Locations
-      * [ ] Stickers
+      * [x] Locations
+      * [x] Stickers
   * [x] Message reactions
-  * [ ] †User and group avatars
+  * [ ] User and group avatars
   * [ ] Typing notifications
   * [x] Read receipts
   * [ ] Disappearing messages

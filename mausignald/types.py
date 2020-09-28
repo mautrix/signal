@@ -66,11 +66,22 @@ class FullGroup(Group, SerializableAttrs['FullGroup']):
 
 @dataclass
 class Attachment(SerializableAttrs['Attachment']):
-    filename: str
+    width: int = 0
+    height: int = 0
+    voice_note: bool = attr.ib(default=False, metadata={"json": "voiceNote"})
+    content_type: Optional[str] = attr.ib(default=None, metadata={"json": "contentType"})
+
+    # Only for incoming
+    id: Optional[str] = None
+    stored_filename: Optional[str] = attr.ib(default=None, metadata={"json": "storedFilename"})
+
+    blurhash: Optional[str] = None
+    digest: Optional[str] = None
+
+    # Only for outgoing
+    filename: Optional[str] = None
+
     caption: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    voice_note: Optional[bool] = attr.ib(default=None, metadata={"json": "voiceNote"})
     preview: Optional[str] = None
 
 
@@ -91,13 +102,23 @@ class Reaction(SerializableAttrs['Reaction']):
 
 
 @dataclass
+class Sticker(SerializableAttrs['Sticker']):
+    attachment: Attachment
+    pack_id: str = attr.ib(metadata={"json": "packID"})
+    pack_key: str = attr.ib(metadata={"json": "packKey"})
+    sticker_id: int = attr.ib(metadata={"json": "stickerID"})
+
+
+@dataclass
 class MessageData(SerializableAttrs['MessageData']):
     timestamp: int
 
     body: Optional[str] = None
     quote: Optional[Quote] = None
     reaction: Optional[Reaction] = None
-    # TODO attachments, mentions
+    attachments: List[Attachment] = attr.ib(factory=lambda: [])
+    sticker: Optional[Sticker] = None
+    # TODO mentions (although signald doesn't support group v2 yet)
 
     group: Optional[Group] = None
 
@@ -105,6 +126,10 @@ class MessageData(SerializableAttrs['MessageData']):
     expires_in_seconds: int = attr.ib(default=0, metadata={"json": "expiresInSeconds"})
     profile_key_update: bool = attr.ib(default=False, metadata={"json": "profileKeyUpdate"})
     view_once: bool = attr.ib(default=False, metadata={"json": "viewOnce"})
+
+    @property
+    def all_attachments(self) -> List[Attachment]:
+        return self.attachments + ([self.sticker] if self.sticker else [])
 
 
 @dataclass
@@ -151,7 +176,8 @@ class Receipt(SerializableAttrs['Receipt']):
 class SyncMessage(SerializableAttrs['SyncMessage']):
     sent: Optional[SentSyncMessage] = None
     typing: Optional[TypingNotification] = None
-    read_messages: Optional[List[OwnReadReceipt]] = attr.ib(default=None, metadata={"json": "readMessages"})
+    read_messages: Optional[List[OwnReadReceipt]] = attr.ib(default=None,
+                                                            metadata={"json": "readMessages"})
     contacts: Optional[Dict[str, Any]] = None
     contacts_complete: bool = attr.ib(default=False, metadata={"json": "contactsComplete"})
 
