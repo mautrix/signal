@@ -42,7 +42,7 @@ class Reaction:
         q = ("INSERT INTO reaction (mxid, mx_room, signal_chat_id, signal_receiver, msg_author,"
              "                      msg_timestamp, author, emoji) "
              "VALUES ($1, $2, $3, $4, $5, $6, $7, $8)")
-        await self.db.execute(q, self.mxid, self.mx_room, self.signal_chat_id,
+        await self.db.execute(q, self.mxid, self.mx_room, str(self.signal_chat_id),
                               self.signal_receiver, self.msg_author, self.msg_timestamp,
                               self.author, self.emoji)
 
@@ -50,13 +50,13 @@ class Reaction:
         await self.db.execute("UPDATE reaction SET mxid=$1, mx_room=$2, emoji=$3 "
                               "WHERE signal_chat_id=$4 AND signal_receiver=$5"
                               "      AND msg_author=$6 AND msg_timestamp=$7 AND author=$8",
-                              mxid, mx_room, emoji, self.signal_chat_id, self.signal_receiver,
+                              mxid, mx_room, emoji, str(self.signal_chat_id), self.signal_receiver,
                               self.msg_author, self.msg_timestamp, self.author)
 
     async def delete(self) -> None:
         q = ("DELETE FROM reaction WHERE signal_chat_id=$1 AND signal_receiver=$2"
              "                           AND msg_author=$3 AND msg_timestamp=$4 AND author=$5")
-        await self.db.execute(q, self.signal_chat_id, self.signal_receiver, self.msg_author,
+        await self.db.execute(q, str(self.signal_chat_id), self.signal_receiver, self.msg_author,
                               self.msg_timestamp, self.author)
 
     @classmethod

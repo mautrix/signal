@@ -40,12 +40,12 @@ class Message:
         q = ("INSERT INTO message (mxid, mx_room, sender, timestamp, signal_chat_id,"
              "                     signal_receiver) VALUES ($1, $2, $3, $4, $5, $6)")
         await self.db.execute(q, self.mxid, self.mx_room, self.sender, self.timestamp,
-                              self.signal_chat_id, self.signal_receiver)
+                              str(self.signal_chat_id), self.signal_receiver)
 
     async def delete(self) -> None:
         q = ("DELETE FROM message WHERE sender=$1 AND timestamp=$2"
              "                          AND signal_chat_id=$3 AND signal_receiver=$4")
-        await self.db.execute(q, self.sender, self.timestamp, self.signal_chat_id,
+        await self.db.execute(q, self.sender, self.timestamp, str(self.signal_chat_id),
                               self.signal_receiver)
 
     @classmethod
@@ -76,7 +76,7 @@ class Message:
         q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
              "FROM message WHERE sender=$1 AND timestamp=$2"
              "                   AND signal_chat_id=$3 AND signal_receiver=$4")
-        row = await cls.db.fetchrow(q, sender, timestamp, signal_chat_id, signal_receiver)
+        row = await cls.db.fetchrow(q, sender, timestamp, str(signal_chat_id), signal_receiver)
         if not row:
             return None
         return cls(**row)

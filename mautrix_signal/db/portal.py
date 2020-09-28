@@ -38,12 +38,14 @@ class Portal:
     async def insert(self) -> None:
         q = ("INSERT INTO portal (chat_id, receiver, mxid, name, encrypted) "
              "VALUES ($1, $2, $3, $4, $5)")
-        await self.db.execute(q, self.chat_id, self.receiver, self.mxid, self.name, self.encrypted)
+        await self.db.execute(q, str(self.chat_id), self.receiver, self.mxid, self.name,
+                              self.encrypted)
 
     async def update(self) -> None:
         q = ("UPDATE portal SET mxid=$3, name=$4, encrypted=$5 "
-             "WHERE chat_id=$1::text AND receiver=$2")
-        await self.db.execute(q, self.chat_id, self.receiver, self.mxid, self.name, self.encrypted)
+             "WHERE chat_id=$1 AND receiver=$2")
+        await self.db.execute(q, str(self.chat_id), self.receiver, self.mxid, self.name,
+                              self.encrypted)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Portal':
@@ -66,8 +68,8 @@ class Portal:
     async def get_by_chat_id(cls, chat_id: Union[UUID, str], receiver: str = ""
                              ) -> Optional['Portal']:
         q = ("SELECT chat_id, receiver, mxid, name, encrypted "
-             "FROM portal WHERE chat_id=$1::text AND receiver=$2")
-        row = await cls.db.fetchrow(q, chat_id, receiver)
+             "FROM portal WHERE chat_id=$1 AND receiver=$2")
+        row = await cls.db.fetchrow(q, str(chat_id), receiver)
         if not row:
             return None
         return cls._from_row(row)
