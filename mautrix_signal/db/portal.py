@@ -42,7 +42,7 @@ class Portal:
              "                    encrypted) "
              "VALUES ($1, $2, $3, $4, $5, $6, $7)")
         await self.db.execute(q, str(self.chat_id), self.receiver, self.mxid, self.name,
-                              self.encrypted)
+                              self.avatar_hash, self.avatar_url, self.encrypted)
 
     async def update(self) -> None:
         q = ("UPDATE portal SET mxid=$3, name=$4, avatar_hash=$5, avatar_url=$6, encrypted=$7 "
