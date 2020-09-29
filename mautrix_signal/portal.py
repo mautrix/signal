@@ -303,6 +303,7 @@ class Portal(DBPortal, BasePortal):
         self.log.trace(f"Message content: {message}")
         self._msgts_dedup.appendleft((sender.uuid, message.timestamp))
         intent = sender.intent_for(self)
+        await intent.set_typing(self.mxid, False)
         event_id = None
         reply_to = await self._find_quote_event_id(message.quote)
 

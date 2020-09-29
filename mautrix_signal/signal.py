@@ -18,8 +18,8 @@ import asyncio
 import logging
 
 from mausignald import SignaldClient
-from mausignald.types import (Message, MessageData, Receipt, TypingNotification, OwnReadReceipt,
-                              Address, ReceiptType)
+from mausignald.types import (Message, MessageData, Address, TypingNotification, TypingAction,
+                              OwnReadReceipt, Receipt, ReceiptType)
 from mautrix.util.logging import TraceLogger
 
 from .db import Message as DBMessage
@@ -27,6 +27,9 @@ from . import user as u, portal as po, puppet as pu
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
+
+# Typing notifications seem to get resent every 10 seconds and the timeout is around 15 seconds
+SIGNAL_TYPING_TIMEOUT = 15000
 
 
 class SignalHandler(SignaldClient):
@@ -49,8 +52,7 @@ class SignalHandler(SignaldClient):
         if evt.data_message:
             await self.handle_message(user, sender, evt.data_message)
         if evt.typing:
-            # Typing notification from someone else
-            pass
+            await self.handle_typing(user, sender, evt.typing)
         if evt.receipt:
             await self.handle_receipt(sender, evt.receipt)
         if evt.sync_message:
@@ -70,8 +72,7 @@ class SignalHandler(SignaldClient):
     async def handle_message(user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
                              addr_override: Optional[Address] = None) -> None:
         if msg.group:
-            portal = await po.Portal.get_by_chat_id(msg.group.group_id, receiver=user.username,
-                                                    create=True)
+            portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
             portal = await po.Portal.get_by_chat_id(addr_override.uuid
                                                     if addr_override else sender.uuid,
@@ -102,6 +103,19 @@ class SignalHandler(SignaldClient):
             if not portal or (portal.is_direct and not sender.is_real_user):
                 continue
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
+
+    @staticmethod
+    async def handle_typing(user: 'u.User', sender: 'pu.Puppet',
+                            typing: TypingNotification) -> None:
+        if typing.group_id:
+            portal = await po.Portal.get_by_chat_id(typing.group_id)
+        else:
+            portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username)
+        if not portal or not portal.mxid:
+            return
+        is_typing = typing.action == TypingAction.STARTED
+        await sender.intent_for(portal).set_typing(portal.mxid, is_typing, ignore_cache=True,
+                                                   timeout=SIGNAL_TYPING_TIMEOUT)
 
     @staticmethod
     async def handle_receipt(sender: 'pu.Puppet', receipt: Receipt) -> None:

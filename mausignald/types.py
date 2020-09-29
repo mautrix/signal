@@ -151,7 +151,7 @@ class TypingAction(SerializableEnum):
 class TypingNotification(SerializableAttrs['TypingNotification']):
     action: TypingAction
     timestamp: int
-    group_id: Optional[str] = None
+    group_id: Optional[str] = attr.ib(default=None, metadata={"json": "groupId"})
 
 
 @dataclass

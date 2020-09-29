@@ -39,7 +39,7 @@
     * [ ] †User avatar
     * [x] Group name
     * [x] Group avatar
-  * [ ] Typing notifications
+  * [x] Typing notifications
   * [x] Read receipts
   * [ ] Disappearing messages
 * Misc
