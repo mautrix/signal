@@ -50,7 +50,6 @@ class User(DBUser, BaseUser):
         perms = self.config.get_permissions(mxid)
         self.is_whitelisted, self.is_admin, self.permission_level = perms
         self.log = self.log.getChild(self.mxid)
-        self.client = None
         self.dm_update_lock = asyncio.Lock()
 
     @classmethod

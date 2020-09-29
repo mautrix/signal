@@ -57,11 +57,11 @@ class SignalBridge(Bridge):
         init_db(self.db)
 
     def prepare_bridge(self) -> None:
+        self.signal = SignalHandler(self)
         super().prepare_bridge()
         cfg = self.config["appservice.provisioning"]
         # self.provisioning_api = ProvisioningAPI(cfg["shared_secret"])
         # self.az.app.add_subapp(cfg["prefix"], self.provisioning_api.app)
-        self.signal = SignalHandler(self)
 
     async def start(self) -> None:
         await self.db.start()

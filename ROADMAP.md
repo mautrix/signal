@@ -15,8 +15,8 @@
   * [ ] Group info changes
     * [ ] Name
     * [ ] Avatar
-  * [ ] Typing notifications
-  * [ ] Read receipts
+  * [ ] †Typing notifications
+  * [x] Read receipts
 * Signal → Matrix
   * [ ] Message content
     * [x] Text

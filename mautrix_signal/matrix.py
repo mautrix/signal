@@ -15,13 +15,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import List, Union, TYPE_CHECKING
 
+from mausignald.types import Address
+
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (Event, ReactionEvent, MessageEvent, StateEvent, EncryptedEvent, RoomID,
                            EventID, UserID, ReactionEventContent, RelationType, EventType,
                            ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent)
 
 from .db import Message as DBMessage
-from . import commands as com, puppet as pu, portal as po, user as u
+from . import commands as com, puppet as pu, portal as po, user as u, signal as s
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -29,12 +31,14 @@ if TYPE_CHECKING:
 
 class MatrixHandler(BaseMatrixHandler):
     commands: 'com.CommandProcessor'
+    signal: 's.SignalHandler'
 
     def __init__(self, bridge: 'SignalBridge') -> None:
         prefix, suffix = bridge.config["bridge.username_template"].format(userid=":").split(":")
         homeserver = bridge.config["homeserver.domain"]
         self.user_id_prefix = f"@{prefix}"
         self.user_id_suffix = f"{suffix}:{homeserver}"
+        self.signal = bridge.signal
 
         super().__init__(command_processor=com.CommandProcessor(bridge), bridge=bridge)
 
@@ -99,15 +103,14 @@ class MatrixHandler(BaseMatrixHandler):
         await portal.handle_matrix_reaction(user, event_id, content.relates_to.event_id,
                                             content.relates_to.key)
 
-    @staticmethod
-    async def handle_receipt(evt: ReceiptEvent) -> None:
+    async def handle_receipt(self, evt: ReceiptEvent) -> None:
         # These events come from custom puppet syncing, so there's always only one user.
         event_id, receipts = evt.content.popitem()
         receipt_type, users = receipts.popitem()
         user_id, data = users.popitem()
 
         user = await u.User.get_by_mxid(user_id, create=False)
-        if not user or not user.client:
+        if not user or not user.username:
             return
 
         portal = await po.Portal.get_by_mxid(evt.room_id)
@@ -118,13 +121,21 @@ class MatrixHandler(BaseMatrixHandler):
         if not message:
             return
 
-        # user.log.debug(f"Marking messages in {portal.twid} read up to {message.twid}")
-        # await user.client.conversation(portal.twid).mark_read(message.twid)
+        user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
+        await self.signal.mark_read(user.username, Address(uuid=message.sender),
+                                    timestamps=[message.timestamp], when=data.ts)
 
-    @staticmethod
-    async def handle_typing(room_id: RoomID, typing: List[UserID]) -> None:
-        # TODO implement
+    async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
         pass
+        # portal = await po.Portal.get_by_mxid(room_id)
+        # if not portal:
+        #     return
+        #
+        # for user_id in typing:
+        #     user = await u.User.get_by_mxid(user_id, create=False)
+        #     if not user or not user.username:
+        #         continue
+        #     # TODO
 
     async def handle_event(self, evt: Event) -> None:
         if evt.type == EventType.ROOM_REDACTION:
