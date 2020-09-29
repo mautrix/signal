@@ -19,7 +19,7 @@ from uuid import UUID
 from attr import dataclass
 import asyncpg
 
-from mautrix.types import RoomID
+from mautrix.types import RoomID, ContentURI
 from mautrix.util.async_db import Database
 
 fake_db = Database("") if TYPE_CHECKING else None
@@ -33,19 +33,22 @@ class Portal:
     receiver: str
     mxid: Optional[RoomID]
     name: Optional[str]
+    avatar_hash: Optional[str]
+    avatar_url: Optional[ContentURI]
     encrypted: bool
 
     async def insert(self) -> None:
-        q = ("INSERT INTO portal (chat_id, receiver, mxid, name, encrypted) "
-             "VALUES ($1, $2, $3, $4, $5)")
+        q = ("INSERT INTO portal (chat_id, receiver, mxid, name, avatar_hash, avatar_url, "
+             "                    encrypted) "
+             "VALUES ($1, $2, $3, $4, $5, $6, $7)")
         await self.db.execute(q, str(self.chat_id), self.receiver, self.mxid, self.name,
                               self.encrypted)
 
     async def update(self) -> None:
-        q = ("UPDATE portal SET mxid=$3, name=$4, encrypted=$5 "
+        q = ("UPDATE portal SET mxid=$3, name=$4, avatar_hash=$5, avatar_url=$6, encrypted=$7 "
              "WHERE chat_id=$1 AND receiver=$2")
         await self.db.execute(q, str(self.chat_id), self.receiver, self.mxid, self.name,
-                              self.encrypted)
+                              self.avatar_hash, self.avatar_url, self.encrypted)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Portal':
@@ -58,7 +61,8 @@ class Portal:
 
     @classmethod
     async def get_by_mxid(cls, mxid: RoomID) -> Optional['Portal']:
-        q = "SELECT chat_id, receiver, mxid, name, encrypted FROM portal WHERE mxid=$1"
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+             "FROM portal WHERE mxid=$1")
         row = await cls.db.fetchrow(q, mxid)
         if not row:
             return None
@@ -67,7 +71,7 @@ class Portal:
     @classmethod
     async def get_by_chat_id(cls, chat_id: Union[UUID, str], receiver: str = ""
                              ) -> Optional['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, encrypted "
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
              "FROM portal WHERE chat_id=$1 AND receiver=$2")
         row = await cls.db.fetchrow(q, str(chat_id), receiver)
         if not row:
@@ -76,19 +80,21 @@ class Portal:
 
     @classmethod
     async def find_private_chats_of(cls, receiver: str) -> List['Portal']:
-        q = "SELECT chat_id, receiver, mxid, name, encrypted FROM portal WHERE receiver=$1"
+        q =( "SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+             "FROM portal WHERE receiver=$1")
         rows = await cls.db.fetch(q, receiver)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def find_private_chats_with(cls, other_user: UUID) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, encrypted FROM portal "
-             "WHERE chat_id=$1::text AND receiver<>''")
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+             "FROM portal WHERE chat_id=$1::text AND receiver<>''")
         rows = await cls.db.fetch(q, other_user)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def all_with_room(cls) -> List['Portal']:
-        q = "SELECT chat_id, receiver, mxid, name, encrypted FROM portal WHERE mxid IS NOT NULL"
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+             "FROM portal WHERE mxid IS NOT NULL")
         rows = await cls.db.fetch(q)
         return [cls._from_row(row) for row in rows]

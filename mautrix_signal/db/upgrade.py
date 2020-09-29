@@ -89,3 +89,9 @@ async def upgrade_v1(conn: Connection) -> None:
             ON DELETE CASCADE ON UPDATE CASCADE,
         UNIQUE (mxid, mx_room)
     )""")
+
+
+@upgrade_table.register(description="Add avatar info to portal table")
+async def upgrade_v2(conn: Connection) -> None:
+    await conn.execute("ALTER TABLE portal ADD COLUMN avatar_hash TEXT")
+    await conn.execute("ALTER TABLE portal ADD COLUMN avatar_url TEXT")

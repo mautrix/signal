@@ -18,6 +18,7 @@ from typing import (Dict, Tuple, Optional, List, Deque, Set, Any, Union, AsyncGe
 from collections import deque
 from uuid import UUID, uuid4
 import mimetypes
+import hashlib
 import asyncio
 import os.path
 import time
@@ -28,7 +29,7 @@ from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Cont
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
-                           TextMessageEventContent, MessageEvent, EncryptedEvent,
+                           TextMessageEventContent, MessageEvent, EncryptedEvent, ContentURI,
                            MediaMessageEventContent, ImageInfo, VideoInfo, FileInfo, AudioInfo)
 from mautrix.errors import MatrixError, MForbidden
 
@@ -70,8 +71,9 @@ class Portal(DBPortal, BasePortal):
     _reaction_lock: asyncio.Lock
 
     def __init__(self, chat_id: Union[str, UUID], receiver: str, mxid: Optional[RoomID] = None,
-                 name: Optional[str] = None, encrypted: bool = False) -> None:
-        super().__init__(chat_id, receiver, mxid, name, encrypted)
+                 name: Optional[str] = None, avatar_hash: Optional[str] = None,
+                 avatar_url: Optional[ContentURI] = None, encrypted: bool = False) -> None:
+        super().__init__(chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted)
         self._create_room_lock = asyncio.Lock()
         self.log = self.log.getChild(str(chat_id))
         self._main_intent = None
@@ -434,6 +436,7 @@ class Portal(DBPortal, BasePortal):
         if not isinstance(info, Group):
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
         changed = await self._update_name(info.name)
+        changed = await self._update_avatar()
         await self._update_participants(info.members)
         if changed:
             await self.update_bridge_info()
@@ -456,6 +459,24 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.set_room_name(self.mxid, name)
             return True
         return False
+
+    async def _update_avatar(self) -> bool:
+        if self.is_direct:
+            return False
+        path = os.path.join(self.config["signal.avatar_dir"], f"group-{self.chat_id}")
+        try:
+            with open(path, "rb") as file:
+                data = file.read()
+        except FileNotFoundError:
+            return False
+        new_hash = hashlib.sha256(data).hexdigest()
+        if self.avatar_hash and new_hash == self.avatar_hash:
+            return False
+        mxc = await self.main_intent.upload_media(data)
+        await self.main_intent.set_room_avatar(self.mxid, mxc)
+        self.avatar_url = mxc
+        self.avatar_hash = new_hash
+        return True
 
     async def _update_participants(self, participants: List[Address]) -> None:
         if not self.mxid or not participants:
@@ -487,6 +508,7 @@ class Portal(DBPortal, BasePortal):
             "channel": {
                 "id": str(self.chat_id),
                 "displayname": self.name,
+                "avatar_url": self.avatar_url,
             }
         }
 

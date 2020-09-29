@@ -70,6 +70,8 @@ signal:
     # absolute path that signald can read. For attachments in the other direction,
     # make sure signald is configured to use an absolute path as the data directory.
     outgoing_attachment_dir: /tmp
+    # Directory where signald stores avatars for groups.
+    avatar_dir: ~/.config/signald/avatars
     # Whether or not message attachments should be removed from disk after they're bridged.
     remove_file_after_handling: true
 

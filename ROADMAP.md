@@ -31,14 +31,14 @@
   * [x] Message reactions
   * [ ] Initial profile info
     * [x] User displayname
-    * [ ] User avatar
+    * [ ] †User avatar
     * [x] Group name
-    * [ ] Group avatar
+    * [x] Group avatar
   * [ ] Profile info changes
     * [ ] User displayname
-    * [ ] User avatar
+    * [ ] †User avatar
     * [x] Group name
-    * [ ] Group avatar
+    * [x] Group avatar
   * [ ] Typing notifications
   * [x] Read receipts
   * [ ] Disappearing messages
