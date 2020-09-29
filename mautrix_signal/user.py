@@ -17,7 +17,7 @@ from typing import Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
 from uuid import UUID
 import asyncio
 
-from mausignald.types import Account
+from mausignald.types import Account, Address
 from mautrix.bridge import BaseUser
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
@@ -60,6 +60,12 @@ class User(DBUser, BaseUser):
         cls.az = bridge.az
         cls.loop = bridge.loop
 
+    @property
+    def address(self) -> Optional[Address]:
+        if not self.username:
+            return None
+        return Address(uuid=self.uuid, number=self.username)
+
     async def on_signin(self, account: Account) -> None:
         self.username = account.username
         self.uuid = account.uuid
@@ -67,7 +73,17 @@ class User(DBUser, BaseUser):
         await self.bridge.signal.subscribe(self.username)
         self.loop.create_task(self.sync())
 
+    async def _sync_puppet(self) -> None:
+        puppet = await pu.Puppet.get_by_address(self.address)
+        if puppet.custom_mxid != self.mxid and puppet.can_auto_login(self.mxid):
+            self.log.info(f"Automatically enabling custom puppet")
+            await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
+
     async def sync(self) -> None:
+        try:
+            await self._sync_puppet()
+        except Exception:
+            self.log.exception("Error while syncing own puppet")
         try:
             await self._sync()
         except Exception:

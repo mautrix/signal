@@ -181,6 +181,9 @@ class Puppet(DBPuppet, BasePuppet):
 
     async def _update_portal_names(self) -> None:
         async for portal in p.Portal.find_private_chats_with(self.uuid):
+            if portal.receiver == self.number:
+                # This is a note to self chat, don't change the name
+                continue
             await portal.update_puppet_name(self.name)
 
     async def default_puppet_should_leave_room(self, room_id: RoomID) -> bool:

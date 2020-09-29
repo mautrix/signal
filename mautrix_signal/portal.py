@@ -577,7 +577,9 @@ class Portal(DBPortal, BasePortal):
             })
             if self.is_direct:
                 invites.append(self.az.bot_mxid)
-        if self.encrypted or self.private_chat_portal_meta or not self.is_direct:
+        if source.uuid == self.chat_id:
+            name = self.name = "Signal Note to Self"
+        elif self.encrypted or self.private_chat_portal_meta or not self.is_direct:
             name = self.name
         if self.config["appservice.community_id"]:
             initial_state.append({
