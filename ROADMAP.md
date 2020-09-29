@@ -53,5 +53,5 @@
     * [ ] Manual login with `login-matrix`
   * [x] E2EE in Matrix rooms
 
-† Not possible in signald  
+† Not possible in signald
 ‡ Not possible in Signal
