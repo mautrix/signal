@@ -474,7 +474,8 @@ class Portal(DBPortal, BasePortal):
         if self.avatar_hash and new_hash == self.avatar_hash:
             return False
         mxc = await self.main_intent.upload_media(data)
-        await self.main_intent.set_room_avatar(self.mxid, mxc)
+        if self.mxid:
+            await self.main_intent.set_room_avatar(self.mxid, mxc)
         self.avatar_url = mxc
         self.avatar_hash = new_hash
         return True
@@ -604,6 +605,11 @@ class Portal(DBPortal, BasePortal):
             name = self.name = "Signal Note to Self"
         elif self.encrypted or self.private_chat_portal_meta or not self.is_direct:
             name = self.name
+        if self.avatar_url:
+            initial_state.append({
+                "type": "m.room.avatar",
+                "content": {"url": self.avatar_url},
+            })
         if self.config["appservice.community_id"]:
             initial_state.append({
                 "type": "m.room.related_groups",
