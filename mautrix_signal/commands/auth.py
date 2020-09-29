@@ -17,7 +17,8 @@ import io
 
 from mausignald.errors import UnexpectedResponse
 from mausignald.types import Account
-
+from mautrix.client import Client
+from mautrix.bridge import custom_puppet as cpu
 from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
 
 from . import command_handler, CommandEvent, SECTION_AUTH
@@ -90,3 +91,33 @@ async def enter_register_code(evt: CommandEvent) -> None:
         account = Account.deserialize(resp)
         await evt.sender.on_signin(account)
         await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
+
+
+@command_handler(needs_auth=True, management_only=True, help_args="<_access token_>",
+                 help_section=SECTION_AUTH, help_text="Replace your Signal account's Matrix puppet"
+                                                      " with your Matrix account")
+async def login_matrix(evt: CommandEvent) -> None:
+    puppet = await pu.Puppet.get_by_address(evt.sender.address)
+    _, homeserver = Client.parse_mxid(evt.sender.mxid)
+    if homeserver != pu.Puppet.hs_domain:
+        await evt.reply("You can't log in with an account on a different homeserver")
+        return
+    try:
+        await puppet.switch_mxid(" ".join(evt.args), evt.sender.mxid)
+        await evt.reply("Successfully replaced your Signal account's "
+                        "Matrix puppet with your Matrix account.")
+    except cpu.OnlyLoginSelf:
+        await evt.reply("You may only log in with your own Matrix account")
+    except cpu.InvalidAccessToken:
+        await evt.reply("Invalid access token")
+
+
+@command_handler(needs_auth=True, management_only=True, help_section=SECTION_AUTH,
+                 help_text="Revert your Signal account's Matrix puppet to the original")
+async def logout_matrix(evt: CommandEvent) -> None:
+    puppet = await pu.Puppet.get_by_address(evt.sender.address)
+    if not puppet.is_real_user:
+        await evt.reply("You're not logged in with your Matrix account")
+        return
+    await puppet.switch_mxid(None, None)
+    await evt.reply("Restored the original puppet for your Signal account")

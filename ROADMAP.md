@@ -48,9 +48,9 @@
     * [x] When receiving message
   * [ ] Provisioning API for logging in
   * [ ] Private chat creation by inviting Matrix puppet of Signal user to new room
-  * [ ] Option to use own Matrix account for messages sent from other Signal clients
+  * [x] Option to use own Matrix account for messages sent from other Signal clients
     * [x] Automatic login with shared secret
-    * [ ] Manual login with `login-matrix`
+    * [x] Manual login with `login-matrix`
   * [x] E2EE in Matrix rooms
 
 † Not possible in signald  
