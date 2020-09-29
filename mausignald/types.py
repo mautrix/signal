@@ -45,10 +45,10 @@ class Contact(SerializableAttrs['Contact']):
 @dataclass
 class Profile(SerializableAttrs['Profile']):
     name: str
-    avatar: str
-    identity_key: str
-    unidentified_access: str
-    unrestricted_unidentified_access: bool
+    avatar: str = ""
+    identity_key: str = ""
+    unidentified_access: str = ""
+    unrestricted_unidentified_access: bool = False
 
 
 @dataclass
@@ -142,6 +142,7 @@ class SentSyncMessage(SerializableAttrs['SentSyncMessage']):
 
 
 class TypingAction(SerializableEnum):
+    UNKNOWN = "UNKNOWN"
     STARTED = "STARTED"
     STOPPED = "STOPPED"
 
@@ -160,6 +161,7 @@ class OwnReadReceipt(SerializableAttrs['OwnReadReceipt']):
 
 
 class ReceiptType(SerializableEnum):
+    UNKNOWN = "UNKNOWN"
     DELIVERY = "DELIVERY"
     READ = "READ"
 
@@ -185,6 +187,9 @@ class MessageType(SerializableEnum):
     CIPHERTEXT = "CIPHERTEXT"
     UNIDENTIFIED_SENDER = "UNIDENTIFIED_SENDER"
     RECEIPT = "RECEIPT"
+    PREKEY_BUNDLE = "PREKEY_BUNDLE"
+    KEY_EXCHANGE = "KEY_EXCHANGE"
+    UNKNOWN = "UNKNOWN"
 
 
 @dataclass
