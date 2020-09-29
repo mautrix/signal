@@ -23,8 +23,8 @@ import os.path
 import time
 import os
 
-from mausignald.types import (Address, MessageData, Reaction, Quote, FullGroup, Group, Contact,
-                              Profile, Attachment)
+from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
+                              Attachment)
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
@@ -51,7 +51,7 @@ except ImportError:
 
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
-ChatInfo = Union[FullGroup, Group, Contact, Profile, Address]
+ChatInfo = Union[Group, Contact, Profile, Address]
 
 
 class Portal(DBPortal, BasePortal):
@@ -434,8 +434,7 @@ class Portal(DBPortal, BasePortal):
         if not isinstance(info, Group):
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
         changed = await self._update_name(info.name)
-        if isinstance(info, FullGroup):
-            await self._update_participants(info.members)
+        await self._update_participants(info.members)
         if changed:
             await self.update_bridge_info()
             await self.update()
@@ -459,7 +458,7 @@ class Portal(DBPortal, BasePortal):
         return False
 
     async def _update_participants(self, participants: List[Address]) -> None:
-        if not self.mxid:
+        if not self.mxid or not participants:
             return
 
         for address in participants:
@@ -602,7 +601,7 @@ class Portal(DBPortal, BasePortal):
         await self.update()
         self.log.debug(f"Matrix room created: {self.mxid}")
         self.by_mxid[self.mxid] = self
-        if not self.is_direct and isinstance(info, FullGroup):
+        if not self.is_direct:
             await self._update_participants(info.members)
         else:
             puppet = await p.Puppet.get_by_custom_mxid(source.mxid)

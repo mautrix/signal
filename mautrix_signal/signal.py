@@ -82,6 +82,8 @@ class SignalHandler(SignaldClient):
             await portal.handle_signal_reaction(sender, msg.reaction)
         if msg.body or msg.attachments or msg.sticker:
             await portal.handle_signal_message(sender, msg)
+        if msg.group and msg.group.type == "UPDATE":
+            await portal.update_info(msg.group)
 
     @staticmethod
     async def handle_own_receipts(sender: 'pu.Puppet', receipts: List[OwnReadReceipt]) -> None:

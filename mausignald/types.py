@@ -55,11 +55,11 @@ class Profile(SerializableAttrs['Profile']):
 class Group(SerializableAttrs['Group']):
     group_id: str = attr.ib(metadata={"json": "groupId"})
     name: str
+
+    # Sometimes "UPDATE"
     type: Optional[str] = None
 
-
-@dataclass
-class FullGroup(Group, SerializableAttrs['FullGroup']):
+    # Not always present
     members: List[Address] = attr.ib(factory=lambda: [])
     avatar_id: int = attr.ib(default=0, metadata={"json": "avatarId"})
 
