@@ -76,6 +76,10 @@ class SignalHandler(SignaldClient):
             portal = await po.Portal.get_by_chat_id(addr_override.uuid
                                                     if addr_override else sender.uuid,
                                                     receiver=user.username, create=True)
+            if addr_override and not sender.is_real_user:
+                portal.log.debug(f"Ignoring own message {msg.timestamp} as user doesn't have"
+                                 " double puppeting enabled")
+                return
         if not portal.mxid:
             await portal.create_matrix_room(user, msg.group or addr_override or sender.address)
         if msg.reaction:
@@ -95,7 +99,7 @@ class SignalHandler(SignaldClient):
             if not message:
                 continue
             portal = await po.Portal.get_by_mxid(message.mx_room)
-            if not portal:
+            if not portal or (portal.is_direct and not sender.is_real_user):
                 continue
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
 
