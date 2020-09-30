@@ -90,7 +90,7 @@ bridge:
     allow_contact_list_name_updates: false
     # Available variables: full_name, first_name, last_name, phone, uuid
     displayname_preference:
-    - full name
+    - full_name
     - phone
 
     # Whether or not to create portals for all groups on login/connect.
@@ -140,10 +140,11 @@ bridge:
     # chat portal rooms. This will be implicitly enabled if encryption.default is true.
     private_chat_portal_meta: false
     # Whether or not the bridge should send a read receipt from the bridge bot when a message has
-    # been sent to Signal.
+    # been sent to Signal. This let's you check manually whether the bridge is receiving your
+    # messages.
     # Note that this is not related to Signal delivery receipts.
     delivery_receipts: false
-    # Whether or not delivery errors should be reported as messages in the Matrix room.
+    # Whether or not delivery errors should be reported as messages in the Matrix room. (not yet implemented)
     delivery_error_reports: false
     # Set this to true to tell the bridge to re-send m.bridge events to all rooms on the next run.
     # This field will automatically be changed back to false after it,
