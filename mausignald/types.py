@@ -128,7 +128,7 @@ class MessageData(SerializableAttrs['MessageData']):
 
     @property
     def all_attachments(self) -> List[Attachment]:
-        return self.attachments + ([self.sticker] if self.sticker else [])
+        return self.attachments + ([self.sticker.attachment] if self.sticker else [])
 
 
 @dataclass
