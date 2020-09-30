@@ -126,10 +126,6 @@ class MessageData(SerializableAttrs['MessageData']):
     profile_key_update: bool = attr.ib(default=False, metadata={"json": "profileKeyUpdate"})
     view_once: bool = attr.ib(default=False, metadata={"json": "viewOnce"})
 
-    @property
-    def all_attachments(self) -> List[Attachment]:
-        return self.attachments + ([self.sticker.attachment] if self.sticker else [])
-
 
 @dataclass
 class SentSyncMessage(SerializableAttrs['SentSyncMessage']):

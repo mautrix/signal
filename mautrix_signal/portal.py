@@ -307,14 +307,29 @@ class Portal(DBPortal, BasePortal):
         event_id = None
         reply_to = await self._find_quote_event_id(message.quote)
 
-        for attachment in message.all_attachments:
-            content = await self._handle_signal_attachment(intent, attachment)
-            if content:
-                if reply_to and not message.body:
-                    # If there's no text, set the first image as the reply
+        if message.sticker:
+            if not message.sticker.attachment.incoming_filename:
+                self.log.warning("Failed to bridge sticker, no incoming filename: %s",
+                                 message.sticker.attachment)
+            else:
+                content = await self._handle_signal_attachment(intent, message.sticker.attachment)
+                if reply_to:
                     content.set_reply(reply_to)
                     reply_to = None
-                event_id = await self._send_message(intent, content, timestamp=message.timestamp)
+                event_id = await self._send_message(intent, content, timestamp=message.timestamp,
+                                                    event_type=EventType.STICKER)
+
+        for attachment in message.attachments:
+            if not attachment.incoming_filename:
+                self.log.warning("Failed to bridge attachment, no incoming filename: %s",
+                                 attachment)
+                continue
+            content = await self._handle_signal_attachment(intent, attachment)
+            if reply_to and not message.body:
+                # If there's no text, set the first image as the reply
+                content.set_reply(reply_to)
+                reply_to = None
+            event_id = await self._send_message(intent, content, timestamp=message.timestamp)
 
         if message.body:
             content = TextMessageEventContent(msgtype=MessageType.TEXT, body=message.body)
@@ -355,7 +370,7 @@ class Portal(DBPortal, BasePortal):
                                         body=attachment.custom_filename)
 
     async def _handle_signal_attachment(self, intent: IntentAPI, attachment: Attachment
-                                        ) -> Optional[MediaMessageEventContent]:
+                                        ) -> MediaMessageEventContent:
         self.log.trace(f"Reuploading attachment {attachment}")
         if not attachment.content_type:
             attachment.content_type = (magic.from_file(attachment.incoming_filename, mime=True)
