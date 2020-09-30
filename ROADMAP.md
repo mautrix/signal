@@ -16,7 +16,8 @@
     * [ ] Name
     * [ ] Avatar
   * [ ] †Typing notifications
-  * [x] Read receipts
+  * [ ] Read receipts (currently partial support, only marks last message)
+  * [ ] Delivery receipts
 * Signal → Matrix
   * [ ] Message content
     * [x] Text
@@ -41,6 +42,7 @@
     * [x] Group avatar
   * [x] Typing notifications
   * [x] Read receipts
+  * [ ] Delivery receipts (there's no good way to bridge these)
   * [ ] Disappearing messages
 * Misc
   * [x] Automatic portal creation
