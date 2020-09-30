@@ -78,7 +78,7 @@ class Config(BaseBridgeConfig):
         copy("bridge.encryption.key_sharing.require_cross_signing")
         copy("bridge.encryption.key_sharing.require_verification")
         copy("bridge.private_chat_portal_meta")
-        copy("bridge.delivery_receipts")
+        copy("bridge.bot_read_marker")
         copy("bridge.delivery_error_reports")
         copy("bridge.resend_bridge_info")
 

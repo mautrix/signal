@@ -112,7 +112,7 @@ class Portal(DBPortal, BasePortal):
     # region Misc
 
     async def _send_delivery_receipt(self, event_id: EventID) -> None:
-        if event_id and self.config["bridge.delivery_receipts"]:
+        if event_id and self.config["bridge.bot_read_marker"]:
             try:
                 await self.az.intent.mark_read(self.mxid, event_id)
             except Exception:
