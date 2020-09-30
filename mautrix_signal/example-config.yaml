@@ -141,6 +141,7 @@ bridge:
     private_chat_portal_meta: false
     # Whether or not the bridge should send a read receipt from the bridge bot when a message has
     # been sent to Signal.
+    # Note that this is not related to Signal delivery receipts.
     delivery_receipts: false
     # Whether or not delivery errors should be reported as messages in the Matrix room.
     delivery_error_reports: false
