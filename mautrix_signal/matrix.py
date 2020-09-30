@@ -68,10 +68,6 @@ class MatrixHandler(BaseMatrixHandler):
 
         await portal.handle_matrix_leave(user)
 
-    @staticmethod
-    async def allow_bridging_message(user: 'u.User', portal: 'po.Portal') -> bool:
-        return user.is_whitelisted and bool(user.username)
-
     # @staticmethod
     # async def handle_redaction(room_id: RoomID, user_id: UserID, event_id: EventID,
     #                            redaction_event_id: EventID) -> None:

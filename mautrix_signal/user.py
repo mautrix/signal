@@ -65,6 +65,9 @@ class User(DBUser, BaseUser):
             return None
         return Address(uuid=self.uuid, number=self.username)
 
+    async def is_logged_in(self) -> bool:
+        return bool(self.username)
+
     async def on_signin(self, account: Account) -> None:
         self.username = account.username
         self.uuid = account.uuid
