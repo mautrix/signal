@@ -67,7 +67,7 @@ async def register(evt: CommandEvent) -> None:
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
-    resp = await evt.bridge.signal.request("register", "verification_required")
+    resp = await evt.bridge.signal.request("register", "verification_required", username=phone)
     evt.sender.command_status = {
         "action": "Register",
         "room_id": evt.room_id,
