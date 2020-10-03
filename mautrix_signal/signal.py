@@ -129,9 +129,9 @@ class SignalHandler(SignaldClient):
     async def start(self) -> None:
         await self.connect()
         async for user in u.User.all_logged_in():
-            # TODO handle errors
-            await self.subscribe(user.username)
-            self.loop.create_task(user.sync())
+            # TODO report errors to user?
+            if await self.subscribe(user.username):
+                self.loop.create_task(user.sync())
 
     async def stop(self) -> None:
         await self.disconnect()

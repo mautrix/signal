@@ -159,7 +159,7 @@ class Puppet(DBPuppet, BasePuppet):
             "first_name": names[0] if len(names) > 0 else "",
             "last_name": names[-1] if len(names) > 1 else "",
             "full_name": " ".join(names),
-            "phone": cls.fmt_phone(address.number) if address.number != None else None,
+            "phone": cls.fmt_phone(address.number) if address.number else None,
             "uuid": str(address.uuid) if address.uuid else None,
         }
         for pref in cls.config["bridge.displayname_preference"]:
