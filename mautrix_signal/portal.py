@@ -634,7 +634,7 @@ class Portal(DBPortal, BasePortal):
         if self.is_direct:
             initial_state.append({
                 "type": "m.room.power_levels",
-                "content": {"users": {self.bridge_info.get('creator'): 100},
+                "content": {"users": {self.main_intent.mxid: 100},
                             "events": {"m.room.avatar": 0, "m.room.name": 0}}
             })
 
