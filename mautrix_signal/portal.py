@@ -174,7 +174,8 @@ class Portal(DBPortal, BasePortal):
         if message.get_reply_to():
             reply = await DBMessage.get_by_mxid(message.get_reply_to(), self.mxid)
             # TODO include actual text? either store in db or fetch event from homeserver
-            quote = Quote(id=reply.timestamp, author=Address(uuid=reply.sender), text="")
+            if reply is not None:
+                quote = Quote(id=reply.timestamp, author=Address(uuid=reply.sender), text="")
 
         text = message.body
         attachments: Optional[List[Attachment]] = None
