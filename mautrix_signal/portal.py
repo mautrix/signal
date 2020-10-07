@@ -631,6 +631,13 @@ class Portal(DBPortal, BasePortal):
                 "type": "m.room.related_groups",
                 "content": {"groups": [self.config["appservice.community_id"]]},
             })
+        #Allow chaning of room avatar and name in direct chats
+        if self.is_direct:
+            initial_state.append({
+                "type": "m.room.power_levels",
+                "content": {"users": {self.main_intent.mxid: 100},
+                            "events": {"m.room.avatar": 0, "m.room.name": 0}}
+            })
 
         self.mxid = await self.main_intent.create_room(name=name, is_direct=self.is_direct,
                                                        initial_state=initial_state,
