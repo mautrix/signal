@@ -13,7 +13,10 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from . import command_handler, CommandEvent, SECTION_CONNECTION
+from mautrix.bridge.commands import HelpSection, command_handler
+from .typehint import CommandEvent
+
+SECTION_CONNECTION = HelpSection("Connection management", 15, "")
 
 
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_CONNECTION,
@@ -22,7 +25,6 @@ async def set_notice_room(evt: CommandEvent) -> None:
     evt.sender.notice_room = evt.room_id
     await evt.sender.update()
     await evt.reply("This room has been marked as your bridge notice room")
-
 
 # @command_handler(needs_auth=False, management_only=True, help_section=SECTION_CONNECTION,
 #                  help_text="Check if you're logged into Twitter")

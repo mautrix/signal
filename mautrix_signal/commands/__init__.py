@@ -1,2 +1,2 @@
-from .handler import (CommandProcessor, command_handler, CommandEvent, CommandHandler, SECTION_AUTH, SECTION_CONNECTION)
-from . import auth, conn
+from .auth import SECTION_AUTH
+from .conn import SECTION_CONNECTION

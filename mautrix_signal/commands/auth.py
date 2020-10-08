@@ -20,15 +20,18 @@ from mausignald.types import Account
 from mautrix.client import Client
 from mautrix.bridge import custom_puppet as cpu
 from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
+from mautrix.bridge.commands import HelpSection, command_handler
 
-from . import command_handler, CommandEvent, SECTION_AUTH
 from .. import puppet as pu
+from .typehint import CommandEvent
 
 try:
     import qrcode
     import PIL as _
 except ImportError:
     qrcode = None
+
+SECTION_AUTH = HelpSection("Authentication", 10, "")
 
 
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,

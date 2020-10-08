@@ -23,14 +23,13 @@ from mautrix.types import (Event, ReactionEvent, MessageEvent, StateEvent, Encry
                            ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent)
 
 from .db import Message as DBMessage
-from . import commands as com, puppet as pu, portal as po, user as u, signal as s
+from . import puppet as pu, portal as po, user as u, signal as s
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
 
 
 class MatrixHandler(BaseMatrixHandler):
-    commands: 'com.CommandProcessor'
     signal: 's.SignalHandler'
 
     def __init__(self, bridge: 'SignalBridge') -> None:
@@ -40,7 +39,7 @@ class MatrixHandler(BaseMatrixHandler):
         self.user_id_suffix = f"{suffix}:{homeserver}"
         self.signal = bridge.signal
 
-        super().__init__(command_processor=com.CommandProcessor(bridge), bridge=bridge)
+        super().__init__(bridge=bridge)
 
     def filter_matrix_event(self, evt: Event) -> bool:
         if not isinstance(evt, (ReactionEvent, MessageEvent, StateEvent, EncryptedEvent,
@@ -67,19 +66,6 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         await portal.handle_matrix_leave(user)
-
-    # @staticmethod
-    # async def handle_redaction(room_id: RoomID, user_id: UserID, event_id: EventID,
-    #                            redaction_event_id: EventID) -> None:
-    #     user = await u.User.get_by_mxid(user_id)
-    #     if not user:
-    #         return
-    #
-    #     portal = await po.Portal.get_by_mxid(room_id)
-    #     if not portal:
-    #         return
-    #
-    #     await portal.handle_matrix_redaction(user, event_id, redaction_event_id)
 
     @classmethod
     async def handle_reaction(cls, room_id: RoomID, user_id: UserID, event_id: EventID,
@@ -134,10 +120,7 @@ class MatrixHandler(BaseMatrixHandler):
         #     # TODO
 
     async def handle_event(self, evt: Event) -> None:
-        if evt.type == EventType.ROOM_REDACTION:
-            evt: RedactionEvent
-            # await self.handle_redaction(evt.room_id, evt.sender, evt.redacts, evt.event_id)
-        elif evt.type == EventType.REACTION:
+        if evt.type == EventType.REACTION:
             evt: ReactionEvent
             await self.handle_reaction(evt.room_id, evt.sender, evt.event_id, evt.content)
 
