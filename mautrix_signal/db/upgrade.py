@@ -95,3 +95,8 @@ async def upgrade_v1(conn: Connection) -> None:
 async def upgrade_v2(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN avatar_hash TEXT")
     await conn.execute("ALTER TABLE portal ADD COLUMN avatar_url TEXT")
+
+
+@upgrade_table.register(description="Add double-puppeting base_url to puppe table")
+async def upgrade_v3(conn: Connection) -> None:
+    await conn.execute("ALTER TABLE puppet ADD COLUMN base_url TEXT")

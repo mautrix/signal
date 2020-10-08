@@ -18,6 +18,8 @@ from typing import (Optional, Dict, AsyncIterable, Awaitable, AsyncGenerator, Un
 from uuid import UUID
 import asyncio
 
+from yarl import URL
+
 from mausignald.types import Address, Contact, Profile
 from mautrix.bridge import BasePuppet
 from mautrix.appservice import IntentAPI
@@ -52,14 +54,13 @@ class Puppet(DBPuppet, BasePuppet):
     _uuid_lock: asyncio.Lock
     _update_info_lock: asyncio.Lock
 
-    def __init__(self, uuid: Optional[UUID], number: Optional[str],
-                 name: Optional[str] = None, uuid_registered: bool = False,
-                 number_registered: bool = False, custom_mxid: Optional[UserID] = None,
-                 access_token: Optional[str] = None, next_batch: Optional[SyncToken] = None
-                 ) -> None:
+    def __init__(self, uuid: Optional[UUID], number: Optional[str], name: Optional[str] = None,
+                 uuid_registered: bool = False, number_registered: bool = False,
+                 custom_mxid: Optional[UserID] = None, access_token: Optional[str] = None,
+                 next_batch: Optional[SyncToken] = None, base_url: Optional[URL] = None) -> None:
         super().__init__(uuid=uuid, number=number, name=name, uuid_registered=uuid_registered,
                          number_registered=number_registered, custom_mxid=custom_mxid,
-                         access_token=access_token, next_batch=next_batch)
+                         access_token=access_token, next_batch=next_batch, base_url=base_url)
         self.log = self.log.getChild(str(uuid) or number)
 
         self.default_mxid = self.get_mxid_from_id(self.address)
@@ -79,8 +80,12 @@ class Puppet(DBPuppet, BasePuppet):
         cls.mxid_template = SimpleTemplate(cls.config["bridge.username_template"], "userid",
                                            prefix="@", suffix=f":{cls.hs_domain}", type=str)
         cls.sync_with_custom_puppets = cls.config["bridge.sync_with_custom_puppets"]
-        secret = cls.config["bridge.login_shared_secret"]
-        cls.login_shared_secret = secret.encode("utf-8") if secret else None
+
+        cls.homeserver_url_map = {server: URL(url) for server, url
+                                  in cls.config["bridge.double_puppet_server_map"].items()}
+        cls.allow_discover_url = cls.config["bridge.double_puppet_allow_discovery"]
+        cls.login_shared_secret_map = {server: secret.encode("utf-8") for server, secret
+                                       in cls.config["bridge.login_shared_secret_map"].items()}
         cls.login_device_name = "Signal Bridge"
         return (puppet.try_start() async for puppet in cls.all_with_custom_mxid())
 

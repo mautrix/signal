@@ -70,7 +70,14 @@ class Config(BaseBridgeConfig):
         copy("bridge.autocreate_contact_portal")
         copy("bridge.sync_with_custom_puppets")
         copy("bridge.sync_direct_chat_list")
-        copy("bridge.login_shared_secret")
+        copy("bridge.double_puppet_server_map")
+        copy("bridge.double_puppet_allow_discovery")
+        if self["bridge.login_shared_secret"]:
+            base["bridge.login_shared_secret_map"] = {
+                base["homeserver.domain"]: self["bridge.login_shared_secret"]
+            }
+        else:
+            copy("bridge.login_shared_secret_map")
         copy("bridge.federate_rooms")
         copy("bridge.encryption.allow")
         copy("bridge.encryption.default")
