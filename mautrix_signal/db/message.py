@@ -68,7 +68,7 @@ class Message:
         row = await cls.db.fetchrow(q, mxid, mx_room)
         if not row:
             return None
-        return cls(**row)
+        return cls._from_row(row)
 
     @classmethod
     async def get_by_signal_id(cls, sender: UUID, timestamp: int, signal_chat_id: Union[str, UUID],
@@ -79,14 +79,14 @@ class Message:
         row = await cls.db.fetchrow(q, sender, timestamp, str(signal_chat_id), signal_receiver)
         if not row:
             return None
-        return cls(**row)
+        return cls._from_row(row)
 
     @classmethod
     async def find_by_timestamps(cls, timestamps: List[int]) -> List['Message']:
         q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
              "FROM message WHERE timestamp=ANY($1)")
         rows = await cls.db.fetch(q, timestamps)
-        return [cls(**row) for row in rows]
+        return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def find_by_sender_timestamp(cls, sender: UUID, timestamp: int) -> Optional['Message']:
@@ -95,4 +95,4 @@ class Message:
         row = await cls.db.fetchrow(q, sender, timestamp)
         if not row:
             return None
-        return cls(**row)
+        return cls._from_row(row)

@@ -76,7 +76,7 @@ class Reaction:
         row = await cls.db.fetchrow(q, mxid, mx_room)
         if not row:
             return None
-        return cls(**row)
+        return cls._from_row(row)
 
     @classmethod
     async def get_by_signal_id(cls, chat_id: str, receiver: str, msg_author: UUID,
@@ -88,4 +88,4 @@ class Reaction:
         row = await cls.db.fetchrow(q, chat_id, receiver, msg_author, msg_timestamp, author)
         if not row:
             return None
-        return cls(**row)
+        return cls._from_row(row)
