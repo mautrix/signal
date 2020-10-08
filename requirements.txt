@@ -2,7 +2,7 @@ ruamel.yaml>=0.15.35,<0.17
 python-magic>=0.4,<0.5
 commonmark>=0.8,<0.10
 aiohttp>=3,<4
-yarl>=1,<2
+yarl>=1,<1.6
 attrs>=19.1
 mautrix==0.8.0b1
 asyncpg>=0.20,<0.22
