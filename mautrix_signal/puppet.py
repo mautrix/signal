@@ -166,6 +166,7 @@ class Puppet(DBPuppet, BasePuppet):
             "full_name": " ".join(names),
             "phone": cls.fmt_phone(address.number) if address.number else None,
             "uuid": str(address.uuid) if address.uuid else None,
+            "displayname": "Unknown user",
         }
         for pref in cls.config["bridge.displayname_preference"]:
             value = data.get(pref.replace(" ", "_"))

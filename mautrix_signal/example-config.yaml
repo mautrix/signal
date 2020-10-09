@@ -92,6 +92,7 @@ bridge:
     displayname_preference:
     - full_name
     - phone
+    - uuid
 
     # Whether or not to create portals for all groups on login/connect.
     autocreate_group_portal: true
