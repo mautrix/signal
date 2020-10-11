@@ -17,7 +17,7 @@
     * [ ] Avatar
   * [ ] †Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
-  * [ ] Delivery receipts
+  * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
   * [ ] Message content
     * [x] Text
