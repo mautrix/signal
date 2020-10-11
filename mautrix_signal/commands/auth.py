@@ -16,7 +16,6 @@
 import io
 
 from mausignald.errors import UnexpectedResponse
-from mausignald.types import Account
 from mautrix.client import Client
 from mautrix.bridge import custom_puppet as cpu
 from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
@@ -70,12 +69,12 @@ async def register(evt: CommandEvent) -> None:
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
-    resp = await evt.bridge.signal.request("register", "verification_required", username=phone)
+    username = await evt.bridge.signal.register(phone)
     evt.sender.command_status = {
         "action": "Register",
         "room_id": evt.room_id,
         "next": enter_register_code,
-        "username": resp["username"],
+        "username": username,
     }
     await evt.reply("Register SMS requested, please enter the code here.")
 
@@ -83,15 +82,13 @@ async def register(evt: CommandEvent) -> None:
 async def enter_register_code(evt: CommandEvent) -> None:
     try:
         username = evt.sender.command_status["username"]
-        resp = await evt.bridge.signal.request("verify", "verification_succeeded",
-                                               code=evt.args[0], username=username)
+        account = await evt.bridge.signal.verify(username, code=evt.args[0])
     except UnexpectedResponse as e:
         if e.resp_type == "error":
             await evt.reply(e.data)
         else:
             raise
     else:
-        account = Account.deserialize(resp)
         await evt.sender.on_signin(account)
         await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
 

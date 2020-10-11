@@ -62,6 +62,16 @@ class SignaldClient(SignaldRPCClient):
             self.log.debug("Failed to subscribe to %s: %s", username, e)
             return False
 
+    async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
+                       ) -> str:
+        resp = await self.request("register", "verification_required", username=phone,
+                                  voice=voice, captcha=captcha)
+        return resp["username"]
+
+    async def verify(self, username: str, code: str) -> Account:
+        resp = await self.request("verify", "verification_succeeded", username=username, code=code)
+        return Account.deserialize(resp)
+
     async def link(self, url_callback: Callable[[str], Awaitable[None]],
                    device_name: str = "mausignald") -> Account:
         req_id = uuid4()
