@@ -20,7 +20,7 @@ from mausignald.types import Address
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (Event, ReactionEvent, MessageEvent, StateEvent, EncryptedEvent, RoomID,
                            EventID, UserID, ReactionEventContent, RelationType, EventType,
-                           ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent)
+                           ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent, ReceiptType)
 
 from .db import Message as DBMessage
 from . import puppet as pu, portal as po, user as u, signal as s
@@ -87,9 +87,11 @@ class MatrixHandler(BaseMatrixHandler):
 
     async def handle_receipt(self, evt: ReceiptEvent) -> None:
         # These events come from custom puppet syncing, so there's always only one user.
-        event_id, receipts = evt.content.popitem()
-        receipt_type, users = receipts.popitem()
-        user_id, data = users.popitem()
+        try:
+            event_id, receipts = evt.content.popitem()
+            user_id, data = receipts[ReceiptType.READ].popitem()
+        except KeyError:
+            return
 
         user = await u.User.get_by_mxid(user_id, create=False)
         if not user or not user.username:
@@ -104,8 +106,8 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
-        await self.signal.mark_read(user.username, Address(uuid=message.sender),
-                                    timestamps=[message.timestamp], when=data.ts)
+        await self.signal.send_receipt(user.username, Address(uuid=message.sender),
+                                       timestamps=[message.timestamp], when=data.ts, read=True)
 
     async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
         pass

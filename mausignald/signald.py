@@ -108,9 +108,10 @@ class SignaldClient(SignaldRPCClient):
                            timestamp=timestamp, **self._recipient_to_args(recipient))
         # TODO return something?
 
-    async def mark_read(self, username: str, sender: Address, timestamps: List[int],
-                        when: Optional[int] = None) -> None:
-        await self.request_nowait("mark_read", username=username, timestamps=timestamps, when=when,
+    async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
+                           when: Optional[int] = None, read: bool = False) -> None:
+        await self.request_nowait("mark_read" if read else "mark_delivered", username=username,
+                                  timestamps=timestamps, when=when,
                                   recipientAddress=sender.serialize())
 
     async def list_contacts(self, username: str) -> List[Contact]:

@@ -289,16 +289,21 @@ class Portal(DBPortal, BasePortal):
         except MatrixError:
             return reply_msg.mxid
 
-    async def handle_signal_message(self, sender: 'p.Puppet', message: MessageData) -> None:
+    async def handle_signal_message(self, source: 'u.User', sender: 'p.Puppet',
+                                    message: MessageData) -> None:
         if (sender.uuid, message.timestamp) in self._msgts_dedup:
             self.log.debug(f"Ignoring message {message.timestamp} by {sender.uuid}"
                            " as it was already handled (message.timestamp in dedup queue)")
+            await self.signal.send_receipt(source.username, sender.address,
+                                           timestamps=[message.timestamp])
             return
         old_message = await DBMessage.get_by_signal_id(sender.uuid, message.timestamp,
                                                        self.chat_id, self.receiver)
         if old_message is not None:
             self.log.debug(f"Ignoring message {message.timestamp} by {sender.uuid}"
                            " as it was already handled (message.id found in database)")
+            await self.signal.send_receipt(source.username, sender.address,
+                                           timestamps=[message.timestamp])
             return
         self.log.debug(f"Started handling message {message.timestamp} by {sender.uuid}")
         self.log.trace(f"Message content: {message}")
@@ -343,6 +348,8 @@ class Portal(DBPortal, BasePortal):
                             sender=sender.uuid, timestamp=message.timestamp,
                             signal_chat_id=self.chat_id, signal_receiver=self.receiver)
             await msg.insert()
+            await self.signal.send_receipt(source.username, sender.address,
+                                           timestamps=[message.timestamp])
             await self._send_delivery_receipt(event_id)
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
         else:
