@@ -92,7 +92,6 @@ bridge:
     displayname_preference:
     - full_name
     - phone
-    - uuid
 
     # Whether or not to create portals for all groups on login/connect.
     autocreate_group_portal: true
@@ -117,7 +116,8 @@ bridge:
     # manually.
     # If using this for other servers than the bridge's server,
     # you must also set the URL in the double_puppet_server_map.
-    login_shared_secret_map: {}
+    login_shared_secret_map:
+        example.com: foo
     # Whether or not created rooms should have federation enabled.
     # If false, created portal rooms will never be federated.
     federate_rooms: true

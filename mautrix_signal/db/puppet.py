@@ -49,7 +49,7 @@ class Puppet:
              "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
         await self.db.execute(q, self.uuid, self.number, self.name, self.uuid_registered,
                               self.number_registered, self.custom_mxid, self.access_token,
-                              self.next_batch, str(self.base_url))
+                              self.next_batch, str(self.base_url) if self.base_url else None)
 
     async def _set_uuid(self, uuid: UUID) -> None:
         if self.uuid:
@@ -68,7 +68,7 @@ class Puppet:
                  "WHERE uuid=$1")
         await self.db.execute(q, self.uuid, self.number, self.name, self.uuid_registered,
                               self.number_registered, self.custom_mxid, self.access_token,
-                              self.next_batch, str(self.base_url))
+                              self.next_batch, str(self.base_url) if self.base_url else None)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Puppet':

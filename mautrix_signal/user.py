@@ -51,6 +51,7 @@ class User(DBUser, BaseUser):
         self.is_whitelisted, self.is_admin, self.permission_level = perms
         self.log = self.log.getChild(self.mxid)
         self.dm_update_lock = asyncio.Lock()
+        self.command_status = None
 
     @classmethod
     def init_cls(cls, bridge: 'SignalBridge') -> None:
