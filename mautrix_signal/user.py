@@ -128,6 +128,9 @@ class User(DBUser, BaseUser):
 
     @classmethod
     async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Optional['User']:
+        # Never allow ghosts to be users
+        if pu.Puppet.get_id_from_mxid(mxid):
+            return None
         try:
             return cls.by_mxid[mxid]
         except KeyError:

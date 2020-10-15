@@ -86,28 +86,24 @@ class MatrixHandler(BaseMatrixHandler):
                                             content.relates_to.key)
 
     async def handle_receipt(self, evt: ReceiptEvent) -> None:
-        # These events come from custom puppet syncing, so there's always only one user.
-        try:
-            event_id, receipts = evt.content.popitem()
-            user_id, data = receipts[ReceiptType.READ].popitem()
-        except KeyError:
-            return
+        for event_id, receipts in evt.content.items():
+            for user_id, data in receipts[ReceiptType.READ].items():
+                user = await u.User.get_by_mxid(user_id, create=False)
+                if not user or not user.username:
+                    continue
 
-        user = await u.User.get_by_mxid(user_id, create=False)
-        if not user or not user.username:
-            return
+                portal = await po.Portal.get_by_mxid(evt.room_id)
+                if not portal:
+                    continue
 
-        portal = await po.Portal.get_by_mxid(evt.room_id)
-        if not portal:
-            return
+                message = await DBMessage.get_by_mxid(event_id, portal.mxid)
+                if not message:
+                    continue
 
-        message = await DBMessage.get_by_mxid(event_id, portal.mxid)
-        if not message:
-            return
-
-        user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
-        await self.signal.send_receipt(user.username, Address(uuid=message.sender),
-                                       timestamps=[message.timestamp], when=data.ts, read=True)
+                user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
+                await self.signal.send_receipt(user.username, Address(uuid=message.sender),
+                                               timestamps=[message.timestamp], when=data.ts,
+                                               read=True)
 
     async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
         pass
