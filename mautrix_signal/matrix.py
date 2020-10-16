@@ -20,7 +20,8 @@ from mausignald.types import Address
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (Event, ReactionEvent, MessageEvent, StateEvent, EncryptedEvent, RoomID,
                            EventID, UserID, ReactionEventContent, RelationType, EventType,
-                           ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent, ReceiptType)
+                           ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent,
+                           SingleReceiptEventContent)
 
 from .db import Message as DBMessage
 from . import puppet as pu, portal as po, user as u, signal as s
@@ -85,25 +86,15 @@ class MatrixHandler(BaseMatrixHandler):
         await portal.handle_matrix_reaction(user, event_id, content.relates_to.event_id,
                                             content.relates_to.key)
 
-    async def handle_receipt(self, evt: ReceiptEvent) -> None:
-        for event_id, receipts in evt.content.items():
-            for user_id, data in receipts[ReceiptType.READ].items():
-                user = await u.User.get_by_mxid(user_id, create=False)
-                if not user or not user.username:
-                    continue
+    async def handle_read_receipt(self, user: 'u.User', portal: 'po.Portal', event_id: EventID,
+                                  data: SingleReceiptEventContent) -> None:
+        message = await DBMessage.get_by_mxid(event_id, portal.mxid)
+        if not message:
+            return
 
-                portal = await po.Portal.get_by_mxid(evt.room_id)
-                if not portal:
-                    continue
-
-                message = await DBMessage.get_by_mxid(event_id, portal.mxid)
-                if not message:
-                    continue
-
-                user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
-                await self.signal.send_receipt(user.username, Address(uuid=message.sender),
-                                               timestamps=[message.timestamp], when=data.ts,
-                                               read=True)
+        user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
+        await self.signal.send_receipt(user.username, Address(uuid=message.sender),
+                                       timestamps=[message.timestamp], when=data.ts, read=True)
 
     async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
         pass
@@ -126,5 +117,5 @@ class MatrixHandler(BaseMatrixHandler):
                                      ) -> None:
         if evt.type == EventType.TYPING:
             await self.handle_typing(evt.room_id, evt.content.user_ids)
-        elif evt.type == EventType.RECEIPT:
-            await self.handle_receipt(evt)
+        else:
+            super().handle_ephemeral_event(evt)
