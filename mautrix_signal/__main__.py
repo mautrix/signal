@@ -88,8 +88,8 @@ class SignalBridge(Bridge):
             await portal.update_bridge_info()
         self.log.info("Finished re-sending bridge info state events")
 
-    async def get_user(self, user_id: UserID) -> User:
-        return await User.get_by_mxid(user_id)
+    async def get_user(self, user_id: UserID, create: bool = True) -> User:
+        return await User.get_by_mxid(user_id, create=create)
 
     async def get_portal(self, room_id: RoomID) -> Portal:
         return await Portal.get_by_mxid(room_id)
