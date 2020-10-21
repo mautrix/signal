@@ -28,7 +28,7 @@ from mautrix.util.simple_template import SimpleTemplate
 
 from .db import Puppet as DBPuppet
 from .config import Config
-from . import portal as p
+from . import portal as p, user as u
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -90,7 +90,7 @@ class Puppet(DBPuppet, BasePuppet):
         return (puppet.try_start() async for puppet in cls.all_with_custom_mxid())
 
     def intent_for(self, portal: 'p.Portal') -> IntentAPI:
-        if portal.chat_id == self.uuid:
+        if portal.chat_id == self.address:
             return self.default_mxid_intent
         return self.intent
 
@@ -118,14 +118,22 @@ class Puppet(DBPuppet, BasePuppet):
 
     async def _handle_uuid_receive(self, uuid: UUID) -> None:
         self.log.debug(f"Found UUID for user: {uuid}")
+        user = await u.User.get_by_username(self.number)
+        if user and not user.uuid:
+            user.uuid = self.uuid
+            await user.update()
         await self._set_uuid(uuid)
         self.by_uuid[self.uuid] = self
+        async for portal in p.Portal.find_private_chats_with(Address(number=self.number)):
+            self.log.trace(f"Updating chat_id of private chat portal {portal.receiver}")
+            portal.handle_uuid_receive(self.uuid)
         prev_intent = self.default_mxid_intent
         self.default_mxid = self.get_mxid_from_id(self.address)
         self.default_mxid_intent = self.az.intent.user(self.default_mxid)
         self.intent = self._fresh_intent()
         await self.intent.ensure_registered()
-        await self.intent.set_displayname(self.name)
+        if self.name:
+            await self.intent.set_displayname(self.name)
         self.log = self.log.getChild(str(uuid))
         self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {self.default_mxid_intent}")
         for room_id in await prev_intent.get_joined_rooms():
@@ -186,7 +194,7 @@ class Puppet(DBPuppet, BasePuppet):
         return False
 
     async def _update_portal_names(self) -> None:
-        async for portal in p.Portal.find_private_chats_with(self.uuid):
+        async for portal in p.Portal.find_private_chats_with(self.address):
             if portal.receiver == self.number:
                 # This is a note to self chat, don't change the name
                 continue

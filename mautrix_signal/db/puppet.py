@@ -55,7 +55,12 @@ class Puppet:
         if self.uuid:
             raise ValueError("Can't re-set UUID for puppet")
         self.uuid = uuid
-        await self.db.execute("UPDATE puppet SET uuid=$1 WHERE number=$2", uuid, self.number)
+        async with self.db.acquire() as conn, conn.transaction():
+            await conn.execute("UPDATE puppet SET uuid=$1 WHERE number=$2", uuid, self.number)
+            uuid = str(uuid)
+            await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2", uuid, self.number)
+            await conn.execute("UPDATE message SET sender=$1 WHERE sender=$2", uuid, self.number)
+            await conn.execute("UPDATE reaction SET author=$1 WHERE author=$2", uuid, self.number)
 
     async def update(self) -> None:
         if self.uuid is None:

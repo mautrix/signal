@@ -11,7 +11,8 @@ from mautrix.util.logging import TraceLogger
 
 from .rpc import SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse, make_linking_error
-from .types import Address, Quote, Attachment, Reaction, Account, Message, Contact, Group, Profile
+from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
+                    Profile, GroupID)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -96,19 +97,19 @@ class SignaldClient(SignaldRPCClient):
         return [Account.deserialize(acc) for acc in data["accounts"]]
 
     @staticmethod
-    def _recipient_to_args(recipient: Union[Address, str]) -> Dict[str, Any]:
+    def _recipient_to_args(recipient: Union[Address, GroupID]) -> Dict[str, Any]:
         if isinstance(recipient, Address):
             return {"recipientAddress": recipient.serialize()}
         else:
             return {"recipientGroupId": recipient}
 
-    async def react(self, username: str, recipient: Union[Address, str],
+    async def react(self, username: str, recipient: Union[Address, GroupID],
                     reaction: Reaction) -> None:
         await self.request("react", "send_results", username=username,
                            reaction=reaction.serialize(),
                            **self._recipient_to_args(recipient))
 
-    async def send(self, username: str, recipient: Union[Address, str], body: str,
+    async def send(self, username: str, recipient: Union[Address, GroupID], body: str,
                    quote: Optional[Quote] = None, attachments: Optional[List[Attachment]] = None,
                    timestamp: Optional[int] = None) -> None:
         serialized_quote = quote.serialize() if quote else None

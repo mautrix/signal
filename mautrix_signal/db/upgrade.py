@@ -100,3 +100,17 @@ async def upgrade_v2(conn: Connection) -> None:
 @upgrade_table.register(description="Add double-puppeting base_url to puppe table")
 async def upgrade_v3(conn: Connection) -> None:
     await conn.execute("ALTER TABLE puppet ADD COLUMN base_url TEXT")
+
+
+@upgrade_table.register(description="Allow phone numbers as message sender identifiers")
+async def upgrade_v4(conn: Connection) -> None:
+    cname = await conn.fetchval("SELECT constraint_name FROM information_schema.table_constraints "
+                                "WHERE table_name='reaction' AND constraint_name LIKE '%_fkey'")
+    await conn.execute(f"ALTER TABLE reaction DROP CONSTRAINT {cname}")
+    await conn.execute("ALTER TABLE reaction ALTER COLUMN msg_author SET DATA TYPE TEXT")
+    await conn.execute("ALTER TABLE reaction ALTER COLUMN author SET DATA TYPE TEXT")
+    await conn.execute("ALTER TABLE message ALTER COLUMN sender SET DATA TYPE TEXT")
+    await conn.execute(f"ALTER TABLE reaction ADD CONSTRAINT {cname} "
+                       "FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver) "
+                       "  REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver) "
+                       "  ON DELETE CASCADE ON UPDATE CASCADE")

@@ -15,8 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import List, Union, TYPE_CHECKING
 
-from mausignald.types import Address
-
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (Event, ReactionEvent, MessageEvent, StateEvent, EncryptedEvent, RoomID,
                            EventID, UserID, ReactionEventContent, RelationType, EventType,
@@ -93,7 +91,7 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
-        await self.signal.send_receipt(user.username, Address(uuid=message.sender),
+        await self.signal.send_receipt(user.username, message.sender,
                                        timestamps=[message.timestamp], when=data.ts, read=True)
 
     async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
@@ -118,4 +116,4 @@ class MatrixHandler(BaseMatrixHandler):
         if evt.type == EventType.TYPING:
             await self.handle_typing(evt.room_id, evt.content.user_ids)
         else:
-            super().handle_ephemeral_event(evt)
+            await super().handle_ephemeral_event(evt)

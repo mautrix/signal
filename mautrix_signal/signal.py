@@ -42,10 +42,6 @@ class SignalHandler(SignaldClient):
 
     async def on_message(self, evt: Message) -> None:
         sender = await pu.Puppet.get_by_address(evt.source)
-        if not sender.uuid:
-            self.log.debug("Got message sender puppet with no UUID, not handling message")
-            self.log.trace("Message content: %s", evt)
-            return
         user = await u.User.get_by_username(evt.username)
         # TODO add lots of logging
 
@@ -74,8 +70,7 @@ class SignalHandler(SignaldClient):
         if msg.group:
             portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
-            portal = await po.Portal.get_by_chat_id(addr_override.uuid
-                                                    if addr_override else sender.uuid,
+            portal = await po.Portal.get_by_chat_id(addr_override or sender.address,
                                                     receiver=user.username, create=True)
             if addr_override and not sender.is_real_user:
                 portal.log.debug(f"Ignoring own message {msg.timestamp} as user doesn't have"
@@ -94,9 +89,9 @@ class SignalHandler(SignaldClient):
     async def handle_own_receipts(sender: 'pu.Puppet', receipts: List[OwnReadReceipt]) -> None:
         for receipt in receipts:
             puppet = await pu.Puppet.get_by_address(receipt.sender, create=False)
-            if not puppet or not puppet.uuid:
+            if not puppet:
                 continue
-            message = await DBMessage.find_by_sender_timestamp(puppet.uuid, receipt.timestamp)
+            message = await DBMessage.find_by_sender_timestamp(puppet.address, receipt.timestamp)
             if not message:
                 continue
             portal = await po.Portal.get_by_mxid(message.mx_room)
@@ -110,7 +105,7 @@ class SignalHandler(SignaldClient):
         if typing.group_id:
             portal = await po.Portal.get_by_chat_id(typing.group_id)
         else:
-            portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username)
+            portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
         if not portal or not portal.mxid:
             return
         is_typing = typing.action == TypingAction.STARTED

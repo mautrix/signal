@@ -3,13 +3,15 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, NewType
 from uuid import UUID
 
 from attr import dataclass
 import attr
 
 from mautrix.types import SerializableAttrs, SerializableEnum
+
+GroupID = NewType('GroupID', str)
 
 
 @dataclass
@@ -23,7 +25,7 @@ class Account(SerializableAttrs['Account']):
     uuid: Optional[UUID] = None
 
 
-@dataclass
+@dataclass(frozen=True, eq=False)
 class Address(SerializableAttrs['Address']):
     number: Optional[str] = None
     uuid: Optional[UUID] = None
@@ -31,6 +33,28 @@ class Address(SerializableAttrs['Address']):
     @property
     def is_valid(self) -> bool:
         return bool(self.number) or bool(self.uuid)
+
+    @property
+    def best_identifier(self) -> str:
+        return str(self.uuid) if self.uuid else self.number
+
+    def __eq__(self, other: 'Address') -> bool:
+        if not isinstance(other, Address):
+            return False
+        if self.uuid and other.uuid:
+            return self.uuid == other.uuid
+        elif self.number and other.number:
+            return self.number == other.number
+        return False
+
+    def __hash__(self) -> int:
+        if self.uuid:
+            return hash(self.uuid)
+        return hash(self.number)
+
+    @classmethod
+    def parse(cls, value: str) -> 'Address':
+        return Address(number=value) if value.startswith("+") else Address(uuid=UUID(value))
 
 
 @dataclass
@@ -53,8 +77,8 @@ class Profile(SerializableAttrs['Profile']):
 
 @dataclass
 class Group(SerializableAttrs['Group']):
-    group_id: str = attr.ib(metadata={"json": "groupId"})
-    name: str
+    group_id: GroupID = attr.ib(metadata={"json": "groupId"})
+    name: str = "Unknown group"
 
     # Sometimes "UPDATE"
     type: Optional[str] = None
@@ -147,7 +171,7 @@ class TypingAction(SerializableEnum):
 class TypingNotification(SerializableAttrs['TypingNotification']):
     action: TypingAction
     timestamp: int
-    group_id: Optional[str] = attr.ib(default=None, metadata={"json": "groupId"})
+    group_id: Optional[GroupID] = attr.ib(default=None, metadata={"json": "groupId"})
 
 
 @dataclass

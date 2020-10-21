@@ -106,8 +106,8 @@ class User(DBUser, BaseUser):
                 # necessary, but maybe we could listen for updates?
                 profile = None
             await puppet.update_info(profile or contact)
-            if puppet.uuid and create_contact_portal:
-                portal = await po.Portal.get_by_chat_id(puppet.uuid, self.username, create=True)
+            if create_contact_portal:
+                portal = await po.Portal.get_by_chat_id(puppet.address, self.username, create=True)
                 await portal.create_matrix_room(self, profile or contact)
 
         create_group_portal = self.config["bridge.autocreate_group_portal"]
