@@ -138,8 +138,8 @@ class Puppet(DBPuppet, BasePuppet):
         self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {self.default_mxid_intent}")
         for room_id in await prev_intent.get_joined_rooms():
             await prev_intent.invite_user(room_id, self.default_mxid)
-            await self.default_mxid_intent.join_room_by_id(room_id)
             await prev_intent.leave_room(room_id)
+            await self.default_mxid_intent.join_room_by_id(room_id)
 
     async def update_info(self, info: Union[Profile, Contact]) -> None:
         if isinstance(info, (Contact, Address)):
