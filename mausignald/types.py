@@ -58,6 +58,26 @@ class Address(SerializableAttrs['Address']):
 
 
 @dataclass
+class TrustLevel(SerializableEnum):
+    TRUSTED_UNVERIFIED = "TRUSTED_UNVERIFIED"
+
+
+@dataclass
+class Identity(SerializableAttrs['Identity']):
+    trust_level: TrustLevel
+    added: int
+    fingerprint: str
+    safety_number: str
+    qr_code_data: str
+    address: Address
+
+
+@dataclass
+class GetIdentitiesResponse(SerializableAttrs['GetIdentitiesResponse']):
+    identities: List[Identity]
+
+
+@dataclass
 class Contact(SerializableAttrs['Contact']):
     address: Address
     name: Optional[str] = None

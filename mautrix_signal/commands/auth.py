@@ -13,11 +13,13 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from typing import Union
 import io
 
 from mausignald.errors import UnexpectedResponse
 from mautrix.client import Client
 from mautrix.bridge import custom_puppet as cpu
+from mautrix.appservice import IntentAPI
 from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
 from mautrix.bridge.commands import HelpSection, command_handler
 
@@ -33,6 +35,20 @@ except ImportError:
 SECTION_AUTH = HelpSection("Authentication", 10, "")
 
 
+async def make_qr(intent: IntentAPI, data: Union[str, bytes], body: str = None
+                  ) -> MediaMessageEventContent:
+    # TODO always encrypt QR codes?
+    buffer = io.BytesIO()
+    image = qrcode.make(data)
+    size = image.pixel_size
+    image.save(buffer, "PNG")
+    qr = buffer.getvalue()
+    mxc = await intent.upload_media(qr, "image/png", "qr.png", len(qr))
+    return MediaMessageEventContent(body=body or data, url=mxc, msgtype=MessageType.IMAGE,
+                                    info=ImageInfo(mimetype="image/png", size=len(qr),
+                                                   width=size, height=size))
+
+
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,
                  help_text="Link the bridge as a secondary device", help_args="[device name]")
 async def link(evt: CommandEvent) -> None:
@@ -43,15 +59,7 @@ async def link(evt: CommandEvent) -> None:
     device_name = " ".join(evt.args) or "Mautrix-Signal bridge"
 
     async def callback(uri: str) -> None:
-        buffer = io.BytesIO()
-        image = qrcode.make(uri)
-        size = image.pixel_size
-        image.save(buffer, "PNG")
-        qr = buffer.getvalue()
-        mxc = await evt.az.intent.upload_media(qr, "image/png", "link-qr.png", len(qr))
-        content = MediaMessageEventContent(body=uri, url=mxc, msgtype=MessageType.IMAGE,
-                                           info=ImageInfo(mimetype="image/png", size=len(qr),
-                                                          width=size, height=size))
+        content = await make_qr(evt.az.intent, uri)
         await evt.az.intent.send_message(evt.room_id, content)
 
     account = await evt.bridge.signal.link(callback, device_name=device_name)

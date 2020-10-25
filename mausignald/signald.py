@@ -12,7 +12,7 @@ from mautrix.util.logging import TraceLogger
 from .rpc import SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse, make_linking_error
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
-                    Profile, GroupID)
+                    Profile, GroupID, Identity, GetIdentitiesResponse)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -142,6 +142,11 @@ class SignaldClient(SignaldRPCClient):
                 return None
             raise
         return Profile.deserialize(resp)
+
+    async def get_identities(self, username: str, address: Address) -> GetIdentitiesResponse:
+        resp = await self.request("get_identities", "identities", username=username,
+                                  recipientAddress=address.serialize())
+        return GetIdentitiesResponse.deserialize(resp)
 
     async def set_profile(self, username: str, new_name: str) -> None:
         await self.request("set_profile", "profile_set", username=username, name=new_name)
