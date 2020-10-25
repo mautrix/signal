@@ -24,6 +24,7 @@ from mausignald.types import Address, Contact, Profile
 from mautrix.bridge import BasePuppet
 from mautrix.appservice import IntentAPI
 from mautrix.types import UserID, SyncToken, RoomID
+from mautrix.errors import MForbidden
 from mautrix.util.simple_template import SimpleTemplate
 
 from .db import Puppet as DBPuppet
@@ -61,7 +62,7 @@ class Puppet(DBPuppet, BasePuppet):
         super().__init__(uuid=uuid, number=number, name=name, uuid_registered=uuid_registered,
                          number_registered=number_registered, custom_mxid=custom_mxid,
                          access_token=access_token, next_batch=next_batch, base_url=base_url)
-        self.log = self.log.getChild(str(uuid) or number)
+        self.log = self.log.getChild(str(uuid) if uuid else number)
 
         self.default_mxid = self.get_mxid_from_id(self.address)
         self.default_mxid_intent = self.az.intent.user(self.default_mxid)
@@ -131,17 +132,24 @@ class Puppet(DBPuppet, BasePuppet):
         self.default_mxid = self.get_mxid_from_id(self.address)
         self.default_mxid_intent = self.az.intent.user(self.default_mxid)
         self.intent = self._fresh_intent()
-        await self.intent.ensure_registered()
+        await self.default_mxid_intent.ensure_registered()
         if self.name:
-            await self.intent.set_displayname(self.name)
-        self.log = self.log.getChild(str(uuid))
-        self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {self.default_mxid_intent}")
-        for room_id in await prev_intent.get_joined_rooms():
+            await self.default_mxid_intent.set_displayname(self.name)
+        self.log = Puppet.log.getChild(str(uuid))
+        self.log.debug(f"Migrating memberships {prev_intent.mxid}"
+                       f" -> {self.default_mxid_intent.mxid}")
+        try:
+            joined_rooms = await prev_intent.get_joined_rooms()
+        except MForbidden as e:
+            self.log.debug(f"Got MForbidden ({e.message}) when getting joined rooms of old mxid, "
+                           "assuming there are no rooms to rejoin")
+            return
+        for room_id in joined_rooms:
             await prev_intent.invite_user(room_id, self.default_mxid)
             await prev_intent.leave_room(room_id)
             await self.default_mxid_intent.join_room_by_id(room_id)
 
-    async def update_info(self, info: Union[Profile, Contact]) -> None:
+    async def update_info(self, info: Union[Profile, Contact, Address]) -> None:
         if isinstance(info, (Contact, Address)):
             address = info.address if isinstance(info, Contact) else info
             if address.uuid and not self.uuid:
