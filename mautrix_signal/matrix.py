@@ -42,7 +42,7 @@ class MatrixHandler(BaseMatrixHandler):
 
     def filter_matrix_event(self, evt: Event) -> bool:
         if not isinstance(evt, (ReactionEvent, MessageEvent, StateEvent, EncryptedEvent,
-                                RedactionEvent)):
+                                RedactionEvent, ReceiptEvent, TypingEvent)):
             return True
         return (evt.sender == self.az.bot_mxid
                 or pu.Puppet.get_id_from_mxid(evt.sender) is not None)
