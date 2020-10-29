@@ -81,7 +81,7 @@ async def pm(evt: CommandEvent) -> None:
 
 @command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
                  help_text="View the safety number of a specific user",
-                 help_args="[--qr] <_phone_>")
+                 help_args="[--qr] [_phone_]")
 async def safety_number(evt: CommandEvent) -> None:
     show_qr = evt.args and evt.args[0].lower() == "--qr"
     if show_qr:
@@ -89,9 +89,10 @@ async def safety_number(evt: CommandEvent) -> None:
             await evt.reply("Can't generate QR code: qrcode and/or PIL not installed")
             return
         evt.args = evt.args[1:]
-    if len(evt.args) == 0 and evt.is_portal:
-        evt.args = [evt.portal.chat_id.number]
-    puppet = await _get_puppet_from_cmd(evt)
+    if len(evt.args) == 0 and evt.portal and evt.portal.is_direct:
+        puppet = await pu.Puppet.get_by_address(evt.portal.chat_id)
+    else:
+        puppet = await _get_puppet_from_cmd(evt)
     if not puppet:
         return
 
