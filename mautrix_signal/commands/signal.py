@@ -81,7 +81,7 @@ async def pm(evt: CommandEvent) -> None:
 
 @command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
                  help_text="View the safety number of a specific user",
-                 help_args="[--qr] [_phone_]")
+                 help_args="[--qr] <_phone_>")
 async def safety_number(evt: CommandEvent) -> None:
     show_qr = evt.args and evt.args[0].lower() == "--qr"
     if show_qr:
@@ -89,7 +89,8 @@ async def safety_number(evt: CommandEvent) -> None:
             await evt.reply("Can't generate QR code: qrcode and/or PIL not installed")
             return
         evt.args = evt.args[1:]
-
+    if len(evt.args) == 0 and evt.is_portal:
+        evt.args = [evt.portal.chat_id.number]
     puppet = await _get_puppet_from_cmd(evt)
     if not puppet:
         return
@@ -110,5 +111,5 @@ async def safety_number(evt: CommandEvent) -> None:
                     f"```\n{_format_safety_number(most_recent.safety_number)}\n```")
     if show_qr and most_recent.qr_code_data:
         data = base64.b64decode(most_recent.qr_code_data)
-        content = await make_qr(evt.az.intent, data, "verification-qr.png")
-        await evt.az.intent.send_message(evt.room_id, content)
+        content = await make_qr(evt.main_intent, data, "verification-qr.png")
+        await evt.main_intent.send_message(evt.room_id, content)
