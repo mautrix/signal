@@ -17,7 +17,7 @@ from typing import Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
 from uuid import UUID
 import asyncio
 
-from mausignald.types import Account, Address
+from mausignald.types import Account, Address, Contact, Group
 from mautrix.bridge import BaseUser
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
@@ -92,32 +92,43 @@ class User(DBUser, BaseUser):
         except Exception:
             self.log.exception("Error while syncing")
 
+    async def _sync_contact(self, contact: Contact, create_portals: bool) -> None:
+        self.log.trace("Syncing contact %s", contact)
+        puppet = await pu.Puppet.get_by_address(contact.address)
+        if not puppet.name:
+            profile = await self.bridge.signal.get_profile(self.username, contact.address)
+            if profile:
+                self.log.trace("Got profile for %s: %s", contact.address, profile)
+        else:
+            # get_profile probably does a request to the servers, so let's not do that unless
+            # necessary, but maybe we could listen for updates?
+            profile = None
+        await puppet.update_info(profile or contact)
+        if create_portals:
+            portal = await po.Portal.get_by_chat_id(puppet.address, self.username, create=True)
+            await portal.create_matrix_room(self, profile or contact)
+
+    async def _sync_group(self, group: Group, create_portals: bool) -> None:
+        self.log.trace("Syncing group %s", group)
+        portal = await po.Portal.get_by_chat_id(group.group_id, create=True)
+        if create_portals:
+            await portal.create_matrix_room(self, group)
+        elif portal.mxid:
+            await portal.update_matrix_room(self, group)
+
     async def _sync(self) -> None:
         create_contact_portal = self.config["bridge.autocreate_contact_portal"]
         for contact in await self.bridge.signal.list_contacts(self.username):
-            self.log.trace("Syncing contact %s", contact)
-            puppet = await pu.Puppet.get_by_address(contact.address)
-            if not puppet.name:
-                profile = await self.bridge.signal.get_profile(self.username, contact.address)
-                if profile:
-                    self.log.trace("Got profile for %s: %s", contact.address, profile)
-            else:
-                # get_profile probably does a request to the servers, so let's not do that unless
-                # necessary, but maybe we could listen for updates?
-                profile = None
-            await puppet.update_info(profile or contact)
-            if create_contact_portal:
-                portal = await po.Portal.get_by_chat_id(puppet.address, self.username, create=True)
-                await portal.create_matrix_room(self, profile or contact)
-
+            try:
+                await self._sync_contact(contact, create_contact_portal)
+            except Exception:
+                self.log.exception(f"Failed to sync contact {contact.address}")
         create_group_portal = self.config["bridge.autocreate_group_portal"]
         for group in await self.bridge.signal.list_groups(self.username):
-            self.log.trace("Syncing group %s", group)
-            portal = await po.Portal.get_by_chat_id(group.group_id, create=True)
-            if create_group_portal:
-                await portal.create_matrix_room(self, group)
-            elif portal.mxid:
-                await portal.update_matrix_room(self, group)
+            try:
+                await self._sync_group(group, create_group_portal)
+            except Exception:
+                self.log.exception(f"Failed to sync group {group.group_id}")
 
     # region Database getters
 
