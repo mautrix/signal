@@ -55,6 +55,7 @@ class Config(BaseBridgeConfig):
 
         copy("signal.socket_path")
         copy("signal.outgoing_attachment_dir")
+        copy("signal.incoming_attachment_dir")
         copy("signal.avatar_dir")
         copy("signal.remove_file_after_handling")
 

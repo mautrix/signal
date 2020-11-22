@@ -157,11 +157,24 @@ class Portal(DBPortal, BasePortal):
                                       message.file.hashes.get("sha256"), message.file.iv)
         else:
             data = await self.main_intent.download_media(message.url)
-        path = os.path.join(self.config["signal.outgoing_attachment_dir"],
-                            f"mautrix-signal-{str(uuid4())}")
+
+        filename = f"mautrix-signal-{str(uuid4())}"
+        attachment_dir = self.config["signal.outgoing_attachment_dir"]
+        path = os.path.join(attachment_dir, filename)
         with open(path, "wb") as file:
             file.write(data)
-        return path
+
+        # The bridge and signald can share files but have different filepaths. This can happen in
+        # a Docker deployment when signald and this bridge are in different containers. In this
+        # case, convert the file path from one context to another
+        signald_relative_attachment_dir = self.config["signal.incoming_attachment_dir"]
+        if signald_relative_attachment_dir is None:
+            # Return the path in the context of the bridge
+            return path
+
+        self.log.debug(f"Changing attachment directory from {attachment_dir} to {signald_relative_attachment_dir}")
+        # Return the path in the context of signald
+        return os.path.join(signald_relative_attachment_dir, filename)
 
     async def handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
                                     event_id: EventID) -> None:
@@ -384,10 +397,21 @@ class Portal(DBPortal, BasePortal):
 
         content = self._make_media_content(attachment)
 
-        with open(attachment.incoming_filename, "rb") as file:
+        # The bridge and signald can share files but have different filepaths. This can happen in
+        # a Docker deployment when signald and this bridge are in different containers. In this
+        # case, convert the file path from one context to another
+        incoming_attachment_dir = self.config["signal.incoming_attachment_dir"]
+        if incoming_attachment_dir is None:
+            path = attachment.incoming_filename
+        else:
+            filename = os.path.basename(attachment.incoming_filename)
+            path = os.path.join(self.config["signal.outgoing_attachment_dir"], filename)
+            self.log.debug(f"Changing attachment from {attachment.incoming_filename} to {path}")
+
+        with open(path, "rb") as file:
             data = file.read()
         if self.config["signal.remove_file_after_handling"]:
-            os.remove(attachment.incoming_filename)
+            os.remove(path)
 
         upload_mime_type = attachment.content_type
         if self.encrypted and encrypt_attachment:

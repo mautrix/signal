@@ -75,6 +75,11 @@ signal:
     # absolute path that signald can read. For attachments in the other direction,
     # make sure signald is configured to use an absolute path as the data directory.
     outgoing_attachment_dir: /tmp
+    # Directory for temp files when receiving files from Signal. For most deployments, this should
+    # not be specified (defaults to use outgoing_attachment_dir). If you're deploying signald and
+    # this bridge in two separate Docker containers, this is the absolute path to the data
+    # directory in signald.
+    # incoming_attachment_dir: /tmp
     # Directory where signald stores avatars for groups.
     avatar_dir: ~/.config/signald/avatars
     # Whether or not message attachments should be removed from disk after they're bridged.
