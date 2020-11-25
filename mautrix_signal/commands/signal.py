@@ -116,19 +116,28 @@ async def safety_number(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_admin=True, needs_auth=False, help_section=SECTION_ADMIN,
-                 help_text="Send raw requests to signald", help_args="<type> <_json_>")
+                 help_text="Send raw requests to signald", help_args="[--user] <type> <_json_>")
 async def raw(evt: CommandEvent) -> None:
+    add_username = False
+    if evt.args[0].lower() == "--user":
+        add_username = True
+        evt.args = evt.args[1:]
     type = evt.args[0]
     try:
         args = json.loads(" ".join(evt.args[1:]))
     except json.JSONDecodeError as e:
         await evt.reply(f"JSON decode error: {e}")
         return
+    if add_username:
+        args["username"] = evt.sender.username
 
     try:
         resp_type, resp_data = await evt.bridge.signal._raw_request(type, **args)
     except Exception as e:
         await evt.reply(f"Error sending request: {e}")
     else:
-        await evt.reply(f"Got reply `{resp_type}`:\n\n"
-                        f"```json\n{json.dumps(resp_data, indent=2)}\n```")
+        if resp_data is None:
+            await evt.reply(f"Got reply `{resp_type}` with no content")
+        else:
+            await evt.reply(f"Got reply `{resp_type}`:\n\n"
+                            f"```json\n{json.dumps(resp_data, indent=2)}\n```")
