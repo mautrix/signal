@@ -25,7 +25,7 @@ import time
 import os
 
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
-                              Attachment, GroupID)
+                              Attachment, GroupID, GroupV2ID, GroupV2)
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
@@ -52,7 +52,7 @@ except ImportError:
 
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
-ChatInfo = Union[Group, Contact, Profile, Address]
+ChatInfo = Union[Group, GroupV2, GroupV2ID, Contact, Profile, Address]
 
 
 class Portal(DBPortal, BasePortal):
@@ -451,9 +451,14 @@ class Portal(DBPortal, BasePortal):
                 self.name = puppet.name
             return
 
-        if not isinstance(info, Group):
+        if isinstance(info, Group):
+            changed = await self._update_name(info.name)
+        elif isinstance(info, GroupV2):
+            changed = await self._update_name(info.title)
+        elif isinstance(info, GroupV2ID):
+            return
+        else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
-        changed = await self._update_name(info.name)
         changed = await self._update_avatar()
         await self._update_participants(info.members)
         if changed:
@@ -498,6 +503,7 @@ class Portal(DBPortal, BasePortal):
         return True
 
     async def _update_participants(self, participants: List[Address]) -> None:
+        # TODO add support for pending_members and maybe requesting_members?
         if not self.mxid or not participants:
             return
 
@@ -549,7 +555,7 @@ class Portal(DBPortal, BasePortal):
     # region Creating Matrix rooms
 
     async def update_matrix_room(self, source: 'u.User', info: ChatInfo) -> None:
-        if not self.is_direct and not isinstance(info, Group):
+        if not self.is_direct and not isinstance(info, (Group, GroupV2, GroupV2ID)):
             raise ValueError(f"Unexpected type for updating group portal: {type(info)}")
         elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
             raise ValueError(f"Unexpected type for updating direct chat portal: {type(info)}")
@@ -559,13 +565,20 @@ class Portal(DBPortal, BasePortal):
             self.log.exception("Failed to update portal")
 
     async def create_matrix_room(self, source: 'u.User', info: ChatInfo) -> Optional[RoomID]:
-        if not self.is_direct and not isinstance(info, Group):
+        if not self.is_direct and not isinstance(info, (Group, GroupV2, GroupV2ID)):
             raise ValueError(f"Unexpected type for creating group portal: {type(info)}")
         elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
             raise ValueError(f"Unexpected type for creating direct chat portal: {type(info)}")
-        if isinstance(info, Group):
+        if isinstance(info, Group) and not info.members:
             groups = await self.signal.list_groups(source.username)
-            info = next((g for g in groups if g.group_id == info.group_id), info)
+            info = next((g for g in groups
+                         if isinstance(g, Group) and g.group_id == info.group_id), info)
+        elif isinstance(info, GroupV2ID):
+            groups = await self.signal.list_groups(source.username)
+            try:
+                info = next(g for g in groups if isinstance(g, GroupV2) and g.id == info.id)
+            except StopIteration as e:
+                raise ValueError("Couldn't get full group v2 info") from e
         if self.mxid:
             await self.update_matrix_room(source, info)
             return self.mxid

@@ -12,7 +12,7 @@ from mautrix.util.logging import TraceLogger
 from .rpc import SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse, make_linking_error
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
-                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction)
+                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -146,9 +146,10 @@ class SignaldClient(SignaldRPCClient):
         contacts = await self.request("list_contacts", "contact_list", username=username)
         return [Contact.deserialize(contact) for contact in contacts]
 
-    async def list_groups(self, username: str) -> List[Group]:
+    async def list_groups(self, username: str) -> List[Union[Group, GroupV2]]:
         resp = await self.request("list_groups", "group_list", username=username)
-        return [Group.deserialize(group) for group in resp["groups"]]
+        return ([Group.deserialize(group) for group in resp["groups"]]
+                + [GroupV2.deserialize(group) for group in resp["groupsv2"]])
 
     async def get_profile(self, username: str, address: Address) -> Optional[Profile]:
         try:

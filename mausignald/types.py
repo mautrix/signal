@@ -109,6 +109,22 @@ class Group(SerializableAttrs['Group']):
 
 
 @dataclass
+class GroupV2ID(SerializableAttrs['GroupV2ID']):
+    id: GroupID
+    revision: int
+
+
+@dataclass
+class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
+    title: str
+    master_key: str = attr.ib(metadata={"json": "masterKey"})
+    members: List[Address]
+    pending_members: List[Address] = attr.ib(metadata={"json": "pendingMembers"})
+    requesting_members: List[Address] = attr.ib(metadata={"json": "requestingMembers"})
+    timer: int
+
+
+@dataclass
 class Attachment(SerializableAttrs['Attachment']):
     width: int = 0
     height: int = 0
@@ -161,9 +177,10 @@ class MessageData(SerializableAttrs['MessageData']):
     reaction: Optional[Reaction] = None
     attachments: List[Attachment] = attr.ib(factory=lambda: [])
     sticker: Optional[Sticker] = None
-    # TODO mentions (although signald doesn't support group v2 yet)
+    # TODO mentions
 
     group: Optional[Group] = None
+    group_v2: Optional[GroupV2ID] = attr.ib(default=None, metadata={"json": "groupV2"})
 
     end_session: bool = attr.ib(default=False, metadata={"json": "endSession"})
     expires_in_seconds: int = attr.ib(default=0, metadata={"json": "expiresInSeconds"})

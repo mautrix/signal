@@ -13,12 +13,12 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
+from typing import Dict, Optional, AsyncGenerator, Union, TYPE_CHECKING, cast
 from collections import defaultdict
 from uuid import UUID
 import asyncio
 
-from mausignald.types import Account, Address, Contact, Group, ListenEvent, ListenAction
+from mausignald.types import Account, Address, Contact, Group, GroupV2, ListenEvent, ListenAction
 from mautrix.bridge import BaseUser
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
@@ -134,6 +134,14 @@ class User(DBUser, BaseUser):
         elif portal.mxid:
             await portal.update_matrix_room(self, group)
 
+    async def _sync_group_v2(self, group: GroupV2, create_portals: bool) -> None:
+        self.log.trace("Syncing group %s", group.id)
+        portal = await po.Portal.get_by_chat_id(group.id, create=True)
+        if create_portals:
+            await portal.create_matrix_room(self, group)
+        elif portal.mxid:
+            await portal.update_matrix_room(self, group)
+
     async def _sync(self) -> None:
         create_contact_portal = self.config["bridge.autocreate_contact_portal"]
         for contact in await self.bridge.signal.list_contacts(self.username):
@@ -144,7 +152,12 @@ class User(DBUser, BaseUser):
         create_group_portal = self.config["bridge.autocreate_group_portal"]
         for group in await self.bridge.signal.list_groups(self.username):
             try:
-                await self._sync_group(group, create_group_portal)
+                if isinstance(group, Group):
+                    await self._sync_group(group, create_group_portal)
+                elif isinstance(group, GroupV2):
+                    await self._sync_group_v2(group, create_group_portal)
+                else:
+                    self.log.warning("Unknown return type in list_groups: %s", type(group))
             except Exception:
                 self.log.exception(f"Failed to sync group {group.group_id}")
 
