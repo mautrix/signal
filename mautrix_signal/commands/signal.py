@@ -15,10 +15,9 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Optional
 import base64
-import io
+import json
 
-from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
-from mautrix.bridge.commands import HelpSection, command_handler
+from mautrix.bridge.commands import HelpSection, command_handler, SECTION_ADMIN
 from mausignald.types import Address
 
 from .. import puppet as pu, portal as po
@@ -114,3 +113,22 @@ async def safety_number(evt: CommandEvent) -> None:
         data = base64.b64decode(most_recent.qr_code_data)
         content = await make_qr(evt.main_intent, data, "verification-qr.png")
         await evt.main_intent.send_message(evt.room_id, content)
+
+
+@command_handler(needs_admin=True, needs_auth=False, help_section=SECTION_ADMIN,
+                 help_text="Send raw requests to signald", help_args="<type> <_json_>")
+async def raw(evt: CommandEvent) -> None:
+    type = evt.args[0]
+    try:
+        args = json.loads(" ".join(evt.args[1:]))
+    except json.JSONDecodeError as e:
+        await evt.reply(f"JSON decode error: {e}")
+        return
+
+    try:
+        resp_type, resp_data = await evt.bridge.signal._raw_request(type, **args)
+    except Exception as e:
+        await evt.reply(f"Error sending request: {e}")
+    else:
+        await evt.reply(f"Got reply `{resp_type}`:\n\n"
+                        f"```json\n{json.dumps(resp_data, indent=2)}\n```")
