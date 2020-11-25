@@ -12,7 +12,7 @@ from mautrix.util.logging import TraceLogger
 from .rpc import SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse, make_linking_error
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
-                    Profile, GroupID, Identity, GetIdentitiesResponse)
+                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -27,6 +27,9 @@ class SignaldClient(SignaldRPCClient):
         super().__init__(socket_path, log, loop)
         self._event_handlers = {}
         self.add_rpc_handler("message", self._parse_message)
+        self.add_rpc_handler("listen_started", self._parse_listen_start)
+        self.add_rpc_handler("listen_stopped", self._parse_listen_stop)
+        self.add_rpc_handler("version", self._log_version)
 
     def add_event_handler(self, event_class: Type[T], handler: EventHandler) -> None:
         self._event_handlers.setdefault(event_class, []).append(handler)
@@ -54,6 +57,20 @@ class SignaldClient(SignaldRPCClient):
         }[event_type]
         event = event_class.deserialize(event_data)
         await self._run_event_handler(event)
+
+    async def _log_version(self, data: Dict[str, Any]) -> None:
+        name = data["data"]["name"]
+        version = data["data"]["version"]
+        self.log.info(f"Connected to {name} v{version}")
+
+    async def _parse_listen_start(self, data: Dict[str, Any]) -> None:
+        evt = ListenEvent(action=ListenAction.STARTED, username=data["data"])
+        await self._run_event_handler(evt)
+
+    async def _parse_listen_stop(self, data: Dict[str, Any]) -> None:
+        evt = ListenEvent(action=ListenAction.STARTED, username=data["data"],
+                          exception=data.get("exception", None))
+        await self._run_event_handler(evt)
 
     async def subscribe(self, username: str) -> bool:
         try:

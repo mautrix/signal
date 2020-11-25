@@ -14,13 +14,15 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
+from collections import defaultdict
 from uuid import UUID
 import asyncio
 
-from mausignald.types import Account, Address, Contact, Group
+from mausignald.types import Account, Address, Contact, Group, ListenEvent, ListenAction
 from mautrix.bridge import BaseUser
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
+from mautrix.util.opt_prometheus import Gauge
 
 from .db import User as DBUser
 from .config import Config
@@ -28,6 +30,8 @@ from . import puppet as pu, portal as po
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
+
+METRIC_CONNECTED = Gauge('bridge_connected', 'Bridge users connected to Signal')
 
 
 class User(DBUser, BaseUser):
@@ -52,6 +56,7 @@ class User(DBUser, BaseUser):
         self.log = self.log.getChild(self.mxid)
         self.dm_update_lock = asyncio.Lock()
         self.command_status = None
+        self._metric_value = defaultdict(lambda: False)
 
     @classmethod
     def init_cls(cls, bridge: 'SignalBridge') -> None:
@@ -75,6 +80,19 @@ class User(DBUser, BaseUser):
         await self.update()
         await self.bridge.signal.subscribe(self.username)
         self.loop.create_task(self.sync())
+
+    def on_listen(self, evt: ListenEvent) -> None:
+        if evt.action == ListenAction.STARTED:
+            self.log.info("Connected to Signal")
+            self._track_metric(METRIC_CONNECTED, True)
+        elif evt.action == ListenAction.STOPPED:
+            if evt.exception:
+                self.log.warning(f"Disconnected from Signal: {evt.exception}")
+            else:
+                self.log.info("Disconnected from Signal")
+            self._track_metric(METRIC_CONNECTED, False)
+        else:
+            self.log.warning(f"Unrecognized listen action {evt.action}")
 
     async def _sync_puppet(self) -> None:
         puppet = await pu.Puppet.get_by_address(self.address)

@@ -251,3 +251,15 @@ class Message(SerializableAttrs['Message']):
     sync_message: Optional[SyncMessage] = attr.ib(default=None, metadata={"json": "syncMessage"})
     typing: Optional[TypingNotification] = None
     receipt: Optional[Receipt] = None
+
+
+class ListenAction(SerializableEnum):
+    STARTED = "started"
+    STOPPED = "stopped"
+
+
+@dataclass
+class ListenEvent(SerializableAttrs['ListenEvent']):
+    action: ListenAction
+    username: str
+    exception: Optional[str] = None

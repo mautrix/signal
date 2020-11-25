@@ -19,7 +19,7 @@ import logging
 
 from mausignald import SignaldClient
 from mausignald.types import (Message, MessageData, Address, TypingNotification, TypingAction,
-                              OwnReadReceipt, Receipt, ReceiptType)
+                              OwnReadReceipt, Receipt, ReceiptType, ListenEvent)
 from mautrix.util.logging import TraceLogger
 
 from .db import Message as DBMessage
@@ -39,6 +39,7 @@ class SignalHandler(SignaldClient):
     def __init__(self, bridge: 'SignalBridge') -> None:
         super().__init__(bridge.config["signal.socket_path"], loop=bridge.loop)
         self.add_event_handler(Message, self.on_message)
+        self.add_event_handler(ListenEvent, self.on_listen)
 
     async def on_message(self, evt: Message) -> None:
         sender = await pu.Puppet.get_by_address(evt.source)
@@ -63,6 +64,11 @@ class SignalHandler(SignaldClient):
             if evt.sync_message.typing:
                 # Typing notification from own device
                 pass
+
+    @staticmethod
+    async def on_listen(evt: ListenEvent) -> None:
+        user = await u.User.get_by_username(evt.username)
+        user.on_listen(evt)
 
     @staticmethod
     async def handle_message(user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
