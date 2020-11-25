@@ -60,6 +60,7 @@ class Address(SerializableAttrs['Address']):
 @dataclass
 class TrustLevel(SerializableEnum):
     TRUSTED_UNVERIFIED = "TRUSTED_UNVERIFIED"
+    TRUSTED_VERIFIED = "TRUSTED_VERIFIED"
 
 
 @dataclass
