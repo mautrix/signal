@@ -118,11 +118,13 @@ class GroupV2ID(SerializableAttrs['GroupV2ID']):
 @dataclass
 class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
     title: str
-    master_key: str = attr.ib(metadata={"json": "masterKey"})
     members: List[Address]
-    pending_members: List[Address] = attr.ib(metadata={"json": "pendingMembers"})
-    requesting_members: List[Address] = attr.ib(metadata={"json": "requestingMembers"})
-    timer: int
+    pending_members: List[Address] = attr.ib(factory=lambda: [],
+                                             metadata={"json": "pendingMembers"})
+    requesting_members: List[Address] = attr.ib(factory=lambda: [],
+                                                metadata={"json": "requestingMembers"})
+    master_key: Optional[str] = attr.ib(default=None, metadata={"json": "masterKey"})
+    timer: Optional[int] = None
 
 
 @dataclass
