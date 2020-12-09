@@ -68,7 +68,7 @@ class SignaldClient(SignaldRPCClient):
         await self._run_event_handler(evt)
 
     async def _parse_listen_stop(self, data: Dict[str, Any]) -> None:
-        evt = ListenEvent(action=ListenAction.STARTED, username=data["data"],
+        evt = ListenEvent(action=ListenAction.STOPPED, username=data["data"],
                           exception=data.get("exception", None))
         await self._run_event_handler(evt)
 
