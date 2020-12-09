@@ -45,12 +45,6 @@ class Config(BaseBridgeConfig):
 
         copy("homeserver.asmux")
 
-        copy("appservice.provisioning.enabled")
-        copy("appservice.provisioning.prefix")
-        copy("appservice.provisioning.shared_secret")
-        if base["appservice.provisioning.shared_secret"] == "generate":
-            base["appservice.provisioning.shared_secret"] = self._new_token()
-
         copy("appservice.community_id")
 
         copy("signal.socket_path")
@@ -88,6 +82,12 @@ class Config(BaseBridgeConfig):
         copy("bridge.delivery_receipts")
         copy("bridge.delivery_error_reports")
         copy("bridge.resend_bridge_info")
+
+        copy("bridge.provisioning.enabled")
+        copy("bridge.provisioning.prefix")
+        copy("bridge.provisioning.shared_secret")
+        if base["bridge.provisioning.shared_secret"] == "generate":
+            base["bridge.provisioning.shared_secret"] = self._new_token()
 
         copy("bridge.command_prefix")
 

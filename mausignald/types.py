@@ -94,6 +94,7 @@ class Profile(SerializableAttrs['Profile']):
     identity_key: str = ""
     unidentified_access: str = ""
     unrestricted_unidentified_access: bool = False
+    address: Optional[Address] = None
 
 
 @dataclass

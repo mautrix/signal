@@ -13,29 +13,44 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Awaitable, Dict
+from typing import Awaitable, Dict, TYPE_CHECKING
 import logging
+import asyncio
 import json
 
 from aiohttp import web
 
+from mausignald.types import Address, Account
+from mausignald.errors import LinkingTimeout
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
 
 from .. import user as u
 
+if TYPE_CHECKING:
+    from ..__main__ import SignalBridge
+
 
 class ProvisioningAPI:
     log: TraceLogger = logging.getLogger("mau.web.provisioning")
     app: web.Application
+    bridge: 'SignalBridge'
 
-    def __init__(self, shared_secret: str) -> None:
+    def __init__(self, bridge: 'SignalBridge', shared_secret: str) -> None:
+        self.bridge = bridge
         self.app = web.Application()
         self.shared_secret = shared_secret
         self.app.router.add_get("/api/whoami", self.status)
-        self.app.router.add_options("/api/login", self.login_options)
-        self.app.router.add_post("/api/login", self.login)
-        self.app.router.add_post("/api/logout", self.logout)
+        self.app.router.add_options("/api/link", self.login_options)
+        self.app.router.add_options("/api/link/wait", self.login_options)
+        # self.app.router.add_options("/api/register", self.login_options)
+        # self.app.router.add_options("/api/register/code", self.login_options)
+        # self.app.router.add_options("/api/logout", self.login_options)
+        self.app.router.add_post("/api/link", self.link)
+        self.app.router.add_post("/api/link/wait", self.link_wait)
+        # self.app.router.add_post("/api/register", self.register)
+        # self.app.router.add_post("/api/register/code", self.register_code)
+        # self.app.router.add_post("/api/logout", self.logout)
 
     @property
     def _acao_headers(self) -> Dict[str, str]:
@@ -60,17 +75,17 @@ class ProvisioningAPI:
             token = request.headers["Authorization"]
             token = token[len("Bearer "):]
         except KeyError:
-            raise web.HTTPBadRequest(body='{"error": "Missing Authorization header"}',
+            raise web.HTTPBadRequest(text='{"error": "Missing Authorization header"}',
                                      headers=self._headers)
         except IndexError:
-            raise web.HTTPBadRequest(body='{"error": "Malformed Authorization header"}',
+            raise web.HTTPBadRequest(text='{"error": "Malformed Authorization header"}',
                                      headers=self._headers)
         if token != self.shared_secret:
-            raise web.HTTPForbidden(body='{"error": "Invalid token"}', headers=self._headers)
+            raise web.HTTPForbidden(text='{"error": "Invalid token"}', headers=self._headers)
         try:
             user_id = request.query["user_id"]
         except KeyError:
-            raise web.HTTPBadRequest(body='{"error": "Missing user_id query param"}',
+            raise web.HTTPBadRequest(text='{"error": "Missing user_id query param"}',
                                      headers=self._headers)
 
         return u.User.get_by_mxid(UserID(user_id))
@@ -80,35 +95,60 @@ class ProvisioningAPI:
         data = {
             "permissions": user.permission_level,
             "mxid": user.mxid,
-            "twitter": None,
+            "signal": None,
         }
         if await user.is_logged_in():
-            data["twitter"] = (await user.get_info()).serialize()
+            profile = await self.bridge.signal.get_profile(username=user.username,
+                                                           address=Address(number=user.username))
+            data["signal"] = {
+                "number": profile.address.number or user.username,
+                "uuid": profile.address.uuid or user.uuid,
+                "name": profile.name
+            }
         return web.json_response(data, headers=self._acao_headers)
 
-    async def login(self, request: web.Request) -> web.Response:
+    async def link(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
 
         try:
             data = await request.json()
         except json.JSONDecodeError:
-            raise web.HTTPBadRequest(body='{"error": "Malformed JSON"}', headers=self._headers)
+            raise web.HTTPBadRequest(text='{"error": "Malformed JSON"}', headers=self._headers)
 
-        try:
-            auth_token = data["auth_token"]
-            csrf_token = data["csrf_token"]
-        except KeyError:
-            raise web.HTTPBadRequest(body='{"error": "Missing keys"}', headers=self._headers)
+        device_name = data.get("device_name", "Mautrix-Signal bridge")
+        uri_future = asyncio.Future()
 
-        try:
-            await user.connect(auth_token=auth_token, csrf_token=csrf_token)
-        except Exception:
-            self.log.debug("Failed to log in", exc_info=True)
-            raise web.HTTPUnauthorized(body='{"error": "Twitter authorization failed"}',
-                                       headers=self._headers)
-        return web.Response(body='{}', status=200, headers=self._headers)
+        async def _callback(uri: str) -> None:
+            uri_future.set_result(uri)
 
-    async def logout(self, request: web.Request) -> web.Response:
+        async def _link() -> Account:
+            account = await self.bridge.signal.link(_callback, device_name=device_name)
+            await user.on_signin(account)
+            return account
+
+        user.command_status = {
+            "action": "Link",
+            "task": self.bridge.loop.create_task(_link()),
+        }
+
+        return web.json_response({"uri": await uri_future}, headers=self._acao_headers)
+
+    async def link_wait(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
-        await user.logout()
-        return web.json_response({}, headers=self._acao_headers)
+        if not user.command_status or user.command_status["action"] != "Link":
+            raise web.HTTPBadRequest(text='{"error": "No Signal linking started"}',
+                                     headers=self._headers)
+        try:
+            account = await user.command_status["task"]
+        except LinkingTimeout:
+            raise web.HTTPBadRequest(text='{"error": "Signal linking timed out"}',
+                                     headers=self._headers)
+        return web.json_response({
+            "number": account.username,
+            "uuid": account.uuid,
+        })
+
+    # async def logout(self, request: web.Request) -> web.Response:
+    #     user = await self.check_token(request)
+    #     await user.()
+    #     return web.json_response({}, headers=self._acao_headers)

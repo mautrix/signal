@@ -28,17 +28,6 @@ appservice:
     # The full URI to the database. Only Postgres is currently supported.
     database: postgres://username:password@hostname/db
 
-    # Provisioning API part of the web server for automated portal creation and fetching information.
-    # Used by things like mautrix-manager (https://github.com/tulir/mautrix-manager).
-    provisioning:
-        # Whether or not the provisioning API should be enabled.
-        enabled: true
-        # The prefix to use in the provisioning API endpoints.
-        prefix: /_matrix/provision/v1
-        # The shared secret to authorize users of the API.
-        # Set to "generate" to generate and save a new token.
-        shared_secret: generate
-
     # The unique ID of this appservice.
     id: signal
     # Username of the appservice bot.
@@ -163,6 +152,17 @@ bridge:
     # This field will automatically be changed back to false after it,
     # except if the config file is not writable.
     resend_bridge_info: false
+
+    # Provisioning API part of the web server for automated portal creation and fetching information.
+    # Used by things like mautrix-manager (https://github.com/tulir/mautrix-manager).
+    provisioning:
+        # Whether or not the provisioning API should be enabled.
+        enabled: true
+        # The prefix to use in the provisioning API endpoints.
+        prefix: /_matrix/provision/v1
+        # The shared secret to authorize users of the API.
+        # Set to "generate" to generate and save a new token.
+        shared_secret: generate
 
     # The prefix for commands. Only required in non-management rooms.
     command_prefix: "!signal"
