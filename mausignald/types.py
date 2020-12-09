@@ -155,10 +155,10 @@ class Quote(SerializableAttrs['Quote']):
     # TODO: attachments, mentions
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Reaction(SerializableAttrs['Reaction']):
     emoji: str
-    remove: bool
+    remove: bool = False
     target_author: Address = attr.ib(metadata={"json": "targetAuthor"})
     target_sent_timestamp: int = attr.ib(metadata={"json": "targetSentTimestamp"})
 
@@ -252,7 +252,7 @@ class MessageType(SerializableEnum):
     UNKNOWN = "UNKNOWN"
 
 
-@dataclass
+@dataclass(kw_only=True)
 class Message(SerializableAttrs['Message']):
     username: str
     source: Address
@@ -260,11 +260,12 @@ class Message(SerializableAttrs['Message']):
     timestamp_iso: str = attr.ib(metadata={"json": "timestampISO"})
 
     type: MessageType
-    source_device: int = attr.ib(metadata={"json": "sourceDevice"})
-    server_timestamp: int = attr.ib(metadata={"json": "serverTimestamp"})
+    source_device: Optional[int] = attr.ib(metadata={"json": "sourceDevice"}, default=None)
+    server_timestamp: Optional[int] = attr.ib(metadata={"json": "serverTimestamp"}, default=None)
     server_delivered_timestamp: int = attr.ib(metadata={"json": "serverDeliveredTimestamp"})
-    has_content: bool = attr.ib(metadata={"json": "hasContent"})
-    is_unidentified_sender: bool = attr.ib(metadata={"json": "isUnidentifiedSender"})
+    has_content: bool = attr.ib(metadata={"json": "hasContent"}, default=False)
+    is_unidentified_sender: Optional[bool] = attr.ib(metadata={"json": "isUnidentifiedSender"},
+                                                     default=None)
     has_legacy_message: bool = attr.ib(default=False, metadata={"json": "hasLegacyMessage"})
 
     data_message: Optional[MessageData] = attr.ib(default=None, metadata={"json": "dataMessage"})
