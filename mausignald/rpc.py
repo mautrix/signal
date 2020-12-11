@@ -11,9 +11,14 @@ import json
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import UnexpectedError, UnexpectedResponse
+from .errors import NotConnected, UnexpectedError, UnexpectedResponse
 
 EventHandler = Callable[[Dict[str, Any]], Awaitable[None]]
+
+# These are synthetic RPC events for registering callbacks on socket
+# connect and disconnect.
+CONNECT_EVENT = "_socket_connected"
+DISCONNECT_EVENT = "_socket_disconnected"
 
 
 class SignaldRPCClient:
@@ -23,6 +28,7 @@ class SignaldRPCClient:
     socket_path: str
     _reader: Optional[asyncio.StreamReader]
     _writer: Optional[asyncio.StreamWriter]
+    _communicate_task: Optional[asyncio.Task]
 
     _response_waiters: Dict[UUID, asyncio.Future]
     _rpc_event_handlers: Dict[str, List[EventHandler]]
@@ -34,21 +40,47 @@ class SignaldRPCClient:
         self.loop = loop or asyncio.get_event_loop()
         self._reader = None
         self._writer = None
+        self._communicate_task = None
         self._response_waiters = {}
-        self._rpc_event_handlers = {}
+        self._rpc_event_handlers = {CONNECT_EVENT: [], DISCONNECT_EVENT: []}
+        self.add_rpc_handler(DISCONNECT_EVENT, self._abandon_responses)
 
     async def connect(self) -> None:
         if self._writer is not None:
             return
 
-        self._reader, self._writer = await asyncio.open_unix_connection(self.socket_path)
-        self.loop.create_task(self._try_read_loop())
+        initial_connect = self.loop.create_future()
+        self._communicate_task = self.loop.create_task(self._communicate_forever(initial_connect))
+        await initial_connect
+
+    async def _communicate_forever(self, initial_connect: Optional[asyncio.Future] = None) -> None:
+        while True:
+            try:
+                self._reader, self._writer = await asyncio.open_unix_connection(self.socket_path)
+            except OSError as e:
+                self.log.error(f"Connection to {self.socket_path} failed: {e}")
+                await asyncio.sleep(5)
+                continue
+
+            read_loop = self.loop.create_task(self._try_read_loop())
+            await self._run_rpc_handler(CONNECT_EVENT, {})
+
+            if initial_connect:
+                initial_connect.set_result(True)
+                initial_connect = None
+
+            await read_loop
+            await self._run_rpc_handler(DISCONNECT_EVENT, {})
 
     async def disconnect(self) -> None:
-        self._writer.write_eof()
-        await self._writer.drain()
-        self._writer = None
-        self._reader = None
+        if self._writer is not None:
+            self._writer.write_eof()
+            await self._writer.drain()
+            if self._communicate_task:
+                self._communicate_task.cancel()
+                self._communicate_task = None
+            self._writer = None
+            self._reader = None
 
     def add_rpc_handler(self, method: str, handler: EventHandler) -> None:
         self._rpc_event_handlers.setdefault(method, []).append(handler)
@@ -141,7 +173,16 @@ class SignaldRPCClient:
             future = self._response_waiters[req_id] = self.loop.create_future()
         return future
 
+    async def _abandon_responses(self, unused_data: Dict[str, Any]) -> None:
+        for req_id, waiter in self._response_waiters.items():
+            if not waiter.done():
+                self.log.trace(f"Abandoning response for {req_id}")
+                waiter.set_exception(NotConnected("Disconnected from signald before RPC completed"))
+
     async def _send_request(self, data: Dict[str, Any]) -> None:
+        if self._writer is None:
+            raise NotConnected("Not connected to signald")
+
         self._writer.write(json.dumps(data).encode("utf-8"))
         self._writer.write(b"\n")
         await self._writer.drain()
