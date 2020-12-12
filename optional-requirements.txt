@@ -7,11 +7,11 @@ pycryptodome>=3,<4
 unpaddedbase64>=1,<2
 
 #/metrics
-prometheus_client>=0.6,<0.9
+prometheus_client>=0.6,<0.10
 
 #/formattednumbers
 phonenumbers>=8,<9
 
 #/qrlink
 qrcode>=6,<7
-Pillow>=4,<8
+Pillow>=4,<9
