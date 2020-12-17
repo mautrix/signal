@@ -102,8 +102,8 @@ class ProvisioningAPI:
                                                            address=Address(number=user.username))
             data["signal"] = {
                 "number": profile.address.number or user.username,
-                "uuid": profile.address.uuid or user.uuid,
-                "name": profile.name
+                "uuid": str(profile.address.uuid or user.uuid or ""),
+                "name": profile.name,
             }
         return web.json_response(data, headers=self._acao_headers)
 
