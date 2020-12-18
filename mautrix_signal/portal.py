@@ -452,9 +452,11 @@ class Portal(DBPortal, BasePortal):
             return
 
         if isinstance(info, Group):
-            changed = await self._update_name(info.name)
+            changed = await self._update_name(
+                    self.config["bridge.groupname_template"].format(info.name))
         elif isinstance(info, GroupV2):
-            changed = await self._update_name(info.title)
+            changed = await self._update_name(
+                    self.config["bridge.groupname_template"].format(info.title))
         elif isinstance(info, GroupV2ID):
             return
         else:
