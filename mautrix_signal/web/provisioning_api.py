@@ -145,7 +145,7 @@ class ProvisioningAPI:
                                      headers=self._headers)
         return web.json_response({
             "number": account.username,
-            "uuid": account.uuid,
+            "uuid": str(account.uuid),
         })
 
     # async def logout(self, request: web.Request) -> web.Response:
