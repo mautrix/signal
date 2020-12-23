@@ -100,9 +100,12 @@ class ProvisioningAPI:
         if await user.is_logged_in():
             profile = await self.bridge.signal.get_profile(username=user.username,
                                                            address=Address(number=user.username))
+            addr = profile.address if profile else None
+            number = addr.number if addr else None
+            uuid = addr.uuid if addr else None
             data["signal"] = {
-                "number": profile.address.number or user.username,
-                "uuid": str(profile.address.uuid or user.uuid or ""),
+                "number": number or user.username,
+                "uuid": str(uuid or user.uuid or ""),
                 "name": profile.name,
             }
         return web.json_response(data, headers=self._acao_headers)

@@ -196,7 +196,7 @@ class MessageData(SerializableAttrs['MessageData']):
 class SentSyncMessage(SerializableAttrs['SentSyncMessage']):
     message: MessageData
     timestamp: int
-    expiration_start_timestamp: int = attr.ib(metadata={"json": "expirationStartTimestamp"})
+    expiration_start_timestamp: Optional[int] = attr.ib(default=None, metadata={"json": "expirationStartTimestamp"})
     is_recipient_update: bool = attr.ib(default=False, metadata={"json": "isRecipientUpdate"})
     unidentified_status: Dict[str, bool] = attr.ib(factory=lambda: {})
     destination: Optional[Address] = None
