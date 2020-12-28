@@ -89,7 +89,7 @@ class Contact(SerializableAttrs['Contact']):
 
 @dataclass
 class Profile(SerializableAttrs['Profile']):
-    name: str
+    name: str = ""
     avatar: str = ""
     identity_key: str = ""
     unidentified_access: str = ""

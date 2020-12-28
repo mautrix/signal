@@ -115,8 +115,10 @@ class User(DBUser, BaseUser):
         puppet = await pu.Puppet.get_by_address(contact.address)
         if not puppet.name:
             profile = await self.bridge.signal.get_profile(self.username, contact.address)
-            if profile:
+            if profile and profile.name:
                 self.log.trace("Got profile for %s: %s", contact.address, profile)
+            else:
+                profile = None
         else:
             # get_profile probably does a request to the servers, so let's not do that unless
             # necessary, but maybe we could listen for updates?
