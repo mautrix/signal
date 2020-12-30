@@ -106,7 +106,7 @@ class ProvisioningAPI:
             data["signal"] = {
                 "number": number or user.username,
                 "uuid": str(uuid or user.uuid or ""),
-                "name": profile.name,
+                "name": profile.name if profile else null,
             }
         return web.json_response(data, headers=self._acao_headers)
 
