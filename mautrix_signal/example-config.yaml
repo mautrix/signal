@@ -66,6 +66,8 @@ signal:
     outgoing_attachment_dir: /tmp
     # Directory where signald stores avatars for groups.
     avatar_dir: ~/.config/signald/avatars
+    # Directory where signald stores auth data. Used to delete data when logging out.
+    data_dir: ~/.config/signald/data
     # Whether or not message attachments should be removed from disk after they're bridged.
     remove_file_after_handling: true
 

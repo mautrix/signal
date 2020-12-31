@@ -50,6 +50,7 @@ class Config(BaseBridgeConfig):
         copy("signal.socket_path")
         copy("signal.outgoing_attachment_dir")
         copy("signal.avatar_dir")
+        copy("signal.data_dir")
         copy("signal.remove_file_after_handling")
 
         copy("metrics.enabled")

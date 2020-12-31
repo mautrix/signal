@@ -80,6 +80,14 @@ class SignaldClient(SignaldRPCClient):
             self.log.debug("Failed to subscribe to %s: %s", username, e)
             return False
 
+    async def unsubscribe(self, username: str) -> bool:
+        try:
+            await self.request("unsubscribe", "unsubscribed", username=username)
+            return True
+        except UnexpectedError as e:
+            self.log.debug("Failed to unsubscribe from %s: %s", username, e)
+            return False
+
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
                        ) -> str:
         resp = await self.request("register", "verification_required", username=phone,

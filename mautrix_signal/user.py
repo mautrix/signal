@@ -13,10 +13,12 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Dict, Optional, AsyncGenerator, Union, TYPE_CHECKING, cast
+from typing import Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
 from collections import defaultdict
 from uuid import UUID
 import asyncio
+import os.path
+import shutil
 
 from mausignald.types import Account, Address, Contact, Group, GroupV2, ListenEvent, ListenAction
 from mautrix.bridge import BaseUser
@@ -73,6 +75,26 @@ class User(DBUser, BaseUser):
 
     async def is_logged_in(self) -> bool:
         return bool(self.username)
+
+    async def logout(self) -> None:
+        if not self.username:
+            return
+        username = self.username
+        self.username = None
+        self.uuid = None
+        await self.update()
+        await self.bridge.signal.unsubscribe(username)
+        # Wait a while for signald to finish disconnecting
+        await asyncio.sleep(1)
+        path = os.path.join(self.config["signal.data_dir"], username)
+        extra_dir = f"{path}.d/"
+        try:
+            self.log.debug("Removing %s", path)
+            os.remove(path)
+        except FileNotFoundError as e:
+            self.log.warning(f"Failed to remove signald data file: {e}")
+        self.log.debug("Removing %s", extra_dir)
+        shutil.rmtree(extra_dir, ignore_errors=True)
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.username

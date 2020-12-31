@@ -45,12 +45,12 @@ class ProvisioningAPI:
         self.app.router.add_options("/api/link/wait", self.login_options)
         # self.app.router.add_options("/api/register", self.login_options)
         # self.app.router.add_options("/api/register/code", self.login_options)
-        # self.app.router.add_options("/api/logout", self.login_options)
+        self.app.router.add_options("/api/logout", self.login_options)
         self.app.router.add_post("/api/link", self.link)
         self.app.router.add_post("/api/link/wait", self.link_wait)
         # self.app.router.add_post("/api/register", self.register)
         # self.app.router.add_post("/api/register/code", self.register_code)
-        # self.app.router.add_post("/api/logout", self.logout)
+        self.app.router.add_post("/api/logout", self.logout)
 
     @property
     def _acao_headers(self) -> Dict[str, str]:
@@ -106,7 +106,7 @@ class ProvisioningAPI:
             data["signal"] = {
                 "number": number or user.username,
                 "uuid": str(uuid or user.uuid or ""),
-                "name": profile.name if profile else null,
+                "name": profile.name if profile else None,
             }
         return web.json_response(data, headers=self._acao_headers)
 
@@ -151,7 +151,10 @@ class ProvisioningAPI:
             "uuid": str(account.uuid),
         })
 
-    # async def logout(self, request: web.Request) -> web.Response:
-    #     user = await self.check_token(request)
-    #     await user.()
-    #     return web.json_response({}, headers=self._acao_headers)
+    async def logout(self, request: web.Request) -> web.Response:
+        user = await self.check_token(request)
+        if not user.username:
+            raise web.HTTPNotFound(text='''{"error": "You're not logged in"}''',
+                                   headers=self._headers)
+        await user.logout()
+        return web.json_response({}, headers=self._acao_headers)

@@ -101,6 +101,16 @@ async def enter_register_code(evt: CommandEvent) -> None:
         await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
 
 
+@command_handler(needs_auth=True, management_only=True, help_section=SECTION_AUTH,
+                 help_text="Remove all local data about your Signal link")
+async def logout(evt: CommandEvent) -> None:
+    if not evt.sender.username:
+        await evt.reply("You're not logged in")
+        return
+    await evt.sender.logout()
+    await evt.reply("Successfully logged out")
+
+
 @command_handler(needs_auth=True, management_only=True, help_args="<_access token_>",
                  help_section=SECTION_AUTH, help_text="Replace your Signal account's Matrix puppet"
                                                       " with your Matrix account")
