@@ -161,7 +161,8 @@ class Puppet(DBPuppet, BasePuppet):
 
         async with self._update_info_lock:
             update = False
-            update = await self._update_name(name) or update
+            if name is not None or self.name is None:
+                update = await self._update_name(name) or update
             if update:
                 await self.update()
 
