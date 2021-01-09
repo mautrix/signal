@@ -110,7 +110,7 @@ class Group(SerializableAttrs['Group']):
     avatar_id: int = attr.ib(default=0, metadata={"json": "avatarId"})
 
 
-@dataclass
+@dataclass(kw_only=True)
 class GroupV2ID(SerializableAttrs['GroupV2ID']):
     id: GroupID
     revision: Optional[int] = None
