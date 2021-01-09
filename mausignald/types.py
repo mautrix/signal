@@ -113,7 +113,7 @@ class Group(SerializableAttrs['Group']):
 @dataclass
 class GroupV2ID(SerializableAttrs['GroupV2ID']):
     id: GroupID
-    revision: int
+    revision: Optional[int] = None
 
 
 @dataclass
