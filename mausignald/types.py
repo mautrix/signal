@@ -152,7 +152,7 @@ class Attachment(SerializableAttrs['Attachment']):
 class Quote(SerializableAttrs['Quote']):
     id: int
     author: Address
-    text: str
+    text: Optional[str] = None
     # TODO: attachments, mentions
 
 
