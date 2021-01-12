@@ -86,6 +86,19 @@ class MatrixHandler(BaseMatrixHandler):
         await portal.handle_matrix_reaction(user, event_id, content.relates_to.event_id,
                                             content.relates_to.key)
 
+    @staticmethod
+    async def handle_redaction(room_id: RoomID, user_id: UserID, event_id: EventID,
+                               redaction_event_id: EventID) -> None:
+        user = await u.User.get_by_mxid(user_id)
+        if not user:
+            return
+
+        portal = await po.Portal.get_by_mxid(room_id)
+        if not portal:
+            return
+
+        await portal.handle_matrix_redaction(user, event_id, redaction_event_id)
+
     async def handle_read_receipt(self, user: 'u.User', portal: 'po.Portal', event_id: EventID,
                                   data: SingleReceiptEventContent) -> None:
         message = await DBMessage.get_by_mxid(event_id, portal.mxid)
@@ -112,6 +125,9 @@ class MatrixHandler(BaseMatrixHandler):
         if evt.type == EventType.REACTION:
             evt: ReactionEvent
             await self.handle_reaction(evt.room_id, evt.sender, evt.event_id, evt.content)
+        elif evt.type == EventType.ROOM_REDACTION:
+            evt: RedactionEvent
+            await self.handle_redaction(evt.room_id, evt.sender, evt.redacts, evt.event_id)
 
     async def handle_ephemeral_event(self, evt: Union[ReceiptEvent, PresenceEvent, TypingEvent]
                                      ) -> None:
