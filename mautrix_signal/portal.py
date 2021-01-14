@@ -24,6 +24,8 @@ import os.path
 import time
 import os
 
+from signalstickers_client import StickersClient
+
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
                               Attachment, GroupID, GroupV2ID, GroupV2)
 from mautrix.appservice import AppService, IntentAPI
@@ -313,9 +315,23 @@ class Portal(DBPortal, BasePortal):
 
         if message.sticker:
             if not message.sticker.attachment.incoming_filename:
-                self.log.warning("Failed to bridge sticker, no incoming filename: %s",
-                                 message.sticker.attachment)
-            else:
+                self.log.debug("Downloading sticker from signal, as no incoming filename was defined: %s",
+                               message.sticker.attachment)
+                try:
+                    async with StickersClient() as client:
+                        sticker_data = await client.download_sticker(message.sticker.sticker_id,
+                                                                     message.sticker.pack_id,
+                                                                     message.sticker.pack_key)
+
+                    path = os.path.join(self.config["signal.outgoing_attachment_dir"],
+                                        f"{message.sticker.pack_id}_{message.sticker.sticker_id}")
+                    with open(path, "wb") as file:
+                        file.write(sticker_data)
+                    message.sticker.attachment.incoming_filename = path
+                except Exception as ex:
+                    self.log.warning("Failed to download sticker: %s", ex)
+
+            if message.sticker.attachment.incoming_filename:
                 content = await self._handle_signal_attachment(intent, message.sticker.attachment)
                 if reply_to:
                     content.set_reply(reply_to)

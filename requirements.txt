@@ -6,3 +6,4 @@ yarl>=1,<2
 attrs>=19.1
 mautrix>=0.8,<0.9
 asyncpg>=0.20,<0.22
+signalstickers-client>=3.0
