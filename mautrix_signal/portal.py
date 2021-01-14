@@ -108,7 +108,7 @@ class Portal(DBPortal, BasePortal):
         cls.signal = bridge.signal
         cls.az = bridge.az
         cls.loop = bridge.loop
-        cls.bridge = bridge
+        BasePortal.bridge = bridge
         cls.private_chat_portal_meta = cls.config["bridge.private_chat_portal_meta"]
 
     # region Misc
