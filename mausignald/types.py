@@ -173,6 +173,11 @@ class Sticker(SerializableAttrs['Sticker']):
 
 
 @dataclass
+class RemoteDelete(SerializableAttrs['RemoteDelete']):
+    target_sent_timestamp: int = attr.ib(metadata={"json": "targetSentTimestamp"})
+
+
+@dataclass
 class MessageData(SerializableAttrs['MessageData']):
     timestamp: int
 
@@ -191,12 +196,16 @@ class MessageData(SerializableAttrs['MessageData']):
     profile_key_update: bool = attr.ib(default=False, metadata={"json": "profileKeyUpdate"})
     view_once: bool = attr.ib(default=False, metadata={"json": "viewOnce"})
 
+    remote_delete: Optional[RemoteDelete] = attr.ib(default=None,
+                                                    metadata={"json": "remoteDelete"})
+
 
 @dataclass
 class SentSyncMessage(SerializableAttrs['SentSyncMessage']):
     message: MessageData
     timestamp: int
-    expiration_start_timestamp: Optional[int] = attr.ib(default=None, metadata={"json": "expirationStartTimestamp"})
+    expiration_start_timestamp: Optional[int] = attr.ib(default=None, metadata={
+        "json": "expirationStartTimestamp"})
     is_recipient_update: bool = attr.ib(default=False, metadata={"json": "isRecipientUpdate"})
     unidentified_status: Dict[str, bool] = attr.ib(factory=lambda: {})
     destination: Optional[Address] = None

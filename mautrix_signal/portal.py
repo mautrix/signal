@@ -70,9 +70,10 @@ class Portal(DBPortal, BasePortal):
     _reaction_dedup: Deque[Tuple[Address, int, str]]
     _reaction_lock: asyncio.Lock
 
-    def __init__(self, chat_id: Union[GroupID, Address], receiver: str, mxid: Optional[RoomID] = None,
-                 name: Optional[str] = None, avatar_hash: Optional[str] = None,
-                 avatar_url: Optional[ContentURI] = None, encrypted: bool = False) -> None:
+    def __init__(self, chat_id: Union[GroupID, Address], receiver: str,
+                 mxid: Optional[RoomID] = None, name: Optional[str] = None,
+                 avatar_hash: Optional[str] = None, avatar_url: Optional[ContentURI] = None,
+                 encrypted: bool = False) -> None:
         super().__init__(chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted)
         self._create_room_lock = asyncio.Lock()
         self.log = self.log.getChild(self.chat_id_str)
@@ -192,7 +193,8 @@ class Portal(DBPortal, BasePortal):
             self.log.trace("Formed outgoing attachment %s", attachment)
         await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
                                quote=quote, attachments=attachments, timestamp=request_id)
-        msg = DBMessage(mxid=event_id, mx_room=self.mxid, sender=sender.address, timestamp=request_id,
+        msg = DBMessage(mxid=event_id, mx_room=self.mxid, sender=sender.address,
+                        timestamp=request_id,
                         signal_chat_id=self.chat_id, signal_receiver=self.receiver)
         await msg.insert()
         await self._send_delivery_receipt(event_id)
@@ -235,6 +237,8 @@ class Portal(DBPortal, BasePortal):
                                       redaction_event_id: EventID) -> None:
         if not self.mxid:
             return
+
+        # TODO message redactions after https://gitlab.com/signald/signald/-/issues/37
 
         reaction = await DBReaction.get_by_mxid(event_id, self.mxid)
         if reaction:
@@ -436,6 +440,17 @@ class Portal(DBPortal, BasePortal):
         mxid = await intent.react(message.mx_room, message.mxid, reaction.emoji)
         self.log.debug(f"{sender.address} reacted to {message.mxid} -> {mxid}")
         await self._upsert_reaction(existing, intent, mxid, sender, message, reaction.emoji)
+
+    async def handle_signal_delete(self, sender: 'p.Puppet', message_ts: int) -> None:
+        message = await DBMessage.get_by_signal_id(sender.address, message_ts,
+                                                   self.chat_id, self.receiver)
+        if not message:
+            return
+        await message.delete()
+        try:
+            await sender.intent_for(self).redact(message.mx_room, message.mxid)
+        except MForbidden:
+            await self.main_intent.redact(message.mx_room, message.mxid)
 
     # endregion
     # region Updating portal info

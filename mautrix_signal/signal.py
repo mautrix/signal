@@ -97,6 +97,8 @@ class SignalHandler(SignaldClient):
             await portal.handle_signal_message(user, sender, msg)
         if msg.group and msg.group.type == "UPDATE":
             await portal.update_info(msg.group)
+        if msg.remote_delete:
+            await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
 
     @staticmethod
     async def handle_own_receipts(sender: 'pu.Puppet', receipts: List[OwnReadReceipt]) -> None:

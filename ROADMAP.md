@@ -12,6 +12,7 @@
       * [ ] Locations
       * [ ] Stickers
   * [x] Message reactions
+  * [ ] Message redactions
   * [ ] Group info changes
     * [ ] Name
     * [ ] Avatar
@@ -30,6 +31,7 @@
       * [x] Locations
       * [x] Stickers
   * [x] Message reactions
+  * [x] Remote deletions
   * [ ] Initial profile info
     * [x] User displayname
     * [ ] †User avatar
