@@ -4,6 +4,7 @@
   * [ ] Message content
     * [x] Text
     * [ ] ‡Formatting
+    * [ ] Mentions
     * [ ] Media
       * [x] Images
       * [x] Audio files
@@ -22,6 +23,7 @@
 * Signal → Matrix
   * [ ] Message content
     * [x] Text
+    * [ ] Mentions
     * [ ] Media
       * [x] Images
       * [x] Voice notes
@@ -50,7 +52,10 @@
   * [x] Automatic portal creation
     * [x] At startup
     * [x] When receiving message
+      * [ ] in v2 groups
   * [ ] Provisioning API for logging in
+    * [x] Linking as secondary device
+    * [ ] Registering as primary device
   * [ ] Private chat creation by inviting Matrix puppet of Signal user to new room
   * [x] Option to use own Matrix account for messages sent from other Signal clients
     * [x] Automatic login with shared secret
