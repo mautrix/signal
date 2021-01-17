@@ -71,13 +71,17 @@ async def link(evt: CommandEvent) -> None:
                  help_text="Sign into Signal as the primary device", help_args="<phone>")
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
-        await evt.reply("**Usage**: $cmdprefix+sp register <phone>")
+        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone>")
         return
+    voice = False
+    if evt.args[0].lower() == "--voice":
+        voice = True
+        evt.args = evt.args[1:]
     phone = evt.args[0]
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
-    username = await evt.bridge.signal.register(phone)
+    username = await evt.bridge.signal.register(phone, voice=voice)
     evt.sender.command_status = {
         "action": "Register",
         "room_id": evt.room_id,
