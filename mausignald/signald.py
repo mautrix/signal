@@ -170,8 +170,10 @@ class SignaldClient(SignaldRPCClient):
         return ([Group.deserialize(group) for group in resp["groups"]]
                 + [GroupV2.deserialize(group) for group in resp["groupsv2"]])
 
-    async def get_group(self, username: str, group_id: GroupID) -> Optional[GroupV2]:
-        resp = await self.request("get_group", "get_group", account=username, groupID=group_id)
+    async def get_group(self, username: str, group_id: GroupID, revision: int = -1
+                        ) -> Optional[GroupV2]:
+        resp = await self.request("get_group", "get_group", account=username, groupID=group_id,
+                                  version="v1", revision=revision)
         if "id" not in resp:
             return None
         return GroupV2.deserialize(resp)

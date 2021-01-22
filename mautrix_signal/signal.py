@@ -76,7 +76,8 @@ class SignalHandler(SignaldClient):
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
             if not portal.mxid:
-                group_v2_info = await self.get_group(user.username, msg.group_v2.id)
+                group_v2_info = await self.get_group(user.username, msg.group_v2.id,
+                                                     msg.group_v2.revision or -1)
                 if not group_v2_info:
                     user.log.debug(f"Dropping message in unknown v2 group {msg.group_v2.id}")
                     return

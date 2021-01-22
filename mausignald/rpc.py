@@ -101,7 +101,7 @@ class SignaldRPCClient:
                 except Exception:
                     self.log.exception("Exception in RPC event handler")
 
-    async def _run_response_handlers(self, req_id: UUID, command: str, data: Any) -> None:
+    def _run_response_handlers(self, req_id: UUID, command: str, data: Any) -> None:
         try:
             waiter = self._response_waiters.pop(req_id)
         except KeyError:
@@ -131,9 +131,9 @@ class SignaldRPCClient:
 
         req_id = req.get("id")
         if req_id is None:
-            await self._run_rpc_handler(req_type, req)
+            self.loop.create_task(self._run_rpc_handler(req_type, req))
         else:
-            await self._run_response_handlers(UUID(req_id), req_type, req.get("data"))
+            self._run_response_handlers(UUID(req_id), req_type, req.get("data"))
 
     async def _try_read_loop(self) -> None:
         try:

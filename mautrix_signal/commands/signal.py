@@ -128,11 +128,9 @@ async def raw(evt: CommandEvent) -> None:
             break
         evt.args = evt.args[1:]
     type = evt.args[0]
-    version = None
+    version = "v0"
     if "." in type:
         version, type = type.split(".", 1)
-    if version == "v0":
-        version = None
     try:
         args = json.loads(" ".join(evt.args[1:]))
     except json.JSONDecodeError as e:
