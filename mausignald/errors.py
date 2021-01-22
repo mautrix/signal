@@ -27,6 +27,10 @@ class LinkingError(RPCError):
         self.number = number
 
 
+class NotConnected(RPCError):
+    pass
+
+
 class LinkingTimeout(LinkingError):
     pass
 
