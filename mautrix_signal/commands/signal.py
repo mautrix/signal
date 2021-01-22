@@ -116,20 +116,35 @@ async def safety_number(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_admin=True, needs_auth=False, help_section=SECTION_ADMIN,
-                 help_text="Send raw requests to signald", help_args="[--user] <type> <_json_>")
+                 help_text="Send raw requests to signald",
+                 help_args="[--user] <type> <_json_>")
 async def raw(evt: CommandEvent) -> None:
     add_username = False
-    if evt.args[0].lower() == "--user":
-        add_username = True
+    while True:
+        flag = evt.args[0].lower()
+        if flag == "--user":
+            add_username = True
+        else:
+            break
         evt.args = evt.args[1:]
     type = evt.args[0]
+    version = None
+    if "." in type:
+        version, type = type.split(".", 1)
+    if version == "v0":
+        version = None
     try:
         args = json.loads(" ".join(evt.args[1:]))
     except json.JSONDecodeError as e:
         await evt.reply(f"JSON decode error: {e}")
         return
     if add_username:
-        args["username"] = evt.sender.username
+        if version:
+            args["account"] = evt.sender.username
+        else:
+            args["username"] = evt.sender.username
+    if version:
+        args["version"] = version
 
     try:
         resp_type, resp_data = await evt.bridge.signal._raw_request(type, **args)
