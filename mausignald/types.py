@@ -125,6 +125,7 @@ class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
     requesting_members: List[Address] = attr.ib(factory=lambda: [],
                                                 metadata={"json": "requestingMembers"})
     master_key: Optional[str] = attr.ib(default=None, metadata={"json": "masterKey"})
+    invite_link: Optional[str] = attr.ib(default=None, metadata={"json": "inviteLink"})
     timer: Optional[int] = None
 
 

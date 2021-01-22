@@ -70,15 +70,16 @@ class SignalHandler(SignaldClient):
         user = await u.User.get_by_username(evt.username)
         user.on_listen(evt)
 
-    @staticmethod
-    async def handle_message(user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
+    async def handle_message(self, user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
                              addr_override: Optional[Address] = None) -> None:
+        group_v2_info = None
         if msg.group_v2:
-            portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=False)
-            # TODO get group info for missing v2 groups and create portal when necessary
-            if not portal:
-                user.log.debug(f"Dropping message in unknown v2 group {msg.group_v2.id}")
-                return
+            portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
+            if not portal.mxid:
+                group_v2_info = await self.get_group(user.username, msg.group_v2.id)
+                if not group_v2_info:
+                    user.log.debug(f"Dropping message in unknown v2 group {msg.group_v2.id}")
+                    return
         elif msg.group:
             portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
@@ -89,7 +90,7 @@ class SignalHandler(SignaldClient):
                                  " double puppeting enabled")
                 return
         if not portal.mxid:
-            await portal.create_matrix_room(user, (msg.group_v2 or msg.group
+            await portal.create_matrix_room(user, (group_v2_info or msg.group
                                                    or addr_override or sender.address))
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction)
