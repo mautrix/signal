@@ -122,20 +122,25 @@ class User(DBUser, BaseUser):
             self.log.info(f"Automatically enabling custom puppet")
             await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
 
-    async def sync(self) -> None:
+    async def sync(self, fetch_profiles: bool = False) -> None:
         try:
             await self._sync_puppet()
         except Exception:
             self.log.exception("Error while syncing own puppet")
         try:
-            await self._sync()
+            await self._sync_contacts(fetch_profiles=fetch_profiles)
         except Exception:
-            self.log.exception("Error while syncing")
+            self.log.exception("Error while syncing contacts")
+        try:
+            await self._sync_groups()
+        except Exception:
+            self.log.exception("Error while syncing groups")
 
-    async def _sync_contact(self, contact: Contact, create_portals: bool) -> None:
+    async def _sync_contact(self, contact: Contact, create_portals: bool,
+                            fetch_profile: bool = False) -> None:
         self.log.trace("Syncing contact %s", contact)
         puppet = await pu.Puppet.get_by_address(contact.address)
-        if not puppet.name:
+        if not puppet.name or (fetch_profile and contact.profile_key):
             profile = await self.bridge.signal.get_profile(self.username, contact.address)
             if profile and profile.name:
                 self.log.trace("Got profile for %s: %s", contact.address, profile)
@@ -166,13 +171,16 @@ class User(DBUser, BaseUser):
         elif portal.mxid:
             await portal.update_matrix_room(self, group)
 
-    async def _sync(self) -> None:
+    async def _sync_contacts(self, fetch_profiles: bool = False) -> None:
         create_contact_portal = self.config["bridge.autocreate_contact_portal"]
         for contact in await self.bridge.signal.list_contacts(self.username):
             try:
-                await self._sync_contact(contact, create_contact_portal)
+                await self._sync_contact(contact, create_contact_portal,
+                                         fetch_profile=fetch_profiles)
             except Exception:
                 self.log.exception(f"Failed to sync contact {contact.address}")
+
+    async def _sync_groups(self) -> None:
         create_group_portal = self.config["bridge.autocreate_group_portal"]
         for group in await self.bridge.signal.list_groups(self.username):
             try:
