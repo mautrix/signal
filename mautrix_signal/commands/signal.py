@@ -137,10 +137,10 @@ async def raw(evt: CommandEvent) -> None:
         await evt.reply(f"JSON decode error: {e}")
         return
     if add_username:
-        if version:
-            args["account"] = evt.sender.username
-        else:
+        if version == "v0":
             args["username"] = evt.sender.username
+        else:
+            args["account"] = evt.sender.username
     if version:
         args["version"] = version
 
