@@ -180,8 +180,8 @@ class SignaldClient(SignaldRPCClient):
 
     async def get_profile(self, username: str, address: Address) -> Optional[Profile]:
         try:
-            resp = await self.request("get_profile", "profile", username=username,
-                                      recipientAddress=address.serialize())
+            resp = await self.request("get_profile", "get_profile", account=username,
+                                      address=address.serialize(), version="v1")
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
                 return None

@@ -58,7 +58,10 @@ class Config(BaseBridgeConfig):
 
         copy("bridge.username_template")
         copy("bridge.displayname_template")
-        copy("bridge.allow_contact_list_name_updates")
+        if self["bridge.allow_contact_list_name_updates"]:
+            base["bridge.contact_list_names"] = "allow"
+        else:
+            copy("bridge.contact_list_names")
         copy("bridge.displayname_preference")
 
         copy("bridge.autocreate_group_portal")

@@ -154,10 +154,14 @@ class Puppet(DBPuppet, BasePuppet):
             address = info.address if isinstance(info, Contact) else info
             if address.uuid and not self.uuid:
                 await self.handle_uuid_receive(address.uuid)
-            if not self.config["bridge.allow_contact_list_name_updates"] and self.name is not None:
-                return
 
-        name = info.name if isinstance(info, (Contact, Profile)) else None
+        contact_names = self.config["bridge.contact_list_names"]
+        if isinstance(info, Profile) and contact_names != "prefer" and info.profile_name:
+            name = info.profile_name
+        elif isinstance(info, (Contact, Profile)) and contact_names != "disallow":
+            name = info.name
+        else:
+            name = None
 
         async with self._update_info_lock:
             update = False

@@ -455,7 +455,7 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Updating portal info
 
-    async def update_info(self, info: ChatInfo) -> None:
+    async def update_info(self, source: 'u.User', info: ChatInfo) -> None:
         if self.is_direct:
             if not isinstance(info, (Contact, Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
@@ -475,7 +475,7 @@ class Portal(DBPortal, BasePortal):
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
         changed = await self._update_avatar()
-        await self._update_participants(info.members)
+        await self._update_participants(source, info.members)
         if changed:
             await self.update_bridge_info()
             await self.update()
@@ -517,7 +517,7 @@ class Portal(DBPortal, BasePortal):
         self.avatar_hash = new_hash
         return True
 
-    async def _update_participants(self, participants: List[Address]) -> None:
+    async def _update_participants(self, source: 'u.User', participants: List[Address]) -> None:
         # TODO add support for pending_members and maybe requesting_members?
         if not self.mxid or not participants:
             return
@@ -525,7 +525,7 @@ class Portal(DBPortal, BasePortal):
         for address in participants:
             puppet = await p.Puppet.get_by_address(address)
             if not puppet.name:
-                await puppet._update_name(None)
+                await source.sync_contact(address)
             await puppet.intent_for(self).ensure_joined(self.mxid)
 
     # endregion
@@ -608,7 +608,7 @@ class Portal(DBPortal, BasePortal):
             if did_join and self.is_direct:
                 await source.update_direct_chats({self.main_intent.mxid: [self.mxid]})
 
-        await self.update_info(info)
+        await self.update_info(source, info)
 
         # TODO
         # up = DBUserPortal.get(source.fbid, self.fbid, self.fb_receiver)
@@ -624,7 +624,7 @@ class Portal(DBPortal, BasePortal):
         if self.mxid:
             await self._update_matrix_room(source, info)
             return self.mxid
-        await self.update_info(info)
+        await self.update_info(source, info)
         self.log.debug("Creating Matrix room")
         name: Optional[str] = None
         initial_state = [{
@@ -684,7 +684,7 @@ class Portal(DBPortal, BasePortal):
         self.log.debug(f"Matrix room created: {self.mxid}")
         self.by_mxid[self.mxid] = self
         if not self.is_direct:
-            await self._update_participants(info.members)
+            await self._update_participants(source, info.members)
         else:
             puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
             if puppet:

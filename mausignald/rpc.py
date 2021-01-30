@@ -11,7 +11,7 @@ import json
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import NotConnected, UnexpectedError, UnexpectedResponse
+from .errors import NotConnected, UnexpectedError, UnexpectedResponse, make_response_error
 
 EventHandler = Callable[[Dict[str, Any]], Awaitable[None]]
 
@@ -112,6 +112,8 @@ class SignaldRPCClient:
                 waiter.set_exception(UnexpectedError(data["message"]))
             except KeyError:
                 waiter.set_exception(UnexpectedError("Unexpected error with no message"))
+        elif data and "error" in data:
+            waiter.set_exception(make_response_error(data["error"]))
         else:
             waiter.set_result((command, data))
 

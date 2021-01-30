@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
+from typing import Union, Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
 from collections import defaultdict
 from uuid import UUID
 import asyncio
@@ -122,13 +122,13 @@ class User(DBUser, BaseUser):
             self.log.info(f"Automatically enabling custom puppet")
             await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
 
-    async def sync(self, fetch_profiles: bool = False) -> None:
+    async def sync(self) -> None:
         try:
             await self._sync_puppet()
         except Exception:
             self.log.exception("Error while syncing own puppet")
         try:
-            await self._sync_contacts(fetch_profiles=fetch_profiles)
+            await self._sync_contacts()
         except Exception:
             self.log.exception("Error while syncing contacts")
         try:
@@ -136,19 +136,15 @@ class User(DBUser, BaseUser):
         except Exception:
             self.log.exception("Error while syncing groups")
 
-    async def _sync_contact(self, contact: Contact, create_portals: bool,
-                            fetch_profile: bool = False) -> None:
+    async def sync_contact(self, contact: Union[Contact, Address], create_portals: bool = False
+                           ) -> None:
         self.log.trace("Syncing contact %s", contact)
-        puppet = await pu.Puppet.get_by_address(contact.address)
-        if not puppet.name or (fetch_profile and contact.profile_key):
-            profile = await self.bridge.signal.get_profile(self.username, contact.address)
-            if profile and profile.name:
-                self.log.trace("Got profile for %s: %s", contact.address, profile)
-            else:
-                profile = None
+        address = contact.address if isinstance(contact, Contact) else contact
+        puppet = await pu.Puppet.get_by_address(address)
+        profile = await self.bridge.signal.get_profile(self.username, address)
+        if profile and profile.name:
+            self.log.trace("Got profile for %s: %s", address, profile)
         else:
-            # get_profile probably does a request to the servers, so let's not do that unless
-            # necessary, but maybe we could listen for updates?
             profile = None
         await puppet.update_info(profile or contact)
         if create_portals:
@@ -171,12 +167,11 @@ class User(DBUser, BaseUser):
         elif portal.mxid:
             await portal.update_matrix_room(self, group)
 
-    async def _sync_contacts(self, fetch_profiles: bool = False) -> None:
+    async def _sync_contacts(self) -> None:
         create_contact_portal = self.config["bridge.autocreate_contact_portal"]
         for contact in await self.bridge.signal.list_contacts(self.username):
             try:
-                await self._sync_contact(contact, create_contact_portal,
-                                         fetch_profile=fetch_profiles)
+                await self.sync_contact(contact, create_contact_portal)
             except Exception:
                 self.log.exception(f"Failed to sync contact {contact.address}")
 

@@ -88,13 +88,23 @@ class Contact(SerializableAttrs['Contact']):
 
 
 @dataclass
+class Capabilities(SerializableAttrs['Capabilities']):
+    gv2: bool = False
+    storage: bool = False
+    gv1_migration: bool = attr.ib(default=False, metadata={"json": "gv1-migration"})
+
+
+@dataclass
 class Profile(SerializableAttrs['Profile']):
     name: str = ""
+    profile_name: str = ""
     avatar: str = ""
     identity_key: str = ""
     unidentified_access: str = ""
     unrestricted_unidentified_access: bool = False
     address: Optional[Address] = None
+    expiration_time: int = 0
+    capabilities: Optional[Capabilities] = None
 
 
 @dataclass

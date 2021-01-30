@@ -82,8 +82,11 @@ bridge:
     # can also be used here directly.
     displayname_template: "{displayname} (Signal)"
     # Whether or not contact list displaynames should be used.
-    # Using this isn't recommended on multi-user instances.
-    allow_contact_list_name_updates: false
+    # Possible values: disallow, allow, prefer
+    #
+    # Multi-user instances are recommended to disallow contact list names, as otherwise there can
+    # be conflicts between names from different users' contact lists.
+    contact_list_names: disallow
     # Available variables: full_name, first_name, last_name, phone, uuid
     displayname_preference:
     - full_name

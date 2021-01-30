@@ -98,7 +98,7 @@ class SignalHandler(SignaldClient):
         if msg.body or msg.attachments or msg.sticker:
             await portal.handle_signal_message(user, sender, msg)
         if msg.group and msg.group.type == "UPDATE":
-            await portal.update_info(msg.group)
+            await portal.update_info(user, msg.group)
         if msg.remote_delete:
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
 

@@ -116,18 +116,9 @@ async def safety_number(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_admin=False, needs_auth=True, help_section=SECTION_SIGNAL,
-                 help_text="Sync data from Signal", help_args="[--profiles]")
+                 help_text="Sync data from Signal")
 async def sync(evt: CommandEvent) -> None:
-    fetch_profiles = False
-    for arg in evt.args:
-        arg = arg.lower()
-        if arg == "--profiles":
-            fetch_profiles = True
-        elif arg == "--help":
-            await evt.reply("**Usage:** `$cmdprefix+sp sync [--profiles]`\n\n"
-                            "* `--profiles`: Fetch Signal profile names for users")
-            return
-    await evt.sender.sync(fetch_profiles=fetch_profiles)
+    await evt.sender.sync()
     await evt.reply("Sync complete")
 
 
