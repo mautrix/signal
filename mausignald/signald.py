@@ -12,7 +12,8 @@ from mautrix.util.logging import TraceLogger
 from .rpc import CONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse, make_linking_error
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
-                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2)
+                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2,
+                    Mention)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -147,12 +148,15 @@ class SignaldClient(SignaldRPCClient):
 
     async def send(self, username: str, recipient: Union[Address, GroupID], body: str,
                    quote: Optional[Quote] = None, attachments: Optional[List[Attachment]] = None,
-                   timestamp: Optional[int] = None) -> None:
+                   mentions: Optional[List[Mention]] = None, timestamp: Optional[int] = None
+                   ) -> None:
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
-        await self.request("send", "send_results", username=username, messageBody=body,
+        serialized_mentions = [mention.serialize() for mention in (mentions or [])]
+        await self.request("send", "send", username=username, messageBody=body,
                            attachments=serialized_attachments, quote=serialized_quote,
-                           timestamp=timestamp, **self._recipient_to_args(recipient))
+                           mentions=serialized_mentions, timestamp=timestamp,
+                           **self._recipient_to_args(recipient), version="v1")
         # TODO return something?
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],

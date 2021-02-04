@@ -189,6 +189,13 @@ class RemoteDelete(SerializableAttrs['RemoteDelete']):
 
 
 @dataclass
+class Mention(SerializableAttrs['Mention']):
+    uuid: UUID
+    length: int
+    start: int = 0
+
+
+@dataclass
 class MessageData(SerializableAttrs['MessageData']):
     timestamp: int
 
@@ -197,7 +204,7 @@ class MessageData(SerializableAttrs['MessageData']):
     reaction: Optional[Reaction] = None
     attachments: List[Attachment] = attr.ib(factory=lambda: [])
     sticker: Optional[Sticker] = None
-    # TODO mentions
+    mentions: List[Mention] = attr.ib(factory=lambda: [])
 
     group: Optional[Group] = None
     group_v2: Optional[GroupV2ID] = attr.ib(default=None, metadata={"json": "groupV2"})

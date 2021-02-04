@@ -4,7 +4,7 @@
   * [ ] Message content
     * [x] Text
     * [ ] ‡Formatting
-    * [ ] Mentions
+    * [x] Mentions
     * [ ] Media
       * [x] Images
       * [x] Audio files
@@ -23,7 +23,7 @@
 * Signal → Matrix
   * [ ] Message content
     * [x] Text
-    * [ ] Mentions
+    * [x] Mentions
     * [ ] Media
       * [x] Images
       * [x] Voice notes

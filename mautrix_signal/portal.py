@@ -25,16 +25,17 @@ import time
 import os
 
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
-                              Attachment, GroupID, GroupV2ID, GroupV2)
+                              Attachment, GroupID, GroupV2ID, GroupV2, Mention)
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
-                           TextMessageEventContent, MessageEvent, EncryptedEvent, ContentURI,
-                           MediaMessageEventContent, ImageInfo, VideoInfo, FileInfo, AudioInfo)
+                           MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
+                           ImageInfo, VideoInfo, FileInfo, AudioInfo)
 from mautrix.errors import MatrixError, MForbidden
 
 from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
 from .config import Config
+from .formatter import matrix_to_signal, signal_to_matrix
 from . import user as u, puppet as p, matrix as m, signal as s
 
 if TYPE_CHECKING:
@@ -180,19 +181,23 @@ class Portal(DBPortal, BasePortal):
             if reply is not None:
                 quote = Quote(id=reply.timestamp, author=reply.sender, text="")
 
-        text = message.body
         attachments: Optional[List[Attachment]] = None
         attachment_path: Optional[str] = None
-        if message.msgtype == MessageType.EMOTE:
-            text = f"/me {text}"
+        mentions: Optional[List[Mention]] = None
+        if message.msgtype.is_text:
+            text, mentions = await matrix_to_signal(message)
         elif message.msgtype.is_media:
             attachment_path = await self._download_matrix_media(message)
             attachment = self._make_attachment(message, attachment_path)
             attachments = [attachment]
             text = None
             self.log.trace("Formed outgoing attachment %s", attachment)
+        else:
+            self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
+            return
         await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
-                               quote=quote, attachments=attachments, timestamp=request_id)
+                               mentions=mentions, quote=quote, attachments=attachments,
+                               timestamp=request_id)
         msg = DBMessage(mxid=event_id, mx_room=self.mxid, sender=sender.address,
                         timestamp=request_id,
                         signal_chat_id=self.chat_id, signal_receiver=self.receiver)
@@ -340,7 +345,7 @@ class Portal(DBPortal, BasePortal):
             event_id = await self._send_message(intent, content, timestamp=message.timestamp)
 
         if message.body:
-            content = TextMessageEventContent(msgtype=MessageType.TEXT, body=message.body)
+            content = await signal_to_matrix(message)
             if reply_to:
                 content.set_reply(reply_to)
             event_id = await self._send_message(intent, content, timestamp=message.timestamp)
