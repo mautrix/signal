@@ -16,14 +16,16 @@
 from typing import (Optional, Dict, AsyncIterable, Awaitable, AsyncGenerator, Union,
                     TYPE_CHECKING, cast)
 from uuid import UUID
+import hashlib
 import asyncio
+import os.path
 
 from yarl import URL
 
 from mausignald.types import Address, Contact, Profile
 from mautrix.bridge import BasePuppet
 from mautrix.appservice import IntentAPI
-from mautrix.types import UserID, SyncToken, RoomID
+from mautrix.types import UserID, SyncToken, RoomID, ContentURI
 from mautrix.errors import MForbidden
 from mautrix.util.simple_template import SimpleTemplate
 
@@ -56,12 +58,16 @@ class Puppet(DBPuppet, BasePuppet):
     _update_info_lock: asyncio.Lock
 
     def __init__(self, uuid: Optional[UUID], number: Optional[str], name: Optional[str] = None,
-                 uuid_registered: bool = False, number_registered: bool = False,
-                 custom_mxid: Optional[UserID] = None, access_token: Optional[str] = None,
-                 next_batch: Optional[SyncToken] = None, base_url: Optional[URL] = None) -> None:
-        super().__init__(uuid=uuid, number=number, name=name, uuid_registered=uuid_registered,
-                         number_registered=number_registered, custom_mxid=custom_mxid,
-                         access_token=access_token, next_batch=next_batch, base_url=base_url)
+                 avatar_url: Optional[ContentURI] = None, avatar_hash: Optional[str] = None,
+                 name_set: bool = False, avatar_set: bool = False, uuid_registered: bool = False,
+                 number_registered: bool = False, custom_mxid: Optional[UserID] = None,
+                 access_token: Optional[str] = None, next_batch: Optional[SyncToken] = None,
+                 base_url: Optional[URL] = None) -> None:
+        super().__init__(uuid=uuid, number=number, name=name, avatar_url=avatar_url,
+                         avatar_hash=avatar_hash, name_set=name_set, avatar_set=avatar_set,
+                         uuid_registered=uuid_registered, number_registered=number_registered,
+                         custom_mxid=custom_mxid, access_token=access_token, next_batch=next_batch,
+                         base_url=base_url)
         self.log = self.log.getChild(str(uuid) if uuid else number)
 
         self.default_mxid = self.get_mxid_from_id(self.address)
@@ -167,8 +173,11 @@ class Puppet(DBPuppet, BasePuppet):
             update = False
             if name is not None or self.name is None:
                 update = await self._update_name(name) or update
+            if isinstance(info, Profile):
+                update = await self._update_avatar(info.avatar) or update
             if update:
                 await self.update()
+                self.loop.create_task(self._update_portal_meta())
 
     @staticmethod
     def fmt_phone(number: str) -> str:
@@ -199,19 +208,51 @@ class Puppet(DBPuppet, BasePuppet):
 
     async def _update_name(self, name: Optional[str]) -> bool:
         name = self._get_displayname(self.address, name)
-        if name != self.name:
+        if name != self.name or not self.name_set:
             self.name = name
-            await self.default_mxid_intent.set_displayname(self.name)
-            self.loop.create_task(self._update_portal_names())
+            try:
+                await self.default_mxid_intent.set_displayname(self.name)
+                self.name_set = True
+            except Exception:
+                self.log.exception("Error setting displayname")
+                self.name_set = False
             return True
         return False
 
-    async def _update_portal_names(self) -> None:
+    async def _update_avatar(self, path: str) -> bool:
+        if not path:
+            return False
+        if not path.startswith("/"):
+            path = os.path.join(self.config["signal.avatar_dir"], path)
+        try:
+            with open(path, "rb") as file:
+                data = file.read()
+        except FileNotFoundError:
+            return False
+        new_hash = hashlib.sha256(data).hexdigest()
+        if self.avatar_set and new_hash == self.avatar_hash:
+            return False
+        mxc = await self.default_mxid_intent.upload_media(data)
+        self.avatar_hash = new_hash
+        self.avatar_url = mxc
+        try:
+            await self.default_mxid_intent.set_avatar_url(self.avatar_url)
+            self.avatar_set = True
+        except Exception:
+            self.log.exception("Error setting avatar")
+            self.avatar_set = False
+        return True
+
+    async def _update_portal_meta(self) -> None:
         async for portal in p.Portal.find_private_chats_with(self.address):
             if portal.receiver == self.number:
                 # This is a note to self chat, don't change the name
                 continue
-            await portal.update_puppet_name(self.name)
+            try:
+                await portal.update_puppet_name(self.name)
+                await portal.update_puppet_avatar(self.avatar_hash, self.avatar_url)
+            except Exception:
+                self.log.exception(f"Error updating portal meta for {portal.receiver}")
 
     async def default_puppet_should_leave_room(self, room_id: RoomID) -> bool:
         portal = await p.Portal.get_by_mxid(room_id)

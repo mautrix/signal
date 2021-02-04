@@ -36,9 +36,9 @@
   * [x] Remote deletions
   * [ ] Initial profile info
     * [x] User displayname
-    * [ ] †User avatar
+    * [x] User avatar
     * [x] Group name
-    * [x] Group avatar
+    * [ ] †Group avatar
   * [ ] Profile info changes
     * [ ] User displayname
     * [ ] †User avatar

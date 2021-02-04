@@ -474,11 +474,23 @@ class Portal(DBPortal, BasePortal):
             return
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
-        changed = await self._update_avatar()
+        changed = await self._update_avatar() or changed
         await self._update_participants(source, info.members)
         if changed:
             await self.update_bridge_info()
             await self.update()
+
+    async def update_puppet_avatar(self, new_hash: str, avatar_url: ContentURI) -> None:
+        if not self.encrypted and not self.private_chat_portal_meta:
+            return
+
+        if self.avatar_hash != new_hash:
+            self.avatar_hash = new_hash
+            self.avatar_url = avatar_url
+            if self.mxid:
+                await self.main_intent.set_room_avatar(self.mxid, avatar_url)
+                await self.update_bridge_info()
+                await self.update()
 
     async def update_puppet_name(self, name: str) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:

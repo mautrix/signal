@@ -114,3 +114,12 @@ async def upgrade_v4(conn: Connection) -> None:
                        "FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver) "
                        "  REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver) "
                        "  ON DELETE CASCADE ON UPDATE CASCADE")
+
+
+@upgrade_table.register(description="Add avatar info to puppet table")
+async def upgrade_v5(conn: Connection) -> None:
+    await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_hash TEXT")
+    await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_url TEXT")
+    await conn.execute("ALTER TABLE puppet ADD COLUMN name_set BOOL NOT NULL DEFAULT false")
+    await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_set BOOL NOT NULL DEFAULT false")
+    await conn.execute("UPDATE puppet SET name_set=true WHERE name<>''")

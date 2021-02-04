@@ -21,7 +21,7 @@ from yarl import URL
 import asyncpg
 
 from mausignald.types import Address
-from mautrix.types import UserID, SyncToken
+from mautrix.types import UserID, SyncToken, ContentURI
 from mautrix.util.async_db import Database
 
 fake_db = Database("") if TYPE_CHECKING else None
@@ -34,6 +34,10 @@ class Puppet:
     uuid: Optional[UUID]
     number: Optional[str]
     name: Optional[str]
+    avatar_hash: Optional[str]
+    avatar_url: Optional[ContentURI]
+    name_set: bool
+    avatar_set: bool
 
     uuid_registered: bool
     number_registered: bool
@@ -43,13 +47,19 @@ class Puppet:
     next_batch: Optional[SyncToken]
     base_url: Optional[URL]
 
+    @property
+    def _base_url_str(self) -> Optional[str]:
+        return str(self.base_url) if self.base_url else None
+
     async def insert(self) -> None:
-        q = ("INSERT INTO puppet (uuid, number, name, uuid_registered, number_registered, "
+        q = ("INSERT INTO puppet (uuid, number, name, avatar_hash, avatar_url, name_set, "
+             "                    avatar_set, uuid_registered, number_registered, "
              "                    custom_mxid, access_token, next_batch, base_url) "
-             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
-        await self.db.execute(q, self.uuid, self.number, self.name, self.uuid_registered,
-                              self.number_registered, self.custom_mxid, self.access_token,
-                              self.next_batch, str(self.base_url) if self.base_url else None)
+             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)")
+        await self.db.execute(q, self.uuid, self.number, self.name, self.avatar_hash,
+                              self.avatar_url, self.name_set, self.avatar_set,
+                              self.uuid_registered, self.number_registered, self.custom_mxid,
+                              self.access_token, self.next_batch, self._base_url_str)
 
     async def _set_uuid(self, uuid: UUID) -> None:
         if self.uuid:
@@ -63,17 +73,18 @@ class Puppet:
             await conn.execute("UPDATE reaction SET author=$1 WHERE author=$2", uuid, self.number)
 
     async def update(self) -> None:
-        if self.uuid is None:
-            q = ("UPDATE puppet SET uuid=$1, name=$3, uuid_registered=$4, number_registered=$5, "
-                 "                  custom_mxid=$6, access_token=$7, next_batch=$8, base_url=$9 "
-                 "WHERE number=$2")
-        else:
-            q = ("UPDATE puppet SET number=$2, name=$3, uuid_registered=$4, number_registered=$5, "
-                 "                  custom_mxid=$6, access_token=$7, next_batch=$8, base_url=$9 "
-                 "WHERE uuid=$1")
-        await self.db.execute(q, self.uuid, self.number, self.name, self.uuid_registered,
-                              self.number_registered, self.custom_mxid, self.access_token,
-                              self.next_batch, str(self.base_url) if self.base_url else None)
+        set_columns = (
+            "name=$3, avatar_hash=$4, avatar_url=$5, name_set=$6, avatar_set=$7, "
+            "uuid_registered=$8, number_registered=$9, "
+            "custom_mxid=$10, access_token=$11, next_batch=$12, base_url=$13"
+        )
+        q = (f"UPDATE puppet SET uuid=$1, {set_columns} WHERE number=$2"
+             if self.uuid is None
+             else f"UPDATE puppet SET number=$2, {set_columns} WHERE uuid=$1")
+        await self.db.execute(q,self.uuid, self.number, self.name, self.avatar_hash,
+                              self.avatar_url, self.name_set, self.avatar_set,
+                              self.uuid_registered, self.number_registered, self.custom_mxid,
+                              self.access_token, self.next_batch, self._base_url_str)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Puppet':
@@ -82,19 +93,21 @@ class Puppet:
         base_url = URL(base_url_str) if base_url_str is not None else None
         return cls(base_url=base_url, **data)
 
+    _select_base = ("SELECT uuid, number, name, avatar_hash, avatar_url, name_set, avatar_set, "
+                    "       uuid_registered, number_registered, custom_mxid, access_token, "
+                    "       next_batch, base_url "
+                    "FROM puppet")
+
     @classmethod
     async def get_by_address(cls, address: Address) -> Optional['Puppet']:
-        select = ("SELECT uuid, number, name, uuid_registered, "
-                  "       number_registered, custom_mxid, access_token, next_batch, base_url "
-                  "FROM puppet")
         if address.uuid:
             if address.number:
-                row = await cls.db.fetchrow(f"{select} WHERE uuid=$1 OR number=$2",
+                row = await cls.db.fetchrow(f"{cls._select_base} WHERE uuid=$1 OR number=$2",
                                             address.uuid, address.number)
             else:
-                row = await cls.db.fetchrow(f"{select} WHERE uuid=$1", address.uuid)
+                row = await cls.db.fetchrow(f"{cls._select_base} WHERE uuid=$1", address.uuid)
         elif address.number:
-            row = await cls.db.fetchrow(f"{select} WHERE number=$1", address.number)
+            row = await cls.db.fetchrow(f"{cls._select_base} WHERE number=$1", address.number)
         else:
             raise ValueError("Invalid address")
         if not row:
@@ -103,18 +116,12 @@ class Puppet:
 
     @classmethod
     async def get_by_custom_mxid(cls, mxid: UserID) -> Optional['Puppet']:
-        q = ("SELECT uuid, number, name, uuid_registered, number_registered,"
-             "       custom_mxid, access_token, next_batch, base_url "
-             "FROM puppet WHERE custom_mxid=$1")
-        row = await cls.db.fetchrow(q, mxid)
+        row = await cls.db.fetchrow(f"{cls._select_base} WHERE custom_mxid=$1", mxid)
         if not row:
             return None
         return cls._from_row(row)
 
     @classmethod
     async def all_with_custom_mxid(cls) -> List['Puppet']:
-        q = ("SELECT uuid, number, name, uuid_registered, number_registered,"
-             "       custom_mxid, access_token, next_batch, base_url "
-             "FROM puppet WHERE custom_mxid IS NOT NULL")
-        rows = await cls.db.fetch(q)
+        rows = await cls.db.fetch(f"{cls._select_base} WHERE custom_mxid IS NOT NULL")
         return [cls._from_row(row) for row in rows]
