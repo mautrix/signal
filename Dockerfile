@@ -19,9 +19,10 @@ RUN apk add --no-cache \
       ca-certificates \
       su-exec \
       # encryption
+      libressl \
       olm-dev \
       py3-cffi \
-	  py3-pycryptodome \
+      py3-pycryptodome \
       py3-unpaddedbase64 \
       py3-future \
       bash \
@@ -33,7 +34,7 @@ RUN apk add --no-cache \
 COPY requirements.txt /opt/mautrix-signal/requirements.txt
 COPY optional-requirements.txt /opt/mautrix-signal/optional-requirements.txt
 WORKDIR /opt/mautrix-signal
-RUN apk add --virtual .build-deps python3-dev libffi-dev build-base \
+RUN apk add --virtual .build-deps python3-dev libffi-dev libressl-dev build-base \
  && pip3 install -r requirements.txt -r optional-requirements.txt \
  && apk del .build-deps
 
