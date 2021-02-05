@@ -15,3 +15,6 @@ phonenumbers>=8,<9
 #/qrlink
 qrcode>=6,<7
 Pillow>=4,<9
+
+#/stickers
+signalstickers-client>=3.0
