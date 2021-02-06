@@ -496,6 +496,9 @@ class Portal(DBPortal, BasePortal):
         content.url = await intent.upload_media(data, mime_type=upload_mime_type, filename=id)
         if content.file:
             content.file.url = content.url
+            # fix ios bug
+            if content.info.mimetype.startswith("image/"):
+                content.info.thumbnail_file = content.file
             content.url = None
 
     async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction) -> None:
