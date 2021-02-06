@@ -34,16 +34,10 @@
       * [x] Stickers
   * [x] Message reactions
   * [x] Remote deletions
-  * [ ] Initial profile info
-    * [x] User displayname
-    * [x] User avatar
-    * [x] Group name
-    * [ ] †Group avatar
+  * [x] Initial user and group profile info
   * [ ] Profile info changes
-    * [ ] User displayname
-    * [ ] †User avatar
-    * [x] Group name
-    * [x] Group avatar
+    * [x] When restarting bridge or syncing
+    * [ ] Real time
   * [x] Typing notifications
   * [x] Read receipts
   * [ ] Delivery receipts (there's no good way to bridge these)

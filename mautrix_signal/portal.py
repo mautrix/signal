@@ -567,7 +567,7 @@ class Portal(DBPortal, BasePortal):
             return
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
-        changed = await self._update_avatar() or changed
+        changed = await self._update_avatar(info) or changed
         await self._update_participants(source, info.members)
         if changed:
             await self.update_bridge_info()
@@ -603,10 +603,14 @@ class Portal(DBPortal, BasePortal):
             return True
         return False
 
-    async def _update_avatar(self) -> bool:
-        if self.is_direct:
+    async def _update_avatar(self, info: ChatInfo) -> bool:
+        path = None
+        if isinstance(info, GroupV2):
+            path = info.avatar
+        elif isinstance(info, Group):
+            path = os.path.join(self.config["signal.avatar_dir"], f"group-{self.chat_id}")
+        if not path:
             return False
-        path = os.path.join(self.config["signal.avatar_dir"], f"group-{self.chat_id}")
         try:
             with open(path, "rb") as file:
                 data = file.read()

@@ -130,6 +130,7 @@ class GroupV2ID(SerializableAttrs['GroupV2ID']):
 class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
     title: str
     members: List[Address]
+    avatar: Optional[str] = None
     pending_members: List[Address] = attr.ib(factory=lambda: [],
                                              metadata={"json": "pendingMembers"})
     requesting_members: List[Address] = attr.ib(factory=lambda: [],
