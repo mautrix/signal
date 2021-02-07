@@ -496,10 +496,13 @@ class Portal(DBPortal, BasePortal):
         content.url = await intent.upload_media(data, mime_type=upload_mime_type, filename=id)
         if content.file:
             content.file.url = content.url
-            # fix ios bug
-            if content.info.mimetype.startswith("image/"):
-                content.info.thumbnail_file = content.file
             content.url = None
+        # This is a hack for bad clients like Element iOS that require a thumbnail
+        if content.info.mimetype.startswith("image/"):
+            if content.file:
+                content.info.thumbnail_file = content.file
+            elif content.url:
+                content.info.thumbnail_url = content.url
 
     async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction) -> None:
         author_address = await self._resolve_address(reaction.target_author)
