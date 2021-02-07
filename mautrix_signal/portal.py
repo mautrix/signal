@@ -277,6 +277,44 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"{user.mxid} left portal to {self.chat_id}")
             # TODO cleanup if empty
 
+    async def handle_matrix_name(self, user: 'u.User', name: str) -> None:
+        if self.name == name or self.is_direct:
+            return
+        self.name = name
+        self.log.debug(f"{user.mxid} changed the group name, sending to Signal")
+        try:
+            await self.signal.update_group(user.username, self.chat_id, title=name)
+        except Exception:
+            self.log.exception("Failed to update Signal group name")
+            self.name = None
+
+    async def handle_matrix_avatar(self, user: 'u.User', url: ContentURI) -> None:
+        if self.is_direct:
+            return
+
+        data = await self.main_intent.download_media(url)
+        new_hash = hashlib.sha256(data).hexdigest()
+        if new_hash == self.avatar_hash:
+            self.log.debug(f"New avatar from Matrix set by {user.mxid} is same as current one")
+            return
+        self.avatar_url = url
+        self.avatar_hash = new_hash
+        path = os.path.join(self.config["signal.outgoing_attachment_dir"],
+                            f"mautrix-signal-avatar-{str(uuid4())}")
+        self.log.debug(f"{user.mxid} changed the group avatar, sending to Signal")
+        try:
+            with open(path, "wb") as file:
+                file.write(data)
+            await self.signal.update_group(user.username, self.chat_id, avatar_path=path)
+        except Exception:
+            self.log.exception("Failed to update Signal group avatar")
+            self.avatar_hash = None
+        if self.config["signal.remove_file_after_handling"]:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                pass
+
     # endregion
     # region Signal event handling
 

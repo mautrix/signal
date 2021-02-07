@@ -174,6 +174,28 @@ class SignaldClient(SignaldRPCClient):
         return ([Group.deserialize(group) for group in resp["groups"]]
                 + [GroupV2.deserialize(group) for group in resp["groupsv2"]])
 
+    async def update_group(self, username: str, group_id: GroupID, title: Optional[str] = None,
+                           avatar_path: Optional[str] = None,
+                           add_members: Optional[List[Address]] = None,
+                           remove_members: Optional[List[Address]] = None
+                           ) -> Union[Group, GroupV2, None]:
+        update_params = {key: value for key, value in {
+            "groupID": group_id,
+            "avatar": avatar_path,
+            "title": title,
+            "addMembers": [addr.serialize() for addr in add_members] if add_members else None,
+            "removeMembers": ([addr.serialize() for addr in remove_members]
+                              if remove_members else None),
+        }.items() if value is not None}
+        resp = await self.request("update_group", "update_group", version="v1", account=username,
+                                  **update_params)
+        if "v1" in resp:
+            return Group.deserialize(resp["v1"])
+        elif "v2" in resp:
+            return GroupV2.deserialize(resp["v2"])
+        else:
+            return None
+
     async def get_group(self, username: str, group_id: GroupID, revision: int = -1
                         ) -> Optional[GroupV2]:
         resp = await self.request("get_group", "get_group", account=username, groupID=group_id,

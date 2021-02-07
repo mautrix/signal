@@ -135,3 +135,19 @@ class MatrixHandler(BaseMatrixHandler):
             await self.handle_typing(evt.room_id, evt.content.user_ids)
         else:
             await super().handle_ephemeral_event(evt)
+
+    async def handle_state_event(self, evt: StateEvent) -> None:
+        if evt.type not in (EventType.ROOM_NAME, EventType.ROOM_AVATAR):
+            return
+
+        user = await u.User.get_by_mxid(evt.sender)
+        if not user:
+            return
+        portal = await po.Portal.get_by_mxid(evt.room_id)
+        if not portal:
+            return
+
+        if evt.type == EventType.ROOM_NAME:
+            await portal.handle_matrix_name(user, evt.content.name)
+        elif evt.type == EventType.ROOM_AVATAR:
+            await portal.handle_matrix_avatar(user, evt.content.url)

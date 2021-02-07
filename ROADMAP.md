@@ -14,10 +14,10 @@
       * [ ] Stickers
   * [x] Message reactions
   * [ ] Message redactions
-  * [ ] Group info changes
-    * [ ] Name
-    * [ ] Avatar
-  * [ ] †Typing notifications
+  * [x] Group info changes
+    * [x] Name
+    * [x] Avatar
+  * [ ] Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
   * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
@@ -38,6 +38,7 @@
   * [ ] Profile info changes
     * [x] When restarting bridge or syncing
     * [ ] Real time
+  * [ ] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
   * [ ] Delivery receipts (there's no good way to bridge these)
@@ -46,7 +47,6 @@
   * [x] Automatic portal creation
     * [x] At startup
     * [x] When receiving message
-      * [ ] in v2 groups
   * [ ] Provisioning API for logging in
     * [x] Linking as secondary device
     * [ ] Registering as primary device
