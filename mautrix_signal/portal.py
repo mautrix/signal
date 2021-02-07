@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerator, Awaitable,
-                    TYPE_CHECKING, cast)
+                    Callable, TYPE_CHECKING, cast)
 from collections import deque
 from uuid import UUID, uuid4
 import mimetypes
@@ -81,8 +81,10 @@ class Portal(DBPortal, BasePortal):
     def __init__(self, chat_id: Union[GroupID, Address], receiver: str,
                  mxid: Optional[RoomID] = None, name: Optional[str] = None,
                  avatar_hash: Optional[str] = None, avatar_url: Optional[ContentURI] = None,
+                 name_set: bool = False, avatar_set: bool = False, revision: int = 0,
                  encrypted: bool = False) -> None:
-        super().__init__(chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted)
+        super().__init__(chat_id, receiver, mxid, name, avatar_hash, avatar_url,
+                         name_set, avatar_set, revision, encrypted)
         self._create_room_lock = asyncio.Lock()
         self.log = self.log.getChild(self.chat_id_str)
         self._main_intent = None
@@ -278,7 +280,7 @@ class Portal(DBPortal, BasePortal):
             # TODO cleanup if empty
 
     async def handle_matrix_name(self, user: 'u.User', name: str) -> None:
-        if self.name == name or self.is_direct:
+        if self.name == name or self.is_direct or not name:
             return
         self.name = name
         self.log.debug(f"{user.mxid} changed the group name, sending to Signal")
@@ -289,12 +291,12 @@ class Portal(DBPortal, BasePortal):
             self.name = None
 
     async def handle_matrix_avatar(self, user: 'u.User', url: ContentURI) -> None:
-        if self.is_direct:
+        if self.is_direct or not url:
             return
 
         data = await self.main_intent.download_media(url)
         new_hash = hashlib.sha256(data).hexdigest()
-        if new_hash == self.avatar_hash:
+        if new_hash == self.avatar_hash and self.avatar_set:
             self.log.debug(f"New avatar from Matrix set by {user.mxid} is same as current one")
             return
         self.avatar_url = url
@@ -306,9 +308,10 @@ class Portal(DBPortal, BasePortal):
             with open(path, "wb") as file:
                 file.write(data)
             await self.signal.update_group(user.username, self.chat_id, avatar_path=path)
+            self.avatar_set = True
         except Exception:
             self.log.exception("Failed to update Signal group avatar")
-            self.avatar_hash = None
+            self.avatar_set = False
         if self.config["signal.remove_file_after_handling"]:
             try:
                 os.remove(path)
@@ -592,7 +595,8 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Updating portal info
 
-    async def update_info(self, source: 'u.User', info: ChatInfo) -> None:
+    async def update_info(self, source: 'u.User', info: ChatInfo,
+                          sender: Optional['p.Puppet'] = None) -> None:
         if self.is_direct:
             if not isinstance(info, (Contact, Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
@@ -603,15 +607,30 @@ class Portal(DBPortal, BasePortal):
                 self.name = puppet.name
             return
 
+        if isinstance(info, GroupV2ID):
+            info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            if not info:
+                self.log.debug(f"Failed to get full group v2 info through {source.username}, "
+                               "cancelling update")
+                return
+
+        changed = False
         if isinstance(info, Group):
-            changed = await self._update_name(info.name)
+            changed = await self._update_name(info.name, sender) or changed
         elif isinstance(info, GroupV2):
-            changed = await self._update_name(info.title)
+            if self.revision < info.revision:
+                self.revision = info.revision
+                changed = True
+            elif self.revision > info.revision:
+                self.log.warning(f"Got outdated info when syncing through {source.username} "
+                                 f"({info.revision} < {self.revision}), ignoring...")
+                return
+            changed = await self._update_name(info.title, sender) or changed
         elif isinstance(info, GroupV2ID):
             return
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
-        changed = await self._update_avatar(info) or changed
+        changed = await self._update_avatar(info, sender) or changed
         await self._update_participants(source, info.members)
         if changed:
             await self.update_bridge_info()
@@ -621,11 +640,16 @@ class Portal(DBPortal, BasePortal):
         if not self.encrypted and not self.private_chat_portal_meta:
             return
 
-        if self.avatar_hash != new_hash:
+        if self.avatar_hash != new_hash or not self.avatar_set:
             self.avatar_hash = new_hash
             self.avatar_url = avatar_url
             if self.mxid:
-                await self.main_intent.set_room_avatar(self.mxid, avatar_url)
+                try:
+                    await self.main_intent.set_room_avatar(self.mxid, avatar_url)
+                    self.avatar_set = True
+                except Exception:
+                    self.log.exception("Error setting avatar")
+                    self.avatar_set = False
                 await self.update_bridge_info()
                 await self.update()
 
@@ -639,34 +663,50 @@ class Portal(DBPortal, BasePortal):
             await self.update_bridge_info()
             await self.update()
 
-    async def _update_name(self, name: str) -> bool:
-        if self.name != name:
+    async def _update_name(self, name: str, sender: Optional['p.Puppet'] = None) -> bool:
+        if self.name != name or not self.name_set:
             self.name = name
             if self.mxid:
-                await self.main_intent.set_room_name(self.mxid, name)
+                try:
+                    await self._try_with_puppet(lambda i: i.set_room_name(self.mxid, self.name),
+                                                puppet=sender)
+                    self.name_set = True
+                except Exception:
+                    self.log.exception("Error setting name")
+                    self.name_set = False
             return True
         return False
 
-    @property
-    def avatar_set(self) -> bool:
-        return bool(self.avatar_hash)
+    async def _try_with_puppet(self, action: Callable[[IntentAPI], Awaitable[Any]],
+                               puppet: Optional['p.Puppet'] = None) -> None:
+        if puppet:
+            try:
+                await action(puppet.intent_for(self))
+            except MForbidden:
+                await action(self.main_intent)
+        else:
+            await action(self.main_intent)
 
-    async def _update_avatar(self, info: ChatInfo) -> bool:
+    async def _update_avatar(self, info: ChatInfo, sender: Optional['p.Puppet'] = None) -> bool:
         path = None
         if isinstance(info, GroupV2):
             path = info.avatar
         elif isinstance(info, Group):
             path = f"group-{self.chat_id}"
-        res = await p.Puppet.upload_avatar(self, path)
+        res = await p.Puppet.upload_avatar(self, path, self.main_intent)
         if res is False:
             return False
         self.avatar_hash, self.avatar_url = res
-        if self.mxid:
-            try:
-                await self.main_intent.set_room_avatar(self.mxid, self.avatar_url)
-            except Exception:
-                self.log.exception("Error setting avatar")
-                self.avatar_hash = None
+        if not self.mxid:
+            return True
+
+        try:
+            await self._try_with_puppet(lambda i: i.set_room_avatar(self.mxid, self.avatar_url),
+                                        puppet=sender)
+            self.avatar_set = True
+        except Exception:
+            self.log.exception("Error setting avatar")
+            self.avatar_set = False
         return True
 
     async def _update_participants(self, source: 'u.User', participants: List[Address]) -> None:
@@ -762,16 +802,6 @@ class Portal(DBPortal, BasePortal):
 
         await self.update_info(source, info)
 
-        # TODO
-        # up = DBUserPortal.get(source.fbid, self.fbid, self.fb_receiver)
-        # if not up:
-        #     in_community = await source._community_helper.add_room(source._community_id, self.mxid)
-        #     DBUserPortal(user=source.fbid, portal=self.fbid, portal_receiver=self.fb_receiver,
-        #                  in_community=in_community).insert()
-        # elif not up.in_community:
-        #     in_community = await source._community_helper.add_room(source._community_id, self.mxid)
-        #     up.edit(in_community=in_community)
-
     async def _create_matrix_room(self, source: 'u.User', info: ChatInfo) -> Optional[RoomID]:
         if self.mxid:
             await self._update_matrix_room(source, info)
@@ -824,6 +854,8 @@ class Portal(DBPortal, BasePortal):
                                                        invitees=invites)
         if not self.mxid:
             raise Exception("Failed to create room: no mxid returned")
+        self.name_set = bool(name)
+        self.avatar_set = bool(self.avatar_url)
 
         if self.encrypted and self.matrix.e2ee and self.is_direct:
             try:

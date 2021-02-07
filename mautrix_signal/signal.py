@@ -93,6 +93,9 @@ class SignalHandler(SignaldClient):
         if not portal.mxid:
             await portal.create_matrix_room(user, (group_v2_info or msg.group
                                                    or addr_override or sender.address))
+        elif msg.group_v2 and msg.group_v2.revision > portal.revision:
+            self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
+            await portal.update_info(user, group_v2_info or msg.group_v2, sender)
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction)
         if msg.body or msg.attachments or msg.sticker:

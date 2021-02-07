@@ -220,7 +220,7 @@ class Puppet(DBPuppet, BasePuppet):
         return False
 
     @staticmethod
-    async def upload_avatar(self: Union['Puppet', 'p.Portal'], path: str
+    async def upload_avatar(self: Union['Puppet', 'p.Portal'], path: str, intent: IntentAPI,
                             ) -> Union[bool, Tuple[str, ContentURI]]:
         if not path:
             return False
@@ -234,11 +234,11 @@ class Puppet(DBPuppet, BasePuppet):
         new_hash = hashlib.sha256(data).hexdigest()
         if self.avatar_set and new_hash == self.avatar_hash:
             return False
-        mxc = await self.default_mxid_intent.upload_media(data)
+        mxc = await intent.upload_media(data)
         return new_hash, mxc
 
     async def _update_avatar(self, path: str) -> bool:
-        res = await Puppet.upload_avatar(self, path)
+        res = await Puppet.upload_avatar(self, path, self.default_mxid_intent)
         if res is False:
             return False
         self.avatar_hash, self.avatar_url = res

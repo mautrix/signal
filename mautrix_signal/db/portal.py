@@ -38,6 +38,9 @@ class Portal:
     name: Optional[str]
     avatar_hash: Optional[str]
     avatar_url: Optional[ContentURI]
+    name_set: bool
+    avatar_set: bool
+    revision: int
     encrypted: bool
 
     @property
@@ -46,16 +49,18 @@ class Portal:
 
     async def insert(self) -> None:
         q = ("INSERT INTO portal (chat_id, receiver, mxid, name, avatar_hash, avatar_url, "
-             "                    encrypted) "
-             "VALUES ($1, $2, $3, $4, $5, $6, $7)")
+             "                    name_set, avatar_set, revision, encrypted) "
+             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)")
         await self.db.execute(q, self.chat_id_str, self.receiver, self.mxid, self.name,
                               self.avatar_hash, self.avatar_url, self.encrypted)
 
     async def update(self) -> None:
-        q = ("UPDATE portal SET mxid=$3, name=$4, avatar_hash=$5, avatar_url=$6, encrypted=$7 "
+        q = ("UPDATE portal SET mxid=$3, name=$4, avatar_hash=$5, avatar_url=$6, "
+             "                  name_set=$7, avatar_set=$8, revision=$9, encrypted=$10 "
              "WHERE chat_id=$1 AND receiver=$2")
         await self.db.execute(q, self.chat_id_str, self.receiver, self.mxid, self.name,
-                              self.avatar_hash, self.avatar_url, self.encrypted)
+                              self.avatar_hash, self.avatar_url, self.name_set, self.avatar_set,
+                              self.revision, self.encrypted)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Portal':
@@ -67,7 +72,8 @@ class Portal:
 
     @classmethod
     async def get_by_mxid(cls, mxid: RoomID) -> Optional['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
+             "       revision, encrypted "
              "FROM portal WHERE mxid=$1")
         row = await cls.db.fetchrow(q, mxid)
         if not row:
@@ -77,7 +83,8 @@ class Portal:
     @classmethod
     async def get_by_chat_id(cls, chat_id: Union[GroupID, Address], receiver: str = ""
                              ) -> Optional['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
+             "       revision, encrypted "
              "FROM portal WHERE chat_id=$1 AND receiver=$2")
         row = await cls.db.fetchrow(q, id_to_str(chat_id), receiver)
         if not row:
@@ -86,21 +93,24 @@ class Portal:
 
     @classmethod
     async def find_private_chats_of(cls, receiver: str) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
+             "       revision, encrypted "
              "FROM portal WHERE receiver=$1")
         rows = await cls.db.fetch(q, receiver)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def find_private_chats_with(cls, other_user: Address) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
+             "       revision, encrypted "
              "FROM portal WHERE chat_id=$1 AND receiver<>''")
         rows = await cls.db.fetch(q, other_user.best_identifier)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def all_with_room(cls) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, encrypted "
+        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
+             "       revision, encrypted "
              "FROM portal WHERE mxid IS NOT NULL")
         rows = await cls.db.fetch(q)
         return [cls._from_row(row) for row in rows]

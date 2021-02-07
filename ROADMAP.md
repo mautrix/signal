@@ -38,6 +38,8 @@
   * [ ] Profile info changes
     * [x] When restarting bridge or syncing
     * [ ] Real time
+      * [x] Groups
+      * [ ] Users
   * [ ] Group permissions
   * [x] Typing notifications
   * [x] Read receipts

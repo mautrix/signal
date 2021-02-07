@@ -178,6 +178,7 @@ class User(DBUser, BaseUser):
     async def _sync_groups(self) -> None:
         create_group_portal = self.config["bridge.autocreate_group_portal"]
         for group in await self.bridge.signal.list_groups(self.username):
+            group_id = group.group_id if isinstance(group, Group) else group.id
             try:
                 if isinstance(group, Group):
                     await self._sync_group(group, create_group_portal)
@@ -186,7 +187,7 @@ class User(DBUser, BaseUser):
                 else:
                     self.log.warning("Unknown return type in list_groups: %s", type(group))
             except Exception:
-                self.log.exception(f"Failed to sync group {group.group_id}")
+                self.log.exception(f"Failed to sync group {group_id}")
 
     # region Database getters
 

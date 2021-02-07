@@ -170,9 +170,10 @@ class SignaldClient(SignaldRPCClient):
         return [Contact.deserialize(contact) for contact in contacts]
 
     async def list_groups(self, username: str) -> List[Union[Group, GroupV2]]:
-        resp = await self.request("list_groups", "group_list", username=username)
-        return ([Group.deserialize(group) for group in resp["groups"]]
-                + [GroupV2.deserialize(group) for group in resp["groupsv2"]])
+        resp = await self.request("list_groups", "list_groups", account=username, version="v1")
+        legacy = [Group.deserialize(group) for group in resp.get("legacyGroups", [])]
+        v2 = [GroupV2.deserialize(group) for group in resp.get("groups", [])]
+        return legacy + v2
 
     async def update_group(self, username: str, group_id: GroupID, title: Optional[str] = None,
                            avatar_path: Optional[str] = None,

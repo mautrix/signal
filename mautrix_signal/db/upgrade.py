@@ -120,6 +120,15 @@ async def upgrade_v4(conn: Connection) -> None:
 async def upgrade_v5(conn: Connection) -> None:
     await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_hash TEXT")
     await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_url TEXT")
-    await conn.execute("ALTER TABLE puppet ADD COLUMN name_set BOOL NOT NULL DEFAULT false")
-    await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_set BOOL NOT NULL DEFAULT false")
+    await conn.execute("ALTER TABLE puppet ADD COLUMN name_set BOOLEAN NOT NULL DEFAULT false")
+    await conn.execute("ALTER TABLE puppet ADD COLUMN avatar_set BOOLEAN NOT NULL DEFAULT false")
     await conn.execute("UPDATE puppet SET name_set=true WHERE name<>''")
+
+
+@upgrade_table.register(description="Add revision to portal table")
+async def upgrade_v6(conn: Connection) -> None:
+    await conn.execute("ALTER TABLE portal ADD COLUMN name_set BOOLEAN NOT NULL DEFAULT false")
+    await conn.execute("ALTER TABLE portal ADD COLUMN avatar_set BOOLEAN NOT NULL DEFAULT false")
+    await conn.execute("ALTER TABLE portal ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+    await conn.execute("UPDATE portal SET name_set=true WHERE name<>''")
+    await conn.execute("UPDATE portal SET avatar_set=true WHERE avatar_hash<>''")
