@@ -27,6 +27,11 @@ appservice:
 
     # The full URI to the database. Only Postgres is currently supported.
     database: postgres://username:password@hostname/db
+    # Additional arguments for asyncpg.create_pool()
+    # https://magicstack.github.io/asyncpg/current/api/index.html#asyncpg.pool.create_pool
+    database_opts:
+        min_size: 5
+        max_size: 10
 
     # The unique ID of this appservice.
     id: signal
