@@ -23,7 +23,7 @@ import os.path
 from yarl import URL
 
 from mausignald.types import Address, Contact, Profile
-from mautrix.bridge import BasePuppet
+from mautrix.bridge import BasePuppet, async_getter_lock
 from mautrix.appservice import IntentAPI
 from mautrix.types import UserID, SyncToken, RoomID, ContentURI
 from mautrix.errors import MForbidden
@@ -286,6 +286,7 @@ class Puppet(DBPuppet, BasePuppet):
         return await cls.get_by_address(address, create)
 
     @classmethod
+    @async_getter_lock
     async def get_by_custom_mxid(cls, mxid: UserID) -> Optional['Puppet']:
         try:
             return cls.by_custom_mxid[mxid]
@@ -323,6 +324,7 @@ class Puppet(DBPuppet, BasePuppet):
         return UserID(cls.mxid_template.format_full(identifier))
 
     @classmethod
+    @async_getter_lock
     async def get_by_address(cls, address: Address, create: bool = True) -> Optional['Puppet']:
         puppet = await cls._get_by_address(address, create)
         if puppet and address.uuid and not puppet.uuid:

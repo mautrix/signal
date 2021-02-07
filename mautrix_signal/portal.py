@@ -27,7 +27,7 @@ import os
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
                               Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker)
 from mautrix.appservice import AppService, IntentAPI
-from mautrix.bridge import BasePortal
+from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
                            MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
                            ImageInfo, VideoInfo, FileInfo, AudioInfo)
@@ -929,6 +929,7 @@ class Portal(DBPortal, BasePortal):
                 yield portal
 
     @classmethod
+    @async_getter_lock
     async def get_by_mxid(cls, mxid: RoomID) -> Optional['Portal']:
         try:
             return cls.by_mxid[mxid]
@@ -943,7 +944,8 @@ class Portal(DBPortal, BasePortal):
         return None
 
     @classmethod
-    async def get_by_chat_id(cls, chat_id: Union[GroupID, Address], receiver: str = "",
+    @async_getter_lock
+    async def get_by_chat_id(cls, chat_id: Union[GroupID, Address], *, receiver: str = "",
                              create: bool = False) -> Optional['Portal']:
         if isinstance(chat_id, str):
             receiver = ""

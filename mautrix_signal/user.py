@@ -21,7 +21,7 @@ import os.path
 import shutil
 
 from mausignald.types import Account, Address, Contact, Group, GroupV2, ListenEvent, ListenAction
-from mautrix.bridge import BaseUser
+from mautrix.bridge import BaseUser, async_getter_lock
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
 from mautrix.util.opt_prometheus import Gauge
@@ -148,7 +148,8 @@ class User(DBUser, BaseUser):
             profile = None
         await puppet.update_info(profile or contact)
         if create_portals:
-            portal = await po.Portal.get_by_chat_id(puppet.address, self.username, create=True)
+            portal = await po.Portal.get_by_chat_id(puppet.address, receiver=self.username,
+                                                    create=True)
             await portal.create_matrix_room(self, profile or contact)
 
     async def _sync_group(self, group: Group, create_portals: bool) -> None:
@@ -197,6 +198,7 @@ class User(DBUser, BaseUser):
             self.by_username[self.username] = self
 
     @classmethod
+    @async_getter_lock
     async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Optional['User']:
         # Never allow ghosts to be users
         if pu.Puppet.get_id_from_mxid(mxid):
@@ -220,6 +222,7 @@ class User(DBUser, BaseUser):
         return None
 
     @classmethod
+    @async_getter_lock
     async def get_by_username(cls, username: str) -> Optional['User']:
         try:
             return cls.by_username[username]
