@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import (Optional, Dict, AsyncIterable, Awaitable, AsyncGenerator, Union,
+from typing import (Optional, Dict, AsyncIterable, Awaitable, AsyncGenerator, Union, Tuple,
                     TYPE_CHECKING, cast)
 from uuid import UUID
 import hashlib
@@ -219,7 +219,9 @@ class Puppet(DBPuppet, BasePuppet):
             return True
         return False
 
-    async def _update_avatar(self, path: str) -> bool:
+    @staticmethod
+    async def upload_avatar(self: Union['Puppet', 'p.Portal'], path: str
+                            ) -> Union[bool, Tuple[str, ContentURI]]:
         if not path:
             return False
         if not path.startswith("/"):
@@ -233,8 +235,13 @@ class Puppet(DBPuppet, BasePuppet):
         if self.avatar_set and new_hash == self.avatar_hash:
             return False
         mxc = await self.default_mxid_intent.upload_media(data)
-        self.avatar_hash = new_hash
-        self.avatar_url = mxc
+        return new_hash, mxc
+
+    async def _update_avatar(self, path: str) -> bool:
+        res = await Puppet.upload_avatar(self, path)
+        if res is False:
+            return False
+        self.avatar_hash, self.avatar_url = res
         try:
             await self.default_mxid_intent.set_avatar_url(self.avatar_url)
             self.avatar_set = True

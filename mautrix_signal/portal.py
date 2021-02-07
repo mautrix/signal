@@ -609,27 +609,26 @@ class Portal(DBPortal, BasePortal):
             return True
         return False
 
+    @property
+    def avatar_set(self) -> bool:
+        return bool(self.avatar_hash)
+
     async def _update_avatar(self, info: ChatInfo) -> bool:
         path = None
         if isinstance(info, GroupV2):
             path = info.avatar
         elif isinstance(info, Group):
-            path = os.path.join(self.config["signal.avatar_dir"], f"group-{self.chat_id}")
-        if not path:
+            path = f"group-{self.chat_id}"
+        res = await p.Puppet.upload_avatar(self, path)
+        if res is False:
             return False
-        try:
-            with open(path, "rb") as file:
-                data = file.read()
-        except FileNotFoundError:
-            return False
-        new_hash = hashlib.sha256(data).hexdigest()
-        if self.avatar_hash and new_hash == self.avatar_hash:
-            return False
-        mxc = await self.main_intent.upload_media(data)
+        self.avatar_hash, self.avatar_url = res
         if self.mxid:
-            await self.main_intent.set_room_avatar(self.mxid, mxc)
-        self.avatar_url = mxc
-        self.avatar_hash = new_hash
+            try:
+                await self.main_intent.set_room_avatar(self.mxid, self.avatar_url)
+            except Exception:
+                self.log.exception("Error setting avatar")
+                self.avatar_hash = None
         return True
 
     async def _update_participants(self, source: 'u.User', participants: List[Address]) -> None:
