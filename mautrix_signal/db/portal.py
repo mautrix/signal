@@ -52,7 +52,8 @@ class Portal:
              "                    name_set, avatar_set, revision, encrypted) "
              "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)")
         await self.db.execute(q, self.chat_id_str, self.receiver, self.mxid, self.name,
-                              self.avatar_hash, self.avatar_url, self.encrypted)
+                              self.avatar_hash, self.avatar_url, self.name_set, self.avatar_set,
+                              self.revision, self.encrypted)
 
     async def update(self) -> None:
         q = ("UPDATE portal SET mxid=$3, name=$4, avatar_hash=$5, avatar_url=$6, "
