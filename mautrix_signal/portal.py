@@ -819,38 +819,35 @@ class Portal(DBPortal, BasePortal):
                                 info: Optional[ChatInfo] = None, is_initial: bool = False
                                 ) -> PowerLevelStateEventContent:
         levels = levels or PowerLevelStateEventContent()
-        levels.events[EventType.ROOM_ENCRYPTION] = 50 if self.matrix.e2ee else 99
-        levels.events[EventType.ROOM_TOMBSTONE] = 99
-        # Remote delete is only for your own messages
-        levels.redact = 99
         if self.is_direct:
             levels.ban = 99
             levels.kick = 99
             levels.invite = 99
-            levels.events[EventType.ROOM_NAME] = 0
-            levels.events[EventType.ROOM_AVATAR] = 0
-            levels.events[EventType.ROOM_TOPIC] = 0
             levels.state_default = 0
-            levels.users_default = 0
-            levels.events_default = 0
+            meta_edit_level = 0
         else:
             if isinstance(info, GroupV2):
                 ac = info.access_control
                 for detail in info.member_detail:
                     puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
                     level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
-                    print(puppet.mxid, detail, level)
                     levels.users[puppet.intent_for(self).mxid] = level
             else:
                 ac = GroupAccessControl()
             levels.ban = 50
             levels.kick = 50
             levels.invite = 50 if ac.members == AccessControlMode.ADMINISTRATOR else 0
-            levels.events_default = 0
-            levels.state_default = 50 if ac.attributes == AccessControlMode.ADMINISTRATOR else 0
-            levels.events[EventType.ROOM_NAME] = levels.state_default
-            levels.events[EventType.ROOM_AVATAR] = levels.state_default
-            levels.events[EventType.ROOM_TOPIC] = levels.state_default
+            levels.state_default = 50
+            meta_edit_level = 50 if ac.attributes == AccessControlMode.ADMINISTRATOR else 0
+        levels.events[EventType.ROOM_NAME] = meta_edit_level
+        levels.events[EventType.ROOM_AVATAR] = meta_edit_level
+        levels.events[EventType.ROOM_TOPIC] = meta_edit_level
+        levels.events[EventType.ROOM_ENCRYPTION] = 50 if self.matrix.e2ee else 99
+        levels.events[EventType.ROOM_TOMBSTONE] = 99
+        levels.users_default = 0
+        levels.events_default = 0
+        # Remote delete is only for your own messages
+        levels.redact = 99
         if self.main_intent.mxid not in levels.users:
             levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
         return levels
