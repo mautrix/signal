@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerator, Awaitable,
+from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerator, Awaitable, Set,
                     Callable, TYPE_CHECKING, cast)
 from collections import deque
 from uuid import UUID, uuid4
@@ -27,12 +27,13 @@ import os
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
                               Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker,
                               GroupAccessControl, AccessControlMode, GroupMemberRole)
+from mausignald.errors import RPCError
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
                            MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
                            ImageInfo, VideoInfo, FileInfo, AudioInfo, PowerLevelStateEventContent)
-from mautrix.errors import MatrixError, MForbidden
+from mautrix.errors import MatrixError, MForbidden, IntentError
 
 from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
 from .config import Config
@@ -78,6 +79,7 @@ class Portal(DBPortal, BasePortal):
     _msgts_dedup: Deque[Tuple[Address, int]]
     _reaction_dedup: Deque[Tuple[Address, int, str]]
     _reaction_lock: asyncio.Lock
+    _pending_members: Optional[Set[UUID]]
 
     def __init__(self, chat_id: Union[GroupID, Address], receiver: str,
                  mxid: Optional[RoomID] = None, name: Optional[str] = None,
@@ -93,6 +95,7 @@ class Portal(DBPortal, BasePortal):
         self._reaction_dedup = deque(maxlen=100)
         self._last_participant_update = set()
         self._reaction_lock = asyncio.Lock()
+        self._pending_members = None
 
     @property
     def main_intent(self) -> IntentAPI:
@@ -268,6 +271,25 @@ class Portal(DBPortal, BasePortal):
                 self.log.trace(f"Removed {reaction} after Matrix redaction")
             except Exception:
                 self.log.exception("Removing reaction failed")
+
+    async def handle_matrix_join(self, user: 'u.User') -> None:
+        if self._pending_members is None:
+            self.log.debug(f"{user.mxid} ({user.uuid}) joined room, but pending_members is None,"
+                           " updating chat info")
+            await self.update_info(user, GroupV2ID(id=self.chat_id))
+        if self._pending_members is None:
+            self.log.warning(f"Didn't get pending member list after info update, "
+                             f"{user.mxid} ({user.uuid}) may not be in the group on Signal.")
+        elif user.uuid in self._pending_members:
+            self.log.debug(f"{user.mxid} ({user.uuid}) joined room, accepting invite on Signal")
+            try:
+                resp = await self.signal.accept_invitation(user.username, self.chat_id)
+                self._pending_members.remove(user.uuid)
+            except RPCError as e:
+                await self.main_intent.send_notice(self.mxid, "\u26a0 Failed to accept invite "
+                                                              f"on Signal: {e}")
+            else:
+                await self.update_info(user, resp)
 
     async def handle_matrix_leave(self, user: 'u.User') -> None:
         if self.is_direct:
@@ -562,7 +584,7 @@ class Portal(DBPortal, BasePortal):
             if existing:
                 try:
                     await sender.intent_for(self).redact(existing.mx_room, existing.mxid)
-                except MForbidden:
+                except IntentError:
                     await self.main_intent.redact(existing.mx_room, existing.mxid)
                 await existing.delete()
                 self.log.trace(f"Removed {existing} after Signal removal")
@@ -632,7 +654,7 @@ class Portal(DBPortal, BasePortal):
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
         changed = await self._update_avatar(info, sender) or changed
-        await self._update_participants(source, info.members)
+        await self._update_participants(source, info)
         try:
             await self._update_power_levels(info)
         except Exception:
@@ -687,7 +709,7 @@ class Portal(DBPortal, BasePortal):
         if puppet:
             try:
                 await action(puppet.intent_for(self))
-            except MForbidden:
+            except (MForbidden, IntentError):
                 await action(self.main_intent)
         else:
             await action(self.main_intent)
@@ -714,16 +736,32 @@ class Portal(DBPortal, BasePortal):
             self.avatar_set = False
         return True
 
-    async def _update_participants(self, source: 'u.User', participants: List[Address]) -> None:
-        # TODO add support for pending_members and maybe requesting_members?
-        if not self.mxid or not participants:
+    async def _update_participants(self, source: 'u.User', info: ChatInfo) -> None:
+        if not self.mxid or not isinstance(info, (Group, GroupV2)):
             return
 
-        for address in participants:
+        pending_members = info.pending_members if isinstance(info, GroupV2) else []
+        self._pending_members = {addr.uuid for addr in pending_members}
+
+        for address in info.members:
+            user = await u.User.get_by_address(address)
+            if user:
+                await self.main_intent.invite_user(self.mxid, user.mxid)
+
             puppet = await p.Puppet.get_by_address(address)
             if not puppet.name:
                 await source.sync_contact(address)
             await puppet.intent_for(self).ensure_joined(self.mxid)
+
+        for address in pending_members:
+            user = await u.User.get_by_address(address)
+            if user:
+                await self.main_intent.invite_user(self.mxid, user.mxid)
+
+            puppet = await p.Puppet.get_by_address(address)
+            if not puppet.name:
+                await source.sync_contact(address)
+            await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
         if not self.mxid:
@@ -806,11 +844,11 @@ class Portal(DBPortal, BasePortal):
             return await self._create_matrix_room(source, info)
 
     async def _update_matrix_room(self, source: 'u.User', info: ChatInfo) -> None:
-        await self.main_intent.invite_user(self.mxid, source.mxid, check_cache=True)
-        puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
-        if puppet:
-            did_join = await puppet.intent.ensure_joined(self.mxid)
-            if did_join and self.is_direct:
+        if self.is_direct:
+            puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
+            if puppet:
+                await self.main_intent.invite_user(self.mxid, source.mxid, check_cache=True)
+                await puppet.intent.ensure_joined(self.mxid)
                 await source.update_direct_chats({self.main_intent.mxid: [self.mxid]})
 
         await self.update_info(source, info)
@@ -828,7 +866,7 @@ class Portal(DBPortal, BasePortal):
         else:
             if isinstance(info, GroupV2):
                 ac = info.access_control
-                for detail in info.member_detail:
+                for detail in info.member_detail + info.pending_member_detail:
                     puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
                     level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
                     levels.users[puppet.intent_for(self).mxid] = level
@@ -916,7 +954,7 @@ class Portal(DBPortal, BasePortal):
         self.log.debug(f"Matrix room created: {self.mxid}")
         self.by_mxid[self.mxid] = self
         if not self.is_direct:
-            await self._update_participants(source, info.members)
+            await self._update_participants(source, info)
         else:
             puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
             if puppet:

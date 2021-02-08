@@ -59,6 +59,14 @@ class User:
         return cls(**row)
 
     @classmethod
+    async def get_by_uuid(cls, uuid: UUID) -> Optional['User']:
+        q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE uuid=$1'
+        row = await cls.db.fetchrow(q, uuid)
+        if not row:
+            return None
+        return cls(**row)
+
+    @classmethod
     async def all_logged_in(cls) -> List['User']:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username IS NOT NULL'
         rows = await cls.db.fetch(q)

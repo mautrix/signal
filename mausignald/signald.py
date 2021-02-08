@@ -197,6 +197,11 @@ class SignaldClient(SignaldRPCClient):
         else:
             return None
 
+    async def accept_invitation(self, username: str, group_id: GroupID) -> GroupV2:
+        resp = await self.request("accept_invitation", "accept_invitation", version="v1",
+                                  account=username, groupID=group_id)
+        return GroupV2.deserialize(resp)
+
     async def get_group(self, username: str, group_id: GroupID, revision: int = -1
                         ) -> Optional[GroupV2]:
         resp = await self.request("get_group", "get_group", account=username, groupID=group_id,
@@ -220,5 +225,11 @@ class SignaldClient(SignaldRPCClient):
                                   recipientAddress=address.serialize())
         return GetIdentitiesResponse.deserialize(resp)
 
-    async def set_profile(self, username: str, new_name: str) -> None:
-        await self.request("set_profile", "profile_set", username=username, name=new_name)
+    async def set_profile(self, username: str, name: Optional[str] = None,
+                          avatar_path: Optional[str] = None) -> None:
+        args = {}
+        if name is not None:
+            args["name"] = name
+        if avatar_path is not None:
+            args["avatarFile"] = avatar_path
+        await self.request("set_profile", "set_profile", account=username, version="v1", **args)

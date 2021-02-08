@@ -39,6 +39,7 @@ METRIC_CONNECTED = Gauge('bridge_connected', 'Bridge users connected to Signal')
 class User(DBUser, BaseUser):
     by_mxid: Dict[UserID, 'User'] = {}
     by_username: Dict[str, 'User'] = {}
+    by_uuid: Dict[UUID, 'User'] = {}
     config: Config
     az: AppService
     loop: asyncio.AbstractEventLoop
@@ -80,6 +81,10 @@ class User(DBUser, BaseUser):
         if not self.username:
             return
         username = self.username
+        if self.uuid and self.by_uuid.get(self.uuid) == self:
+            del self.by_uuid[self.uuid]
+        if self.username and self.by_username.get(self.username) == self:
+            del self.by_username[self.username]
         self.username = None
         self.uuid = None
         await self.update()
@@ -99,6 +104,7 @@ class User(DBUser, BaseUser):
     async def on_signin(self, account: Account) -> None:
         self.username = account.username
         self.uuid = account.uuid
+        self._add_to_cache()
         await self.update()
         await self.bridge.signal.subscribe(self.username)
         self.loop.create_task(self.sync())
@@ -118,6 +124,9 @@ class User(DBUser, BaseUser):
 
     async def _sync_puppet(self) -> None:
         puppet = await pu.Puppet.get_by_address(self.address)
+        if puppet.uuid and not self.uuid:
+            self.uuid = puppet.uuid
+            self.by_uuid[self.uuid] = self
         if puppet.custom_mxid != self.mxid and puppet.can_auto_login(self.mxid):
             self.log.info(f"Automatically enabling custom puppet")
             await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
@@ -196,6 +205,8 @@ class User(DBUser, BaseUser):
         self.by_mxid[self.mxid] = self
         if self.username:
             self.by_username[self.username] = self
+        if self.uuid:
+            self.by_uuid[self.uuid] = self
 
     @classmethod
     @async_getter_lock
@@ -235,6 +246,30 @@ class User(DBUser, BaseUser):
             return user
 
         return None
+
+    @classmethod
+    @async_getter_lock
+    async def get_by_uuid(cls, uuid: UUID) -> Optional['User']:
+        try:
+            return cls.by_uuid[uuid]
+        except KeyError:
+            pass
+
+        user = cast(cls, await super().get_by_uuid(uuid))
+        if user is not None:
+            user._add_to_cache()
+            return user
+
+        return None
+
+    @classmethod
+    async def get_by_address(cls, address: Address) -> Optional['User']:
+        if address.uuid:
+            return await cls.get_by_uuid(address.uuid)
+        elif address.number:
+            return await cls.get_by_username(address.number)
+        else:
+            raise ValueError("Given address is blank")
 
     @classmethod
     async def all_logged_in(cls) -> AsyncGenerator['User', None]:

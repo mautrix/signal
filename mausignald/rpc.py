@@ -11,7 +11,8 @@ import json
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import NotConnected, UnexpectedError, UnexpectedResponse, make_response_error
+from .errors import (NotConnected, UnexpectedError, UnexpectedResponse, RPCError,
+                     make_response_error)
 
 EventHandler = Callable[[Dict[str, Any]], Awaitable[None]]
 
@@ -101,12 +102,13 @@ class SignaldRPCClient:
                 except Exception:
                     self.log.exception("Exception in RPC event handler")
 
-    def _run_response_handlers(self, req_id: UUID, command: str, data: Any) -> None:
+    def _run_response_handlers(self, req_id: UUID, command: str, req: Any) -> None:
         try:
             waiter = self._response_waiters.pop(req_id)
         except KeyError:
             self.log.debug(f"Nobody waiting for response to {req_id}")
             return
+        data = req.get("data")
         if command == "unexpected_error":
             try:
                 waiter.set_exception(UnexpectedError(data["message"]))
@@ -114,6 +116,8 @@ class SignaldRPCClient:
                 waiter.set_exception(UnexpectedError("Unexpected error with no message"))
         elif data and "error" in data:
             waiter.set_exception(make_response_error(data["error"]))
+        elif "error" in req:
+            waiter.set_exception(make_response_error(req["error"]))
         else:
             waiter.set_result((command, data))
 
@@ -135,7 +139,7 @@ class SignaldRPCClient:
         if req_id is None:
             self.loop.create_task(self._run_rpc_handler(req_type, req))
         else:
-            self._run_response_handlers(UUID(req_id), req_type, req.get("data"))
+            self._run_response_handlers(UUID(req_id), req_type, req)
 
     async def _try_read_loop(self) -> None:
         try:
@@ -179,7 +183,8 @@ class SignaldRPCClient:
         for req_id, waiter in self._response_waiters.items():
             if not waiter.done():
                 self.log.trace(f"Abandoning response for {req_id}")
-                waiter.set_exception(NotConnected("Disconnected from signald before RPC completed"))
+                waiter.set_exception(
+                    NotConnected("Disconnected from signald before RPC completed"))
 
     async def _send_request(self, data: Dict[str, Any]) -> None:
         if self._writer is None:

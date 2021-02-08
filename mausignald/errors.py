@@ -54,6 +54,12 @@ class ResponseError(RPCError):
         super().__init__(message_override or data["message"])
 
 
+class UnknownResponseError(ResponseError):
+    def __init__(self, message: str) -> None:
+        self.data = {}
+        super(RPCError, self).__init__(message)
+
+
 class InvalidRequest(ResponseError):
     def __init__(self, data: Dict[str, Any]) -> None:
         super().__init__(data, ", ".join(data.get("validationResults", "")))
@@ -65,4 +71,6 @@ response_error_types = {
 
 
 def make_response_error(data: Dict[str, Any]) -> ResponseError:
+    if isinstance(data, str):
+        return UnknownResponseError(data)
     return response_error_types.get(data["type"], ResponseError)(data)

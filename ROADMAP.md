@@ -17,6 +17,11 @@
   * [x] Group info changes
     * [x] Name
     * [x] Avatar
+  * [ ] Membership actions
+    * [x] Join (accept invite)
+    * [ ] Invite
+    * [ ] Leave
+    * [ ] Kick
   * [ ] Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
   * [x] Delivery receipts (sent after message is bridged)
@@ -40,6 +45,11 @@
     * [ ] Real time
       * [x] Groups
       * [ ] Users
+  * [ ] Membership actions
+    * [x] Join
+    * [x] Invite
+    * [ ] Request join (via invite link)
+    * [ ] Kick / leave
   * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts

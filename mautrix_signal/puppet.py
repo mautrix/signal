@@ -128,6 +128,7 @@ class Puppet(DBPuppet, BasePuppet):
         user = await u.User.get_by_username(self.number)
         if user and not user.uuid:
             user.uuid = self.uuid
+            user.by_uuid[user.uuid] = user
             await user.update()
         await self._set_uuid(uuid)
         self.by_uuid[self.uuid] = self

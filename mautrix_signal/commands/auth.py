@@ -102,7 +102,9 @@ async def enter_register_code(evt: CommandEvent) -> None:
             raise
     else:
         await evt.sender.on_signin(account)
-        await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
+        await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}."
+                        f"\n\n**N.B.** You must set a Signal profile name with `$cmdprefix+sp "
+                        f"set-profile-name <name>` before you can participate in new groups.")
 
 
 @command_handler(needs_auth=True, management_only=True, help_section=SECTION_AUTH,

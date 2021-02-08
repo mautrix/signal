@@ -115,6 +115,13 @@ async def safety_number(evt: CommandEvent) -> None:
         await evt.main_intent.send_message(evt.room_id, content)
 
 
+@command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
+                 help_text="Set your Signal profile name", help_args="<_name_>")
+async def set_profile_name(evt: CommandEvent) -> None:
+    await evt.bridge.signal.set_profile(evt.sender.username, name=" ".join(evt.args))
+    await evt.reply("Successfully updated profile name")
+
+
 @command_handler(needs_admin=False, needs_auth=True, help_section=SECTION_SIGNAL,
                  help_text="Sync data from Signal")
 async def sync(evt: CommandEvent) -> None:
