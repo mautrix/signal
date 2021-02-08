@@ -25,12 +25,13 @@ import time
 import os
 
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
-                              Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker)
+                              Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker,
+                              GroupAccessControl, AccessControlMode, GroupMemberRole)
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
                            MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
-                           ImageInfo, VideoInfo, FileInfo, AudioInfo)
+                           ImageInfo, VideoInfo, FileInfo, AudioInfo, PowerLevelStateEventContent)
 from mautrix.errors import MatrixError, MForbidden
 
 from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
@@ -632,6 +633,10 @@ class Portal(DBPortal, BasePortal):
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
         changed = await self._update_avatar(info, sender) or changed
         await self._update_participants(source, info.members)
+        try:
+            await self._update_power_levels(info)
+        except Exception:
+            self.log.warning("Error updating power levels", exc_info=True)
         if changed:
             await self.update_bridge_info()
             await self.update()
@@ -720,6 +725,14 @@ class Portal(DBPortal, BasePortal):
                 await source.sync_contact(address)
             await puppet.intent_for(self).ensure_joined(self.mxid)
 
+    async def _update_power_levels(self, info: ChatInfo) -> None:
+        if not self.mxid:
+            return
+
+        power_levels = await self.main_intent.get_power_levels(self.mxid)
+        power_levels = await self._get_power_levels(power_levels, info=info, is_initial=False)
+        await self.main_intent.set_power_levels(self.mxid, power_levels)
+
     # endregion
     # region Bridge info state event
 
@@ -802,6 +815,46 @@ class Portal(DBPortal, BasePortal):
 
         await self.update_info(source, info)
 
+    async def _get_power_levels(self, levels: Optional[PowerLevelStateEventContent] = None,
+                                info: Optional[ChatInfo] = None, is_initial: bool = False
+                                ) -> PowerLevelStateEventContent:
+        levels = levels or PowerLevelStateEventContent()
+        levels.events[EventType.ROOM_ENCRYPTION] = 50 if self.matrix.e2ee else 99
+        levels.events[EventType.ROOM_TOMBSTONE] = 99
+        # Remote delete is only for your own messages
+        levels.redact = 99
+        if self.is_direct:
+            levels.ban = 99
+            levels.kick = 99
+            levels.invite = 99
+            levels.events[EventType.ROOM_NAME] = 0
+            levels.events[EventType.ROOM_AVATAR] = 0
+            levels.events[EventType.ROOM_TOPIC] = 0
+            levels.state_default = 0
+            levels.users_default = 0
+            levels.events_default = 0
+        else:
+            if isinstance(info, GroupV2):
+                ac = info.access_control
+                for detail in info.member_detail:
+                    puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
+                    level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
+                    print(puppet.mxid, detail, level)
+                    levels.users[puppet.intent_for(self).mxid] = level
+            else:
+                ac = GroupAccessControl()
+            levels.ban = 50
+            levels.kick = 50
+            levels.invite = 50 if ac.members == AccessControlMode.ADMINISTRATOR else 0
+            levels.events_default = 0
+            levels.state_default = 50 if ac.attributes == AccessControlMode.ADMINISTRATOR else 0
+            levels.events[EventType.ROOM_NAME] = levels.state_default
+            levels.events[EventType.ROOM_AVATAR] = levels.state_default
+            levels.events[EventType.ROOM_TOPIC] = levels.state_default
+        if self.main_intent.mxid not in levels.users:
+            levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
+        return levels
+
     async def _create_matrix_room(self, source: 'u.User', info: ChatInfo) -> Optional[RoomID]:
         if self.mxid:
             await self._update_matrix_room(source, info)
@@ -809,6 +862,7 @@ class Portal(DBPortal, BasePortal):
         await self.update_info(source, info)
         self.log.debug("Creating Matrix room")
         name: Optional[str] = None
+        power_levels = await self._get_power_levels(info=info, is_initial=True)
         initial_state = [{
             "type": str(StateBridge),
             "state_key": self.bridge_info_state_key,
@@ -818,6 +872,9 @@ class Portal(DBPortal, BasePortal):
             "type": str(StateHalfShotBridge),
             "state_key": self.bridge_info_state_key,
             "content": self.bridge_info,
+        }, {
+            "type": str(EventType.ROOM_POWER_LEVELS),
+            "content": power_levels.serialize(),
         }]
         invites = [source.mxid]
         if self.config["bridge.encryption.default"] and self.matrix.e2ee:
@@ -841,12 +898,6 @@ class Portal(DBPortal, BasePortal):
             initial_state.append({
                 "type": "m.room.related_groups",
                 "content": {"groups": [self.config["appservice.community_id"]]},
-            })
-        if self.is_direct:
-            initial_state.append({
-                "type": str(EventType.ROOM_POWER_LEVELS),
-                "content": {"users": {self.main_intent.mxid: 100},
-                            "events": {"m.room.avatar": 0, "m.room.name": 0}}
             })
 
         self.mxid = await self.main_intent.create_room(name=name, is_direct=self.is_direct,

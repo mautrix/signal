@@ -40,7 +40,7 @@
     * [ ] Real time
       * [x] Groups
       * [ ] Users
-  * [ ] Group permissions
+  * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
   * [ ] Delivery receipts (there's no good way to bridge these)

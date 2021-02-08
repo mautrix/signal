@@ -126,18 +126,54 @@ class GroupV2ID(SerializableAttrs['GroupV2ID']):
     revision: Optional[int] = None
 
 
+class AccessControlMode(SerializableEnum):
+    UNKNOWN = "UNKNOWN"
+    ANY = "ANY"
+    MEMBER = "MEMBER"
+    ADMINISTRATOR = "ADMINISTRATOR"
+    UNSATISFIABLE = "UNSATISFIABLE"
+    UNRECOGNIZED = "UNRECOGNIZED"
+
+
 @dataclass
+class GroupAccessControl(SerializableAttrs['GroupAccessControl']):
+    attributes: AccessControlMode = AccessControlMode.UNKNOWN
+    link: AccessControlMode = AccessControlMode.UNKNOWN
+    members: AccessControlMode = AccessControlMode.UNKNOWN
+
+
+class GroupMemberRole(SerializableEnum):
+    UNKNOWN = "UNKNOWN"
+    DEFAULT = "DEFAULT"
+    ADMINISTRATOR = "ADMINISTRATOR"
+    UNRECOGNIZED = "UNRECOGNIZED"
+
+
+@dataclass
+class GroupMember(SerializableAttrs['GroupMember']):
+    uuid: UUID
+    joined_revision: int = 0
+    role: GroupMemberRole = GroupMemberRole.UNKNOWN
+
+
+@dataclass(kw_only=True)
 class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
     title: str
-    members: List[Address]
     avatar: Optional[str] = None
-    pending_members: List[Address] = attr.ib(factory=lambda: [],
-                                             metadata={"json": "pendingMembers"})
-    requesting_members: List[Address] = attr.ib(factory=lambda: [],
-                                                metadata={"json": "requestingMembers"})
+    timer: Optional[int] = None
     master_key: Optional[str] = attr.ib(default=None, metadata={"json": "masterKey"})
     invite_link: Optional[str] = attr.ib(default=None, metadata={"json": "inviteLink"})
-    timer: Optional[int] = None
+    access_control: GroupAccessControl = attr.ib(factory=lambda: GroupAccessControl(),
+                                                 metadata={"json": "accessControl"})
+    members: List[Address]
+    member_detail: List[GroupMember] = attr.ib(factory=lambda: [],
+                                               metadata={"json": "memberDetail"})
+    pending_members: List[Address] = attr.ib(factory=lambda: [],
+                                             metadata={"json": "pendingMembers"})
+    pending_member_detail: List[GroupMember] = attr.ib(factory=lambda: [],
+                                                       metadata={"json": "pendingMemberDetail"})
+    requesting_members: List[Address] = attr.ib(factory=lambda: [],
+                                                metadata={"json": "requestingMembers"})
 
 
 @dataclass
