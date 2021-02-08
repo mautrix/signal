@@ -114,9 +114,9 @@ class SignaldRPCClient:
                 waiter.set_exception(UnexpectedError(data["message"]))
             except KeyError:
                 waiter.set_exception(UnexpectedError("Unexpected error with no message"))
-        elif data and "error" in data:
+        elif data and "error" in data and isinstance(data["error"], (str, dict)):
             waiter.set_exception(make_response_error(data["error"]))
-        elif "error" in req:
+        elif "error" in req and isinstance(req["error"], (str, dict)):
             waiter.set_exception(make_response_error(req["error"]))
         else:
             waiter.set_result((command, data))

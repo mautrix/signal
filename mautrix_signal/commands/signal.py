@@ -122,6 +122,20 @@ async def set_profile_name(evt: CommandEvent) -> None:
     await evt.reply("Successfully updated profile name")
 
 
+@command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
+                 help_text="Mark another user's safety number as trusted",
+                 help_args="<_recipient phone_> <_safety number_>")
+async def mark_trusted(evt: CommandEvent) -> None:
+    number = evt.args[0]
+    safety_num = "".join(evt.args[1:]).replace("\n", "")
+    if len(safety_num) != 60 or not safety_num.isdecimal():
+        await evt.reply("That doesn't look like a valid safety number")
+        return
+    msg = await evt.bridge.signal.trust(evt.sender.username, Address(number=number),
+                                        fingerprint=safety_num, trust_level="TRUSTED_VERIFIED")
+    await evt.reply(msg)
+
+
 @command_handler(needs_admin=False, needs_auth=True, help_section=SECTION_SIGNAL,
                  help_text="Sync data from Signal")
 async def sync(evt: CommandEvent) -> None:

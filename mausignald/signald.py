@@ -233,3 +233,10 @@ class SignaldClient(SignaldRPCClient):
         if avatar_path is not None:
             args["avatarFile"] = avatar_path
         await self.request("set_profile", "set_profile", account=username, version="v1", **args)
+
+    async def trust(self, username: str, recipient: Address, fingerprint: str, trust_level: str
+                    ) -> str:
+        resp = await self.request("trust", "trusted_safety_number", username=username,
+                                  version="v0", fingerprint=fingerprint,
+                                  recipientAddress=recipient.serialize(), trust_level=trust_level)
+        return resp["message"]
