@@ -68,7 +68,7 @@ async def link(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,
-                 help_text="Sign into Signal as the primary device", help_args="<phone>")
+                 help_text="Sign into Signal as the primary device", help_args="<phone> [captcha]")
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
         await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone> [captcha]")
