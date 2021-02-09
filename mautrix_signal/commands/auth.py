@@ -71,17 +71,33 @@ async def link(evt: CommandEvent) -> None:
                  help_text="Sign into Signal as the primary device", help_args="<phone>")
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
-        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone>")
+        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone> [captcha]")
         return
     voice = False
     if evt.args[0].lower() == "--voice":
         voice = True
         evt.args = evt.args[1:]
     phone = evt.args[0]
+    if len(evt.args) == 2:
+        captcha = evt.args[1]
+        if captcha.startswith("signalcaptcha://"):
+            captcha=captcha[16:]
+        await evt.reply(f"Got {captcha}")
+        print(captcha)
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
-    username = await evt.bridge.signal.register(phone, voice=voice)
+    try:
+        username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
+    except UnexpectedResponse as err:
+        await evt.reply(f"error:{err.resp_type}")
+        return
+    except:
+        await evt.reply(f"Need to fill captcha goto https://signalcaptchas.org/registration/generate.html\n"
+                        f"and take token from developer console"
+                        f"token is url startswith signalcaptcha://"
+                        f"Send register {phone} signalcaptcha://<captchatoken>")
+        return
     evt.sender.command_status = {
         "action": "Register",
         "room_id": evt.room_id,
@@ -89,6 +105,7 @@ async def register(evt: CommandEvent) -> None:
         "username": username,
     }
     await evt.reply("Register SMS requested, please enter the code here.")
+
 
 
 async def enter_register_code(evt: CommandEvent) -> None:
