@@ -82,7 +82,6 @@ async def register(evt: CommandEvent) -> None:
         captcha = evt.args[1]
         if captcha.startswith("signalcaptcha://"):
             captcha=captcha[16:]
-        await evt.reply(f"Got {captcha}")
         print(captcha)
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
