@@ -92,9 +92,9 @@ async def register(evt: CommandEvent) -> None:
         await evt.reply(f"error:{err.resp_type}")
         return
     except:
-        await evt.reply(f"Need to fill captcha goto https://signalcaptchas.org/registration/generate.html\n"
-                        f"and take token from developer console"
-                        f"token is url startswith signalcaptcha://"
+        await evt.reply(f"Need to fill captcha. Goto https://signalcaptchas.org/registration/generate.html\n"
+                        f"and take token from developer console."
+                        f"Token is url and starts with signalcaptcha://"
                         f"Send register {phone} signalcaptcha://<captchatoken>")
         return
     evt.sender.command_status = {
