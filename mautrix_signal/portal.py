@@ -831,12 +831,16 @@ class Portal(DBPortal, BasePortal):
             groups = await self.signal.list_groups(source.username)
             info = next((g for g in groups
                          if isinstance(g, Group) and g.group_id == info.group_id), info)
-        elif isinstance(info, GroupV2ID):
-            groups = await self.signal.list_groups(source.username)
-            try:
-                info = next(g for g in groups if isinstance(g, GroupV2) and g.id == info.id)
-            except StopIteration as e:
-                raise ValueError("Couldn't get full group v2 info") from e
+        elif isinstance(info, GroupV2ID) and not isinstance(info, GroupV2):
+            self.log.debug(f"create_matrix_room() called with {info}, "
+                           "fetching full info from signald")
+            info = await self.signal.get_group(source.username, info.id,
+                                               info.revision or -1)
+            if not info:
+                self.log.warning(f"Full info not found, canceling room creation")
+                return None
+            else:
+                self.log.trace("get_group() returned full info: %s", info)
         if self.mxid:
             await self.update_matrix_room(source, info)
             return self.mxid

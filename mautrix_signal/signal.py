@@ -75,12 +75,6 @@ class SignalHandler(SignaldClient):
         group_v2_info = None
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
-            if not portal.mxid:
-                group_v2_info = await self.get_group(user.username, msg.group_v2.id,
-                                                     msg.group_v2.revision or -1)
-                if not group_v2_info:
-                    user.log.debug(f"Dropping message in unknown v2 group {msg.group_v2.id}")
-                    return
         elif msg.group:
             portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
@@ -93,6 +87,10 @@ class SignalHandler(SignaldClient):
         if not portal.mxid:
             await portal.create_matrix_room(user, (group_v2_info or msg.group
                                                    or addr_override or sender.address))
+            if not portal.mxid:
+                user.log.debug(f"Failed to create room for incoming message {msg.timestamp},"
+                               " dropping message")
+                return
         elif msg.group_v2 and msg.group_v2.revision > portal.revision:
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
             await portal.update_info(user, group_v2_info or msg.group_v2, sender)
