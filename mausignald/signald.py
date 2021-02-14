@@ -130,7 +130,7 @@ class SignaldClient(SignaldRPCClient):
         return Account.deserialize(resp)
 
     async def list_accounts(self) -> List[Account]:
-        data = await self.request("list_accounts", "account_list")
+        data = await self.request_v0("list_accounts", "account_list")
         return [Account.deserialize(acc) for acc in data["accounts"]]
 
     @staticmethod
@@ -142,9 +142,8 @@ class SignaldClient(SignaldRPCClient):
 
     async def react(self, username: str, recipient: Union[Address, GroupID],
                     reaction: Reaction) -> None:
-        await self.request("react", "send_results", username=username,
-                           reaction=reaction.serialize(),
-                           **self._recipient_to_args(recipient))
+        await self.request_v1("react", username=username, reaction=reaction.serialize(),
+                              **self._recipient_to_args(recipient))
 
     async def send(self, username: str, recipient: Union[Address, GroupID], body: str,
                    quote: Optional[Quote] = None, attachments: Optional[List[Attachment]] = None,
@@ -153,10 +152,10 @@ class SignaldClient(SignaldRPCClient):
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
         serialized_mentions = [mention.serialize() for mention in (mentions or [])]
-        await self.request("send", "send", username=username, messageBody=body,
-                           attachments=serialized_attachments, quote=serialized_quote,
-                           mentions=serialized_mentions, timestamp=timestamp,
-                           **self._recipient_to_args(recipient), version="v1")
+        await self.request_v1("send", username=username, messageBody=body,
+                              attachments=serialized_attachments, quote=serialized_quote,
+                              mentions=serialized_mentions, timestamp=timestamp,
+                              **self._recipient_to_args(recipient))
         # TODO return something?
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
@@ -166,11 +165,11 @@ class SignaldClient(SignaldRPCClient):
                                   recipientAddress=sender.serialize())
 
     async def list_contacts(self, username: str) -> List[Contact]:
-        contacts = await self.request("list_contacts", "contact_list", username=username)
+        contacts = await self.request_v0("list_contacts", "contact_list", username=username)
         return [Contact.deserialize(contact) for contact in contacts]
 
     async def list_groups(self, username: str) -> List[Union[Group, GroupV2]]:
-        resp = await self.request("list_groups", "list_groups", account=username, version="v1")
+        resp = await self.request_v1("list_groups", account=username)
         legacy = [Group.deserialize(group) for group in resp.get("legacyGroups", [])]
         v2 = [GroupV2.deserialize(group) for group in resp.get("groups", [])]
         return legacy + v2
@@ -188,8 +187,7 @@ class SignaldClient(SignaldRPCClient):
             "removeMembers": ([addr.serialize() for addr in remove_members]
                               if remove_members else None),
         }.items() if value is not None}
-        resp = await self.request("update_group", "update_group", version="v1", account=username,
-                                  **update_params)
+        resp = await self.request_v1("update_group", account=username, **update_params)
         if "v1" in resp:
             return Group.deserialize(resp["v1"])
         elif "v2" in resp:
@@ -198,22 +196,21 @@ class SignaldClient(SignaldRPCClient):
             return None
 
     async def accept_invitation(self, username: str, group_id: GroupID) -> GroupV2:
-        resp = await self.request("accept_invitation", "accept_invitation", version="v1",
-                                  account=username, groupID=group_id)
+        resp = await self.request_v1("accept_invitation", account=username, groupID=group_id)
         return GroupV2.deserialize(resp)
 
     async def get_group(self, username: str, group_id: GroupID, revision: int = -1
                         ) -> Optional[GroupV2]:
-        resp = await self.request("get_group", "get_group", account=username, groupID=group_id,
-                                  version="v1", revision=revision)
+        resp = await self.request_v1("get_group", account=username, groupID=group_id,
+                                     revision=revision)
         if "id" not in resp:
             return None
         return GroupV2.deserialize(resp)
 
     async def get_profile(self, username: str, address: Address) -> Optional[Profile]:
         try:
-            resp = await self.request("get_profile", "get_profile", account=username,
-                                      address=address.serialize(), version="v1")
+            resp = await self.request_v1("get_profile", account=username,
+                                         address=address.serialize())
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
                 return None
@@ -221,8 +218,8 @@ class SignaldClient(SignaldRPCClient):
         return Profile.deserialize(resp)
 
     async def get_identities(self, username: str, address: Address) -> GetIdentitiesResponse:
-        resp = await self.request("get_identities", "identities", username=username,
-                                  recipientAddress=address.serialize())
+        resp = await self.request_v0("get_identities", "identities", username=username,
+                                     recipientAddress=address.serialize())
         return GetIdentitiesResponse.deserialize(resp)
 
     async def set_profile(self, username: str, name: Optional[str] = None,
@@ -232,11 +229,11 @@ class SignaldClient(SignaldRPCClient):
             args["name"] = name
         if avatar_path is not None:
             args["avatarFile"] = avatar_path
-        await self.request("set_profile", "set_profile", account=username, version="v1", **args)
+        await self.request_v1("set_profile", account=username, **args)
 
     async def trust(self, username: str, recipient: Address, fingerprint: str, trust_level: str
                     ) -> str:
-        resp = await self.request("trust", "trusted_safety_number", username=username,
-                                  version="v0", fingerprint=fingerprint,
-                                  recipientAddress=recipient.serialize(), trust_level=trust_level)
+        resp = await self.request_v0("trust", "trusted_safety_number", username=username,
+                                     fingerprint=fingerprint, trust_level=trust_level,
+                                     recipientAddress=recipient.serialize())
         return resp["message"]

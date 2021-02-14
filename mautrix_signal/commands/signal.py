@@ -165,7 +165,7 @@ async def raw(evt: CommandEvent) -> None:
         await evt.reply(f"JSON decode error: {e}")
         return
     if add_username:
-        if version == "v0":
+        if version == "v0" or (version == "v1" and type in ("send", "react")):
             args["username"] = evt.sender.username
         else:
             args["account"] = evt.sender.username

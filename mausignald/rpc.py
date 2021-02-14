@@ -207,6 +207,12 @@ class SignaldRPCClient:
             raise UnexpectedResponse(resp_type, resp_data)
         return resp_data
 
+    async def request_v0(self, command: str, expected_response: str, **data: Any) -> Any:
+        return await self.request(command, expected_response, version="v0", **data)
+
+    async def request_v1(self, command: str, **data: Any) -> Any:
+        return await self.request(command, expected_response=command, version="v1", **data)
+
     async def request_nowait(self, command: str, **data: Any) -> None:
         _, req = self._create_request(command, **data)
         await self._send_request(req)
