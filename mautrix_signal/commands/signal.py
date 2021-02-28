@@ -37,12 +37,12 @@ remove_extra_chars = str.maketrans("", "", " .,-()")
 
 async def _get_puppet_from_cmd(evt: CommandEvent) -> Optional['pu.Puppet']:
     if len(evt.args) == 0 or not evt.args[0].startswith("+"):
-        await evt.reply("**Usage:** `$cmdprefix+sp pm <phone>` "
+        await evt.reply(f"**Usage:** `$cmdprefix+sp {evt.command} <phone>` "
                         "(enter phone number in international format)")
         return None
     phone = "".join(evt.args).translate(remove_extra_chars)
     if not phone[1:].isdecimal():
-        await evt.reply("**Usage:** `$cmdprefix+sp pm <phone>` "
+        await evt.reply(f"**Usage:** `$cmdprefix+sp {evt.command} <phone>` "
                         "(enter phone number in international format)")
         return None
     return await pu.Puppet.get_by_address(Address(number=phone))
