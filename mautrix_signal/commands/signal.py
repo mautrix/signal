@@ -126,7 +126,7 @@ async def set_profile_name(evt: CommandEvent) -> None:
                  help_text="Mark another user's safety number as trusted",
                  help_args="<_recipient phone_> <_safety number_>")
 async def mark_trusted(evt: CommandEvent) -> None:
-    number = evt.args[0]
+    number = evt.args[0].translate(remove_extra_chars)
     safety_num = "".join(evt.args[1:]).replace("\n", "")
     if len(safety_num) != 60 or not safety_num.isdecimal():
         await evt.reply("That doesn't look like a valid safety number")

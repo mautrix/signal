@@ -25,6 +25,7 @@ from mautrix.bridge.commands import HelpSection, command_handler
 
 from .. import puppet as pu
 from .typehint import CommandEvent
+from .signal import remove_extra_chars
 
 try:
     import qrcode
@@ -77,7 +78,7 @@ async def register(evt: CommandEvent) -> None:
     if evt.args[0].lower() == "--voice":
         voice = True
         evt.args = evt.args[1:]
-    phone = evt.args[0]
+    phone = evt.args[0].translate(remove_extra_chars)
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
