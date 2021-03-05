@@ -21,7 +21,7 @@ from mautrix.bridge.commands import HelpSection, command_handler, SECTION_ADMIN
 from mausignald.types import Address
 
 from .. import puppet as pu, portal as po
-from .auth import make_qr
+from .auth import make_qr, remove_extra_chars
 from .typehint import CommandEvent
 
 try:
@@ -31,8 +31,6 @@ except ImportError:
     qrcode = None
 
 SECTION_SIGNAL = HelpSection("Signal actions", 20, "")
-
-remove_extra_chars = str.maketrans("", "", " .,-()")
 
 
 async def _get_puppet_from_cmd(evt: CommandEvent) -> Optional['pu.Puppet']:

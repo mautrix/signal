@@ -25,7 +25,6 @@ from mautrix.bridge.commands import HelpSection, command_handler
 
 from .. import puppet as pu
 from .typehint import CommandEvent
-from .signal import remove_extra_chars
 
 try:
     import qrcode
@@ -34,6 +33,7 @@ except ImportError:
     qrcode = None
 
 SECTION_AUTH = HelpSection("Authentication", 10, "")
+remove_extra_chars = str.maketrans("", "", " .,-()")
 
 
 async def make_qr(intent: IntentAPI, data: Union[str, bytes], body: str = None
