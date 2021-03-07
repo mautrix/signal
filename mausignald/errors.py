@@ -21,31 +21,8 @@ class UnexpectedResponse(RPCError):
         self.data = data
 
 
-class LinkingError(RPCError):
-    def __init__(self, message: str, number: int) -> None:
-        super().__init__(message)
-        self.number = number
-
-
 class NotConnected(RPCError):
     pass
-
-
-class LinkingTimeout(LinkingError):
-    pass
-
-
-class LinkingConflict(LinkingError):
-    pass
-
-
-def make_linking_error(data: Dict[str, Any]) -> LinkingError:
-    message = data["message"]
-    msg_number = data.get("msg_number")
-    return {
-        1: LinkingTimeout,
-        3: LinkingConflict,
-    }.get(msg_number, LinkingError)(message, msg_number)
 
 
 class ResponseError(RPCError):
@@ -65,8 +42,19 @@ class InvalidRequest(ResponseError):
         super().__init__(data, ", ".join(data.get("validationResults", "")))
 
 
+class TimeoutException(ResponseError):
+    pass
+
+
+class UserAlreadyExistsError(ResponseError):
+    def __init__(self, data: Dict[str, Any]) -> None:
+        super().__init__(data, message_override="You're already logged in")
+
+
 response_error_types = {
     "invalid_request": InvalidRequest,
+    "TimeoutException": TimeoutException,
+    "UserAlreadyExists": UserAlreadyExistsError,
 }
 
 

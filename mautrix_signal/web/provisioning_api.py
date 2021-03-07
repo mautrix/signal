@@ -15,13 +15,12 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Awaitable, Dict, TYPE_CHECKING
 import logging
-import asyncio
 import json
 
 from aiohttp import web
 
-from mausignald.types import Address, Account
-from mausignald.errors import LinkingTimeout
+from mausignald.types import Address
+from mausignald.errors import TimeoutException
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
 
@@ -119,37 +118,39 @@ class ProvisioningAPI:
             raise web.HTTPBadRequest(text='{"error": "Malformed JSON"}', headers=self._headers)
 
         device_name = data.get("device_name", "Mautrix-Signal bridge")
-        uri_future = asyncio.Future()
-
-        async def _callback(uri: str) -> None:
-            uri_future.set_result(uri)
-
-        async def _link() -> Account:
-            account = await self.bridge.signal.link(_callback, device_name=device_name)
-            await user.on_signin(account)
-            return account
+        sess = await self.bridge.signal.start_link()
 
         user.command_status = {
             "action": "Link",
-            "task": self.bridge.loop.create_task(_link()),
+            "session_id": sess.session_id,
+            "device_name": device_name,
         }
 
-        return web.json_response({"uri": await uri_future}, headers=self._acao_headers)
+        return web.json_response({"uri": sess.uri}, headers=self._acao_headers)
 
     async def link_wait(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
         if not user.command_status or user.command_status["action"] != "Link":
             raise web.HTTPBadRequest(text='{"error": "No Signal linking started"}',
                                      headers=self._headers)
+        session_id = user.command_status["session_id"]
+        device_name = user.command_status["device_name"]
         try:
-            account = await user.command_status["task"]
-        except LinkingTimeout:
+            account = await self.bridge.signal.finish_link(session_id=session_id,
+                                                           device_name=device_name)
+        except TimeoutException:
             raise web.HTTPBadRequest(text='{"error": "Signal linking timed out"}',
                                      headers=self._headers)
-        return web.json_response({
-            "number": account.username,
-            "uuid": str(account.uuid),
-        })
+        except Exception:
+            self.log.exception("Fatal error while waiting for linking to finish")
+            raise web.HTTPInternalServerError(text='{"error": "Fatal error in Signal linking"}',
+                                              headers=self._headers)
+        else:
+            await user.on_signin(account)
+            return web.json_response({
+                "number": account.username,
+                "uuid": str(account.uuid),
+            })
 
     async def logout(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)

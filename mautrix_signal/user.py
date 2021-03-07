@@ -102,8 +102,8 @@ class User(DBUser, BaseUser):
         shutil.rmtree(extra_dir, ignore_errors=True)
 
     async def on_signin(self, account: Account) -> None:
-        self.username = account.username
-        self.uuid = account.uuid
+        self.username = account.account_id
+        self.uuid = account.address.uuid
         self._add_to_cache()
         await self.update()
         await self.bridge.signal.subscribe(self.username)

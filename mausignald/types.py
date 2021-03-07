@@ -14,17 +14,6 @@ from mautrix.types import SerializableAttrs, SerializableEnum
 GroupID = NewType('GroupID', str)
 
 
-@dataclass
-class Account(SerializableAttrs['Account']):
-    device_id: int = attr.ib(metadata={"json": "deviceId"})
-    username: str
-    filename: str
-    registered: bool
-    has_keys: bool
-    subscribed: bool
-    uuid: Optional[UUID] = None
-
-
 @dataclass(frozen=True, eq=False)
 class Address(SerializableAttrs['Address']):
     number: Optional[str] = None
@@ -55,6 +44,19 @@ class Address(SerializableAttrs['Address']):
     @classmethod
     def parse(cls, value: str) -> 'Address':
         return Address(number=value) if value.startswith("+") else Address(uuid=UUID(value))
+
+
+@dataclass
+class Account(SerializableAttrs['Account']):
+    account_id: str
+    device_id: int
+    address: Address
+
+
+@dataclass
+class LinkSession(SerializableAttrs['LinkSession']):
+    uri: str
+    session_id: str
 
 
 @dataclass

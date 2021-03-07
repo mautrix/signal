@@ -16,7 +16,7 @@
 from typing import Union
 import io
 
-from mausignald.errors import UnexpectedResponse
+from mausignald.errors import UnexpectedResponse, TimeoutException
 from mautrix.client import Client
 from mautrix.bridge import custom_puppet as cpu
 from mautrix.appservice import IntentAPI
@@ -59,13 +59,23 @@ async def link(evt: CommandEvent) -> None:
     # TODO make default device name configurable
     device_name = " ".join(evt.args) or "Mautrix-Signal bridge"
 
-    async def callback(uri: str) -> None:
-        content = await make_qr(evt.az.intent, uri)
-        await evt.az.intent.send_message(evt.room_id, content)
-
-    account = await evt.bridge.signal.link(callback, device_name=device_name)
-    await evt.sender.on_signin(account)
-    await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
+    sess = await evt.bridge.signal.start_link()
+    content = await make_qr(evt.az.intent, sess.uri)
+    event_id = await evt.az.intent.send_message(evt.room_id, content)
+    try:
+        account = await evt.bridge.signal.finish_link(session_id=sess.session_id,
+                                                      device_name=device_name)
+    except TimeoutException:
+        await evt.reply("Linking timed out, please try again.")
+    except Exception:
+        evt.log.exception("Fatal error while waiting for linking to finish")
+        await evt.reply("Fatal error while waiting for linking to finish "
+                        "(see logs for more details)")
+    else:
+        await evt.sender.on_signin(account)
+        await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
+    finally:
+        await evt.main_intent.redact(evt.room_id, event_id)
 
 
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,

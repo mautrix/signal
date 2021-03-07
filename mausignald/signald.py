@@ -4,16 +4,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 from typing import Union, Optional, List, Dict, Any, Callable, Awaitable, Set, TypeVar, Type
-from uuid import uuid4
 import asyncio
 
 from mautrix.util.logging import TraceLogger
 
 from .rpc import CONNECT_EVENT, SignaldRPCClient
-from .errors import UnexpectedError, UnexpectedResponse, make_linking_error
+from .errors import UnexpectedError, UnexpectedResponse
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
                     Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2,
-                    Mention)
+                    Mention, LinkSession)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -110,28 +109,12 @@ class SignaldClient(SignaldRPCClient):
         resp = await self.request("verify", "verification_succeeded", username=username, code=code)
         return Account.deserialize(resp)
 
-    async def link(self, url_callback: Callable[[str], Awaitable[None]],
-                   device_name: str = "mausignald") -> Account:
-        req_id = uuid4()
-        resp_type, resp = await self._raw_request("link", req_id, deviceName=device_name)
-        if resp_type == "linking_error":
-            raise make_linking_error(resp)
-        elif resp_type != "linking_uri":
-            raise UnexpectedResponse(resp_type, resp)
+    async def start_link(self) -> LinkSession:
+        return LinkSession.deserialize(await self.request_v1("generate_linking_uri"))
 
-        self.loop.create_task(url_callback(resp["uri"]))
-
-        resp_type, resp = await self._wait_response(req_id)
-        if resp_type == "linking_error":
-            raise make_linking_error(resp)
-        elif resp_type != "linking_successful":
-            raise UnexpectedResponse(resp_type, resp)
-
+    async def finish_link(self, session_id: str, device_name: str = "mausignald") -> Account:
+        resp = await self.request_v1("finish_link", device_name=device_name, session_id=session_id)
         return Account.deserialize(resp)
-
-    async def list_accounts(self) -> List[Account]:
-        data = await self.request_v0("list_accounts", "account_list")
-        return [Account.deserialize(acc) for acc in data["accounts"]]
 
     @staticmethod
     def _recipient_to_args(recipient: Union[Address, GroupID]) -> Dict[str, Any]:

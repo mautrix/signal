@@ -11,8 +11,7 @@ import json
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import (NotConnected, UnexpectedError, UnexpectedResponse, RPCError,
-                     make_response_error)
+from .errors import NotConnected, UnexpectedError, UnexpectedResponse, make_response_error
 
 EventHandler = Callable[[Dict[str, Any]], Awaitable[None]]
 
