@@ -72,7 +72,6 @@ class SignalHandler(SignaldClient):
 
     async def handle_message(self, user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
                              addr_override: Optional[Address] = None) -> None:
-        group_v2_info = None
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
         elif msg.group:
@@ -85,7 +84,7 @@ class SignalHandler(SignaldClient):
                                  " double puppeting enabled")
                 return
         if not portal.mxid:
-            await portal.create_matrix_room(user, (group_v2_info or msg.group
+            await portal.create_matrix_room(user, (msg.group_v2 or msg.group
                                                    or addr_override or sender.address))
             if not portal.mxid:
                 user.log.debug(f"Failed to create room for incoming message {msg.timestamp},"
@@ -93,7 +92,7 @@ class SignalHandler(SignaldClient):
                 return
         elif msg.group_v2 and msg.group_v2.revision > portal.revision:
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
-            await portal.update_info(user, group_v2_info or msg.group_v2, sender)
+            await portal.update_info(user, msg.group_v2, sender)
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction)
         if msg.body or msg.attachments or msg.sticker:
