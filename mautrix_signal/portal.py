@@ -273,6 +273,8 @@ class Portal(DBPortal, BasePortal):
                 self.log.exception("Removing reaction failed")
 
     async def handle_matrix_join(self, user: 'u.User') -> None:
+        if self.is_direct:
+            return
         if self._pending_members is None:
             self.log.debug(f"{user.mxid} ({user.uuid}) joined room, but pending_members is None,"
                            " updating chat info")
