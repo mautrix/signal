@@ -85,14 +85,26 @@ async def register(evt: CommandEvent) -> None:
         await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone>")
         return
     voice = False
-    if evt.args[0].lower() == "--voice":
-        voice = True
-        evt.args = evt.args[1:]
+    captcha = None
+    while True:
+        flag = evt.args[0].lower()
+        if flag == "--voice" or flag == "-v":
+            voice = True
+            evt.args = evt.args[1:]
+        elif flag == "--captcha" or flag == "-c":
+            if "=" in evt.args[0]:
+                captcha = evt.args[0].split("=", 1)[1]
+                evt.args = evt.args[1:]
+            else:
+                captcha = evt.args[1]
+                evt.args = evt.args[2:]
+        else:
+            break
     phone = evt.args[0].translate(remove_extra_chars)
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
-    username = await evt.bridge.signal.register(phone, voice=voice)
+    username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
     evt.sender.command_status = {
         "action": "Register",
         "room_id": evt.room_id,
