@@ -147,10 +147,7 @@ class ProvisioningAPI:
                                               headers=self._headers)
         else:
             await user.on_signin(account)
-            return web.json_response({
-                "number": account.username,
-                "uuid": str(account.uuid),
-            })
+            return web.json_response(account.address.serialize())
 
     async def logout(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
