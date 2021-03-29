@@ -26,20 +26,13 @@ class NotConnected(RPCError):
 
 
 class ResponseError(RPCError):
-    def __init__(self, data: Dict[str, Any], message_override: Optional[str] = None) -> None:
+    def __init__(self, data: Dict[str, Any], error_type: Optional[str] = None,
+                 message_override: Optional[str] = None) -> None:
         self.data = data
-        super().__init__(message_override or data["message"])
-
-
-class UnknownResponseError(ResponseError):
-    def __init__(self, message: str) -> None:
-        self.data = {}
-        super(RPCError, self).__init__(message)
-
-
-class InvalidRequest(ResponseError):
-    def __init__(self, data: Dict[str, Any]) -> None:
-        super().__init__(data, ", ".join(data.get("validationResults", "")))
+        msg = message_override or data["message"]
+        if error_type:
+            msg = f"{error_type}: {msg}"
+        super().__init__(msg)
 
 
 class TimeoutException(ResponseError):
@@ -50,6 +43,10 @@ class UnknownIdentityKey(ResponseError):
     pass
 
 
+class CaptchaRequired(ResponseError):
+    pass
+
+
 class UserAlreadyExistsError(ResponseError):
     def __init__(self, data: Dict[str, Any]) -> None:
         super().__init__(data, message_override="You're already logged in")
@@ -57,15 +54,19 @@ class UserAlreadyExistsError(ResponseError):
 
 class RequestValidationFailure(ResponseError):
     def __init__(self, data: Dict[str, Any]) -> None:
-        super().__init__(data, message_override=", ".join(data["validationResults"]))
+        results = data["validationResults"]
+        result_str = ", ".join(results) if isinstance(results, list) else str(results)
+        super().__init__(data, message_override=result_str)
 
 
 response_error_types = {
-    "invalid_request": InvalidRequest,
+    "invalid_request": RequestValidationFailure,
     "TimeoutException": TimeoutException,
     "UserAlreadyExists": UserAlreadyExistsError,
     "RequestValidationFailure": RequestValidationFailure,
     "UnknownIdentityKey": UnknownIdentityKey,
+    "CaptchaRequired": CaptchaRequired,
+    # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
 }
 
 
@@ -73,4 +74,14 @@ def make_response_error(data: Dict[str, Any]) -> ResponseError:
     error_data = data["error"]
     if isinstance(error_data, str):
         error_data = {"message": error_data}
-    return response_error_types.get(data["error_type"], ResponseError)(error_data)
+    elif not isinstance(error_data, dict):
+        error_data = {"message": str(error_data)}
+    elif "message" not in error_data:
+        error_data["message"] = "<no message>"
+    error_type = data["error_type"]
+    try:
+        error_class = response_error_types[error_type]
+    except KeyError:
+        return ResponseError(data, error_type=error_type)
+    else:
+        return error_class(error_data)
