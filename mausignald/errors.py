@@ -46,19 +46,31 @@ class TimeoutException(ResponseError):
     pass
 
 
+class UnknownIdentityKey(ResponseError):
+    pass
+
+
 class UserAlreadyExistsError(ResponseError):
     def __init__(self, data: Dict[str, Any]) -> None:
         super().__init__(data, message_override="You're already logged in")
+
+
+class RequestValidationFailure(ResponseError):
+    def __init__(self, data: Dict[str, Any]) -> None:
+        super().__init__(data, message_override=", ".join(data["validationResults"]))
 
 
 response_error_types = {
     "invalid_request": InvalidRequest,
     "TimeoutException": TimeoutException,
     "UserAlreadyExists": UserAlreadyExistsError,
+    "RequestValidationFailure": RequestValidationFailure,
+    "UnknownIdentityKey": UnknownIdentityKey,
 }
 
 
 def make_response_error(data: Dict[str, Any]) -> ResponseError:
-    if isinstance(data, str):
-        return UnknownResponseError(data)
-    return response_error_types.get(data["type"], ResponseError)(data)
+    error_data = data["error"]
+    if isinstance(error_data, str):
+        error_data = {"message": error_data}
+    return response_error_types.get(data["error_type"], ResponseError)(error_data)

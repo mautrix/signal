@@ -70,14 +70,13 @@ class TrustLevel(SerializableEnum):
 class Identity(SerializableAttrs['Identity']):
     trust_level: TrustLevel
     added: int
-    fingerprint: str
     safety_number: str
     qr_code_data: str
-    address: Address
 
 
 @dataclass
 class GetIdentitiesResponse(SerializableAttrs['GetIdentitiesResponse']):
+    address: Address
     identities: List[Identity]
 
 

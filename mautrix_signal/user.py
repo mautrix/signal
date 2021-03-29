@@ -20,7 +20,7 @@ import asyncio
 import os.path
 import shutil
 
-from mausignald.types import Account, Address, Contact, Group, GroupV2, ListenEvent, ListenAction
+from mausignald.types import Account, Address, Profile, Group, GroupV2, ListenEvent, ListenAction
 from mautrix.bridge import BaseUser, async_getter_lock
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
@@ -145,21 +145,23 @@ class User(DBUser, BaseUser):
         except Exception:
             self.log.exception("Error while syncing groups")
 
-    async def sync_contact(self, contact: Union[Contact, Address], create_portals: bool = False
+    async def sync_contact(self, contact: Union[Profile, Address], create_portals: bool = False
                            ) -> None:
         self.log.trace("Syncing contact %s", contact)
-        address = contact.address if isinstance(contact, Contact) else contact
-        puppet = await pu.Puppet.get_by_address(address)
-        profile = await self.bridge.signal.get_profile(self.username, address)
-        if profile and profile.name:
-            self.log.trace("Got profile for %s: %s", address, profile)
+        if isinstance(contact, Address):
+            address = contact
+            profile = await self.bridge.signal.get_profile(self.username, address)
+            if profile and profile.name:
+                self.log.trace("Got profile for %s: %s", address, profile)
         else:
-            profile = None
-        await puppet.update_info(profile or contact)
+            address = contact.address
+            profile = contact
+        puppet = await pu.Puppet.get_by_address(address)
+        await puppet.update_info(profile)
         if create_portals:
             portal = await po.Portal.get_by_chat_id(puppet.address, receiver=self.username,
                                                     create=True)
-            await portal.create_matrix_room(self, profile or contact)
+            await portal.create_matrix_room(self, profile)
 
     async def _sync_group(self, group: Group, create_portals: bool) -> None:
         self.log.trace("Syncing group %s", group)

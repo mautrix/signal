@@ -101,12 +101,11 @@ class SignaldClient(SignaldRPCClient):
 
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
                        ) -> str:
-        resp = await self.request("register", "verification_required", username=phone,
-                                  voice=voice, captcha=captcha)
-        return resp["username"]
+        resp = await self.request_v1("register", account=phone, voice=voice, captcha=captcha)
+        return resp["account_id"]
 
     async def verify(self, username: str, code: str) -> Account:
-        resp = await self.request("verify", "verification_succeeded", username=username, code=code)
+        resp = await self.request_v1("verify", account=username, code=code)
         return Account.deserialize(resp)
 
     async def start_link(self) -> LinkSession:
@@ -143,13 +142,15 @@ class SignaldClient(SignaldRPCClient):
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
                            when: Optional[int] = None, read: bool = False) -> None:
-        await self.request_nowait("mark_read" if read else "mark_delivered", username=username,
-                                  timestamps=timestamps, when=when,
-                                  recipientAddress=sender.serialize())
+        if not read:
+            # TODO implement
+            return
+        await self.request_v1("mark_read", account=username, timestamps=timestamps, when=when,
+                              to=sender.serialize())
 
-    async def list_contacts(self, username: str) -> List[Contact]:
-        contacts = await self.request_v0("list_contacts", "contact_list", username=username)
-        return [Contact.deserialize(contact) for contact in contacts]
+    async def list_contacts(self, username: str) -> List[Profile]:
+        resp = await self.request_v1("list_contacts", account=username)
+        return [Profile.deserialize(contact) for contact in resp["profiles"]]
 
     async def list_groups(self, username: str) -> List[Union[Group, GroupV2]]:
         resp = await self.request_v1("list_groups", account=username)
@@ -201,8 +202,8 @@ class SignaldClient(SignaldRPCClient):
         return Profile.deserialize(resp)
 
     async def get_identities(self, username: str, address: Address) -> GetIdentitiesResponse:
-        resp = await self.request_v0("get_identities", "identities", username=username,
-                                     recipientAddress=address.serialize())
+        resp = await self.request_v1("get_identities", account=username,
+                                     address=address.serialize())
         return GetIdentitiesResponse.deserialize(resp)
 
     async def set_profile(self, username: str, name: Optional[str] = None,
@@ -214,9 +215,17 @@ class SignaldClient(SignaldRPCClient):
             args["avatarFile"] = avatar_path
         await self.request_v1("set_profile", account=username, **args)
 
-    async def trust(self, username: str, recipient: Address, fingerprint: str, trust_level: str
-                    ) -> str:
-        resp = await self.request_v0("trust", "trusted_safety_number", username=username,
-                                     fingerprint=fingerprint, trust_level=trust_level,
-                                     recipientAddress=recipient.serialize())
-        return resp["message"]
+    async def trust(self, username: str, recipient: Address, trust_level: str,
+                    safety_number: Optional[str] = None, qr_code_data: Optional[str] = None
+                    ) -> None:
+        args = {}
+        if safety_number:
+            if qr_code_data:
+                raise ValueError("only one of safety_number and qr_code_data must be set")
+            args["safety_number"] = safety_number
+        elif qr_code_data:
+            args["qr_code_data"] = qr_code_data
+        else:
+            raise ValueError("safety_number or qr_code_data is required")
+        await self.request_v1("trust", account=username, **args, trust_level=trust_level,
+                              address=recipient.serialize())

@@ -18,7 +18,9 @@ import base64
 import json
 
 from mautrix.bridge.commands import HelpSection, command_handler, SECTION_ADMIN
+from mautrix.types import EventID
 from mausignald.types import Address
+from mausignald.errors import UnknownIdentityKey
 
 from .. import puppet as pu, portal as po
 from .auth import make_qr, remove_extra_chars
@@ -101,7 +103,7 @@ async def safety_number(evt: CommandEvent) -> None:
     for identity in resp.identities:
         if identity.added > most_recent.added:
             most_recent = identity
-    uuid = most_recent.address.uuid or "unknown"
+    uuid = resp.address.uuid or "unknown"
     await evt.reply(f"### {puppet.name}\n\n"
                     f"**UUID:** {uuid}  \n"
                     f"**Trust level:** {most_recent.trust_level}  \n"
@@ -123,15 +125,20 @@ async def set_profile_name(evt: CommandEvent) -> None:
 @command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
                  help_text="Mark another user's safety number as trusted",
                  help_args="<_recipient phone_> <_safety number_>")
-async def mark_trusted(evt: CommandEvent) -> None:
+async def mark_trusted(evt: CommandEvent) -> EventID:
+    if len(evt.args) < 2:
+        return await evt.reply("**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> "
+                               "<safety number>`")
     number = evt.args[0].translate(remove_extra_chars)
     safety_num = "".join(evt.args[1:]).replace("\n", "")
     if len(safety_num) != 60 or not safety_num.isdecimal():
-        await evt.reply("That doesn't look like a valid safety number")
-        return
-    msg = await evt.bridge.signal.trust(evt.sender.username, Address(number=number),
-                                        fingerprint=safety_num, trust_level="TRUSTED_VERIFIED")
-    await evt.reply(msg)
+        return await evt.reply("That doesn't look like a valid safety number")
+    try:
+        await evt.bridge.signal.trust(evt.sender.username, Address(number=number),
+                                      safety_number=safety_num, trust_level="TRUSTED_VERIFIED")
+    except UnknownIdentityKey as e:
+        return await evt.reply(f"Failed to mark {number} as trusted: {e}")
+    return await evt.reply(f"Successfully marked {number} as trusted")
 
 
 @command_handler(needs_admin=False, needs_auth=True, help_section=SECTION_SIGNAL,
