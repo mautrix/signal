@@ -16,7 +16,7 @@
 from typing import Union
 import io
 
-from mausignald.errors import UnexpectedResponse, TimeoutException
+from mausignald.errors import UnexpectedResponse, UnexpectedError, TimeoutException
 from mautrix.client import Client
 from mautrix.bridge import custom_puppet as cpu
 from mautrix.appservice import IntentAPI
@@ -79,20 +79,43 @@ async def link(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,
-                 help_text="Sign into Signal as the primary device", help_args="<phone>")
+                 help_text="Sign into Signal as the primary device", help_args="<phone> [captcha]")
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
-        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone>")
+        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone> [captcha]")
         return
     voice = False
+    captcha = None
     if evt.args[0].lower() == "--voice":
         voice = True
         evt.args = evt.args[1:]
     phone = evt.args[0].translate(remove_extra_chars)
+    if len(evt.args) == 2:
+        captcha = evt.args[1]
+        if captcha.startswith("signalcaptcha://"):
+            captcha=captcha[16:]
+        print(captcha)
     if not phone.startswith("+") or not phone[1:].isdecimal():
         await evt.reply(f"Please enter the phone number in international format (E.164)")
         return
-    username = await evt.bridge.signal.register(phone, voice=voice)
+    try:
+        username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
+    except UnexpectedResponse as err:
+        error = f"Unexpected Response: {err.resp_type}"
+        if err.resp_type == "captcha_required":
+            error = f"Captcha Required. See https://docs.signald.org/articles/captcha/ for how to retrieve a captcha token then run: `register {phone} signalcaptcha://<captchatoken>`"
+        await evt.reply(error)
+        return
+    except UnexpectedError as err:
+        error = f"Unexpected Error. Arguments: {err.args}"
+        if "Rate limit exceeded" in err.args[0]:
+            error = "Rate Limit Exceeded. Try again later."
+        await evt.reply(error)
+        return
+    except Exception as err:
+        message = "Unhandled Exception of type {0} occurred. Arguments: {1}".format(type(err).__name__, err.args)
+        await evt.reply(message)
+        return
     evt.sender.command_status = {
         "action": "Register",
         "room_id": evt.room_id,
