@@ -76,7 +76,7 @@ def make_response_error(data: Dict[str, Any]) -> ResponseError:
         error_data = {"message": error_data}
     elif not isinstance(error_data, dict):
         error_data = {"message": str(error_data)}
-    elif "message" not in error_data:
+    if "message" not in error_data:
         error_data["message"] = "<no message>"
     error_type = data["error_type"]
     try:
