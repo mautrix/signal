@@ -77,11 +77,11 @@ def make_response_error(data: Dict[str, Any]) -> ResponseError:
     elif not isinstance(error_data, dict):
         error_data = {"message": str(error_data)}
     if "message" not in error_data:
-        error_data["message"] = "<no message>"
+        error_data["message"] = "no message, see signald logs"
     error_type = data["error_type"]
     try:
         error_class = response_error_types[error_type]
     except KeyError:
-        return ResponseError(data, error_type=error_type)
+        return ResponseError(error_data, error_type=error_type)
     else:
         return error_class(error_data)
