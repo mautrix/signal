@@ -18,6 +18,7 @@ from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerat
 from collections import deque
 from uuid import UUID, uuid4
 import mimetypes
+import pathlib
 import hashlib
 import asyncio
 import os.path
@@ -165,6 +166,18 @@ class Portal(DBPortal, BasePortal):
         attachment.voice_note = message.msgtype == MessageType.AUDIO
         return attachment
 
+    def _write_outgoing_file(self, data: bytes) -> str:
+        dir = pathlib.Path(self.config["signal.outgoing_attachment_dir"])
+        path = dir.joinpath(f"mautrix-signal-{str(uuid4())}")
+        try:
+            with open(path, "wb") as file:
+                file.write(data)
+        except FileNotFoundError:
+            dir.mkdir(mode=0o755, parents=True, exist_ok=True)
+            with open(path, "wb") as file:
+                file.write(data)
+        return str(path)
+
     async def _download_matrix_media(self, message: MediaMessageEventContent) -> str:
         if message.file:
             data = await self.main_intent.download_media(message.file.url)
@@ -172,11 +185,7 @@ class Portal(DBPortal, BasePortal):
                                       message.file.hashes.get("sha256"), message.file.iv)
         else:
             data = await self.main_intent.download_media(message.url)
-        path = os.path.join(self.config["signal.outgoing_attachment_dir"],
-                            f"mautrix-signal-{str(uuid4())}")
-        with open(path, "wb") as file:
-            file.write(data)
-        return path
+        return self._write_outgoing_file(data)
 
     async def handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
                                     event_id: EventID) -> None:
@@ -326,12 +335,9 @@ class Portal(DBPortal, BasePortal):
             return
         self.avatar_url = url
         self.avatar_hash = new_hash
-        path = os.path.join(self.config["signal.outgoing_attachment_dir"],
-                            f"mautrix-signal-avatar-{str(uuid4())}")
+        path = self._write_outgoing_file(data)
         self.log.debug(f"{user.mxid} changed the group avatar, sending to Signal")
         try:
-            with open(path, "wb") as file:
-                file.write(data)
             await self.signal.update_group(user.username, self.chat_id, avatar_path=path)
             self.avatar_set = True
         except Exception:
