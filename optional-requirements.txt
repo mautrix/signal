@@ -17,4 +17,4 @@ qrcode>=6,<7
 Pillow>=4,<9
 
 #/stickers
-signalstickers-client>=3.0
+signalstickers-client>=3,<4
