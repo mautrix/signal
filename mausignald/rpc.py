@@ -50,7 +50,7 @@ class SignaldRPCClient:
             return
 
         initial_connect = self.loop.create_future()
-        self._communicate_task = self.loop.create_task(self._communicate_forever(initial_connect))
+        self._communicate_task = asyncio.create_task(self._communicate_forever(initial_connect))
         await initial_connect
 
     async def _communicate_forever(self, initial_connect: Optional[asyncio.Future] = None) -> None:
@@ -62,7 +62,7 @@ class SignaldRPCClient:
                 await asyncio.sleep(5)
                 continue
 
-            read_loop = self.loop.create_task(self._try_read_loop())
+            read_loop = asyncio.create_task(self._try_read_loop())
             await self._run_rpc_handler(CONNECT_EVENT, {})
 
             if initial_connect:
@@ -136,7 +136,7 @@ class SignaldRPCClient:
 
         req_id = req.get("id")
         if req_id is None:
-            self.loop.create_task(self._run_rpc_handler(req_type, req))
+            asyncio.create_task(self._run_rpc_handler(req_type, req))
         else:
             self._run_response_handlers(UUID(req_id), req_type, req)
 

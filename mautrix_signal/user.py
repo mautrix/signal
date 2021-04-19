@@ -107,7 +107,7 @@ class User(DBUser, BaseUser):
         self._add_to_cache()
         await self.update()
         await self.bridge.signal.subscribe(self.username)
-        self.loop.create_task(self.sync())
+        asyncio.create_task(self.sync())
 
     def on_listen(self, evt: ListenEvent) -> None:
         if evt.action == ListenAction.STARTED:

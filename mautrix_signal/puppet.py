@@ -178,7 +178,7 @@ class Puppet(DBPuppet, BasePuppet):
                 update = await self._update_avatar(info.avatar) or update
             if update:
                 await self.update()
-                self.loop.create_task(self._update_portal_meta())
+                asyncio.create_task(self._update_portal_meta())
 
     @staticmethod
     def fmt_phone(number: str) -> str:

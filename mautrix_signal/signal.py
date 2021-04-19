@@ -143,7 +143,7 @@ class SignalHandler(SignaldClient):
         async for user in u.User.all_logged_in():
             # TODO report errors to user?
             if await self.subscribe(user.username):
-                self.loop.create_task(user.sync())
+                asyncio.create_task(user.sync())
 
     async def stop(self) -> None:
         await self.disconnect()
