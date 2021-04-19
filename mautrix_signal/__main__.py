@@ -13,6 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+import asyncio
+import logging
+
 from mautrix.bridge import Bridge
 from mautrix.bridge.state_store.asyncpg import PgBridgeStateStore
 from mautrix.types import RoomID, UserID
@@ -48,6 +51,7 @@ class SignalBridge(Bridge):
     config: Config
     state_store: PgBridgeStateStore
     provisioning_api: ProvisioningAPI
+    periodic_sync_task: asyncio.Task
 
     def make_state_store(self) -> None:
         self.state_store = PgBridgeStateStore(self.db, self.get_puppet, self.get_double_puppet)
@@ -76,6 +80,33 @@ class SignalBridge(Bridge):
             self.add_startup_actions(self.resend_bridge_info())
         self.add_startup_actions(self.signal.start())
         await super().start()
+        self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
+
+    @staticmethod
+    async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:
+        while True:
+            try:
+                await asyncio.sleep(interval)
+            except asyncio.CancelledError:
+                return
+            log.info("Executing periodic syncs")
+            for user in User.by_username.values():
+                try:
+                    await user.sync()
+                except asyncio.CancelledError:
+                    return
+                except Exception:
+                    log.exception("Error while syncing %s", user.mxid)
+
+    async def _periodic_sync_loop(self) -> None:
+        log = logging.getLogger("mau.periodic_sync")
+        interval = self.config["bridge.periodic_sync"]
+        if interval <= 0:
+            log.debug("Periodic sync is not enabled")
+            return
+        log.debug("Starting periodic sync loop")
+        await self._actual_periodic_sync_loop(log, interval)
+        log.debug("Periodic sync stopped")
 
     def prepare_stop(self) -> None:
         self.add_shutdown_actions(self.signal.stop())

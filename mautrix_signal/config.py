@@ -86,6 +86,7 @@ class Config(BaseBridgeConfig):
         copy("bridge.delivery_receipts")
         copy("bridge.delivery_error_reports")
         copy("bridge.resend_bridge_info")
+        copy("bridge.periodic_sync")
 
         copy("bridge.provisioning.enabled")
         copy("bridge.provisioning.prefix")
