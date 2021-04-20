@@ -130,8 +130,9 @@ class Puppet(DBPuppet, BasePuppet):
             user.uuid = self.uuid
             user.by_uuid[user.uuid] = user
             await user.update()
-        await self._set_uuid(uuid)
+        self.uuid = uuid
         self.by_uuid[self.uuid] = self
+        await self._set_uuid(uuid)
         async for portal in p.Portal.find_private_chats_with(Address(number=self.number)):
             self.log.trace(f"Updating chat_id of private chat portal {portal.receiver}")
             portal.handle_uuid_receive(self.uuid)

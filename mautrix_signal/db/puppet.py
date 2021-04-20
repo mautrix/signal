@@ -62,10 +62,9 @@ class Puppet:
                               self.access_token, self.next_batch, self._base_url_str)
 
     async def _set_uuid(self, uuid: UUID) -> None:
-        if self.uuid:
-            raise ValueError("Can't re-set UUID for puppet")
-        self.uuid = uuid
         async with self.db.acquire() as conn, conn.transaction():
+            await conn.execute("DELETE FROM puppet WHERE uuid=$1 AND number<>$2",
+                               uuid, self.number)
             await conn.execute("UPDATE puppet SET uuid=$1 WHERE number=$2", uuid, self.number)
             uuid = str(uuid)
             await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2", uuid, self.number)
