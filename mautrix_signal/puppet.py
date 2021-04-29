@@ -168,6 +168,9 @@ class Puppet(DBPuppet, BasePuppet):
             name = info.profile_name
         elif isinstance(info, (Contact, Profile)) and contact_names != "disallow":
             name = info.name
+            if not name and isinstance(info, Profile) and info.profile_name:
+                # Contact list name is preferred, but was not found, fall back to profile
+                name = info.profile_name
         else:
             name = None
 
