@@ -34,6 +34,7 @@ if TYPE_CHECKING:
     from .__main__ import SignalBridge
 
 METRIC_CONNECTED = Gauge('bridge_connected', 'Bridge users connected to Signal')
+METRIC_LOGGED_IN = Gauge('bridge_logged_in', 'Bridge users logged into Signal')
 
 
 class User(DBUser, BaseUser):
@@ -100,6 +101,7 @@ class User(DBUser, BaseUser):
             self.log.warning(f"Failed to remove signald data file: {e}")
         self.log.debug("Removing %s", extra_dir)
         shutil.rmtree(extra_dir, ignore_errors=True)
+        self._track_metric(METRIC_LOGGED_IN, False)
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
@@ -108,11 +110,13 @@ class User(DBUser, BaseUser):
         await self.update()
         await self.bridge.signal.subscribe(self.username)
         asyncio.create_task(self.sync())
+        self._track_metric(METRIC_LOGGED_IN, True)
 
     def on_listen(self, evt: ListenEvent) -> None:
         if evt.action == ListenAction.STARTED:
             self.log.info("Connected to Signal")
             self._track_metric(METRIC_CONNECTED, True)
+            self._track_metric(METRIC_LOGGED_IN, True)
         elif evt.action == ListenAction.STOPPED:
             if evt.exception:
                 self.log.warning(f"Disconnected from Signal: {evt.exception}")
