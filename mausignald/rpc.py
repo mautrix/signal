@@ -198,7 +198,7 @@ class SignaldRPCClient:
                            ) -> Tuple[str, Dict[str, Any]]:
         future, data = self._create_request(command, req_id, **data)
         await self._send_request(data)
-        return await future
+        return await asyncio.shield(future)
 
     async def request(self, command: str, expected_response: str, **data: Any) -> Any:
         resp_type, resp_data = await self._raw_request(command, **data)
