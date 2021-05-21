@@ -55,15 +55,18 @@ class SignalHandler(SignaldClient):
         if evt.sync_message:
             if evt.sync_message.read_messages:
                 await self.handle_own_receipts(sender, evt.sync_message.read_messages)
-            if evt.sync_message.contacts:
-                # Contact list update?
-                pass
             if evt.sync_message.sent:
                 await self.handle_message(user, sender, evt.sync_message.sent.message,
                                           addr_override=evt.sync_message.sent.destination)
             if evt.sync_message.typing:
                 # Typing notification from own device
                 pass
+            if evt.sync_message.contacts or evt.sync_message.contacts_complete:
+                self.log.debug("Sync message includes contacts meta, syncing contacts...")
+                await user.sync_contacts()
+            if evt.sync_message.groups:
+                self.log.debug("Sync message includes groups meta, syncing contacts...")
+                await user.sync_groups()
 
     @staticmethod
     async def on_listen(evt: ListenEvent) -> None:

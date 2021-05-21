@@ -49,12 +49,14 @@ class User(DBUser, BaseUser):
     is_admin: bool
     permission_level: str
 
+    _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
 
     def __init__(self, mxid: UserID, username: Optional[str] = None, uuid: Optional[UUID] = None,
                  notice_room: Optional[RoomID] = None) -> None:
         super().__init__(mxid=mxid, username=username, uuid=uuid, notice_room=notice_room)
         self._notice_room_lock = asyncio.Lock()
+        self._sync_lock = asyncio.Lock()
         perms = self.config.get_permissions(mxid)
         self.is_whitelisted, self.is_admin, self.permission_level = perms
         self.log = self.log.getChild(self.mxid)
@@ -136,16 +138,28 @@ class User(DBUser, BaseUser):
             await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
 
     async def sync(self) -> None:
+        await self.sync_puppet()
+        await self.sync_contacts()
+        await self.sync_groups()
+
+    async def sync_puppet(self) -> None:
         try:
-            await self._sync_puppet()
+            async with self._sync_lock:
+                await self._sync_puppet()
         except Exception:
             self.log.exception("Error while syncing own puppet")
+
+    async def sync_contacts(self) -> None:
         try:
-            await self._sync_contacts()
+            async with self._sync_lock:
+                await self._sync_contacts()
         except Exception:
             self.log.exception("Error while syncing contacts")
+
+    async def sync_groups(self) -> None:
         try:
-            await self._sync_groups()
+            async with self._sync_lock:
+                await self._sync_groups()
         except Exception:
             self.log.exception("Error while syncing groups")
 

@@ -9,7 +9,7 @@ from uuid import UUID
 from attr import dataclass
 import attr
 
-from mautrix.types import SerializableAttrs, SerializableEnum
+from mautrix.types import SerializableAttrs, SerializableEnum, ExtensibleEnum
 
 GroupID = NewType('GroupID', str)
 
@@ -301,12 +301,51 @@ class Receipt(SerializableAttrs['Receipt']):
 
 
 @dataclass
+class ContactSyncMeta(SerializableAttrs['ContactSyncMeta']):
+    id: Optional[str] = None
+
+
+@dataclass
+class ConfigItem(SerializableAttrs['ConfigItem']):
+    present: bool = False
+
+
+@dataclass
+class ClientConfiguration(SerializableAttrs['ClientConfiguration']):
+    read_receipts: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
+                                                  metadata={"json": "readReceipts"})
+    typing_indicators: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
+                                                      metadata={"json": "typingIndicators"})
+    link_previews: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
+                                                  metadata={"json": "linkPreviews"})
+    unidentified_delivery_indicators: Optional[ConfigItem] = attr.ib(
+        factory=lambda: ConfigItem(), metadata={"json": "unidentifiedDeliveryIndicators"})
+
+
+class StickerPackOperation(ExtensibleEnum):
+    INSTALL = "INSTALL"
+    # there are very likely others
+
+
+@dataclass
+class StickerPackOperations(SerializableAttrs['StickerPackOperations']):
+    type: StickerPackOperation
+    pack_id: str = attr.ib(metadata={"json": "packID"})
+    pack_key: str = attr.ib(metadata={"json": "packKey"})
+
+
+@dataclass
 class SyncMessage(SerializableAttrs['SyncMessage']):
     sent: Optional[SentSyncMessage] = None
     typing: Optional[TypingNotification] = None
     read_messages: Optional[List[OwnReadReceipt]] = attr.ib(default=None,
                                                             metadata={"json": "readMessages"})
-    contacts: Optional[Dict[str, Any]] = None
+    contacts: Optional[ContactSyncMeta] = None
+    groups: Optional[ContactSyncMeta] = None
+    configuration: Optional[ClientConfiguration] = None
+    # blocked_list: Optional[???] = attr.ib(default=None, metadata={"json": "blockedList"})
+    sticker_pack_operations: Optional[List[StickerPackOperations]] = attr.ib(
+        default=None, metadata={"json": "stickerPackOperations"})
     contacts_complete: bool = attr.ib(default=False, metadata={"json": "contactsComplete"})
 
 
