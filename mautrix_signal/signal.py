@@ -16,6 +16,8 @@
 from typing import Optional, List, TYPE_CHECKING
 import asyncio
 import logging
+import os.path
+import shutil
 
 from mausignald import SignaldClient
 from mausignald.types import (Message, MessageData, Address, TypingNotification, TypingAction,
@@ -35,9 +37,13 @@ SIGNAL_TYPING_TIMEOUT = 15000
 class SignalHandler(SignaldClient):
     log: TraceLogger = logging.getLogger("mau.signal")
     loop: asyncio.AbstractEventLoop
+    data_dir: str
+    delete_unknown_accounts: bool
 
     def __init__(self, bridge: 'SignalBridge') -> None:
         super().__init__(bridge.config["signal.socket_path"], loop=bridge.loop)
+        self.data_dir = bridge.config["signal.data_dir"]
+        self.delete_unknown_accounts = bridge.config["signal.delete_unknown_accounts_on_start"]
         self.add_event_handler(Message, self.on_message)
         self.add_event_handler(ListenEvent, self.on_listen)
 
@@ -141,12 +147,31 @@ class SignalHandler(SignaldClient):
             portal = await po.Portal.get_by_mxid(message.mx_room)
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
 
+    def delete_data(self, username: str) -> None:
+        path = os.path.join(self.data_dir, username)
+        extra_dir = f"{path}.d/"
+        try:
+            self.log.debug("Removing %s", path)
+            os.remove(path)
+        except FileNotFoundError as e:
+            self.log.warning(f"Failed to remove signald data file: {e}")
+        self.log.debug("Removing %s", extra_dir)
+        shutil.rmtree(extra_dir, ignore_errors=True)
+
     async def start(self) -> None:
         await self.connect()
+        known_usernames = set()
         async for user in u.User.all_logged_in():
             # TODO report errors to user?
+            known_usernames.add(user.username)
             if await self.subscribe(user.username):
                 asyncio.create_task(user.sync())
+        if self.delete_unknown_accounts:
+            self.log.debug("Checking for unknown accounts to delete")
+            for account in await self.list_accounts():
+                if account.account_id not in known_usernames:
+                    self.log.warning(f"Unknown account ID {account.account_id}, deleting...")
+                    self.delete_data(account.account_id)
 
     async def stop(self) -> None:
         await self.disconnect()

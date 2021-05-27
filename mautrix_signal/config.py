@@ -51,6 +51,7 @@ class Config(BaseBridgeConfig):
         copy("signal.outgoing_attachment_dir")
         copy("signal.avatar_dir")
         copy("signal.data_dir")
+        copy("signal.delete_unknown_accounts_on_start")
         copy("signal.remove_file_after_handling")
 
         copy("metrics.enabled")

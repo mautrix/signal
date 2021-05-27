@@ -17,8 +17,6 @@ from typing import Union, Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
 from collections import defaultdict
 from uuid import UUID
 import asyncio
-import os.path
-import shutil
 
 from mausignald.types import Account, Address, Profile, Group, GroupV2, ListenEvent, ListenAction
 from mautrix.bridge import BaseUser, async_getter_lock
@@ -94,15 +92,7 @@ class User(DBUser, BaseUser):
         await self.bridge.signal.unsubscribe(username)
         # Wait a while for signald to finish disconnecting
         await asyncio.sleep(1)
-        path = os.path.join(self.config["signal.data_dir"], username)
-        extra_dir = f"{path}.d/"
-        try:
-            self.log.debug("Removing %s", path)
-            os.remove(path)
-        except FileNotFoundError as e:
-            self.log.warning(f"Failed to remove signald data file: {e}")
-        self.log.debug("Removing %s", extra_dir)
-        shutil.rmtree(extra_dir, ignore_errors=True)
+        self.bridge.signal.delete_data(username)
         self._track_metric(METRIC_LOGGED_IN, False)
 
     async def on_signin(self, account: Account) -> None:

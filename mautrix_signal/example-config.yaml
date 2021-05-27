@@ -75,6 +75,9 @@ signal:
     avatar_dir: ~/.config/signald/avatars
     # Directory where signald stores auth data. Used to delete data when logging out.
     data_dir: ~/.config/signald/data
+    # Whether or not unknown signald accounts should be deleted when the bridge is started.
+    # When this is enabled, any UserInUse errors should be resolved by restarting the bridge.
+    delete_unknown_accounts_on_start: false
     # Whether or not message attachments should be removed from disk after they're bridged.
     remove_file_after_handling: true
 
