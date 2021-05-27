@@ -98,16 +98,26 @@ class ProvisioningAPI:
             "signal": None,
         }
         if await user.is_logged_in():
-            profile = await self.bridge.signal.get_profile(username=user.username,
-                                                           address=Address(number=user.username))
-            addr = profile.address if profile else None
-            number = addr.number if addr else None
-            uuid = addr.uuid if addr else None
-            data["signal"] = {
-                "number": number or user.username,
-                "uuid": str(uuid or user.uuid or ""),
-                "name": profile.name if profile else None,
-            }
+            try:
+                profile = await self.bridge.signal.get_profile(
+                    username=user.username, address=Address(number=user.username))
+            except Exception as e:
+                self.log.exception(f"Failed to get {user.username}'s profile for whoami")
+                data["signal"] = {
+                    "number": user.username,
+                    "ok": False,
+                    "error": str(e),
+                }
+            else:
+                addr = profile.address if profile else None
+                number = addr.number if addr else None
+                uuid = addr.uuid if addr else None
+                data["signal"] = {
+                    "number": number or user.username,
+                    "uuid": str(uuid or user.uuid or ""),
+                    "name": profile.name if profile else None,
+                    "ok": True,
+                }
         return web.json_response(data, headers=self._acao_headers)
 
     async def link(self, request: web.Request) -> web.Response:
