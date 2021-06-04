@@ -152,6 +152,9 @@ class SignaldClient(SignaldRPCClient):
         resp = await self.request_v1("list_accounts")
         return [Account.deserialize(acc) for acc in resp.get("accounts", [])]
 
+    async def delete_account(self, username: str, server: bool = False) -> None:
+        await self.request_v1("delete_account", account=username, server=server)
+
     async def list_contacts(self, username: str) -> List[Profile]:
         resp = await self.request_v1("list_contacts", account=username)
         return [Profile.deserialize(contact) for contact in resp["profiles"]]

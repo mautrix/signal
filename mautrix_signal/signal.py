@@ -71,7 +71,7 @@ class SignalHandler(SignaldClient):
                 self.log.debug("Sync message includes contacts meta, syncing contacts...")
                 await user.sync_contacts()
             if evt.sync_message.groups:
-                self.log.debug("Sync message includes groups meta, syncing contacts...")
+                self.log.debug("Sync message includes groups meta, syncing groups...")
                 await user.sync_groups()
 
     @staticmethod
@@ -147,17 +147,6 @@ class SignalHandler(SignaldClient):
             portal = await po.Portal.get_by_mxid(message.mx_room)
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
 
-    def delete_data(self, username: str) -> None:
-        path = os.path.join(self.data_dir, username)
-        extra_dir = f"{path}.d/"
-        try:
-            self.log.debug("Removing %s", path)
-            os.remove(path)
-        except FileNotFoundError as e:
-            self.log.warning(f"Failed to remove signald data file: {e}")
-        self.log.debug("Removing %s", extra_dir)
-        shutil.rmtree(extra_dir, ignore_errors=True)
-
     async def start(self) -> None:
         await self.connect()
         known_usernames = set()
@@ -171,7 +160,7 @@ class SignalHandler(SignaldClient):
             for account in await self.list_accounts():
                 if account.account_id not in known_usernames:
                     self.log.warning(f"Unknown account ID {account.account_id}, deleting...")
-                    self.delete_data(account.account_id)
+                    await self.delete_account(account.account_id)
 
     async def stop(self) -> None:
         await self.disconnect()

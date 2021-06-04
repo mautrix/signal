@@ -92,7 +92,7 @@ class User(DBUser, BaseUser):
         await self.bridge.signal.unsubscribe(username)
         # Wait a while for signald to finish disconnecting
         await asyncio.sleep(1)
-        self.bridge.signal.delete_data(username)
+        await self.bridge.signal.delete_account(username)
         self._track_metric(METRIC_LOGGED_IN, False)
 
     async def on_signin(self, account: Account) -> None:
