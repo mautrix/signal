@@ -291,6 +291,7 @@ class ReceiptType(SerializableEnum):
     UNKNOWN = "UNKNOWN"
     DELIVERY = "DELIVERY"
     READ = "READ"
+    VIEWED = "VIEWED"
 
 
 @dataclass

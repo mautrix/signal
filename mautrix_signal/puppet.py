@@ -180,6 +180,8 @@ class Puppet(DBPuppet, BasePuppet):
                 update = await self._update_name(name) or update
             if isinstance(info, Profile):
                 update = await self._update_avatar(info.avatar) or update
+            elif contact_names != "disallow" and self.number:
+                update = await self._update_avatar(f"contact-{self.number}") or update
             if update:
                 await self.update()
                 asyncio.create_task(self._update_portal_meta())
