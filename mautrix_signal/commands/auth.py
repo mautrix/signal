@@ -82,7 +82,7 @@ async def link(evt: CommandEvent) -> None:
                  help_text="Sign into Signal as the primary device", help_args="<phone>")
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
-        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] <phone>")
+        await evt.reply("**Usage**: $cmdprefix+sp register [--voice] [--captcha <token>] <phone>")
         return
     voice = False
     captcha = None
