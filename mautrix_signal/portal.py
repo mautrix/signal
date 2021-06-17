@@ -217,6 +217,7 @@ class Portal(DBPortal, BasePortal):
         else:
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
             return
+        self.log.debug(f"Sending Matrix message {event_id} to Signal with timestamp {request_id}")
         await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
                                mentions=mentions, quote=quote, attachments=attachments,
                                timestamp=request_id)
