@@ -141,7 +141,7 @@ class SignalHandler(SignaldClient):
     @staticmethod
     async def handle_receipt(sender: 'pu.Puppet', receipt: Receipt) -> None:
         if receipt.type != ReceiptType.READ:
-            pass
+            return
         messages = await DBMessage.find_by_timestamps(receipt.timestamps)
         for message in messages:
             portal = await po.Portal.get_by_mxid(message.mx_room)
