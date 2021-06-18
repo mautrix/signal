@@ -162,3 +162,6 @@ class MatrixHandler(BaseMatrixHandler):
             await portal.handle_matrix_name(user, evt.content.name)
         elif evt.type == EventType.ROOM_AVATAR:
             await portal.handle_matrix_avatar(user, evt.content.url)
+
+    async def allow_bridging_message(self, user: 'BaseUser', portal: 'BasePortal') -> bool:
+        return self.config['bridge.relaybot.enable'] or await user.is_logged_in()
