@@ -14,12 +14,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Union, Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
-from collections import defaultdict
 from uuid import UUID
 import asyncio
 
 from mausignald.types import Account, Address, Profile, Group, GroupV2, ListenEvent, ListenAction
-from mautrix.bridge import BaseUser, async_getter_lock
+from mautrix.bridge import BaseUser, BridgeState, async_getter_lock
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
 from mautrix.util.opt_prometheus import Gauge
@@ -33,6 +32,11 @@ if TYPE_CHECKING:
 
 METRIC_CONNECTED = Gauge('bridge_connected', 'Bridge users connected to Signal')
 METRIC_LOGGED_IN = Gauge('bridge_logged_in', 'Bridge users logged into Signal')
+
+BridgeState.human_readable_errors.update({
+    "logged-out": "You're not logged into Signal",
+    "signal-not-connected": None,
+})
 
 
 class User(DBUser, BaseUser):
@@ -49,18 +53,17 @@ class User(DBUser, BaseUser):
 
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
+    _connected: bool
 
     def __init__(self, mxid: UserID, username: Optional[str] = None, uuid: Optional[UUID] = None,
                  notice_room: Optional[RoomID] = None) -> None:
         super().__init__(mxid=mxid, username=username, uuid=uuid, notice_room=notice_room)
+        BaseUser.__init__(self)
         self._notice_room_lock = asyncio.Lock()
         self._sync_lock = asyncio.Lock()
+        self._connected = False
         perms = self.config.get_permissions(mxid)
         self.is_whitelisted, self.is_admin, self.permission_level = perms
-        self.log = self.log.getChild(self.mxid)
-        self.dm_update_lock = asyncio.Lock()
-        self.command_status = None
-        self._metric_value = defaultdict(lambda: False)
 
     @classmethod
     def init_cls(cls, bridge: 'SignalBridge') -> None:
@@ -94,6 +97,20 @@ class User(DBUser, BaseUser):
         await asyncio.sleep(1)
         await self.bridge.signal.delete_account(username)
         self._track_metric(METRIC_LOGGED_IN, False)
+        await self.push_bridge_state(ok=False, error="logged-out")
+
+    async def fill_bridge_state(self, state: BridgeState) -> None:
+        await super().fill_bridge_state(state)
+        state.remote_id = self.username
+        puppet = await pu.Puppet.get_by_address(self.address)
+        state.remote_name = puppet.name or self.username
+
+    async def get_bridge_state(self) -> BridgeState:
+        if not self.username:
+            return BridgeState(ok=False, error="logged-out")
+        elif not self._connected:
+            return BridgeState(ok=False, error="signal-not-connected")
+        return BridgeState(ok=True)
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
@@ -109,12 +126,16 @@ class User(DBUser, BaseUser):
             self.log.info("Connected to Signal")
             self._track_metric(METRIC_CONNECTED, True)
             self._track_metric(METRIC_LOGGED_IN, True)
+            self._connected = True
+            asyncio.create_task(self.push_bridge_state(ok=True))
         elif evt.action == ListenAction.STOPPED:
             if evt.exception:
                 self.log.warning(f"Disconnected from Signal: {evt.exception}")
             else:
                 self.log.info("Disconnected from Signal")
             self._track_metric(METRIC_CONNECTED, False)
+            asyncio.create_task(self.push_bridge_state(ok=False, error="signal-not-connected"))
+            self._connected = False
         else:
             self.log.warning(f"Unrecognized listen action {evt.action}")
 
