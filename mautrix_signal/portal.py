@@ -33,7 +33,8 @@ from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
                            MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
-                           ImageInfo, VideoInfo, FileInfo, AudioInfo, PowerLevelStateEventContent)
+                           ImageInfo, VideoInfo, FileInfo, AudioInfo, PowerLevelStateEventContent,
+                           Membership)
 from mautrix.errors import MatrixError, MForbidden, IntentError
 
 from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
@@ -771,6 +772,19 @@ class Portal(DBPortal, BasePortal):
             if not puppet.name:
                 await source.sync_contact(address)
             await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
+
+        # remove left/kicked former members
+        members = await self.az.intent.get_room_members(self.mxid,
+                                                        (Membership.JOIN, Membership.INVITE))
+        for member in members:
+            user = await u.User.get_by_mxid(member, create=False)
+            if not user:
+                user = await p.Puppet.get_by_mxid(member, create=False)
+            if user:
+                if user.mxid != self.az.bot_mxid and not info.members.__contains__(user.address):
+                    self.log.debug(f"{user.mxid} is no longer in this group. Going to kick..")
+                    await self.main_intent.kick_user(self.mxid, user.mxid,
+                                                     "You are no (longer) member of this group")
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
         if not self.mxid:
