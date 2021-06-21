@@ -64,6 +64,7 @@ class User(DBUser, BaseUser):
         self._connected = False
         perms = self.config.get_permissions(mxid)
         self.is_whitelisted, self.is_admin, self.permission_level = perms
+        self.is_relaybot = self.config.get_relay_users(mxid)
 
     @classmethod
     def init_cls(cls, bridge: 'SignalBridge') -> None:
