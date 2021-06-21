@@ -15,7 +15,7 @@ GroupID = NewType('GroupID', str)
 
 
 @dataclass(frozen=True, eq=False)
-class Address(SerializableAttrs['Address']):
+class Address(SerializableAttrs):
     number: Optional[str] = None
     uuid: Optional[UUID] = None
 
@@ -47,14 +47,14 @@ class Address(SerializableAttrs['Address']):
 
 
 @dataclass
-class Account(SerializableAttrs['Account']):
+class Account(SerializableAttrs):
     account_id: str
     device_id: int
     address: Address
 
 
 @dataclass
-class LinkSession(SerializableAttrs['LinkSession']):
+class LinkSession(SerializableAttrs):
     uri: str
     session_id: str
 
@@ -67,7 +67,7 @@ class TrustLevel(SerializableEnum):
 
 
 @dataclass
-class Identity(SerializableAttrs['Identity']):
+class Identity(SerializableAttrs):
     trust_level: TrustLevel
     added: int
     safety_number: str
@@ -75,13 +75,13 @@ class Identity(SerializableAttrs['Identity']):
 
 
 @dataclass
-class GetIdentitiesResponse(SerializableAttrs['GetIdentitiesResponse']):
+class GetIdentitiesResponse(SerializableAttrs):
     address: Address
     identities: List[Identity]
 
 
 @dataclass
-class Contact(SerializableAttrs['Contact']):
+class Contact(SerializableAttrs):
     address: Address
     name: Optional[str] = None
     color: Optional[str] = None
@@ -90,14 +90,14 @@ class Contact(SerializableAttrs['Contact']):
 
 
 @dataclass
-class Capabilities(SerializableAttrs['Capabilities']):
+class Capabilities(SerializableAttrs):
     gv2: bool = False
     storage: bool = False
     gv1_migration: bool = attr.ib(default=False, metadata={"json": "gv1-migration"})
 
 
 @dataclass
-class Profile(SerializableAttrs['Profile']):
+class Profile(SerializableAttrs):
     name: str = ""
     profile_name: str = ""
     avatar: str = ""
@@ -110,7 +110,7 @@ class Profile(SerializableAttrs['Profile']):
 
 
 @dataclass
-class Group(SerializableAttrs['Group']):
+class Group(SerializableAttrs):
     group_id: GroupID = attr.ib(metadata={"json": "groupId"})
     name: str = "Unknown group"
 
@@ -123,7 +123,7 @@ class Group(SerializableAttrs['Group']):
 
 
 @dataclass(kw_only=True)
-class GroupV2ID(SerializableAttrs['GroupV2ID']):
+class GroupV2ID(SerializableAttrs):
     id: GroupID
     revision: Optional[int] = None
 
@@ -138,7 +138,7 @@ class AccessControlMode(SerializableEnum):
 
 
 @dataclass
-class GroupAccessControl(SerializableAttrs['GroupAccessControl']):
+class GroupAccessControl(SerializableAttrs):
     attributes: AccessControlMode = AccessControlMode.UNKNOWN
     link: AccessControlMode = AccessControlMode.UNKNOWN
     members: AccessControlMode = AccessControlMode.UNKNOWN
@@ -152,14 +152,14 @@ class GroupMemberRole(SerializableEnum):
 
 
 @dataclass
-class GroupMember(SerializableAttrs['GroupMember']):
+class GroupMember(SerializableAttrs):
     uuid: UUID
     joined_revision: int = 0
     role: GroupMemberRole = GroupMemberRole.UNKNOWN
 
 
 @dataclass(kw_only=True)
-class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
+class GroupV2(GroupV2ID, SerializableAttrs):
     title: str
     avatar: Optional[str] = None
     timer: Optional[int] = None
@@ -179,7 +179,7 @@ class GroupV2(GroupV2ID, SerializableAttrs['GroupV2']):
 
 
 @dataclass
-class Attachment(SerializableAttrs['Attachment']):
+class Attachment(SerializableAttrs):
     width: int = 0
     height: int = 0
     caption: Optional[str] = None
@@ -199,7 +199,7 @@ class Attachment(SerializableAttrs['Attachment']):
 
 
 @dataclass
-class Quote(SerializableAttrs['Quote']):
+class Quote(SerializableAttrs):
     id: int
     author: Address
     text: Optional[str] = None
@@ -207,7 +207,7 @@ class Quote(SerializableAttrs['Quote']):
 
 
 @dataclass(kw_only=True)
-class Reaction(SerializableAttrs['Reaction']):
+class Reaction(SerializableAttrs):
     emoji: str
     remove: bool = False
     target_author: Address = attr.ib(metadata={"json": "targetAuthor"})
@@ -215,7 +215,7 @@ class Reaction(SerializableAttrs['Reaction']):
 
 
 @dataclass
-class Sticker(SerializableAttrs['Sticker']):
+class Sticker(SerializableAttrs):
     attachment: Attachment
     pack_id: str = attr.ib(metadata={"json": "packID"})
     pack_key: str = attr.ib(metadata={"json": "packKey"})
@@ -223,19 +223,19 @@ class Sticker(SerializableAttrs['Sticker']):
 
 
 @dataclass
-class RemoteDelete(SerializableAttrs['RemoteDelete']):
+class RemoteDelete(SerializableAttrs):
     target_sent_timestamp: int = attr.ib(metadata={"json": "targetSentTimestamp"})
 
 
 @dataclass
-class Mention(SerializableAttrs['Mention']):
+class Mention(SerializableAttrs):
     uuid: UUID
     length: int
     start: int = 0
 
 
 @dataclass
-class MessageData(SerializableAttrs['MessageData']):
+class MessageData(SerializableAttrs):
     timestamp: int
 
     body: Optional[str] = None
@@ -258,7 +258,7 @@ class MessageData(SerializableAttrs['MessageData']):
 
 
 @dataclass
-class SentSyncMessage(SerializableAttrs['SentSyncMessage']):
+class SentSyncMessage(SerializableAttrs):
     message: MessageData
     timestamp: int
     expiration_start_timestamp: Optional[int] = attr.ib(default=None, metadata={
@@ -275,14 +275,14 @@ class TypingAction(SerializableEnum):
 
 
 @dataclass
-class TypingNotification(SerializableAttrs['TypingNotification']):
+class TypingNotification(SerializableAttrs):
     action: TypingAction
     timestamp: int
     group_id: Optional[GroupID] = attr.ib(default=None, metadata={"json": "groupId"})
 
 
 @dataclass
-class OwnReadReceipt(SerializableAttrs['OwnReadReceipt']):
+class OwnReadReceipt(SerializableAttrs):
     sender: Address
     timestamp: int
 
@@ -295,24 +295,24 @@ class ReceiptType(SerializableEnum):
 
 
 @dataclass
-class Receipt(SerializableAttrs['Receipt']):
+class Receipt(SerializableAttrs):
     type: ReceiptType
     timestamps: List[int]
     when: int
 
 
 @dataclass
-class ContactSyncMeta(SerializableAttrs['ContactSyncMeta']):
+class ContactSyncMeta(SerializableAttrs):
     id: Optional[str] = None
 
 
 @dataclass
-class ConfigItem(SerializableAttrs['ConfigItem']):
+class ConfigItem(SerializableAttrs):
     present: bool = False
 
 
 @dataclass
-class ClientConfiguration(SerializableAttrs['ClientConfiguration']):
+class ClientConfiguration(SerializableAttrs):
     read_receipts: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
                                                   metadata={"json": "readReceipts"})
     typing_indicators: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
@@ -329,14 +329,14 @@ class StickerPackOperation(ExtensibleEnum):
 
 
 @dataclass
-class StickerPackOperations(SerializableAttrs['StickerPackOperations']):
+class StickerPackOperations(SerializableAttrs):
     type: StickerPackOperation
     pack_id: str = attr.ib(metadata={"json": "packID"})
     pack_key: str = attr.ib(metadata={"json": "packKey"})
 
 
 @dataclass
-class SyncMessage(SerializableAttrs['SyncMessage']):
+class SyncMessage(SerializableAttrs):
     sent: Optional[SentSyncMessage] = None
     typing: Optional[TypingNotification] = None
     read_messages: Optional[List[OwnReadReceipt]] = attr.ib(default=None,
@@ -360,7 +360,7 @@ class MessageType(SerializableEnum):
 
 
 @dataclass(kw_only=True)
-class Message(SerializableAttrs['Message']):
+class Message(SerializableAttrs):
     username: str
     source: Address
     timestamp: int
@@ -387,7 +387,7 @@ class ListenAction(SerializableEnum):
 
 
 @dataclass
-class ListenEvent(SerializableAttrs['ListenEvent']):
+class ListenEvent(SerializableAttrs):
     action: ListenAction
     username: str
     exception: Optional[str] = None
