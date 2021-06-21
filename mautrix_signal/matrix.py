@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -163,5 +163,8 @@ class MatrixHandler(BaseMatrixHandler):
         elif evt.type == EventType.ROOM_AVATAR:
             await portal.handle_matrix_avatar(user, evt.content.url)
 
-    async def allow_bridging_message(self, user: 'BaseUser', portal: 'BasePortal') -> bool:
-        return self.config['bridge.relaybot.enable'] or await user.is_logged_in()
+    async def allow_message(self, user: 'u.User') -> bool:
+        return user.relay_whitelisted
+
+    async def allow_bridging_message(self, user: 'u.User', portal: 'po.Portal') -> bool:
+        return portal.has_relay or await user.is_logged_in()

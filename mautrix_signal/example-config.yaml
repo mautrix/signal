@@ -187,6 +187,7 @@ bridge:
 
     # Permissions for using the bridge.
     # Permitted values:
+    #      relay - Allowed to be relayed through the bridge, no access to commands.
     #       user - Use the bridge with puppeting.
     #      admin - Use and administrate the bridge.
     # Permitted keys:
@@ -194,26 +195,30 @@ bridge:
     #   domain - All users on that homeserver
     #     mxid - Specific user
     permissions:
+        "*": "relay"
         "example.com": "user"
         "@admin:example.com": "admin"
 
-    relaybot:
-        enable: false
-        # The formats to use when sending messages to Signal via the relaybot.
-        # (markdown/html is not supported by signal yet.)
+    relay:
+        # Whether or not relay mode should be allowed. If allowed, `!signal set-relay` can be used to turn any
+        # authenticated user into a relaybot for that chat.
+        enabled: false
+        # The formats to use when sending messages to Signal via a relay user.
+        #
+        # Available variables:
+        #   $sender_displayname - The display name of the sender (e.g. Example User)
+        #   $sender_username    - The username (Matrix ID localpart) of the sender (e.g. exampleuser)
+        #   $sender_mxid        - The Matrix ID of the sender (e.g. @exampleuser:example.com)
+        #   $message            - The message content
         message_formats:
-            m.text: '*{{ .Sender.Displayname }}*: {{ .Message }}'
-            m.notice: '*{{ .Sender.Displayname }}*: {{ .Message }}'
-            m.emote: '*{{ .Sender.Displayname }}* {{ .Message }}'
-            m.file: '*{{ .Sender.Displayname }}* sent a file'
-            m.image: '*{{ .Sender.Displayname }}* sent an image'
-            m.audio: '*{{ .Sender.Displayname }}* sent an audio file'
-            m.video: '*{{ .Sender.Displayname }}* sent a video'
-            m.location: '*{{ .Sender.Displayname }}* sent a location'
-        # Users that may function as relaybot, means messages in signal are sent by these users.
-        # If empty all users may function as relaybot. Only the last reaction can be handled by signal.
-        users:
-            - '@signal_relaybot:example.com'
+            m.text: '$sender_displayname: $message'
+            m.notice: '$sender_displayname: $message'
+            m.emote: '* $sender_displayname $message'
+            m.file: '$sender_displayname sent a file'
+            m.image: '$sender_displayname  sent an image'
+            m.audio: '$sender_displayname  sent an audio file'
+            m.video: '$sender_displayname  sent a video'
+            m.location: '$sender_displayname  sent a location'
 
 
 # Python logging configuration.

@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -15,8 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerator, Awaitable, Set,
                     Callable, TYPE_CHECKING, cast)
+from html import escape as escape_html
 from collections import deque
 from uuid import UUID, uuid4
+from string import Template
 import mimetypes
 import pathlib
 import hashlib
@@ -25,20 +27,16 @@ import os.path
 import time
 import os
 
-# for relaybot
-from html import escape as escape_html
-from string import Template
-
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
                               Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker,
                               GroupAccessControl, AccessControlMode, GroupMemberRole)
 from mausignald.errors import RPCError
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
-from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType,
+from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType, Format,
                            MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
-                           UserID, TextMessageEventContent, Format, #for relaybot
-                           ImageInfo, VideoInfo, FileInfo, AudioInfo, PowerLevelStateEventContent)
+                           TextMessageEventContent, ImageInfo, VideoInfo, FileInfo, AudioInfo,
+                           PowerLevelStateEventContent, UserID)
 from mautrix.errors import MatrixError, MForbidden, IntentError
 
 from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
@@ -86,14 +84,15 @@ class Portal(DBPortal, BasePortal):
     _reaction_dedup: Deque[Tuple[Address, int, str]]
     _reaction_lock: asyncio.Lock
     _pending_members: Optional[Set[UUID]]
+    _relay_user: Optional['u.User']
 
     def __init__(self, chat_id: Union[GroupID, Address], receiver: str,
                  mxid: Optional[RoomID] = None, name: Optional[str] = None,
                  avatar_hash: Optional[str] = None, avatar_url: Optional[ContentURI] = None,
                  name_set: bool = False, avatar_set: bool = False, revision: int = 0,
-                 encrypted: bool = False) -> None:
+                 encrypted: bool = False, relay_user_id: Optional[UserID] = None) -> None:
         super().__init__(chat_id, receiver, mxid, name, avatar_hash, avatar_url,
-                         name_set, avatar_set, revision, encrypted)
+                         name_set, avatar_set, revision, encrypted, relay_user_id)
         self._create_room_lock = asyncio.Lock()
         self.log = self.log.getChild(self.chat_id_str)
         self._main_intent = None
@@ -102,6 +101,23 @@ class Portal(DBPortal, BasePortal):
         self._last_participant_update = set()
         self._reaction_lock = asyncio.Lock()
         self._pending_members = None
+        self._relay_user = None
+
+    @property
+    def has_relay(self) -> bool:
+        return self.config["bridge.relay.enabled"] and bool(self.relay_user_id)
+
+    async def get_relay_user(self) -> Optional['u.User']:
+        if not self.has_relay:
+            return None
+        if self._relay_user is None:
+            self._relay_user = await u.User.get_by_mxid(self.relay_user_id)
+        return self._relay_user if await self._relay_user.is_logged_in() else None
+
+    async def set_relay_user(self, user: Optional['u.User']) -> None:
+        self._relay_user = user
+        self.relay_user_id = user.mxid if user else None
+        await self.save()
 
     @property
     def main_intent(self) -> IntentAPI:
@@ -195,22 +211,41 @@ class Portal(DBPortal, BasePortal):
     async def get_displayname(self, user: 'u.User') -> str:
         return await self.main_intent.get_room_displayname(self.mxid, user.mxid) or user.mxid
 
-    async def _apply_msg_format(self, sender: 'u.User', content: MessageEventContent
-                                ) -> None:
+    async def _apply_msg_format(self, sender: 'u.User', content: MessageEventContent) -> None:
         if not isinstance(content, TextMessageEventContent) or content.format != Format.HTML:
             content.format = Format.HTML
             content.formatted_body = escape_html(content.body).replace("\n", "<br/>")
- 
+
         tpl = (self.config[f"relaybot.message_formats.[{content.msgtype.value}]"]
-               or "*$sender_displayname*: $message")
+               or "$sender_displayname: $message")
         displayname = await self.get_displayname(sender)
+        username, _ = self.az.intent.parse_user_id(sender.mxid)
         tpl_args = dict(sender_mxid=sender.mxid,
-                        sender_username=sender.mxid, #TODO
+                        sender_username=username,
                         sender_displayname=escape_html(displayname),
                         message=content.formatted_body,
-                        body=content.body, formatted_body=content.formatted_body)             
+                        body=content.body,
+                        formatted_body=content.formatted_body)
         content.formatted_body = Template(tpl).safe_substitute(tpl_args)
         content.body = Template(tpl).safe_substitute(tpl_args)
+        if content.msgtype == MessageType.EMOTE:
+            content.msgtype = MessageType.TEXT
+
+    async def _get_relay_sender(self, sender: 'u.User', evt_identifier: str
+                                ) -> Tuple[Optional['u.User'], bool]:
+        if await sender.is_logged_in():
+            return sender, False
+
+        if not self.has_relay:
+            self.log.debug(f"Ignoring {evt_identifier} from non-logged-in user {sender.mxid}"
+                           " in chat with no relay user")
+            return None, True
+        relay_sender = await self.get_relay_user()
+        if not relay_sender:
+            self.log.debug(f"Ignoring {evt_identifier} from non-logged-in user {sender.mxid}: "
+                           f"relay user {self.relay_user_id} is not set up correctly")
+            return None, True
+        return relay_sender, True
 
     async def handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
                                     event_id: EventID) -> None:
@@ -218,18 +253,14 @@ class Portal(DBPortal, BasePortal):
              and await p.Puppet.get_by_custom_mxid(sender.mxid))):
             self.log.debug(f"Ignoring puppet-sent message by confirmed puppet user {sender.mxid}")
             return
-        if not await sender.is_logged_in() and self.config['bridge.relaybot.enable']:
-            self.log.trace(f"Message sent by non signal-user {sender.mxid}")
-            async for user in u.User.all_logged_in():
-                await self._apply_msg_format(sender, message)
-                if await user.is_in_portal(self) and user.is_relaybot:
-                    await self._handle_matrix_message(user, message, event_id, True)
-                    return
-        else:
-            await self._handle_matrix_message(sender, message, event_id)
 
-    async def _handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
-            event_id: EventID, relay_sender = None) -> None:
+        orig_sender = sender
+        sender, is_relay = await self._get_relay_sender(sender, f"message {event_id}")
+        if not sender:
+            return
+        elif is_relay:
+            await self._apply_msg_format(orig_sender, message)
+
         request_id = int(time.time() * 1000)
         self._msgts_dedup.appendleft((sender.address, request_id))
 
@@ -249,10 +280,7 @@ class Portal(DBPortal, BasePortal):
             attachment_path = await self._download_matrix_media(message)
             attachment = self._make_attachment(message, attachment_path)
             attachments = [attachment]
-            text = None
-            if relay_sender:
-                self.log.trace(f"Format text for relay")
-                text = message.body
+            text = message.body if is_relay else None
             self.log.trace("Formed outgoing attachment %s", attachment)
         else:
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
@@ -275,6 +303,10 @@ class Portal(DBPortal, BasePortal):
 
     async def handle_matrix_reaction(self, sender: 'u.User', event_id: EventID,
                                      reacting_to: EventID, emoji: str) -> None:
+        if not await sender.is_logged_in():
+            self.log.trace(f"Ignoring reaction by non-logged-in user {sender.mxid}")
+            return
+
         # Signal doesn't seem to use variation selectors at all
         emoji = emoji.rstrip("\ufe0f")
 
@@ -282,19 +314,6 @@ class Portal(DBPortal, BasePortal):
         if not message:
             self.log.debug(f"Ignoring reaction to unknown event {reacting_to}")
             return
-
-        if not await sender.is_logged_in() and self.config['bridge.relaybot.enable']:
-            self.log.trace(f"Reaction by non signal-user {sender.mxid}")
-            react_permitted = False
-            async for user in u.User.all_logged_in():
-                if await user.is_in_portal(self) and user.is_relaybot:
-                    self.log.trace(f"Set new sender to {user.mxid}")
-                    react_permitted = True
-                    sender=user
-                    break
-            if not react_permitted:
-                self.log.debug(f"Reaction not permitted.")
-                return
 
         existing = await DBReaction.get_by_signal_id(self.chat_id, self.receiver, message.sender,
                                                      message.timestamp, sender.address)
@@ -316,7 +335,7 @@ class Portal(DBPortal, BasePortal):
 
     async def handle_matrix_redaction(self, sender: 'u.User', event_id: EventID,
                                       redaction_event_id: EventID) -> None:
-        if not self.mxid:
+        if not self.mxid or not await sender.is_logged_in():
             return
 
         # TODO message redactions after https://gitlab.com/signald/signald/-/issues/37
@@ -336,7 +355,7 @@ class Portal(DBPortal, BasePortal):
                 self.log.exception("Removing reaction failed")
 
     async def handle_matrix_join(self, user: 'u.User') -> None:
-        if self.is_direct:
+        if self.is_direct or not await user.is_logged_in():
             return
         if self._pending_members is None:
             self.log.debug(f"{user.mxid} ({user.uuid}) joined room, but pending_members is None,"
@@ -357,6 +376,8 @@ class Portal(DBPortal, BasePortal):
                 await self.update_info(user, resp)
 
     async def handle_matrix_leave(self, user: 'u.User') -> None:
+        if not await user.is_logged_in():
+            return
         if self.is_direct:
             self.log.info(f"{user.mxid} left private chat portal with {self.chat_id}")
             if user.username == self.receiver:
@@ -370,16 +391,23 @@ class Portal(DBPortal, BasePortal):
     async def handle_matrix_name(self, user: 'u.User', name: str) -> None:
         if self.name == name or self.is_direct or not name:
             return
+        sender, is_relay = await self._get_relay_sender(user, "name change")
+        if not sender:
+            return
         self.name = name
-        self.log.debug(f"{user.mxid} changed the group name, sending to Signal")
+        self.log.debug(f"{user.mxid} changed the group name, "
+                       f"sending to Signal through {sender.username}")
         try:
-            await self.signal.update_group(user.username, self.chat_id, title=name)
+            await self.signal.update_group(sender.username, self.chat_id, title=name)
         except Exception:
             self.log.exception("Failed to update Signal group name")
             self.name = None
 
     async def handle_matrix_avatar(self, user: 'u.User', url: ContentURI) -> None:
         if self.is_direct or not url:
+            return
+        sender, is_relay = await self._get_relay_sender(user, "avatar change")
+        if not sender:
             return
 
         data = await self.main_intent.download_media(url)
@@ -390,9 +418,10 @@ class Portal(DBPortal, BasePortal):
         self.avatar_url = url
         self.avatar_hash = new_hash
         path = self._write_outgoing_file(data)
-        self.log.debug(f"{user.mxid} changed the group avatar, sending to Signal")
+        self.log.debug(f"{user.mxid} changed the group avatar, "
+                       f"sending to Signal through {sender.username}")
         try:
-            await self.signal.update_group(user.username, self.chat_id, avatar_path=path)
+            await self.signal.update_group(sender.username, self.chat_id, avatar_path=path)
             self.avatar_set = True
         except Exception:
             self.log.exception("Failed to update Signal group avatar")

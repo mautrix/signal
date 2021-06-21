@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -48,6 +48,7 @@ class User(DBUser, BaseUser):
     loop: asyncio.AbstractEventLoop
     bridge: 'SignalBridge'
 
+    relay_whitelisted: bool
     is_admin: bool
     permission_level: str
 
@@ -63,8 +64,7 @@ class User(DBUser, BaseUser):
         self._sync_lock = asyncio.Lock()
         self._connected = False
         perms = self.config.get_permissions(mxid)
-        self.is_whitelisted, self.is_admin, self.permission_level = perms
-        self.is_relaybot = self.config.get_relay_users(mxid)
+        self.relay_whitelisted, self.is_whitelisted, self.is_admin, self.permission_level = perms
 
     @classmethod
     def init_cls(cls, bridge: 'SignalBridge') -> None:

@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -132,3 +132,8 @@ async def upgrade_v6(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
     await conn.execute("UPDATE portal SET name_set=true WHERE name<>''")
     await conn.execute("UPDATE portal SET avatar_set=true WHERE avatar_hash<>''")
+
+
+@upgrade_table.register(description="Add relay user field to portal table")
+async def upgrade_v7(conn: Connection) -> None:
+    await conn.execute("ALTER TABLE portal ADD COLUMN relay_user_id TEXT")

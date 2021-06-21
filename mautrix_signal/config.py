@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,7 +21,7 @@ from mautrix.client import Client
 from mautrix.util.config import ConfigUpdateHelper, ForbiddenKey, ForbiddenDefault
 from mautrix.bridge.config import BaseBridgeConfig
 
-Permissions = NamedTuple("Permissions", user=bool, admin=bool, level=str)
+Permissions = NamedTuple("Permissions", relay=bool, user=bool, admin=bool, level=str)
 
 
 class Config(BaseBridgeConfig):
@@ -99,15 +99,15 @@ class Config(BaseBridgeConfig):
 
         copy_dict("bridge.permissions")
 
-        copy("bridge.relaybot.enable")
-        copy("bridge.relaybot.users")
-        copy_dict("bridge.relaybot.message_formats")
+        copy("bridge.relay.enabled")
+        copy_dict("bridge.relay.message_formats")
 
     def _get_permissions(self, key: str) -> Permissions:
         level = self["bridge.permissions"].get(key, "")
         admin = level == "admin"
         user = level == "user" or admin
-        return Permissions(user, admin, level)
+        relay = level == "relay" or user
+        return Permissions(relay, user, admin, level)
 
     def get_permissions(self, mxid: UserID) -> Permissions:
         permissions = self["bridge.permissions"]
@@ -119,18 +119,3 @@ class Config(BaseBridgeConfig):
             return self._get_permissions(homeserver)
 
         return self._get_permissions("*")
-
-    def get_relay_users(self, mxid: UserID) -> Permissions:
-        relay_users = self["bridge.relaybot.users"]
-        if not isinstance(relay_users, list):
-            return True
-        if len(relay_users) == 0:
-            return True
-        if mxid in relay_users:
-            return True
-
-        _, homeserver = Client.parse_user_id(mxid)
-        if homeserver in relay_users: 
-            return True
-
-        return False
