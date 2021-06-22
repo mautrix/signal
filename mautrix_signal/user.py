@@ -18,7 +18,7 @@ from uuid import UUID
 import asyncio
 
 from mausignald.types import Account, Address, Profile, Group, GroupV2, ListenEvent, ListenAction
-from mautrix.bridge import BaseUser, BridgeState, async_getter_lock
+from mautrix.bridge import BaseUser, BridgeState, AutologinError, async_getter_lock
 from mautrix.types import UserID, RoomID
 from mautrix.appservice import AppService
 from mautrix.util.opt_prometheus import Gauge
@@ -152,7 +152,10 @@ class User(DBUser, BaseUser):
             self.by_uuid[self.uuid] = self
         if puppet.custom_mxid != self.mxid and puppet.can_auto_login(self.mxid):
             self.log.info(f"Automatically enabling custom puppet")
-            await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
+            try:
+                await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
+            except AutologinError as e:
+                self.log.warning(f"Failed to enable custom puppet: {e}")
 
     async def sync(self) -> None:
         await self.sync_puppet()
