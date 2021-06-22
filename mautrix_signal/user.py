@@ -113,6 +113,11 @@ class User(DBUser, BaseUser):
             return BridgeState(ok=False, error="signal-not-connected")
         return BridgeState(ok=True)
 
+    async def get_puppet(self) -> Optional['pu.Puppet']:
+        if not self.address:
+            return None
+        return await pu.Puppet.get_by_address(self.address)
+
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
         self.uuid = account.address.uuid
