@@ -123,6 +123,10 @@ class ProvisioningAPI:
     async def link(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
 
+        if await user.is_logged_in():
+            raise web.HTTPConflict(text='''{"error": "You're already logged in"}''',
+                                   headers=self._headers)
+
         try:
             data = await request.json()
         except json.JSONDecodeError:
@@ -137,16 +141,20 @@ class ProvisioningAPI:
             "device_name": device_name,
         }
 
+        self.log.debug(f"Returning linking URI for {user.mxid} / {sess.session_id}")
         return web.json_response({"uri": sess.uri}, headers=self._acao_headers)
 
     async def _shielded_link(self, user: 'u.User', session_id: str, device_name: str) -> Account:
         try:
-            account = await self.bridge.signal.finish_link(session_id=session_id,
+            self.log.debug(f"Starting finish link request for {user.mxid} / {session_id}")
+            account = await self.bridge.signal.finish_link(session_id=session_id, overwrite=True,
                                                            device_name=device_name)
         except TimeoutException:
+            self.log.warning(f"Timed out waiting for linking to finish (session {session_id})")
             raise
         except Exception:
-            self.log.exception("Fatal error while waiting for linking to finish")
+            self.log.exception("Fatal error while waiting for linking to finish "
+                               f"(session {session_id})")
             raise
         else:
             await user.on_signin(account)
@@ -162,7 +170,8 @@ class ProvisioningAPI:
         try:
             account = await asyncio.shield(self._shielded_link(user, session_id, device_name))
         except asyncio.CancelledError:
-            self.log.warning("Client cancelled link wait request before it finished")
+            self.log.warning(f"Client cancelled link wait request ({session_id})"
+                             " before it finished")
         except TimeoutException:
             raise web.HTTPBadRequest(text='{"error": "Signal linking timed out"}',
                                      headers=self._headers)
@@ -174,7 +183,7 @@ class ProvisioningAPI:
 
     async def logout(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
-        if not user.username:
+        if not await user.is_logged_in():
             raise web.HTTPNotFound(text='''{"error": "You're not logged in"}''',
                                    headers=self._headers)
         await user.logout()

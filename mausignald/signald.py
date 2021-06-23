@@ -111,8 +111,10 @@ class SignaldClient(SignaldRPCClient):
     async def start_link(self) -> LinkSession:
         return LinkSession.deserialize(await self.request_v1("generate_linking_uri"))
 
-    async def finish_link(self, session_id: str, device_name: str = "mausignald") -> Account:
-        resp = await self.request_v1("finish_link", device_name=device_name, session_id=session_id)
+    async def finish_link(self, session_id: str, device_name: str = "mausignald",
+                          overwrite: bool = False) -> Account:
+        resp = await self.request_v1("finish_link", device_name=device_name, session_id=session_id,
+                                     overwrite=overwrite)
         return Account.deserialize(resp)
 
     @staticmethod

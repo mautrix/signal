@@ -54,6 +54,10 @@ async def link(evt: CommandEvent) -> None:
     if qrcode is None:
         await evt.reply("Can't generate QR code: qrcode and/or PIL not installed")
         return
+    if await evt.sender.is_logged_in():
+        await evt.reply("You're already logged in. "
+                        "If you want to relink, log out with `$cmdprefix+sp logout` first.")
+        return
     # TODO make default device name configurable
     device_name = " ".join(evt.args) or "Mautrix-Signal bridge"
 
@@ -61,7 +65,7 @@ async def link(evt: CommandEvent) -> None:
     content = await make_qr(evt.az.intent, sess.uri)
     event_id = await evt.az.intent.send_message(evt.room_id, content)
     try:
-        account = await evt.bridge.signal.finish_link(session_id=sess.session_id,
+        account = await evt.bridge.signal.finish_link(session_id=sess.session_id, overwrite=True,
                                                       device_name=device_name)
     except TimeoutException:
         await evt.reply("Linking timed out, please try again.")
@@ -81,6 +85,10 @@ async def link(evt: CommandEvent) -> None:
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
         await evt.reply("**Usage**: $cmdprefix+sp register [--voice] [--captcha <token>] <phone>")
+        return
+    if await evt.sender.is_logged_in():
+        await evt.reply("You're already logged in. "
+                        "If you want to re-register, log out with `$cmdprefix+sp logout` first.")
         return
     voice = False
     captcha = None
