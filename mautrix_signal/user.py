@@ -98,13 +98,15 @@ class User(DBUser, BaseUser):
         await asyncio.sleep(1)
         await self.bridge.signal.delete_account(username)
         self._track_metric(METRIC_LOGGED_IN, False)
-        await self.push_bridge_state(ok=False, error="logged-out")
+        await self.push_bridge_state(ok=False, error="logged-out", remote_id=username)
 
     async def fill_bridge_state(self, state: BridgeState) -> None:
         await super().fill_bridge_state(state)
-        state.remote_id = self.username
-        puppet = await pu.Puppet.get_by_address(self.address)
-        state.remote_name = puppet.name or self.username
+        if not state.remote_id:
+            state.remote_id = self.username
+        if self.address:
+            puppet = await self.get_puppet()
+            state.remote_name = puppet.name or self.username
 
     async def get_bridge_state(self) -> BridgeState:
         if not self.username:
