@@ -78,7 +78,7 @@ def make_response_error(data: Dict[str, Any]) -> ResponseError:
         error_data = {"message": str(error_data)}
     if "message" not in error_data:
         error_data["message"] = "no message, see signald logs"
-    error_type = data["error_type"]
+    error_type = data.get("error_type")
     try:
         error_class = response_error_types[error_type]
     except KeyError:
