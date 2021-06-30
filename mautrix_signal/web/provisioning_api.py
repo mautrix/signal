@@ -70,7 +70,7 @@ class ProvisioningAPI:
     async def login_options(self, _: web.Request) -> web.Response:
         return web.Response(status=200, headers=self._headers)
 
-    def check_token(self, request: web.Request) -> Awaitable['u.User']:
+    async def check_token(self, request: web.Request) -> 'u.User':
         try:
             token = request.headers["Authorization"]
             token = token[len("Bearer "):]
@@ -88,7 +88,10 @@ class ProvisioningAPI:
             raise web.HTTPBadRequest(text='{"error": "Missing user_id query param"}',
                                      headers=self._headers)
 
-        return u.User.get_by_mxid(UserID(user_id))
+        if not self.bridge.signal.is_connected:
+            await self.bridge.signal.wait_for_connected()
+
+        return await u.User.get_by_mxid(UserID(user_id))
 
     async def status(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)

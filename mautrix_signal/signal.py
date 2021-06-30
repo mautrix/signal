@@ -16,8 +16,6 @@
 from typing import Optional, List, TYPE_CHECKING
 import asyncio
 import logging
-import os.path
-import shutil
 
 from mausignald import SignaldClient
 from mausignald.types import (Message, MessageData, Address, TypingNotification, TypingAction,
