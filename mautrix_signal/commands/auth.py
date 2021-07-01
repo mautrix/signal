@@ -16,9 +16,9 @@
 from typing import Union
 import io
 
-from mausignald.errors import UnexpectedResponse, TimeoutException
+from mausignald.errors import UnexpectedResponse, TimeoutException, AuthorizationFailedException
 from mautrix.appservice import IntentAPI
-from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo
+from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo, EventID
 from mautrix.bridge.commands import HelpSection, command_handler
 
 from .. import puppet as pu
@@ -144,3 +144,24 @@ async def logout(evt: CommandEvent) -> None:
         return
     await evt.sender.logout()
     await evt.reply("Successfully logged out")
+
+
+@command_handler(needs_auth=True, management_only=True, help_section=SECTION_AUTH,
+                 help_text="List devices linked to your Signal account")
+async def list_devices(evt: CommandEvent) -> None:
+    devices = await evt.bridge.signal.get_linked_devices(evt.sender.username)
+    await evt.reply("\n".join(f"* #{dev.id}: {dev.name_with_default} (created {dev.created_fmt}, "
+                              f"last seen {dev.last_seen_fmt})" for dev in devices))
+
+
+@command_handler(needs_auth=True, management_only=True, help_section=SECTION_AUTH,
+                 help_text="Remove a linked device")
+async def remove_linked_device(evt: CommandEvent) -> EventID:
+    if len(evt.args) == 0:
+        return await evt.reply("**Usage:** `$cmdprefix+sp remove-linked-device <device ID>`")
+    device_id = int(evt.args[0])
+    try:
+        await evt.bridge.signal.remove_linked_device(evt.sender.username, device_id)
+    except AuthorizationFailedException as e:
+        return await evt.reply(f"{e} Only the primary device can remove linked devices.")
+    return await evt.reply("Device removed")

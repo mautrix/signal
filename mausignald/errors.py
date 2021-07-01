@@ -47,6 +47,10 @@ class CaptchaRequired(ResponseError):
     pass
 
 
+class AuthorizationFailedException(ResponseError):
+    pass
+
+
 class UserAlreadyExistsError(ResponseError):
     def __init__(self, data: Dict[str, Any]) -> None:
         super().__init__(data, message_override="You're already logged in")
@@ -66,6 +70,7 @@ response_error_types = {
     "RequestValidationFailure": RequestValidationFailure,
     "UnknownIdentityKey": UnknownIdentityKey,
     "CaptchaRequired": CaptchaRequired,
+    "AuthorizationFailedException": AuthorizationFailedException,
     # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
 }
 

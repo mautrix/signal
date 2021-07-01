@@ -3,13 +3,13 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from typing import Optional, Dict, Any, List, NewType
+from typing import Optional, Dict, List, NewType
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from attr import dataclass
-import attr
 
-from mautrix.types import SerializableAttrs, SerializableEnum, ExtensibleEnum
+from mautrix.types import SerializableAttrs, SerializableEnum, ExtensibleEnum, field
 
 GroupID = NewType('GroupID', str)
 
@@ -53,6 +53,43 @@ class Account(SerializableAttrs):
     address: Address
 
 
+def pluralizer(val: int) -> str:
+    if val == 1:
+        return ""
+    return "s"
+
+
+@dataclass
+class DeviceInfo(SerializableAttrs):
+    id: int
+    created: int
+    last_seen: int = field(json="lastSeen")
+    name: Optional[str] = None
+
+    @property
+    def name_with_default(self) -> str:
+        if self.name:
+            return self.name
+        return "primary device" if self.id == 1 else "unnamed device"
+
+    @property
+    def created_fmt(self) -> str:
+        return datetime.utcfromtimestamp(self.created / 1000).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+    @property
+    def last_seen_fmt(self) -> str:
+        dt = datetime.utcfromtimestamp(self.last_seen / 1000)
+        now = datetime.utcnow()
+        if dt.date() == now.date():
+            return "today"
+        elif (dt + timedelta(days=1)).date() == now.date():
+            return "yesterday"
+        day_diff = (now - dt).days
+        if day_diff < 30:
+            return f"{day_diff} day{pluralizer(day_diff)} ago"
+        return dt.strftime("%Y-%m-%d")
+
+
 @dataclass
 class LinkSession(SerializableAttrs):
     uri: str
@@ -85,15 +122,15 @@ class Contact(SerializableAttrs):
     address: Address
     name: Optional[str] = None
     color: Optional[str] = None
-    profile_key: Optional[str] = attr.ib(default=None, metadata={"json": "profileKey"})
-    message_expiration_time: int = attr.ib(default=0, metadata={"json": "messageExpirationTime"})
+    profile_key: Optional[str] = field(default=None, json="profileKey")
+    message_expiration_time: int = field(default=0, json="messageExpirationTime")
 
 
 @dataclass
 class Capabilities(SerializableAttrs):
     gv2: bool = False
     storage: bool = False
-    gv1_migration: bool = attr.ib(default=False, metadata={"json": "gv1-migration"})
+    gv1_migration: bool = field(default=False, json="gv1-migration")
 
 
 @dataclass
@@ -111,15 +148,15 @@ class Profile(SerializableAttrs):
 
 @dataclass
 class Group(SerializableAttrs):
-    group_id: GroupID = attr.ib(metadata={"json": "groupId"})
+    group_id: GroupID = field(json="groupId")
     name: str = "Unknown group"
 
     # Sometimes "UPDATE"
     type: Optional[str] = None
 
     # Not always present
-    members: List[Address] = attr.ib(factory=lambda: [])
-    avatar_id: int = attr.ib(default=0, metadata={"json": "avatarId"})
+    members: List[Address] = field(factory=lambda: [])
+    avatar_id: int = field(default=0, json="avatarId")
 
 
 @dataclass(kw_only=True)
@@ -163,19 +200,16 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     title: str
     avatar: Optional[str] = None
     timer: Optional[int] = None
-    master_key: Optional[str] = attr.ib(default=None, metadata={"json": "masterKey"})
-    invite_link: Optional[str] = attr.ib(default=None, metadata={"json": "inviteLink"})
-    access_control: GroupAccessControl = attr.ib(factory=lambda: GroupAccessControl(),
-                                                 metadata={"json": "accessControl"})
+    master_key: Optional[str] = field(default=None, json="masterKey")
+    invite_link: Optional[str] = field(default=None, json="inviteLink")
+    access_control: GroupAccessControl = field(factory=lambda: GroupAccessControl(),
+                                               json="accessControl")
     members: List[Address]
-    member_detail: List[GroupMember] = attr.ib(factory=lambda: [],
-                                               metadata={"json": "memberDetail"})
-    pending_members: List[Address] = attr.ib(factory=lambda: [],
-                                             metadata={"json": "pendingMembers"})
-    pending_member_detail: List[GroupMember] = attr.ib(factory=lambda: [],
-                                                       metadata={"json": "pendingMemberDetail"})
-    requesting_members: List[Address] = attr.ib(factory=lambda: [],
-                                                metadata={"json": "requestingMembers"})
+    member_detail: List[GroupMember] = field(factory=lambda: [], json="memberDetail")
+    pending_members: List[Address] = field(factory=lambda: [], json="pendingMembers")
+    pending_member_detail: List[GroupMember] = field(factory=lambda: [],
+                                                     json="pendingMemberDetail")
+    requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
 
 
 @dataclass
@@ -185,17 +219,17 @@ class Attachment(SerializableAttrs):
     caption: Optional[str] = None
     preview: Optional[str] = None
     blurhash: Optional[str] = None
-    voice_note: bool = attr.ib(default=False, metadata={"json": "voiceNote"})
-    content_type: Optional[str] = attr.ib(default=None, metadata={"json": "contentType"})
-    custom_filename: Optional[str] = attr.ib(default=None, metadata={"json": "customFilename"})
+    voice_note: bool = field(default=False, json="voiceNote")
+    content_type: Optional[str] = field(default=None, json="contentType")
+    custom_filename: Optional[str] = field(default=None, json="customFilename")
 
     # Only for incoming
     id: Optional[str] = None
-    incoming_filename: Optional[str] = attr.ib(default=None, metadata={"json": "storedFilename"})
+    incoming_filename: Optional[str] = field(default=None, json="storedFilename")
     digest: Optional[str] = None
 
     # Only for outgoing
-    outgoing_filename: Optional[str] = attr.ib(default=None, metadata={"json": "filename"})
+    outgoing_filename: Optional[str] = field(default=None, json="filename")
 
 
 @dataclass
@@ -210,21 +244,21 @@ class Quote(SerializableAttrs):
 class Reaction(SerializableAttrs):
     emoji: str
     remove: bool = False
-    target_author: Address = attr.ib(metadata={"json": "targetAuthor"})
-    target_sent_timestamp: int = attr.ib(metadata={"json": "targetSentTimestamp"})
+    target_author: Address = field(json="targetAuthor")
+    target_sent_timestamp: int = field(json="targetSentTimestamp")
 
 
 @dataclass
 class Sticker(SerializableAttrs):
     attachment: Attachment
-    pack_id: str = attr.ib(metadata={"json": "packID"})
-    pack_key: str = attr.ib(metadata={"json": "packKey"})
-    sticker_id: int = attr.ib(metadata={"json": "stickerID"})
+    pack_id: str = field(json="packID")
+    pack_key: str = field(json="packKey")
+    sticker_id: int = field(json="stickerID")
 
 
 @dataclass
 class RemoteDelete(SerializableAttrs):
-    target_sent_timestamp: int = attr.ib(metadata={"json": "targetSentTimestamp"})
+    target_sent_timestamp: int = field(json="targetSentTimestamp")
 
 
 @dataclass
@@ -241,30 +275,29 @@ class MessageData(SerializableAttrs):
     body: Optional[str] = None
     quote: Optional[Quote] = None
     reaction: Optional[Reaction] = None
-    attachments: List[Attachment] = attr.ib(factory=lambda: [])
+    attachments: List[Attachment] = field(factory=lambda: [])
     sticker: Optional[Sticker] = None
-    mentions: List[Mention] = attr.ib(factory=lambda: [])
+    mentions: List[Mention] = field(factory=lambda: [])
 
     group: Optional[Group] = None
-    group_v2: Optional[GroupV2ID] = attr.ib(default=None, metadata={"json": "groupV2"})
+    group_v2: Optional[GroupV2ID] = field(default=None, json="groupV2")
 
-    end_session: bool = attr.ib(default=False, metadata={"json": "endSession"})
-    expires_in_seconds: int = attr.ib(default=0, metadata={"json": "expiresInSeconds"})
-    profile_key_update: bool = attr.ib(default=False, metadata={"json": "profileKeyUpdate"})
-    view_once: bool = attr.ib(default=False, metadata={"json": "viewOnce"})
+    end_session: bool = field(default=False, json="endSession")
+    expires_in_seconds: int = field(default=0, json="expiresInSeconds")
+    profile_key_update: bool = field(default=False, json="profileKeyUpdate")
+    view_once: bool = field(default=False, json="viewOnce")
 
-    remote_delete: Optional[RemoteDelete] = attr.ib(default=None,
-                                                    metadata={"json": "remoteDelete"})
+    remote_delete: Optional[RemoteDelete] = field(default=None, json="remoteDelete")
 
 
 @dataclass
 class SentSyncMessage(SerializableAttrs):
     message: MessageData
     timestamp: int
-    expiration_start_timestamp: Optional[int] = attr.ib(default=None, metadata={
-        "json": "expirationStartTimestamp"})
-    is_recipient_update: bool = attr.ib(default=False, metadata={"json": "isRecipientUpdate"})
-    unidentified_status: Dict[str, bool] = attr.ib(factory=lambda: {})
+    expiration_start_timestamp: Optional[int] = field(default=None,
+                                                      json="expirationStartTimestamp")
+    is_recipient_update: bool = field(default=False, json="isRecipientUpdate")
+    unidentified_status: Dict[str, bool] = field(factory=lambda: {})
     destination: Optional[Address] = None
 
 
@@ -278,7 +311,7 @@ class TypingAction(SerializableEnum):
 class TypingNotification(SerializableAttrs):
     action: TypingAction
     timestamp: int
-    group_id: Optional[GroupID] = attr.ib(default=None, metadata={"json": "groupId"})
+    group_id: Optional[GroupID] = field(default=None, json="groupId")
 
 
 @dataclass
@@ -313,14 +346,12 @@ class ConfigItem(SerializableAttrs):
 
 @dataclass
 class ClientConfiguration(SerializableAttrs):
-    read_receipts: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
-                                                  metadata={"json": "readReceipts"})
-    typing_indicators: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
-                                                      metadata={"json": "typingIndicators"})
-    link_previews: Optional[ConfigItem] = attr.ib(factory=lambda: ConfigItem(),
-                                                  metadata={"json": "linkPreviews"})
-    unidentified_delivery_indicators: Optional[ConfigItem] = attr.ib(
-        factory=lambda: ConfigItem(), metadata={"json": "unidentifiedDeliveryIndicators"})
+    read_receipts: Optional[ConfigItem] = field(factory=lambda: ConfigItem(), json="readReceipts")
+    typing_indicators: Optional[ConfigItem] = field(factory=lambda: ConfigItem(),
+                                                    json="typingIndicators")
+    link_previews: Optional[ConfigItem] = field(factory=lambda: ConfigItem(), json="linkPreviews")
+    unidentified_delivery_indicators: Optional[ConfigItem] = field(
+        factory=lambda: ConfigItem(), json="unidentifiedDeliveryIndicators")
 
 
 class StickerPackOperation(ExtensibleEnum):
@@ -331,23 +362,22 @@ class StickerPackOperation(ExtensibleEnum):
 @dataclass
 class StickerPackOperations(SerializableAttrs):
     type: StickerPackOperation
-    pack_id: str = attr.ib(metadata={"json": "packID"})
-    pack_key: str = attr.ib(metadata={"json": "packKey"})
+    pack_id: str = field(json="packID")
+    pack_key: str = field(json="packKey")
 
 
 @dataclass
 class SyncMessage(SerializableAttrs):
     sent: Optional[SentSyncMessage] = None
     typing: Optional[TypingNotification] = None
-    read_messages: Optional[List[OwnReadReceipt]] = attr.ib(default=None,
-                                                            metadata={"json": "readMessages"})
+    read_messages: Optional[List[OwnReadReceipt]] = field(default=None, json="readMessages")
     contacts: Optional[ContactSyncMeta] = None
     groups: Optional[ContactSyncMeta] = None
     configuration: Optional[ClientConfiguration] = None
-    # blocked_list: Optional[???] = attr.ib(default=None, metadata={"json": "blockedList"})
-    sticker_pack_operations: Optional[List[StickerPackOperations]] = attr.ib(
-        default=None, metadata={"json": "stickerPackOperations"})
-    contacts_complete: bool = attr.ib(default=False, metadata={"json": "contactsComplete"})
+    # blocked_list: Optional[???] = field(default=None, json="blockedList")
+    sticker_pack_operations: Optional[List[StickerPackOperations]] = field(
+        default=None, json="stickerPackOperations")
+    contacts_complete: bool = field(default=False, json="contactsComplete")
 
 
 class MessageType(SerializableEnum):
@@ -364,19 +394,18 @@ class Message(SerializableAttrs):
     username: str
     source: Address
     timestamp: int
-    timestamp_iso: str = attr.ib(metadata={"json": "timestampISO"})
+    timestamp_iso: str = field(json="timestampISO")
 
     type: MessageType
-    source_device: Optional[int] = attr.ib(metadata={"json": "sourceDevice"}, default=None)
-    server_timestamp: Optional[int] = attr.ib(metadata={"json": "serverTimestamp"}, default=None)
-    server_delivered_timestamp: int = attr.ib(metadata={"json": "serverDeliveredTimestamp"})
-    has_content: bool = attr.ib(metadata={"json": "hasContent"}, default=False)
-    is_unidentified_sender: Optional[bool] = attr.ib(metadata={"json": "isUnidentifiedSender"},
-                                                     default=None)
-    has_legacy_message: bool = attr.ib(default=False, metadata={"json": "hasLegacyMessage"})
+    source_device: Optional[int] = field(json="sourceDevice", default=None)
+    server_timestamp: Optional[int] = field(json="serverTimestamp", default=None)
+    server_delivered_timestamp: int = field(json="serverDeliveredTimestamp")
+    has_content: bool = field(json="hasContent", default=False)
+    is_unidentified_sender: Optional[bool] = field(json="isUnidentifiedSender", default=None)
+    has_legacy_message: bool = field(default=False, json="hasLegacyMessage")
 
-    data_message: Optional[MessageData] = attr.ib(default=None, metadata={"json": "dataMessage"})
-    sync_message: Optional[SyncMessage] = attr.ib(default=None, metadata={"json": "syncMessage"})
+    data_message: Optional[MessageData] = field(default=None, json="dataMessage")
+    sync_message: Optional[SyncMessage] = field(default=None, json="syncMessage")
     typing: Optional[TypingNotification] = None
     receipt: Optional[Receipt] = None
 

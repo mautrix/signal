@@ -10,7 +10,7 @@ from mautrix.util.logging import TraceLogger
 
 from .rpc import CONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
-from .types import (Address, Quote, Attachment, Reaction, Account, Message, Contact, Group,
+from .types import (Address, Quote, Attachment, Reaction, Account, Message, DeviceInfo, Group,
                     Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2,
                     Mention, LinkSession)
 
@@ -156,6 +156,13 @@ class SignaldClient(SignaldRPCClient):
 
     async def delete_account(self, username: str, server: bool = False) -> None:
         await self.request_v1("delete_account", account=username, server=server)
+
+    async def get_linked_devices(self, username: str) -> List[DeviceInfo]:
+        resp = await self.request_v1("get_linked_devices", account=username)
+        return [DeviceInfo.deserialize(dev) for dev in resp.get("devices", [])]
+
+    async def remove_linked_device(self, username: str, device_id: int) -> None:
+        await self.request_v1("remove_linked_device", account=username, deviceId=device_id)
 
     async def list_contacts(self, username: str) -> List[Profile]:
         resp = await self.request_v1("list_contacts", account=username)
