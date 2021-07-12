@@ -484,7 +484,8 @@ class Portal(DBPortal, BasePortal):
 
         if message.sticker:
             if message.sticker.attachment.incoming_filename:
-                content = await self._handle_signal_attachment(intent, message.sticker.attachment)
+                content = await self._handle_signal_attachment(intent, message.sticker.attachment,
+                                                               sticker=True)
             elif StickersClient:
                 content = await self._handle_signal_sticker(intent, message.sticker)
             else:
@@ -558,14 +559,16 @@ class Portal(DBPortal, BasePortal):
         return MediaMessageEventContent(msgtype=msgtype, info=info,
                                         body=attachment.custom_filename)
 
-    async def _handle_signal_attachment(self, intent: IntentAPI, attachment: Attachment
-                                        ) -> MediaMessageEventContent:
+    async def _handle_signal_attachment(self, intent: IntentAPI, attachment: Attachment,
+                                        sticker: bool = False) -> MediaMessageEventContent:
         self.log.trace(f"Reuploading attachment {attachment}")
         if not attachment.content_type:
             attachment.content_type = (magic.from_file(attachment.incoming_filename, mime=True)
                                        if magic is not None else "application/octet-stream")
 
         content = self._make_media_content(attachment)
+        if sticker:
+            self._adjust_sticker_size(content.info)
 
         with open(attachment.incoming_filename, "rb") as file:
             data = file.read()
@@ -610,6 +613,18 @@ class Portal(DBPortal, BasePortal):
             },
         }
 
+    @staticmethod
+    def _adjust_sticker_size(info: ImageInfo) -> None:
+        if info.width > 256 or info.height > 256:
+            if info.width == info.height:
+                info.width = info.height = 256
+            elif info.width > info.height:
+                info.height = int(info.height / (info.width / 256))
+                info.width = 256
+            else:
+                info.width = int(info.width / (info.height / 256))
+                info.height = 256
+
     async def _handle_signal_sticker(self, intent: IntentAPI, sticker: Sticker
                                      ) -> Optional[MediaMessageEventContent]:
         try:
@@ -622,15 +637,7 @@ class Portal(DBPortal, BasePortal):
             return None
         info = ImageInfo(mimetype=sticker.attachment.content_type, size=len(data),
                          width=sticker.attachment.width, height=sticker.attachment.height)
-        if info.width > 256 or info.height > 256:
-            if info.width == info.height:
-                info.width = info.height = 256
-            elif info.width > info.height:
-                info.height = int(info.height / (info.width / 256))
-                info.width = 256
-            else:
-                info.width = int(info.width / (info.height / 256))
-                info.height = 256
+        self._adjust_sticker_size(info)
         if magic:
             info.mimetype = magic.from_buffer(data, mime=True)
         ext = mimetypes.guess_extension(info.mimetype)
