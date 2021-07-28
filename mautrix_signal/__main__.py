@@ -15,11 +15,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import logging
+import time
 
 from mautrix.bridge import Bridge
 from mautrix.bridge.state_store.asyncpg import PgBridgeStateStore
 from mautrix.types import RoomID, UserID
 from mautrix.util.async_db import Database
+from mautrix.util.opt_prometheus import Gauge
 
 from .version import version, linkified_version
 from .config import Config
@@ -32,7 +34,11 @@ from .puppet import Puppet
 from .web import ProvisioningAPI
 from . import commands
 
+ACTIVE_USER_METRICS_INTERVAL_S = 60
+ONE_DAY_MS = 24 * 60 * 60 * 1000
 
+METRIC_ACTIVE_PUPPETS = Gauge('whatsapp_active_puppets_total', 'Number of active Signal users bridged into Matrix')
+METRIC_BLOCKING = Gauge('whatsapp_bridge_blocked', 'Is the bridge currently blocking messages')
 class SignalBridge(Bridge):
     module = "mautrix_signal"
     name = "mautrix-signal"
@@ -52,6 +58,8 @@ class SignalBridge(Bridge):
     state_store: PgBridgeStateStore
     provisioning_api: ProvisioningAPI
     periodic_sync_task: asyncio.Task
+    periodic_active_metrics_task: asyncio.Task
+    bridge_blocked: bool = False
 
     def make_state_store(self) -> None:
         self.state_store = PgBridgeStateStore(self.db, self.get_puppet, self.get_double_puppet)
@@ -81,6 +89,7 @@ class SignalBridge(Bridge):
         self.add_startup_actions(self.signal.start())
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
+        self.periodic_active_metrics_task = asyncio.create_task(self._loop_active_puppet_metric())
 
     @staticmethod
     async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:
@@ -135,6 +144,43 @@ class SignalBridge(Bridge):
 
     def is_bridge_ghost(self, user_id: UserID) -> bool:
         return bool(Puppet.get_id_from_mxid(user_id))
+    
+    async def _update_active_puppet_metric(self, log: logging.Logger) -> None:
+        maxActivityDays = self.config['bridge.limits.puppet_inactivity_days']
+        minActivityDays = self.config['bridge.limits.min_puppet_activity_days']
+        users = await Puppet.all_with_initial_activity()
+        currentMs = time.time() / 1000
+        activeUsers = 0
+        for user in users:
+            daysOfActivity = (user.last_activity_ts - user.first_activity_ts / 1000) / ONE_DAY_MS
+            # If maxActivityTime is not set, they are always active
+            isActive = maxActivityDays is None or (currentMs - user.last_activity_ts) <= (maxActivityDays * ONE_DAY_MS) 
+            if isActive and daysOfActivity > minActivityDays:
+                activeUsers += 1
+        blockOnLimitReached = self.config['bridge.limits.block_on_limit_reached']
+        maxPuppetLimit = self.config['bridge.limits.max_puppet_limit']
+        if blockOnLimitReached is not None and maxPuppetLimit is not None:
+            self.bridge_blocked = maxPuppetLimit < activeUsers
+            METRIC_BLOCKING.set(int(self.bridge_blocked))
+        log.debug("Current active puppet count is %d", activeUsers)
+        METRIC_ACTIVE_PUPPETS.set(activeUsers)
+
+    async def _loop_active_puppet_metric(self) -> None:
+        log = logging.getLogger("mau.active_puppet_metric")
+
+        while True:
+            try:
+                await asyncio.sleep(ACTIVE_USER_METRICS_INTERVAL_S)
+            except asyncio.CancelledError:
+                return
+            log.info("Executing periodic active puppet metric check")
+            for user in User.by_username.values():
+                try:
+                    await user._update_active_puppet_metric(log)
+                except asyncio.CancelledError:
+                    return
+                except Exception as e:
+                    log.exception("Error while checking", e)
 
 
 SignalBridge().run()

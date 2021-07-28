@@ -249,6 +249,10 @@ class Portal(DBPortal, BasePortal):
 
     async def handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
                                     event_id: EventID) -> None:
+        if self.bridge.bridge_blocked:
+            self.log.warn(f"Bridge is blocking messages, not handling message from {sender.mxid} {event_id}")
+            return
+
         if ((message.get(self.bridge.real_user_content_key, False)
              and await p.Puppet.get_by_custom_mxid(sender.mxid))):
             self.log.debug(f"Ignoring puppet-sent message by confirmed puppet user {sender.mxid}")
@@ -460,6 +464,9 @@ class Portal(DBPortal, BasePortal):
 
     async def handle_signal_message(self, source: 'u.User', sender: 'p.Puppet',
                                     message: MessageData) -> None:
+        if self.bridge.bridge_blocked:
+            self.log.warn(f"Bridge is blocking messages, not handling message from {sender.uuid} {message.timestamp}")
+            return
         if (sender.address, message.timestamp) in self._msgts_dedup:
             self.log.debug(f"Ignoring message {message.timestamp} by {sender.uuid}"
                            " as it was already handled (message.timestamp in dedup queue)")
@@ -530,6 +537,7 @@ class Portal(DBPortal, BasePortal):
             await self.signal.send_receipt(source.username, sender.address,
                                            timestamps=[message.timestamp])
             await self._send_delivery_receipt(event_id)
+            await sender.update_activity_ts(message.timestamp)
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
         else:
             self.log.debug(f"Didn't get event ID for {message.timestamp}")

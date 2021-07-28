@@ -18,6 +18,7 @@ from uuid import UUID
 
 from attr import dataclass
 from yarl import URL
+import logging
 import asyncpg
 
 from mausignald.types import Address
@@ -29,6 +30,7 @@ fake_db = Database("") if TYPE_CHECKING else None
 
 @dataclass
 class Puppet:
+    log: logging.Logger = logging.getLogger("puppet")
     db: ClassVar[Database] = fake_db
 
     uuid: Optional[UUID]
@@ -46,6 +48,8 @@ class Puppet:
     access_token: Optional[str]
     next_batch: Optional[SyncToken]
     base_url: Optional[URL]
+    first_activity_ts: Optional[int]
+    last_activity_ts: Optional[int]
 
     @property
     def _base_url_str(self) -> Optional[str]:
@@ -85,6 +89,17 @@ class Puppet:
                               self.uuid_registered, self.number_registered, self.custom_mxid,
                               self.access_token, self.next_batch, self._base_url_str)
 
+    async def update_activity_ts(self, activity_ts: int) -> None:
+        if self.last_activity_ts is not None and self.last_activity_ts > activity_ts:
+            return
+        self.log.debug("Updating activity time for %s to %d", self.uuid, activity_ts)
+        self.last_activity_ts = activity_ts
+        await self.db.execute("UPDATE puppet SET last_activity_ts=$2 WHERE uuid=$1", self.uuid, self.last_activity_ts)
+        if self.first_activity_ts is None:
+            self.first_activity_ts = activity_ts
+            await self.db.execute("UPDATE puppet SET first_activity_ts=$2 WHERE uuid=$1", self.uuid, activity_ts)
+        
+
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Puppet':
         data = {**row}
@@ -94,7 +109,7 @@ class Puppet:
 
     _select_base = ("SELECT uuid, number, name, avatar_hash, avatar_url, name_set, avatar_set, "
                     "       uuid_registered, number_registered, custom_mxid, access_token, "
-                    "       next_batch, base_url "
+                    "       next_batch, base_url, first_activity_ts, last_activity_ts"
                     "FROM puppet")
 
     @classmethod
@@ -123,4 +138,9 @@ class Puppet:
     @classmethod
     async def all_with_custom_mxid(cls) -> List['Puppet']:
         rows = await cls.db.fetch(f"{cls._select_base} WHERE custom_mxid IS NOT NULL")
+        return [cls._from_row(row) for row in rows]
+
+    @classmethod
+    async def all_with_initial_activity(cls) -> List['Puppet']:
+        rows = await cls.db.fetch(f"{cls._select_base} WHERE first_activity_ts is not NULL")
         return [cls._from_row(row) for row in rows]

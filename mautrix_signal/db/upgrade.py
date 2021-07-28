@@ -137,3 +137,8 @@ async def upgrade_v6(conn: Connection) -> None:
 @upgrade_table.register(description="Add relay user field to portal table")
 async def upgrade_v7(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN relay_user_id TEXT")
+
+@upgrade_table.register(description="Add activity times to the puppet table")
+async def upgrade_v8(conn: Connection) -> None:
+    await conn.execute("ALTER TABLE puppet ADD COLUMN first_activity_ts BIGINT")
+    await conn.execute("ALTER TABLE puppet ADD COLUMN last_activity_ts BIGINT")

@@ -102,6 +102,11 @@ class Config(BaseBridgeConfig):
         copy("bridge.relay.enabled")
         copy_dict("bridge.relay.message_formats")
 
+        copy("bridge.limits.max_puppet_limit")
+        copy("bridge.limits.min_puppet_activity_days")
+        copy("bridge.limits.puppet_inactivity_days")
+        copy("bridge.limits.block_on_limit_reached")
+
     def _get_permissions(self, key: str) -> Permissions:
         level = self["bridge.permissions"].get(key, "")
         admin = level == "admin"
