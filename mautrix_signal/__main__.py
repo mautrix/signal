@@ -37,8 +37,8 @@ from . import commands
 ACTIVE_USER_METRICS_INTERVAL_S = 60
 ONE_DAY_MS = 24 * 60 * 60 * 1000
 
-METRIC_ACTIVE_PUPPETS = Gauge('whatsapp_active_puppets_total', 'Number of active Signal users bridged into Matrix')
-METRIC_BLOCKING = Gauge('whatsapp_bridge_blocked', 'Is the bridge currently blocking messages')
+METRIC_ACTIVE_PUPPETS = Gauge('bridge_active_puppets_total', 'Number of active Signal users bridged into Matrix')
+METRIC_BLOCKING = Gauge('bridge_blocked', 'Is the bridge currently blocking messages')
 class SignalBridge(Bridge):
     module = "mautrix_signal"
     name = "mautrix-signal"
