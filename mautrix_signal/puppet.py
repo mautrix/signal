@@ -62,12 +62,13 @@ class Puppet(DBPuppet, BasePuppet):
                  name_set: bool = False, avatar_set: bool = False, uuid_registered: bool = False,
                  number_registered: bool = False, custom_mxid: Optional[UserID] = None,
                  access_token: Optional[str] = None, next_batch: Optional[SyncToken] = None,
-                 base_url: Optional[URL] = None) -> None:
+                 base_url: Optional[URL] = None, first_activity_ts: Optional[int] = None, 
+                 last_activity_ts: Optional[int] = None) -> None:
         super().__init__(uuid=uuid, number=number, name=name, avatar_url=avatar_url,
                          avatar_hash=avatar_hash, name_set=name_set, avatar_set=avatar_set,
                          uuid_registered=uuid_registered, number_registered=number_registered,
                          custom_mxid=custom_mxid, access_token=access_token, next_batch=next_batch,
-                         base_url=base_url)
+                         base_url=base_url, first_activity_ts=first_activity_ts, last_activity_ts=last_activity_ts)
         self.log = self.log.getChild(str(uuid) if uuid else number)
 
         self.default_mxid = self.get_mxid_from_id(self.address)
