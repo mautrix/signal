@@ -144,7 +144,7 @@ class SignalBridge(Bridge):
 
     def is_bridge_ghost(self, user_id: UserID) -> bool:
         return bool(Puppet.get_id_from_mxid(user_id))
-    
+
     async def _update_active_puppet_metric(self, log: logging.Logger) -> None:
         maxActivityDays = self.config['bridge.limits.puppet_inactivity_days']
         minActivityDays = self.config['bridge.limits.min_puppet_activity_days']

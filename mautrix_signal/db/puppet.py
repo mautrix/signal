@@ -97,13 +97,14 @@ class Puppet:
             return
         if self.last_activity_ts is not None and self.last_activity_ts > activity_ts:
             return
+
         log.debug("Updating activity time for %s to %d", self.uuid, activity_ts)
         self.last_activity_ts = activity_ts
         await self.db.execute("UPDATE puppet SET last_activity_ts=$2 WHERE uuid=$1", self.uuid, self.last_activity_ts)
         if self.first_activity_ts is None:
             self.first_activity_ts = activity_ts
             await self.db.execute("UPDATE puppet SET first_activity_ts=$2 WHERE uuid=$1", self.uuid, activity_ts)
-        
+
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Puppet':
@@ -114,7 +115,7 @@ class Puppet:
 
     _select_base = ("SELECT uuid, number, name, avatar_hash, avatar_url, name_set, avatar_set, "
                     "       uuid_registered, number_registered, custom_mxid, access_token, "
-                    "       next_batch, base_url, first_activity_ts, last_activity_ts"
+                    "       next_batch, base_url, first_activity_ts, last_activity_ts "
                     "FROM puppet")
 
     @classmethod
