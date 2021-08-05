@@ -182,5 +182,8 @@ class SignalBridge(Bridge):
                 except Exception as e:
                     log.exception("Error while checking", e)
 
+    async def count_logged_in_users(self) -> int:
+        return len([user for user in User.by_username.values() if user.username])
+
 
 SignalBridge().run()
