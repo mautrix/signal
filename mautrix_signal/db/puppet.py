@@ -33,7 +33,6 @@ UPPER_ACTIVITY_LIMIT_MS = 60 * 1000 * 15 # 15 minutes
 
 @dataclass
 class Puppet:
-    log: logging.Logger = logging.getLogger("puppet")
     db: ClassVar[Database] = fake_db
 
     uuid: Optional[UUID]
@@ -53,6 +52,7 @@ class Puppet:
     base_url: Optional[URL]
     first_activity_ts: Optional[int]
     last_activity_ts: Optional[int]
+    log: logging.Logger = logging.getLogger("puppet")
 
     @property
     def _base_url_str(self) -> Optional[str]:
