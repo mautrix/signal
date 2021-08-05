@@ -174,13 +174,12 @@ class SignalBridge(Bridge):
             except asyncio.CancelledError:
                 return
             log.info("Executing periodic active puppet metric check")
-            for user in User.by_username.values():
-                try:
-                    await user._update_active_puppet_metric(log)
-                except asyncio.CancelledError:
-                    return
-                except Exception as e:
-                    log.exception("Error while checking", e)
+            try:
+                await self._update_active_puppet_metric(log)
+            except asyncio.CancelledError:
+                return
+            except Exception as e:
+                log.exception("Error while checking", e)
 
     async def count_logged_in_users(self) -> int:
         return len([user for user in User.by_username.values() if user.username])
