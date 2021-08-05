@@ -20,12 +20,15 @@ from attr import dataclass
 from yarl import URL
 import logging
 import asyncpg
+import time
 
 from mausignald.types import Address
 from mautrix.types import UserID, SyncToken, ContentURI
 from mautrix.util.async_db import Database
 
 fake_db = Database("") if TYPE_CHECKING else None
+
+UPPER_ACTIVITY_LIMIT_MS = 60 * 1000 * 15 # 15 minutes
 
 
 @dataclass
@@ -90,6 +93,8 @@ class Puppet:
                               self.access_token, self.next_batch, self._base_url_str)
 
     async def update_activity_ts(self, activity_ts: int) -> None:
+        if (time.time() * 1000) - activity_ts > UPPER_ACTIVITY_LIMIT_MS:
+            return
         if self.last_activity_ts is not None and self.last_activity_ts > activity_ts:
             return
         self.log.debug("Updating activity time for %s to %d", self.uuid, activity_ts)
