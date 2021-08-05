@@ -27,6 +27,7 @@ from mautrix.types import UserID, SyncToken, ContentURI
 from mautrix.util.async_db import Database
 
 fake_db = Database("") if TYPE_CHECKING else None
+log = logging.getLogger("puppet")
 
 UPPER_ACTIVITY_LIMIT_MS = 60 * 1000 * 15 # 15 minutes
 
@@ -52,7 +53,6 @@ class Puppet:
     base_url: Optional[URL]
     first_activity_ts: Optional[int]
     last_activity_ts: Optional[int]
-    log: logging.Logger = logging.getLogger("puppet")
 
     @property
     def _base_url_str(self) -> Optional[str]:
@@ -93,11 +93,11 @@ class Puppet:
                               self.access_token, self.next_batch, self._base_url_str)
 
     async def update_activity_ts(self, activity_ts: int) -> None:
-        if (time.time() * 1000) - activity_ts > UPPER_ACTIVITY_LIMIT_MS:
+        if (time.time() * 1000) - activity_ts > 300000:
             return
         if self.last_activity_ts is not None and self.last_activity_ts > activity_ts:
             return
-        self.log.debug("Updating activity time for %s to %d", self.uuid, activity_ts)
+        log.debug("Updating activity time for %s to %d", self.uuid, activity_ts)
         self.last_activity_ts = activity_ts
         await self.db.execute("UPDATE puppet SET last_activity_ts=$2 WHERE uuid=$1", self.uuid, self.last_activity_ts)
         if self.first_activity_ts is None:
