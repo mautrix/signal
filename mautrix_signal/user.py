@@ -20,6 +20,7 @@ import asyncio
 from mausignald.types import Account, Address, Profile, Group, GroupV2, ListenEvent, ListenAction
 from mautrix.bridge import BaseUser, BridgeState, AutologinError, async_getter_lock
 from mautrix.types import UserID, RoomID
+from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.appservice import AppService
 from mautrix.util.opt_prometheus import Gauge
 
@@ -98,7 +99,7 @@ class User(DBUser, BaseUser):
         await asyncio.sleep(1)
         await self.bridge.signal.delete_account(username)
         self._track_metric(METRIC_LOGGED_IN, False)
-        await self.push_bridge_state(ok=False, error="logged-out", remote_id=username)
+        await self.push_bridge_state(BridgeStateEvent.LOGGED_OUT)
 
     async def fill_bridge_state(self, state: BridgeState) -> None:
         await super().fill_bridge_state(state)
@@ -107,13 +108,6 @@ class User(DBUser, BaseUser):
         if self.address:
             puppet = await self.get_puppet()
             state.remote_name = puppet.name or self.username
-
-    async def get_bridge_state(self) -> BridgeState:
-        if not self.username:
-            return BridgeState(ok=False, error="logged-out")
-        elif not self._connected:
-            return BridgeState(ok=False, error="signal-not-connected")
-        return BridgeState(ok=True)
 
     async def get_puppet(self) -> Optional['pu.Puppet']:
         if not self.address:
@@ -135,14 +129,14 @@ class User(DBUser, BaseUser):
             self._track_metric(METRIC_CONNECTED, True)
             self._track_metric(METRIC_LOGGED_IN, True)
             self._connected = True
-            asyncio.create_task(self.push_bridge_state(ok=True))
+            asyncio.create_task(self.push_bridge_state(BridgeStateEvent.CONNECTED))
         elif evt.action == ListenAction.STOPPED:
             if evt.exception:
                 self.log.warning(f"Disconnected from Signal: {evt.exception}")
             else:
                 self.log.info("Disconnected from Signal")
             self._track_metric(METRIC_CONNECTED, False)
-            asyncio.create_task(self.push_bridge_state(ok=False, error="signal-not-connected"))
+            asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
             self._connected = False
         else:
             self.log.warning(f"Unrecognized listen action {evt.action}")
