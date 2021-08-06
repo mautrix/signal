@@ -35,7 +35,7 @@ linkified_version = {linkified_version!r}
 setuptools.setup(
     name="mautrix-signal",
     version=version,
-    url="https://github.com/tulir/mautrix-signal",
+    url="https://github.com/mautrix/signal",
 
     author="Tulir Asokan",
     author_email="tulir@maunium.net",

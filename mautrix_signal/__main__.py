@@ -38,7 +38,7 @@ class SignalBridge(Bridge):
     name = "mautrix-signal"
     command = "python -m mautrix-signal"
     description = "A Matrix-Signal puppeting bridge."
-    repo_url = "https://github.com/tulir/mautrix-signal"
+    repo_url = "https://github.com/mautrix/signal"
     real_user_content_key = "net.maunium.signal.puppet"
     version = version
     markdown_version = linkified_version

@@ -1,8 +1,8 @@
 # mautrix-signal
-![Languages](https://img.shields.io/github/languages/top/tulir/mautrix-signal.svg)
-[![License](https://img.shields.io/github/license/tulir/mautrix-signal.svg)](LICENSE)
-[![Release](https://img.shields.io/github/release/tulir/mautrix-signal/all.svg)](https://github.com/tulir/mautrix-signal/releases)
-[![GitLab CI](https://mau.dev/tulir/mautrix-signal/badges/master/pipeline.svg)](https://mau.dev/tulir/mautrix-signal/container_registry)
+![Languages](https://img.shields.io/github/languages/top/mautrix/signal.svg)
+[![License](https://img.shields.io/github/license/mautrix/signal.svg)](LICENSE)
+[![Release](https://img.shields.io/github/release/mautrix/signal/all.svg)](https://github.com/mautrix/signal/releases)
+[![GitLab CI](https://mau.dev/mautrix/signal/badges/master/pipeline.svg)](https://mau.dev/mautrix/signal/container_registry)
 
 A Matrix-Signal puppeting bridge.
 
@@ -16,7 +16,7 @@ Some quick links:
 * Basic usage: [Authentication](https://docs.mau.fi/bridges/python/signal/authentication.html)
 
 ### Features & Roadmap
-[ROADMAP.md](https://github.com/tulir/mautrix-signal/blob/master/ROADMAP.md)
+[ROADMAP.md](https://github.com/mautrix/signal/blob/master/ROADMAP.md)
 contains a general overview of what is supported by the bridge.
 
 ## Discussion
