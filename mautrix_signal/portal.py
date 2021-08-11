@@ -338,7 +338,16 @@ class Portal(DBPortal, BasePortal):
         if not self.mxid or not await sender.is_logged_in():
             return
 
-        # TODO message redactions after https://gitlab.com/signald/signald/-/issues/37
+        message = await DBMessage.get_by_mxid(event_id, self.mxid)
+        if message:
+            try:
+                await message.delete()
+                await self.signal.remote_delete(sender.username, recipient=self.chat_id,
+                                                timestamp=message.timestamp)
+                await self._send_delivery_receipt(redaction_event_id)
+                self.log.trace(f"Removed {message} after Matrix redaction")
+            except Exception:
+                self.log.exception("Removing message failed")
 
         reaction = await DBReaction.get_by_mxid(event_id, self.mxid)
         if reaction:

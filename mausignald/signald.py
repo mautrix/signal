@@ -118,16 +118,24 @@ class SignaldClient(SignaldRPCClient):
         return Account.deserialize(resp)
 
     @staticmethod
-    def _recipient_to_args(recipient: Union[Address, GroupID]) -> Dict[str, Any]:
+    def _recipient_to_args(recipient: Union[Address, GroupID], simple_name: bool = False
+                           ) -> Dict[str, Any]:
         if isinstance(recipient, Address):
-            return {"recipientAddress": recipient.serialize()}
+            recipient = recipient.serialize()
+            field_name = "address" if simple_name else "recipientAddress"
         else:
-            return {"recipientGroupId": recipient}
+            field_name = "group" if simple_name else "recipientGroupId"
+        return {field_name: recipient}
 
     async def react(self, username: str, recipient: Union[Address, GroupID],
                     reaction: Reaction) -> None:
         await self.request_v1("react", username=username, reaction=reaction.serialize(),
                               **self._recipient_to_args(recipient))
+
+    async def remote_delete(self, username: str, recipient: Union[Address, GroupID], timestamp: int
+                            ) -> None:
+        await self.request_v1("remote_delete", account=username, timestamp=timestamp,
+                              **self._recipient_to_args(recipient, simple_name=True))
 
     async def send(self, username: str, recipient: Union[Address, GroupID], body: str,
                    quote: Optional[Quote] = None, attachments: Optional[List[Attachment]] = None,
