@@ -99,7 +99,7 @@ class User(DBUser, BaseUser):
         await asyncio.sleep(1)
         await self.bridge.signal.delete_account(username)
         self._track_metric(METRIC_LOGGED_IN, False)
-        await self.push_bridge_state(BridgeStateEvent.LOGGED_OUT)
+        await self.push_bridge_state(BridgeStateEvent.LOGGED_OUT, remote_id=username)
 
     async def fill_bridge_state(self, state: BridgeState) -> None:
         await super().fill_bridge_state(state)
