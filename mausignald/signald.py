@@ -144,11 +144,23 @@ class SignaldClient(SignaldRPCClient):
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
         serialized_mentions = [mention.serialize() for mention in (mentions or [])]
-        await self.request_v1("send", username=username, messageBody=body,
-                              attachments=serialized_attachments, quote=serialized_quote,
-                              mentions=serialized_mentions, timestamp=timestamp,
-                              **self._recipient_to_args(recipient))
-        # TODO return something?
+        resp = await self.request_v1("send", username=username, messageBody=body,
+                                     attachments=serialized_attachments, quote=serialized_quote,
+                                     mentions=serialized_mentions, timestamp=timestamp,
+                                     **self._recipient_to_args(recipient))
+        errors = []
+        for result in resp.get("results", []):
+            number = result.get("address", {}).get("number")
+            if result.get("networkFailure", False):
+                errors.append(f"Network failure occurred while sending message to {number}.")
+            if result.get("unregisteredFailure", False):
+                errors.append(f"Unregistered failure occurred while sending message to {number}.")
+            if result.get("identityFailure", ""):
+                errors.append(
+                    f"Identity failure occurred while sending message to {number}. New identity: "
+                    f"{result['identityFailure']}")
+        if errors:
+            raise Exception("\n".join(errors))
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
                            when: Optional[int] = None, read: bool = False) -> None:
