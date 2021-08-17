@@ -286,9 +286,17 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
             return
         self.log.debug(f"Sending Matrix message {event_id} to Signal with timestamp {request_id}")
-        await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
-                               mentions=mentions, quote=quote, attachments=attachments,
-                               timestamp=request_id)
+        try:
+            await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
+                                   mentions=mentions, quote=quote, attachments=attachments,
+                                   timestamp=request_id)
+        except Exception as e:
+            await self._send_message(
+                self.main_intent,
+                TextMessageEventContent(
+                    msgtype=MessageType.NOTICE,
+                    body=f"\u26a0 Your message was not bridged: {e}"))
+            return
         msg = DBMessage(mxid=event_id, mx_room=self.mxid, sender=sender.address,
                         timestamp=request_id,
                         signal_chat_id=self.chat_id, signal_receiver=self.receiver)
