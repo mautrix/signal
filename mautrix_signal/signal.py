@@ -101,7 +101,7 @@ class SignalHandler(SignaldClient):
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
             await portal.update_info(user, msg.group_v2, sender)
         if msg.reaction:
-            await portal.handle_signal_reaction(sender, msg.reaction)
+            await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
         if msg.body or msg.attachments or msg.sticker:
             await portal.handle_signal_message(user, sender, msg)
         if msg.group and msg.group.type == "UPDATE":

@@ -683,7 +683,8 @@ class Portal(DBPortal, BasePortal):
             elif content.url:
                 content.info.thumbnail_url = content.url
 
-    async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction) -> None:
+    async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction,
+                                     timestamp: int) -> None:
         author_address = await self._resolve_address(reaction.target_author)
         target_id = reaction.target_sent_timestamp
         async with self._reaction_lock:
@@ -715,7 +716,8 @@ class Portal(DBPortal, BasePortal):
 
         intent = sender.intent_for(self)
         # TODO add variation selectors to emoji before sending to Matrix
-        mxid = await intent.react(message.mx_room, message.mxid, reaction.emoji)
+        mxid = await intent.react(message.mx_room, message.mxid, reaction.emoji,
+                                  timestamp=timestamp)
         self.log.debug(f"{sender.address} reacted to {message.mxid} -> {mxid}")
         await self._upsert_reaction(existing, intent, mxid, sender, message, reaction.emoji)
 
