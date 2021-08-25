@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Union, Dict, Optional, AsyncGenerator, TYPE_CHECKING, cast
+from typing import Union, Dict, Optional, AsyncGenerator, List, TYPE_CHECKING, cast
 from uuid import UUID
 import asyncio
 
@@ -108,6 +108,16 @@ class User(DBUser, BaseUser):
         if self.address:
             puppet = await self.get_puppet()
             state.remote_name = puppet.name or self.username
+
+    async def get_bridge_states(self) -> List[BridgeState]:
+        if not self.username:
+            return []
+        state = BridgeState(state_event=BridgeStateEvent.UNKNOWN_ERROR)
+        if self.bridge.signal.is_connected and self._connected:
+            state.state_event = BridgeStateEvent.CONNECTED
+        else:
+            state.state_event = BridgeStateEvent.TRANSIENT_DISCONNECT
+        return [state]
 
     async def get_puppet(self) -> Optional['pu.Puppet']:
         if not self.address:
