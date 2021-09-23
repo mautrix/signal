@@ -19,6 +19,7 @@ EventHandler = Callable[[Dict[str, Any]], Awaitable[None]]
 # connect and disconnect.
 CONNECT_EVENT = "_socket_connected"
 DISCONNECT_EVENT = "_socket_disconnected"
+_SOCKET_LIMIT = 1024 * 1024  # 1 MiB
 
 
 class SignaldRPCClient:
@@ -65,7 +66,8 @@ class SignaldRPCClient:
     async def _communicate_forever(self) -> None:
         while True:
             try:
-                self._reader, self._writer = await asyncio.open_unix_connection(self.socket_path)
+                self._reader, self._writer = await asyncio.open_unix_connection(
+                    self.socket_path, limit=_SOCKET_LIMIT)
             except OSError as e:
                 self.log.error(f"Connection to {self.socket_path} failed: {e}")
                 await asyncio.sleep(5)
