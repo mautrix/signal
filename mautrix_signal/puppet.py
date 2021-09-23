@@ -238,6 +238,8 @@ class Puppet(DBPuppet, BasePuppet):
                 data = file.read()
         except FileNotFoundError:
             return False
+        if not data:
+            return False
         new_hash = hashlib.sha256(data).hexdigest()
         if self.avatar_set and new_hash == self.avatar_hash:
             return False
