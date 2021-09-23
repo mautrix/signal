@@ -67,7 +67,12 @@ class Puppet:
                                uuid, self.number)
             await conn.execute("UPDATE puppet SET uuid=$1 WHERE number=$2", uuid, self.number)
             uuid = str(uuid)
-            await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2", uuid, self.number)
+            try:
+                async with conn.transaction():
+                    await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2",
+                                       uuid, self.number)
+            except asyncpg.UniqueViolationError:
+                await conn.execute("DELETE FROM portal WHERE chat_id=$1", self.number)
             await conn.execute("UPDATE message SET sender=$1 WHERE sender=$2", uuid, self.number)
             await conn.execute("UPDATE reaction SET author=$1 WHERE author=$2", uuid, self.number)
 
