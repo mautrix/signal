@@ -12,7 +12,7 @@
       * [x] Gifs
       * [ ] Locations
       * [ ] Stickers
-  * [x] Message reactions
+  * [x] Message reactions (only from the user signed into Signal, not others in room)
   * [x] Message redactions
   * [x] Group info changes
     * [x] Name
