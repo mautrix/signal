@@ -102,6 +102,8 @@ signal:
     delete_unknown_accounts_on_start: false
     # Whether or not message attachments should be removed from disk after they're bridged.
     remove_file_after_handling: true
+    # Whether or not users can register a primary device
+    registration_enabled: true
 
 # Bridge config
 bridge:
