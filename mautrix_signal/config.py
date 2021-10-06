@@ -53,6 +53,7 @@ class Config(BaseBridgeConfig):
         copy("signal.data_dir")
         copy("signal.delete_unknown_accounts_on_start")
         copy("signal.remove_file_after_handling")
+        copy("signal.registration_enabled")
 
         copy("metrics.enabled")
         copy("metrics.listen_port")
