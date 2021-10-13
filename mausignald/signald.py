@@ -30,7 +30,7 @@ class SignaldClient(SignaldRPCClient):
         self._subscriptions = set()
         self.add_rpc_handler("message", self._parse_message)
         self.add_rpc_handler("listen_started", self._parse_listen_start)
-        self.add_rpc_handler("listen_stopped", self._parse_listen_stop)
+        self.add_rpc_handler("listener_stopped", self._parse_listener_stop)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
         self.add_rpc_handler(DISCONNECT_EVENT, self._on_disconnect)
@@ -71,7 +71,7 @@ class SignaldClient(SignaldRPCClient):
         evt = ListenEvent(action=ListenAction.STARTED, username=data["data"])
         await self._run_event_handler(evt)
 
-    async def _parse_listen_stop(self, data: Dict[str, Any]) -> None:
+    async def _parse_listener_stop(self, data: Dict[str, Any]) -> None:
         evt = ListenEvent(action=ListenAction.STOPPED, username=data["data"],
                           exception=data.get("exception", None))
         await self._run_event_handler(evt)
