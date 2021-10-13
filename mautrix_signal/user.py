@@ -140,13 +140,22 @@ class User(DBUser, BaseUser):
             self._track_metric(METRIC_LOGGED_IN, True)
             self._connected = True
             asyncio.create_task(self.push_bridge_state(BridgeStateEvent.CONNECTED))
-        elif evt.action == ListenAction.STOPPED:
+        elif evt.action in (ListenAction.SOCKET_DISCONNECTED, ListenAction.STOPPED):
             if evt.exception:
                 self.log.warning(f"Disconnected from Signal: {evt.exception}")
             else:
                 self.log.info("Disconnected from Signal")
             self._track_metric(METRIC_CONNECTED, False)
-            asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
+            asyncio.create_task(
+                self.push_bridge_state(
+                    (
+                        BridgeStateEvent.TRANSIENT_DISCONNECT
+                        if evt.action == ListenAction.SOCKET_DISCONNECTED
+                        else BridgeStateEvent.UNKNOWN_ERROR
+                    ),
+                    error=str(evt.exception),
+                )
+            )
             self._connected = False
         else:
             self.log.warning(f"Unrecognized listen action {evt.action}")

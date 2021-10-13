@@ -413,6 +413,7 @@ class Message(SerializableAttrs):
 class ListenAction(SerializableEnum):
     STARTED = "started"
     STOPPED = "stopped"
+    SOCKET_DISCONNECTED = "socket-disconnected"
 
 
 @dataclass
