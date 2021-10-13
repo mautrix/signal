@@ -83,6 +83,8 @@ class SignaldClient(SignaldRPCClient):
             return True
         except UnexpectedError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
+            evt = ListenEvent(action=ListenAction.STOPPED, username=username, exception=e)
+            await self._run_event_handler(evt)
             return False
 
     async def unsubscribe(self, username: str) -> bool:
