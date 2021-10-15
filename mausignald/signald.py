@@ -8,7 +8,7 @@ import asyncio
 
 from mautrix.util.logging import TraceLogger
 
-from .rpc import CONNECT_EVENT, SignaldRPCClient
+from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, DeviceInfo, Group,
                     Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2,
@@ -30,9 +30,10 @@ class SignaldClient(SignaldRPCClient):
         self._subscriptions = set()
         self.add_rpc_handler("message", self._parse_message)
         self.add_rpc_handler("listen_started", self._parse_listen_start)
-        self.add_rpc_handler("listen_stopped", self._parse_listen_stop)
+        self.add_rpc_handler("listener_stopped", self._parse_listener_stop)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
+        self.add_rpc_handler(DISCONNECT_EVENT, self._on_disconnect)
 
     def add_event_handler(self, event_class: Type[T], handler: EventHandler) -> None:
         self._event_handlers.setdefault(event_class, []).append(handler)
@@ -70,7 +71,7 @@ class SignaldClient(SignaldRPCClient):
         evt = ListenEvent(action=ListenAction.STARTED, username=data["data"])
         await self._run_event_handler(evt)
 
-    async def _parse_listen_stop(self, data: Dict[str, Any]) -> None:
+    async def _parse_listener_stop(self, data: Dict[str, Any]) -> None:
         evt = ListenEvent(action=ListenAction.STOPPED, username=data["data"],
                           exception=data.get("exception", None))
         await self._run_event_handler(evt)
@@ -82,6 +83,8 @@ class SignaldClient(SignaldRPCClient):
             return True
         except UnexpectedError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
+            evt = ListenEvent(action=ListenAction.STOPPED, username=username, exception=e)
+            await self._run_event_handler(evt)
             return False
 
     async def unsubscribe(self, username: str) -> bool:
@@ -98,6 +101,14 @@ class SignaldClient(SignaldRPCClient):
             self.log.debug("Resubscribing to users")
             for username in list(self._subscriptions):
                 await self.subscribe(username)
+
+    async def _on_disconnect(self, *_) -> None:
+        if self._subscriptions:
+            self.log.debug("Notifying of disconnection from users")
+            for username in self._subscriptions:
+                evt = ListenEvent(action=ListenAction.SOCKET_DISCONNECTED, username=username,
+                                  exception="Disconnected from signald")
+                await self._run_event_handler(evt)
 
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
                        ) -> str:
