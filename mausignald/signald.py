@@ -11,8 +11,8 @@ from mautrix.util.logging import TraceLogger
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, DeviceInfo, Group,
-                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2,
-                    Mention, LinkSession)
+                    Profile, GroupID, GetIdentitiesResponse, GroupV2, Mention, LinkSession,
+                    WebsocketConnectionState, WebsocketConnectionStateChangeEvent)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -29,8 +29,8 @@ class SignaldClient(SignaldRPCClient):
         self._event_handlers = {}
         self._subscriptions = set()
         self.add_rpc_handler("message", self._parse_message)
-        self.add_rpc_handler("listen_started", self._parse_listen_start)
-        self.add_rpc_handler("listener_stopped", self._parse_listener_stop)
+        self.add_rpc_handler("websocket_connection_state_change",
+                             self._websocket_connection_state_change)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
         self.add_rpc_handler(DISCONNECT_EVENT, self._on_disconnect)
@@ -67,13 +67,11 @@ class SignaldClient(SignaldRPCClient):
         version = data["data"]["version"]
         self.log.info(f"Connected to {name} v{version}")
 
-    async def _parse_listen_start(self, data: Dict[str, Any]) -> None:
-        evt = ListenEvent(action=ListenAction.STARTED, username=data["data"])
-        await self._run_event_handler(evt)
-
-    async def _parse_listener_stop(self, data: Dict[str, Any]) -> None:
-        evt = ListenEvent(action=ListenAction.STOPPED, username=data["data"],
-                          exception=data.get("exception", None))
+    async def _websocket_connection_state_change(self, change_event: Dict[str, Any]) -> None:
+        evt = WebsocketConnectionStateChangeEvent(
+            state=WebsocketConnectionState.deserialize(change_event["data"]["state"]),
+            account=change_event["data"]["account"],
+        )
         await self._run_event_handler(evt)
 
     async def subscribe(self, username: str) -> bool:
@@ -83,7 +81,10 @@ class SignaldClient(SignaldRPCClient):
             return True
         except UnexpectedError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
-            evt = ListenEvent(action=ListenAction.STOPPED, username=username, exception=e)
+            evt = WebsocketConnectionStateChangeEvent(
+                state=WebsocketConnectionState.DISCONNECTED,
+                account=username,
+            )
             await self._run_event_handler(evt)
             return False
 
@@ -106,8 +107,11 @@ class SignaldClient(SignaldRPCClient):
         if self._subscriptions:
             self.log.debug("Notifying of disconnection from users")
             for username in self._subscriptions:
-                evt = ListenEvent(action=ListenAction.SOCKET_DISCONNECTED, username=username,
-                                  exception="Disconnected from signald")
+                evt = WebsocketConnectionStateChangeEvent(
+                    state=WebsocketConnectionState.SOCKET_DISCONNECTED,
+                    account=username,
+                    exception="Disconnected from signald"
+                )
                 await self._run_event_handler(evt)
 
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
