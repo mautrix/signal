@@ -65,6 +65,9 @@ class Config(BaseBridgeConfig):
             copy("bridge.contact_list_names")
         copy("bridge.displayname_preference")
 
+        copy_dict("bridge.management_room_text")
+        copy("bridge.management_room_multiple_messages")
+
         copy("bridge.autocreate_group_portal")
         copy("bridge.autocreate_contact_portal")
         copy("bridge.sync_with_custom_puppets")
