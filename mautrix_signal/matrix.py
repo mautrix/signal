@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.errors import MatrixError
@@ -54,7 +54,7 @@ class MatrixHandler(BaseMatrixHandler):
         return (evt.sender == self.az.bot_mxid
                 or pu.Puppet.get_id_from_mxid(evt.sender) is not None)
 
-    def _get_welcome_message(self, statement_name: str, default_plain: str, default_html: Optional[str] = None) -> (str, str):
+    def _get_welcome_message(self, statement_name: str, default_plain: str, default_html: Optional[str] = None) -> Tuple[str, str]:
         plain = self.management_room_text.get(statement_name, {}).get("plain", None)
         html = self.management_room_text.get(statement_name, {}).get("html", None)
         return plain or default_plain, html or plain or default_html or default_plain
@@ -66,72 +66,54 @@ class MatrixHandler(BaseMatrixHandler):
             # The AS bot is not in the room.
             return
 
-        cmd_prefix = self.commands.command_prefix
-        plain = html = ""
+        welcome_messages: List[Tuple[str, str]] = []
 
-        welcome_plain, welcome_html = self._get_welcome_message(
+        welcome_messages.append(self._get_welcome_message(
             "welcome",
             "Hello, I'm a Signal bridge bot.",
-        )
+        ))
+        if is_management:
+            if await inviter.is_logged_in():
+                welcome_messages.append(self._get_welcome_message(
+                    "welcome_connected",
+                    default_plain="Use `help` for help.",
+                    default_html="Use <code>help</code> for help."
+                ))
+            else:
+                welcome_messages.append(self._get_welcome_message(
+                    "welcome_unconnected",
+                    default_plain="Use `help` for help or `register` to log in.",
+                    default_html="Use <code>help</code> for help or <code>register</code> to log in.",
+                ))
+
+            additional_help_plain, additional_help_html = self._get_welcome_message(
+                "additional_help",
+                default_plain="",
+            )
+            if additional_help_plain:
+                welcome_messages.append((additional_help_plain, additional_help_html))
+
+            if not inviter.notice_room:
+                notice_plain = "This room has been marked as your Signal bridge notice room."
+                inviter.notice_room = room_id
+                await inviter.update()
+                welcome_messages.append((notice_plain, notice_plain))
+        else:
+            cmd_prefix = self.commands.command_prefix
+            plain = f"Use `{cmd_prefix} help` for help."
+            html = f"Use <code>{cmd_prefix} help</code> for help."
+            welcome_messages.append((plain, html))
+
         if self.management_room_multiple_messages:
-            await self.az.intent.send_notice(room_id, text=welcome_plain, html=welcome_html)
+            for plain, html in welcome_messages:
+                await self.az.intent.send_notice(room_id, text=plain, html=html)
         else:
-            plain += welcome_plain + "\n"
-            html += welcome_html + "<br/>"
-
-        if not is_management:
-            plain += f"Use `{cmd_prefix} help` for help."
-            html += f"Use <code>{cmd_prefix} help</code> for help."
-            await self.az.intent.send_notice(room_id, text=plain, html=html)
-            return
-
-        if await inviter.is_logged_in():
-            logged_in_plain, logged_in_html = self._get_welcome_message(
-                "welcome_connected",
-                default_plain="Use `help` for help.",
-                default_html="Use <code>help</code> for help."
-            )
-            if self.management_room_multiple_messages:
-                await self.az.intent.send_notice(room_id, text=logged_in_plain, html=logged_in_html)
-            else:
-                plain += logged_in_plain + "\n"
-                html += logged_in_html + "<br/>"
-        else:
-            unconnected_plain, unconnected_html = self._get_welcome_message(
-                "welcome_unconnected",
-                default_plain="Use `help` for help or `register` to log in.",
-                default_html="Use <code>help</code> for help or <code>register</code> to log in.",
-            )
-            if self.management_room_multiple_messages:
-                await self.az.intent.send_notice(room_id, text=unconnected_plain, html=unconnected_html)
-            else:
-                plain += unconnected_plain + "\n"
-                html += unconnected_html + "<br/>"
-
-        additional_help_plain, additional_help_html = self._get_welcome_message(
-            "additional_help",
-            default_plain="",
-        )
-        if additional_help_plain:
-            if self.management_room_multiple_messages:
-                await self.az.intent.send_notice(room_id, text=additional_help_plain, html=additional_help_html)
-            else:
-                plain += additional_help_plain + "\n"
-                html += additional_help_html + "<br/>"
-
-        if not inviter.notice_room:
-            notice_plain = "This room has been marked as your Signal bridge notice room."
-            inviter.notice_room = room_id
-            await inviter.update()
-            if self.management_room_multiple_messages:
-                await self.az.intent.send_notice(room_id, text=notice_plain)
-            else:
-                plain += notice_plain + "\n"
-                html += notice_plain + "<br/>"
-
-        # If we're not using multiple messages
-        if not self.management_room_multiple_messages:
-            await self.az.intent.send_notice(room_id, text=plain, html=html)
+            combined_plain = ""
+            combined_html = ""
+            for plain, html in welcome_messages:
+                combined_plain += plain + "\n"
+                combined_html += html + "<br/>"
+            await self.az.intent.send_notice(room_id, text=combined_plain, html=combined_html)
 
     async def handle_leave(self, room_id: RoomID, user_id: UserID, event_id: EventID) -> None:
         portal = await po.Portal.get_by_mxid(room_id)
