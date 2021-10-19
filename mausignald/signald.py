@@ -68,10 +68,7 @@ class SignaldClient(SignaldRPCClient):
         self.log.info(f"Connected to {name} v{version}")
 
     async def _websocket_connection_state_change(self, change_event: Dict[str, Any]) -> None:
-        evt = WebsocketConnectionStateChangeEvent(
-            state=WebsocketConnectionState.deserialize(change_event["data"]["state"]),
-            account=change_event["data"]["account"],
-        )
+        evt = WebsocketConnectionStateChangeEvent.deserialize(change_event["data"])
         await self._run_event_handler(evt)
 
     async def subscribe(self, username: str) -> bool:

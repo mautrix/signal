@@ -292,15 +292,11 @@ class Portal(DBPortal, BasePortal):
                                    mentions=mentions, quote=quote, attachments=attachments,
                                    timestamp=request_id)
         except Exception as e:
-            authroization_failed_exception = (
+            auth_failed = (
                 "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
             )
-            if isinstance(e, ResponseError):
-                if authroization_failed_exception in e.data.get("exceptions"):
-                    await sender.push_bridge_state(
-                        BridgeStateEvent.BAD_CREDENTIALS,
-                        error=str(e),
-                    )
+            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions"):
+                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
             await self._send_message(
                 self.main_intent,
                 TextMessageEventContent(
