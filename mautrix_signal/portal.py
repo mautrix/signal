@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from mautrix.util.bridge_state import BridgeStateEvent
 from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerator, Awaitable, Set,
                     Callable, TYPE_CHECKING, cast)
 from html import escape as escape_html
@@ -30,7 +31,7 @@ import os
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
                               Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker,
                               GroupAccessControl, AccessControlMode, GroupMemberRole)
-from mausignald.errors import RPCError
+from mausignald.errors import AuthorizationFailedException, RPCError, ResponseError
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType, Format,
@@ -291,6 +292,11 @@ class Portal(DBPortal, BasePortal):
                                    mentions=mentions, quote=quote, attachments=attachments,
                                    timestamp=request_id)
         except Exception as e:
+            auth_failed = (
+                "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
+            )
+            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions"):
+                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
             await self._send_message(
                 self.main_intent,
                 TextMessageEventContent(

@@ -13,11 +13,14 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from asyncio.tasks import sleep
+from datetime import datetime
 from typing import Union, Dict, Optional, AsyncGenerator, List, TYPE_CHECKING, cast
 from uuid import UUID
 import asyncio
 
-from mausignald.types import Account, Address, Profile, Group, GroupV2, ListenEvent, ListenAction
+from mausignald.types import (Account, Address, Profile, Group, GroupV2, WebsocketConnectionState,
+                              WebsocketConnectionStateChangeEvent)
 from mautrix.bridge import BaseUser, BridgeState, AutologinError, async_getter_lock
 from mautrix.types import UserID, RoomID
 from mautrix.util.bridge_state import BridgeStateEvent
@@ -56,6 +59,8 @@ class User(DBUser, BaseUser):
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
     _connected: bool
+    _websocket_connection_state: Optional[WebsocketConnectionState]
+    _latest_non_transient_disconnect_state: Optional[datetime]
 
     def __init__(self, mxid: UserID, username: Optional[str] = None, uuid: Optional[UUID] = None,
                  notice_room: Optional[RoomID] = None) -> None:
@@ -64,6 +69,7 @@ class User(DBUser, BaseUser):
         self._notice_room_lock = asyncio.Lock()
         self._sync_lock = asyncio.Lock()
         self._connected = False
+        self._websocket_connection_state = None
         perms = self.config.get_permissions(mxid)
         self.relay_whitelisted, self.is_whitelisted, self.is_admin, self.permission_level = perms
 
@@ -133,32 +139,63 @@ class User(DBUser, BaseUser):
         asyncio.create_task(self.sync())
         self._track_metric(METRIC_LOGGED_IN, True)
 
-    def on_listen(self, evt: ListenEvent) -> None:
-        if evt.action == ListenAction.STARTED:
+    def on_websocket_connection_state_change(self, evt: WebsocketConnectionStateChangeEvent) -> None:
+        if evt.state == WebsocketConnectionState.CONNECTED:
             self.log.info("Connected to Signal")
             self._track_metric(METRIC_CONNECTED, True)
             self._track_metric(METRIC_LOGGED_IN, True)
             self._connected = True
-            asyncio.create_task(self.push_bridge_state(BridgeStateEvent.CONNECTED))
-        elif evt.action in (ListenAction.SOCKET_DISCONNECTED, ListenAction.STOPPED):
-            if evt.exception:
-                self.log.warning(f"Disconnected from Signal: {evt.exception}")
-            else:
-                self.log.info("Disconnected from Signal")
-            self._track_metric(METRIC_CONNECTED, False)
-            asyncio.create_task(
-                self.push_bridge_state(
-                    (
-                        BridgeStateEvent.TRANSIENT_DISCONNECT
-                        if evt.action == ListenAction.SOCKET_DISCONNECTED
-                        else BridgeStateEvent.UNKNOWN_ERROR
-                    ),
-                    error=str(evt.exception),
-                )
-            )
-            self._connected = False
         else:
-            self.log.warning(f"Unrecognized listen action {evt.action}")
+            self.log.warning(
+                f"New websocket state from signald: {evt.state}. Error: {evt.exception}")
+            self._track_metric(METRIC_CONNECTED, False)
+            self._connected = False
+
+        bridge_state = {
+            # Signald disconnected
+            WebsocketConnectionState.SOCKET_DISCONNECTED: BridgeStateEvent.TRANSIENT_DISCONNECT,
+
+            # Websocket state reported by signald
+            WebsocketConnectionState.DISCONNECTED: (
+                None
+                if self._websocket_connection_state == BridgeStateEvent.BAD_CREDENTIALS
+                else BridgeStateEvent.TRANSIENT_DISCONNECT
+            ),
+            WebsocketConnectionState.CONNECTING: BridgeStateEvent.CONNECTING,
+            WebsocketConnectionState.CONNECTED: BridgeStateEvent.CONNECTED,
+            WebsocketConnectionState.RECONNECTING: BridgeStateEvent.TRANSIENT_DISCONNECT,
+            WebsocketConnectionState.DISCONNECTING: BridgeStateEvent.TRANSIENT_DISCONNECT,
+            WebsocketConnectionState.AUTHENTICATION_FAILED: BridgeStateEvent.BAD_CREDENTIALS,
+            WebsocketConnectionState.FAILED: BridgeStateEvent.UNKNOWN_ERROR,
+        }.get(evt.state)
+        if bridge_state:
+            asyncio.create_task(self.push_bridge_state(bridge_state))
+
+            now = datetime.now()
+            if bridge_state == BridgeStateEvent.TRANSIENT_DISCONNECT:
+                # Wait for two minutes. if the bridge stays in TRANSIENT_DISCONNECT for that long,
+                # something terrible has happened (signald failed to restart, the internet broke,
+                # etc.)
+                async def wait_report_disconnected():
+                    await sleep(120)
+                    if (
+                        self._latest_non_transient_disconnect_state
+                        and now > self._latest_non_transient_disconnect_state
+                    ):
+                        asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
+                    else:
+                        self.log.info(
+                            "New state since last TRANSIENT_DISCONNECT push. "
+                            "Not transitioning to UNKNOWN_ERROR."
+                        )
+
+                asyncio.create_task(wait_report_disconnected())
+            else:
+                self._latest_non_transient_disconnect_state = now
+
+            self._websocket_connection_state = bridge_state
+        else:
+            self.log.info(f"Websocket state {evt.state} seen. Will not report new Bridge State")
 
     async def _sync_puppet(self) -> None:
         puppet = await pu.Puppet.get_by_address(self.address)
