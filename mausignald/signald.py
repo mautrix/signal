@@ -79,7 +79,11 @@ class SignaldClient(SignaldRPCClient):
         except UnexpectedError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
             evt = WebsocketConnectionStateChangeEvent(
-                state=WebsocketConnectionState.DISCONNECTED,
+                state=(
+                    WebsocketConnectionState.AUTHENTICATION_FAILED
+                    if str(e) == "[401] Authorization failed!"
+                    else WebsocketConnectionState.DISCONNECTED
+                ),
                 account=username,
             )
             await self._run_event_handler(evt)
