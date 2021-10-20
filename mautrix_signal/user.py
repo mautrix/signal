@@ -168,34 +168,45 @@ class User(DBUser, BaseUser):
             WebsocketConnectionState.AUTHENTICATION_FAILED: BridgeStateEvent.BAD_CREDENTIALS,
             WebsocketConnectionState.FAILED: BridgeStateEvent.UNKNOWN_ERROR,
         }.get(evt.state)
-        if bridge_state:
-            asyncio.create_task(self.push_bridge_state(bridge_state))
+        if bridge_state is None:
+            self.log.info(f"Websocket state {evt.state} seen. Will not report new Bridge State")
+            return
 
-            now = datetime.now()
-            if bridge_state == BridgeStateEvent.TRANSIENT_DISCONNECT:
-                # Wait for two minutes. if the bridge stays in TRANSIENT_DISCONNECT for that long,
-                # something terrible has happened (signald failed to restart, the internet broke,
-                # etc.)
-                async def wait_report_disconnected():
-                    await sleep(120)
-                    if (
-                        self._latest_non_transient_disconnect_state
-                        and now > self._latest_non_transient_disconnect_state
-                    ):
-                        asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
-                    else:
-                        self.log.info(
-                            "New state since last TRANSIENT_DISCONNECT push. "
-                            "Not transitioning to UNKNOWN_ERROR."
+        now = datetime.now()
+        if bridge_state == BridgeStateEvent.TRANSIENT_DISCONNECT:
+            async def wait_report_transient_disconnect():
+                # Wait for 10 seconds (that should be enough for the bridge to get connected)
+                # before sending a TRANSIENT_DISCONNECT.
+                # self._latest_non_transient_disconnect_state will only be None if the bridge is
+                # still starting.
+                if self._latest_non_transient_disconnect_state is None:
+                    await sleep(15)
+                    if self._latest_non_transient_disconnect_state is None:
+                        asyncio.create_task(
+                            self.push_bridge_state(BridgeStateEvent.TRANSIENT_DISCONNECT)
                         )
 
-                asyncio.create_task(wait_report_disconnected())
-            else:
-                self._latest_non_transient_disconnect_state = now
+                # Wait for another minute. If the bridge stays in TRANSIENT_DISCONNECT for that
+                # long, something terrible has happened (signald failed to restart, the internet
+                # broke, etc.)
+                await sleep(60)
+                if (
+                    self._latest_non_transient_disconnect_state
+                    and now > self._latest_non_transient_disconnect_state
+                ):
+                    asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
+                else:
+                    self.log.info(
+                        "New state since last TRANSIENT_DISCONNECT push. "
+                        "Not transitioning to UNKNOWN_ERROR."
+                    )
 
-            self._websocket_connection_state = bridge_state
+            asyncio.create_task(wait_report_transient_disconnect())
         else:
-            self.log.info(f"Websocket state {evt.state} seen. Will not report new Bridge State")
+            asyncio.create_task(self.push_bridge_state(bridge_state))
+            self._latest_non_transient_disconnect_state = now
+
+        self._websocket_connection_state = bridge_state
 
     async def _sync_puppet(self) -> None:
         puppet = await pu.Puppet.get_by_address(self.address)
