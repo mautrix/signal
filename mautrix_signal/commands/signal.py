@@ -79,6 +79,21 @@ async def pm(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
+                 help_text="Get the invite link to the current group")
+async def invite_link(evt: CommandEvent) -> EventID:
+    if not evt.is_portal:
+        return await evt.reply("This is not a portal room.")
+    group = await evt.bridge.signal.get_group(evt.sender.username, evt.portal.chat_id,
+                                              evt.portal.revision)
+    if not group:
+        await evt.reply("Failed to get group info")
+    elif not group.invite_link:
+        await evt.reply("Invite link not available")
+    else:
+        await evt.reply(group.invite_link)
+
+
+@command_handler(needs_auth=True, management_only=False, help_section=SECTION_SIGNAL,
                  help_text="View the safety number of a specific user",
                  help_args="[--qr] [_phone_]")
 async def safety_number(evt: CommandEvent) -> None:
