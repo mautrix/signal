@@ -76,6 +76,12 @@ class Puppet:
             await conn.execute("UPDATE message SET sender=$1 WHERE sender=$2", uuid, self.number)
             await conn.execute("UPDATE reaction SET author=$1 WHERE author=$2", uuid, self.number)
 
+    async def _set_number(self, number: str) -> None:
+        async with self.db.acquire() as conn, conn.transaction():
+            await conn.execute("DELETE FROM puppet WHERE number=$1 AND uuid<>$2",
+                               number, self.uuid)
+            await conn.execute("UPDATE puppet SET number=$1 WHERE uuid=$2", number, self.uuid)
+
     async def update(self) -> None:
         set_columns = (
             "name=$3, avatar_hash=$4, avatar_url=$5, name_set=$6, avatar_set=$7, "

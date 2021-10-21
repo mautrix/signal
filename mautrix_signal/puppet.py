@@ -123,6 +123,14 @@ class Puppet(DBPuppet, BasePuppet):
                 return
             await self._handle_uuid_receive(uuid)
 
+    async def handle_number_receive(self, number: str) -> None:
+        async with self._uuid_lock:
+            if self.number:
+                return
+            self.number = number
+            self.by_number[self.number] = self
+            await self._set_number(number)
+
     async def _handle_uuid_receive(self, uuid: UUID) -> None:
         self.log.debug(f"Found UUID for user: {uuid}")
         user = await u.User.get_by_username(self.number)
@@ -158,10 +166,11 @@ class Puppet(DBPuppet, BasePuppet):
             await self.default_mxid_intent.join_room_by_id(room_id)
 
     async def update_info(self, info: Union[Profile, Contact, Address]) -> None:
-        if isinstance(info, (Contact, Address)):
-            address = info.address if isinstance(info, Contact) else info
-            if address.uuid and not self.uuid:
-                await self.handle_uuid_receive(address.uuid)
+        address = info.address if isinstance(info, (Contact, Profile)) else info
+        if address.uuid and not self.uuid:
+            await self.handle_uuid_receive(address.uuid)
+        if address.number and not self.number:
+            await self.handle_number_receive(address.number)
 
         contact_names = self.config["bridge.contact_list_names"]
         if isinstance(info, Profile) and contact_names != "prefer" and info.profile_name:
