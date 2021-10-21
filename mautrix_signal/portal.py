@@ -872,8 +872,7 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
-            if not puppet.name:
-                await source.sync_contact(address)
+            await source.sync_contact(address)
             await puppet.intent_for(self).ensure_joined(self.mxid)
 
         for address in pending_members:
@@ -882,8 +881,7 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
-            if not puppet.name:
-                await source.sync_contact(address)
+            await source.sync_contact(address)
             await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
 
     async def _update_power_levels(self, info: ChatInfo) -> None:

@@ -243,10 +243,13 @@ class SignaldClient(SignaldRPCClient):
             return None
         return GroupV2.deserialize(resp)
 
-    async def get_profile(self, username: str, address: Address) -> Optional[Profile]:
+    async def get_profile(self, username: str, address: Address, use_cache: bool = False
+                          ) -> Optional[Profile]:
         try:
+            # async is a reserved keyword, so can't pass it as a normal parameter
+            kwargs = {"async": use_cache}
             resp = await self.request_v1("get_profile", account=username,
-                                         address=address.serialize())
+                                         address=address.serialize(), **kwargs)
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
                 return None

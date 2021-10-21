@@ -251,7 +251,7 @@ class User(DBUser, BaseUser):
         self.log.trace("Syncing contact %s", contact)
         if isinstance(contact, Address):
             address = contact
-            profile = await self.bridge.signal.get_profile(self.username, address)
+            profile = await self.bridge.signal.get_profile(self.username, address, use_cache=True)
             if profile and profile.name:
                 self.log.trace("Got profile for %s: %s", address, profile)
         else:
