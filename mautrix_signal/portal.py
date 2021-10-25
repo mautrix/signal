@@ -295,7 +295,7 @@ class Portal(DBPortal, BasePortal):
             auth_failed = (
                 "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
             )
-            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions"):
+            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions", []):
                 await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
             await self._send_message(
                 self.main_intent,
