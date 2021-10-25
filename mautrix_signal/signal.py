@@ -19,7 +19,8 @@ import logging
 
 from mausignald import SignaldClient
 from mausignald.types import (Message, MessageData, Address, TypingNotification, TypingAction,
-                              OwnReadReceipt, Receipt, ReceiptType, ListenEvent)
+                              OwnReadReceipt, Receipt, ReceiptType,
+                              WebsocketConnectionStateChangeEvent)
 from mautrix.util.logging import TraceLogger
 
 from .db import Message as DBMessage
@@ -43,7 +44,8 @@ class SignalHandler(SignaldClient):
         self.data_dir = bridge.config["signal.data_dir"]
         self.delete_unknown_accounts = bridge.config["signal.delete_unknown_accounts_on_start"]
         self.add_event_handler(Message, self.on_message)
-        self.add_event_handler(ListenEvent, self.on_listen)
+        self.add_event_handler(WebsocketConnectionStateChangeEvent,
+                               self.on_websocket_connection_state_change)
 
     async def on_message(self, evt: Message) -> None:
         sender = await pu.Puppet.get_by_address(evt.source)
@@ -73,9 +75,9 @@ class SignalHandler(SignaldClient):
                 await user.sync_groups()
 
     @staticmethod
-    async def on_listen(evt: ListenEvent) -> None:
-        user = await u.User.get_by_username(evt.username)
-        user.on_listen(evt)
+    async def on_websocket_connection_state_change(evt: WebsocketConnectionStateChangeEvent) -> None:
+        user = await u.User.get_by_username(evt.account)
+        user.on_websocket_connection_state_change(evt)
 
     async def handle_message(self, user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
                              addr_override: Optional[Address] = None) -> None:
@@ -101,7 +103,7 @@ class SignalHandler(SignaldClient):
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
             await portal.update_info(user, msg.group_v2, sender)
         if msg.reaction:
-            await portal.handle_signal_reaction(sender, msg.reaction)
+            await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
         if msg.body or msg.attachments or msg.sticker:
             await portal.handle_signal_message(user, sender, msg)
         if msg.group and msg.group.type == "UPDATE":

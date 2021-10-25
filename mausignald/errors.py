@@ -63,6 +63,14 @@ class RequestValidationFailure(ResponseError):
         super().__init__(data, message_override=result_str)
 
 
+class InternalError(ResponseError):
+    def __init__(self, data: Dict[str, Any]) -> None:
+        exceptions = data.get("exceptions", [])
+        self.exceptions = exceptions
+        message = data.get("message")
+        super().__init__(data, error_type=", ".join(exceptions), message_override=message)
+
+
 response_error_types = {
     "invalid_request": RequestValidationFailure,
     "TimeoutException": TimeoutException,
@@ -71,6 +79,7 @@ response_error_types = {
     "UnknownIdentityKey": UnknownIdentityKey,
     "CaptchaRequired": CaptchaRequired,
     "AuthorizationFailedException": AuthorizationFailedException,
+    "InternalError": InternalError,
     # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
 }
 

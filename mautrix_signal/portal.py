@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from mautrix.util.bridge_state import BridgeStateEvent
 from typing import (Dict, Tuple, Optional, List, Deque, Any, Union, AsyncGenerator, Awaitable, Set,
                     Callable, TYPE_CHECKING, cast)
 from html import escape as escape_html
@@ -30,7 +31,7 @@ import os
 from mausignald.types import (Address, MessageData, Reaction, Quote, Group, Contact, Profile,
                               Attachment, GroupID, GroupV2ID, GroupV2, Mention, Sticker,
                               GroupAccessControl, AccessControlMode, GroupMemberRole)
-from mausignald.errors import RPCError
+from mausignald.errors import AuthorizationFailedException, RPCError, ResponseError
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType, Format,
@@ -290,9 +291,22 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
             return
         self.log.debug(f"Sending Matrix message {event_id} to Signal with timestamp {request_id}")
-        await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
-                               mentions=mentions, quote=quote, attachments=attachments,
-                               timestamp=request_id)
+        try:
+            await self.signal.send(username=sender.username, recipient=self.chat_id, body=text,
+                                   mentions=mentions, quote=quote, attachments=attachments,
+                                   timestamp=request_id)
+        except Exception as e:
+            auth_failed = (
+                "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
+            )
+            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions"):
+                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+            await self._send_message(
+                self.main_intent,
+                TextMessageEventContent(
+                    msgtype=MessageType.NOTICE,
+                    body=f"\u26a0 Your message was not bridged: {e}"))
+            return
         msg = DBMessage(mxid=event_id, mx_room=self.mxid, sender=sender.address,
                         timestamp=request_id,
                         signal_chat_id=self.chat_id, signal_receiver=self.receiver)
@@ -342,7 +356,16 @@ class Portal(DBPortal, BasePortal):
         if not self.mxid or not await sender.is_logged_in():
             return
 
-        # TODO message redactions after https://gitlab.com/signald/signald/-/issues/37
+        message = await DBMessage.get_by_mxid(event_id, self.mxid)
+        if message:
+            try:
+                await message.delete()
+                await self.signal.remote_delete(sender.username, recipient=self.chat_id,
+                                                timestamp=message.timestamp)
+                await self._send_delivery_receipt(redaction_event_id)
+                self.log.trace(f"Removed {message} after Matrix redaction")
+            except Exception:
+                self.log.exception("Removing message failed")
 
         reaction = await DBReaction.get_by_mxid(event_id, self.mxid)
         if reaction:
@@ -674,7 +697,8 @@ class Portal(DBPortal, BasePortal):
             elif content.url:
                 content.info.thumbnail_url = content.url
 
-    async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction) -> None:
+    async def handle_signal_reaction(self, sender: 'p.Puppet', reaction: Reaction,
+                                     timestamp: int) -> None:
         author_address = await self._resolve_address(reaction.target_author)
         target_id = reaction.target_sent_timestamp
         async with self._reaction_lock:
@@ -706,7 +730,8 @@ class Portal(DBPortal, BasePortal):
 
         intent = sender.intent_for(self)
         # TODO add variation selectors to emoji before sending to Matrix
-        mxid = await intent.react(message.mx_room, message.mxid, reaction.emoji)
+        mxid = await intent.react(message.mx_room, message.mxid, reaction.emoji,
+                                  timestamp=timestamp)
         self.log.debug(f"{sender.address} reacted to {message.mxid} -> {mxid}")
         await self._upsert_reaction(existing, intent, mxid, sender, message, reaction.emoji)
 
@@ -855,8 +880,7 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
-            if not puppet.name:
-                await source.sync_contact(address)
+            await source.sync_contact(address)
             await puppet.intent_for(self).ensure_joined(self.mxid)
 
         for address in pending_members:
@@ -865,8 +889,7 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
-            if not puppet.name:
-                await source.sync_contact(address)
+            await source.sync_contact(address)
             await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
@@ -953,12 +976,21 @@ class Portal(DBPortal, BasePortal):
         async with self._create_room_lock:
             return await self._create_matrix_room(source, info)
 
-    async def _update_matrix_room(self, source: 'u.User', info: ChatInfo) -> None:
+    def _get_invite_content(self, double_puppet: Optional['p.Puppet']) -> Dict[str, Any]:
+        invite_content = {}
+        if double_puppet:
+            invite_content["fi.mau.will_auto_accept"] = True
         if self.is_direct:
-            puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
-            if puppet:
-                await self.main_intent.invite_user(self.mxid, source.mxid, check_cache=True)
-                await puppet.intent.ensure_joined(self.mxid)
+            invite_content["is_direct"] = True
+        return invite_content
+
+    async def _update_matrix_room(self, source: 'u.User', info: ChatInfo) -> None:
+        puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
+        await self.main_intent.invite_user(self.mxid, source.mxid, check_cache=True,
+                                           extra_content=self._get_invite_content(puppet))
+        if puppet:
+            did_join = await puppet.intent.ensure_joined(self.mxid)
+            if did_join and self.is_direct:
                 await source.update_direct_chats({self.main_intent.mxid: [self.mxid]})
 
         await self.update_info(source, info)
@@ -1021,7 +1053,7 @@ class Portal(DBPortal, BasePortal):
             "type": str(EventType.ROOM_POWER_LEVELS),
             "content": power_levels.serialize(),
         }]
-        invites = [source.mxid]
+        invites = []
         if self.config["bridge.encryption.default"] and self.matrix.e2ee:
             self.encrypted = True
             initial_state.append({
@@ -1060,20 +1092,22 @@ class Portal(DBPortal, BasePortal):
                 self.log.warning("Failed to add bridge bot "
                                  f"to new private chat {self.mxid}")
 
+        puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
+        await self.main_intent.invite_user(self.mxid, source.mxid,
+                                           extra_content=self._get_invite_content(puppet))
+        if puppet:
+            try:
+                await source.update_direct_chats({self.main_intent.mxid: [self.mxid]})
+                await puppet.intent.join_room_by_id(self.mxid)
+            except MatrixError:
+                self.log.debug("Failed to join custom puppet into newly created portal",
+                               exc_info=True)
+
         await self.update()
         self.log.debug(f"Matrix room created: {self.mxid}")
         self.by_mxid[self.mxid] = self
         if not self.is_direct:
             await self._update_participants(source, info)
-        else:
-            puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
-            if puppet:
-                try:
-                    await puppet.intent.join_room_by_id(self.mxid)
-                    await source.update_direct_chats({self.main_intent.mxid: [self.mxid]})
-                except MatrixError:
-                    self.log.debug("Failed to join custom puppet into newly created portal",
-                                   exc_info=True)
 
         # TODO
         # in_community = await source._community_helper.add_room(source._community_id, self.mxid)

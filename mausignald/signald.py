@@ -8,11 +8,11 @@ import asyncio
 
 from mautrix.util.logging import TraceLogger
 
-from .rpc import CONNECT_EVENT, SignaldRPCClient
+from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
 from .types import (Address, Quote, Attachment, Reaction, Account, Message, DeviceInfo, Group,
-                    Profile, GroupID, GetIdentitiesResponse, ListenEvent, ListenAction, GroupV2,
-                    Mention, LinkSession)
+                    Profile, GroupID, GetIdentitiesResponse, GroupV2, Mention, LinkSession,
+                    WebsocketConnectionState, WebsocketConnectionStateChangeEvent)
 
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
@@ -29,10 +29,11 @@ class SignaldClient(SignaldRPCClient):
         self._event_handlers = {}
         self._subscriptions = set()
         self.add_rpc_handler("message", self._parse_message)
-        self.add_rpc_handler("listen_started", self._parse_listen_start)
-        self.add_rpc_handler("listen_stopped", self._parse_listen_stop)
+        self.add_rpc_handler("websocket_connection_state_change",
+                             self._websocket_connection_state_change)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
+        self.add_rpc_handler(DISCONNECT_EVENT, self._on_disconnect)
 
     def add_event_handler(self, event_class: Type[T], handler: EventHandler) -> None:
         self._event_handlers.setdefault(event_class, []).append(handler)
@@ -66,13 +67,8 @@ class SignaldClient(SignaldRPCClient):
         version = data["data"]["version"]
         self.log.info(f"Connected to {name} v{version}")
 
-    async def _parse_listen_start(self, data: Dict[str, Any]) -> None:
-        evt = ListenEvent(action=ListenAction.STARTED, username=data["data"])
-        await self._run_event_handler(evt)
-
-    async def _parse_listen_stop(self, data: Dict[str, Any]) -> None:
-        evt = ListenEvent(action=ListenAction.STOPPED, username=data["data"],
-                          exception=data.get("exception", None))
+    async def _websocket_connection_state_change(self, change_event: Dict[str, Any]) -> None:
+        evt = WebsocketConnectionStateChangeEvent.deserialize(change_event["data"])
         await self._run_event_handler(evt)
 
     async def subscribe(self, username: str) -> bool:
@@ -82,6 +78,15 @@ class SignaldClient(SignaldRPCClient):
             return True
         except UnexpectedError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
+            evt = WebsocketConnectionStateChangeEvent(
+                state=(
+                    WebsocketConnectionState.AUTHENTICATION_FAILED
+                    if str(e) == "[401] Authorization failed!"
+                    else WebsocketConnectionState.DISCONNECTED
+                ),
+                account=username,
+            )
+            await self._run_event_handler(evt)
             return False
 
     async def unsubscribe(self, username: str) -> bool:
@@ -98,6 +103,17 @@ class SignaldClient(SignaldRPCClient):
             self.log.debug("Resubscribing to users")
             for username in list(self._subscriptions):
                 await self.subscribe(username)
+
+    async def _on_disconnect(self, *_) -> None:
+        if self._subscriptions:
+            self.log.debug("Notifying of disconnection from users")
+            for username in self._subscriptions:
+                evt = WebsocketConnectionStateChangeEvent(
+                    state=WebsocketConnectionState.SOCKET_DISCONNECTED,
+                    account=username,
+                    exception="Disconnected from signald"
+                )
+                await self._run_event_handler(evt)
 
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
                        ) -> str:
@@ -118,16 +134,24 @@ class SignaldClient(SignaldRPCClient):
         return Account.deserialize(resp)
 
     @staticmethod
-    def _recipient_to_args(recipient: Union[Address, GroupID]) -> Dict[str, Any]:
+    def _recipient_to_args(recipient: Union[Address, GroupID], simple_name: bool = False
+                           ) -> Dict[str, Any]:
         if isinstance(recipient, Address):
-            return {"recipientAddress": recipient.serialize()}
+            recipient = recipient.serialize()
+            field_name = "address" if simple_name else "recipientAddress"
         else:
-            return {"recipientGroupId": recipient}
+            field_name = "group" if simple_name else "recipientGroupId"
+        return {field_name: recipient}
 
     async def react(self, username: str, recipient: Union[Address, GroupID],
                     reaction: Reaction) -> None:
         await self.request_v1("react", username=username, reaction=reaction.serialize(),
                               **self._recipient_to_args(recipient))
+
+    async def remote_delete(self, username: str, recipient: Union[Address, GroupID], timestamp: int
+                            ) -> None:
+        await self.request_v1("remote_delete", account=username, timestamp=timestamp,
+                              **self._recipient_to_args(recipient, simple_name=True))
 
     async def send(self, username: str, recipient: Union[Address, GroupID], body: str,
                    quote: Optional[Quote] = None, attachments: Optional[List[Attachment]] = None,
@@ -136,11 +160,23 @@ class SignaldClient(SignaldRPCClient):
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
         serialized_mentions = [mention.serialize() for mention in (mentions or [])]
-        await self.request_v1("send", username=username, messageBody=body,
-                              attachments=serialized_attachments, quote=serialized_quote,
-                              mentions=serialized_mentions, timestamp=timestamp,
-                              **self._recipient_to_args(recipient))
-        # TODO return something?
+        resp = await self.request_v1("send", username=username, messageBody=body,
+                                     attachments=serialized_attachments, quote=serialized_quote,
+                                     mentions=serialized_mentions, timestamp=timestamp,
+                                     **self._recipient_to_args(recipient))
+        errors = []
+        for result in resp.get("results", []):
+            number = result.get("address", {}).get("number")
+            if result.get("networkFailure", False):
+                errors.append(f"Network failure occurred while sending message to {number}.")
+            if result.get("unregisteredFailure", False):
+                errors.append(f"Unregistered failure occurred while sending message to {number}.")
+            if result.get("identityFailure", ""):
+                errors.append(
+                    f"Identity failure occurred while sending message to {number}. New identity: "
+                    f"{result['identityFailure']}")
+        if errors:
+            raise Exception("\n".join(errors))
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
                            when: Optional[int] = None, read: bool = False) -> None:
@@ -207,10 +243,13 @@ class SignaldClient(SignaldRPCClient):
             return None
         return GroupV2.deserialize(resp)
 
-    async def get_profile(self, username: str, address: Address) -> Optional[Profile]:
+    async def get_profile(self, username: str, address: Address, use_cache: bool = False
+                          ) -> Optional[Profile]:
         try:
+            # async is a reserved keyword, so can't pass it as a normal parameter
+            kwargs = {"async": use_cache}
             resp = await self.request_v1("get_profile", account=username,
-                                         address=address.serialize())
+                                         address=address.serialize(), **kwargs)
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
                 return None

@@ -68,6 +68,17 @@ metrics:
     enabled: false
     listen_port: 8000
 
+# Manhole config.
+manhole:
+    # Whether or not opening the manhole is allowed.
+    enabled: false
+    # The path for the unix socket.
+    path: /var/tmp/mautrix-signal.manhole
+    # The list of UIDs who can be added to the whitelist.
+    # If empty, any UIDs can be specified in the open-manhole command.
+    whitelist:
+    - 0
+
 signal:
     # Path to signald unix socket
     socket_path: /var/run/signald/signald.sock
@@ -170,7 +181,7 @@ bridge:
     # This field will automatically be changed back to false after it,
     # except if the config file is not writable.
     resend_bridge_info: false
-    # Interval at which to resync contacts.
+    # Interval at which to resync contacts (in seconds).
     periodic_sync: 0
 
     # Provisioning API part of the web server for automated portal creation and fetching information.

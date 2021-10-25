@@ -73,10 +73,26 @@ class Puppet:
             await conn.execute("DELETE FROM puppet WHERE uuid=$1 AND number<>$2",
                                uuid, self.number)
             await conn.execute("UPDATE puppet SET uuid=$1 WHERE number=$2", uuid, self.number)
-            uuid = str(uuid)
-            await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2", uuid, self.number)
-            await conn.execute("UPDATE message SET sender=$1 WHERE sender=$2", uuid, self.number)
-            await conn.execute("UPDATE reaction SET author=$1 WHERE author=$2", uuid, self.number)
+            await self._update_number_to_uuid(conn, self.number, str(uuid))
+
+    async def _set_number(self, number: str) -> None:
+        async with self.db.acquire() as conn, conn.transaction():
+            await conn.execute("DELETE FROM puppet WHERE number=$1 AND uuid<>$2",
+                               number, self.uuid)
+            await conn.execute("UPDATE puppet SET number=$1 WHERE uuid=$2", number, self.uuid)
+            await self._update_number_to_uuid(conn, number, str(self.uuid))
+
+    @staticmethod
+    async def _update_number_to_uuid(conn: asyncpg.Connection, old_number: str, new_uuid: str
+                                     ) -> None:
+        try:
+            async with conn.transaction():
+                await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2",
+                                   new_uuid, old_number)
+        except asyncpg.UniqueViolationError:
+            await conn.execute("DELETE FROM portal WHERE chat_id=$1", old_number)
+        await conn.execute("UPDATE message SET sender=$1 WHERE sender=$2", new_uuid, old_number)
+        await conn.execute("UPDATE reaction SET author=$1 WHERE author=$2", new_uuid, old_number)
 
     async def update(self) -> None:
         set_columns = (

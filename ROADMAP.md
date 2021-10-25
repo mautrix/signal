@@ -13,7 +13,7 @@
       * [ ] Locations
       * [ ] Stickers
   * [x] Message reactions
-  * [ ] Message redactions
+  * [x] Message redactions
   * [x] Group info changes
     * [x] Name
     * [x] Avatar

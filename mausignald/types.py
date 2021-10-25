@@ -410,13 +410,22 @@ class Message(SerializableAttrs):
     receipt: Optional[Receipt] = None
 
 
-class ListenAction(SerializableEnum):
-    STARTED = "started"
-    STOPPED = "stopped"
+class WebsocketConnectionState(SerializableEnum):
+    # States from signald itself
+    DISCONNECTED = "DISCONNECTED"
+    CONNECTING = "CONNECTING"
+    CONNECTED = "CONNECTED"
+    RECONNECTING = "RECONNECTING"
+    DISCONNECTING = "DISCONNECTING"
+    AUTHENTICATION_FAILED = "AUTHENTICATION_FAILED"
+    FAILED = "FAILED"
+
+    # Socket disconnect state
+    SOCKET_DISCONNECTED = "SOCKET_DISCONNECTED"
 
 
 @dataclass
-class ListenEvent(SerializableAttrs):
-    action: ListenAction
-    username: str
+class WebsocketConnectionStateChangeEvent(SerializableAttrs):
+    state: WebsocketConnectionState
+    account: str
     exception: Optional[str] = None

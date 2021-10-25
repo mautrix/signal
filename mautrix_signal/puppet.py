@@ -25,7 +25,8 @@ from yarl import URL
 from mausignald.types import Address, Contact, Profile
 from mautrix.bridge import BasePuppet, async_getter_lock
 from mautrix.appservice import IntentAPI
-from mautrix.types import UserID, SyncToken, RoomID, ContentURI
+from mautrix.types import (UserID, SyncToken, RoomID, ContentURI, EventType,
+                           PowerLevelStateEventContent)
 from mautrix.errors import MForbidden
 from mautrix.util.simple_template import SimpleTemplate
 
@@ -124,6 +125,21 @@ class Puppet(DBPuppet, BasePuppet):
                 return
             await self._handle_uuid_receive(uuid)
 
+    async def handle_number_receive(self, number: str) -> None:
+        async with self._uuid_lock:
+            if self.number:
+                return
+            self.number = number
+            self.by_number[self.number] = self
+            await self._set_number(number)
+            async for portal in p.Portal.find_private_chats_with(Address(number=number)):
+                self.log.trace(f"Updating chat_id of private chat portal {portal.receiver}")
+                portal.handle_uuid_receive(self.uuid)
+            prev_mxid = self.get_mxid_from_id(Address(number=number))
+            if await self.az.state_store.is_registered(prev_mxid):
+                prev_intent = self.az.intent.user(prev_mxid)
+                await self._migrate_memberships(prev_intent, self.default_mxid_intent)
+
     async def _handle_uuid_receive(self, uuid: UUID) -> None:
         self.log.debug(f"Found UUID for user: {uuid}")
         user = await u.User.get_by_username(self.number)
@@ -145,8 +161,10 @@ class Puppet(DBPuppet, BasePuppet):
         if self.name:
             await self.default_mxid_intent.set_displayname(self.name)
         self.log = Puppet.log.getChild(str(uuid))
-        self.log.debug(f"Migrating memberships {prev_intent.mxid}"
-                       f" -> {self.default_mxid_intent.mxid}")
+        await self._migrate_memberships(prev_intent, self.default_mxid_intent)
+
+    async def _migrate_memberships(self, prev_intent: IntentAPI, new_intent: IntentAPI) -> None:
+        self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {new_intent.mxid}")
         try:
             joined_rooms = await prev_intent.get_joined_rooms()
         except MForbidden as e:
@@ -155,14 +173,29 @@ class Puppet(DBPuppet, BasePuppet):
             return
         for room_id in joined_rooms:
             await prev_intent.invite_user(room_id, self.default_mxid)
+            await self._migrate_powers(prev_intent, new_intent, room_id)
             await prev_intent.leave_room(room_id)
-            await self.default_mxid_intent.join_room_by_id(room_id)
+            await new_intent.join_room_by_id(room_id)
+
+    async def _migrate_powers(self, prev_intent: IntentAPI, new_intent: IntentAPI, room_id: RoomID
+                              ) -> None:
+        try:
+            powers: PowerLevelStateEventContent
+            powers = await prev_intent.get_state_event(room_id, EventType.ROOM_POWER_LEVELS)
+            user_level = powers.get_user_level(prev_intent.mxid)
+            pl_state_level = powers.get_event_level(EventType.ROOM_POWER_LEVELS)
+            if user_level >= pl_state_level > powers.users_default:
+                powers.ensure_user_level(new_intent.mxid, user_level)
+                await prev_intent.send_state_event(room_id, EventType.ROOM_POWER_LEVELS, powers)
+        except Exception:
+            self.log.warning("Failed to migrate power levels", exc_info=True)
 
     async def update_info(self, info: Union[Profile, Contact, Address]) -> None:
-        if isinstance(info, (Contact, Address)):
-            address = info.address if isinstance(info, Contact) else info
-            if address.uuid and not self.uuid:
-                await self.handle_uuid_receive(address.uuid)
+        address = info.address if isinstance(info, (Contact, Profile)) else info
+        if address.uuid and not self.uuid:
+            await self.handle_uuid_receive(address.uuid)
+        if address.number and not self.number:
+            await self.handle_number_receive(address.number)
 
         contact_names = self.config["bridge.contact_list_names"]
         if isinstance(info, Profile) and contact_names != "prefer" and info.profile_name:
@@ -238,6 +271,8 @@ class Puppet(DBPuppet, BasePuppet):
             with open(path, "rb") as file:
                 data = file.read()
         except FileNotFoundError:
+            return False
+        if not data:
             return False
         new_hash = hashlib.sha256(data).hexdigest()
         if self.avatar_set and new_hash == self.avatar_hash:

@@ -13,6 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from typing import Dict, Any
 import asyncio
 import logging
 import time
@@ -44,7 +45,7 @@ class SignalBridge(Bridge):
     name = "mautrix-signal"
     command = "python -m mautrix-signal"
     description = "A Matrix-Signal puppeting bridge."
-    repo_url = "https://github.com/tulir/mautrix-signal"
+    repo_url = "https://github.com/mautrix/signal"
     real_user_content_key = "net.maunium.signal.puppet"
     version = version
     markdown_version = linkified_version
@@ -183,6 +184,14 @@ class SignalBridge(Bridge):
 
     async def count_logged_in_users(self) -> int:
         return len([user for user in User.by_username.values() if user.username])
+
+    async def manhole_global_namespace(self, user_id: UserID) -> Dict[str, Any]:
+        return {
+            **await super().manhole_global_namespace(user_id),
+            "User": User,
+            "Portal": Portal,
+            "Puppet": Puppet,
+        }
 
 
 SignalBridge().run()
