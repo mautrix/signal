@@ -1069,9 +1069,16 @@ class Portal(DBPortal, BasePortal):
                 "content": {"groups": [self.config["appservice.community_id"]]},
             })
 
-        self.mxid = await self.main_intent.create_room(name=name, is_direct=self.is_direct,
-                                                       initial_state=initial_state,
-                                                       invitees=invites)
+        creation_content = {}
+        if not self.config["bridge.federate_rooms"]:
+            creation_content["m.federate"] = False
+        self.mxid = await self.main_intent.create_room(
+            name=name,
+            is_direct=self.is_direct,
+            initial_state=initial_state,
+            invitees=invites,
+            creation_content=creation_content,
+        )
         if not self.mxid:
             raise Exception("Failed to create room: no mxid returned")
         self.name_set = bool(name)
