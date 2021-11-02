@@ -175,6 +175,24 @@ class SignaldClient(SignaldRPCClient):
                 errors.append(
                     f"Identity failure occurred while sending message to {number}. New identity: "
                     f"{result['identityFailure']}")
+            proof_required_failure = result.get("proof_required_failure")
+            if proof_required_failure:
+                options = proof_required_failure.get('options')
+                self.log.warning(
+                    f"Proof Required Failure {options}. "
+                    f"Retry after: {proof_required_failure.get('retry_after')}. "
+                    f"Token: {proof_required_failure.get('token')}. "
+                    f"Message: {proof_required_failure.get('message')}. "
+                )
+                errors.append(
+                    f"Proof required failure occurred while sending message to {number}. Message: "
+                    f"{proof_required_failure.get('message')}"
+                )
+                if "RECAPTCHA" in options:
+                    errors.append("RECAPTCHA required.")
+                elif "PUSH_CHALLENGE" in options:
+                    # Just submit the challenge automatically.
+                    await self.request_v1("submit_challenge")
         if errors:
             raise Exception("\n".join(errors))
 
