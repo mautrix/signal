@@ -122,6 +122,7 @@ class SignaldClient(SignaldRPCClient):
                 )
                 await self._run_event_handler(evt)
         RECONNECTIONS_COUNTER.inc(1)
+        await self.connect()
 
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
                        ) -> str:
