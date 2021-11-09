@@ -10,6 +10,7 @@ import logging
 import json
 
 from mautrix.util.logging import TraceLogger
+from mautrix.util.opt_prometheus import Counter
 
 from .errors import NotConnected, UnexpectedError, UnexpectedResponse, make_response_error
 
@@ -20,6 +21,8 @@ EventHandler = Callable[[Dict[str, Any]], Awaitable[None]]
 CONNECT_EVENT = "_socket_connected"
 DISCONNECT_EVENT = "_socket_disconnected"
 _SOCKET_LIMIT = 1024 * 1024  # 1 MiB
+
+EVENTS_COUNTER = Counter("bridge_signal_signald_events", "The number of events processed by the signald RPC handler", ["command"])
 
 
 class SignaldRPCClient:
@@ -59,7 +62,7 @@ class SignaldRPCClient:
     async def connect(self) -> None:
         if self._writer is not None:
             return
-
+        self.log.info("Connecting to signald")
         self._communicate_task = asyncio.create_task(self._communicate_forever())
         await self._connect_future
 
@@ -104,6 +107,7 @@ class SignaldRPCClient:
     async def _run_rpc_handler(self, command: str, req: Dict[str, Any]) -> None:
         try:
             handlers = self._rpc_event_handlers[command]
+            EVENTS_COUNTER.labels("command", command).inc()
         except KeyError:
             self.log.warning("No handlers for RPC request %s", command)
             self.log.trace("Data unhandled request: %s", req)
