@@ -64,18 +64,18 @@ class SignaldRPCClient:
         if self._writer is not None:
             return
         self.log.info("Connecting to signald")
-        self._communicate_task = asyncio.create_task(self._communicate_loop())
+        self._communicate_task = asyncio.create_task(self._communicate_forever())
         await self._connect_future
 
-    async def _communicate_loop(self) -> None:
+    async def _communicate_forever(self) -> None:
         try:
             while True:
-                await self._communicate_forever()
+                await self._communicate_iteration()
         except Exception:
             self.log.exception("Fatal error in communication loop")
             raise
 
-    async def _communicate_forever(self) -> None:
+    async def _communicate_iteration(self) -> None:
         try:
             self._reader, self._writer = await asyncio.open_unix_connection(
                 self.socket_path, limit=_SOCKET_LIMIT)
