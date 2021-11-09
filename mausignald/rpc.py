@@ -64,36 +64,39 @@ class SignaldRPCClient:
         if self._writer is not None:
             return
         self.log.info("Connecting to signald")
-        self._communicate_task = asyncio.create_task(self._communicate_forever())
+        self._communicate_task = asyncio.create_task(self._communicate_loop())
         await self._connect_future
 
-    async def _communicate_forever(self) -> None:
+    async def _communicate_loop(self) -> None:
         try:
             while True:
-                    try:
-                        self._reader, self._writer = await asyncio.open_unix_connection(
-                            self.socket_path, limit=_SOCKET_LIMIT)
-                    except OSError as e:
-                        self.log.error(f"Connection to {self.socket_path} failed: {e}, retrying in 5s")
-                        await asyncio.sleep(5)
-                        continue
-
-                    self.log.debug(f"Connection to {self.socket_path} succeeded")
-                    read_loop = asyncio.create_task(self._try_read_loop())
-                    self.is_connected = True
-                    CONNECTED_GAUGE.set(1)
-                    await self._run_rpc_handler(CONNECT_EVENT, {})
-                    self._connect_future.set_result(True)
-
-                    await read_loop
-                    self.is_connected = False
-                    CONNECTED_GAUGE.set(0)
-                    await self._run_rpc_handler(DISCONNECT_EVENT, {})
-                    self._connect_future = self.loop.create_future()
-                    RECONNECTIONS_COUNTER.inc(1)
+                await self._communicate_forever()
         except Exception:
             self.log.exception("Fatal error in communication loop")
             raise
+
+    async def _communicate_forever(self) -> None:
+        try:
+            self._reader, self._writer = await asyncio.open_unix_connection(
+                self.socket_path, limit=_SOCKET_LIMIT)
+        except OSError as e:
+            self.log.error(f"Connection to {self.socket_path} failed: {e}, retrying in 5s")
+            await asyncio.sleep(5)
+            return
+
+        self.log.debug(f"Connection to {self.socket_path} succeeded")
+        read_loop = asyncio.create_task(self._try_read_loop())
+        self.is_connected = True
+        CONNECTED_GAUGE.set(1)
+        await self._run_rpc_handler(CONNECT_EVENT, {})
+        self._connect_future.set_result(True)
+
+        await read_loop
+        self.is_connected = False
+        CONNECTED_GAUGE.set(0)
+        await self._run_rpc_handler(DISCONNECT_EVENT, {})
+        self._connect_future = self.loop.create_future()
+        RECONNECTIONS_COUNTER.inc(1)
 
     async def disconnect(self) -> None:
         if self._writer is not None:
