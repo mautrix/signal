@@ -59,7 +59,7 @@ class SignalBridge(Bridge):
 
     def prepare_db(self) -> None:
         self.db = Database.create(url=self.config["appservice.database"], upgrade_table=upgrade_table,
-                                     db_args=self.config["appservice.database_opts"])
+                                  db_args=self.config["appservice.database_opts"])
         init_db(self.db)
 
     def prepare_bridge(self) -> None:
