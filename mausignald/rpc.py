@@ -22,7 +22,7 @@ CONNECT_EVENT = "_socket_connected"
 DISCONNECT_EVENT = "_socket_disconnected"
 _SOCKET_LIMIT = 1024 * 1024  # 1 MiB
 
-EVENTS_COUNTER = Counter("bridge_signal_signald_events", "The number of events processed by the signald RPC handler", ["command"])
+EVENTS_COUNTER = Counter("bridge_signal_signald_events", "The number of events processed by the signald RPC handler", ["command", "result"])
 
 
 class SignaldRPCClient:
@@ -107,16 +107,22 @@ class SignaldRPCClient:
     async def _run_rpc_handler(self, command: str, req: Dict[str, Any]) -> None:
         try:
             handlers = self._rpc_event_handlers[command]
-            EVENTS_COUNTER.labels("command", command).inc()
         except KeyError:
+            EVENTS_COUNTER.labels("command", command).labels("result", "unhandled").inc()
             self.log.warning("No handlers for RPC request %s", command)
             self.log.trace("Data unhandled request: %s", req)
         else:
+            error = False
             for handler in handlers:
                 try:
                     await handler(req)
                 except Exception:
                     self.log.exception("Exception in RPC event handler")
+                    error = True
+            if error:
+                EVENTS_COUNTER.labels("command", command).labels("result", "error").inc()
+            else:
+                EVENTS_COUNTER.labels("command", command).labels("result", "success").inc()
 
     def _run_response_handlers(self, req_id: UUID, command: str, req: Any) -> None:
         try:
