@@ -149,7 +149,7 @@ class SignalHandler(SignaldClient):
 
     async def start(self) -> None:
         await self.connect()
-        self.log.info("Connected to signald, now subscribing to users")
+        self.log.info("Subscribing to users")
         known_usernames = set()
         async for user in u.User.all_logged_in():
             # TODO report errors to user?
