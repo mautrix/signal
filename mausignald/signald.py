@@ -7,6 +7,7 @@ from typing import Union, Optional, List, Dict, Any, Callable, Awaitable, Set, T
 import asyncio
 
 from mautrix.util.logging import TraceLogger
+from mautrix.util.opt_prometheus import Counter
 
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
@@ -17,6 +18,7 @@ from .types import (Address, Quote, Attachment, Reaction, Account, Message, Devi
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
 
+PROFILE_RESULT_COUNTER = Counter("bridge_signal_profile_result", "The result of profile requests made to signald", ["result"])
 
 class SignaldClient(SignaldRPCClient):
     _event_handlers: Dict[Type[T], List[EventHandler]]
@@ -105,6 +107,7 @@ class SignaldClient(SignaldRPCClient):
                 await self.subscribe(username)
 
     async def _on_disconnect(self, *_) -> None:
+        self.log.error("signald socket disconnected")
         if self._subscriptions:
             self.log.debug("Notifying of disconnection from users")
             for username in self._subscriptions:
@@ -175,6 +178,24 @@ class SignaldClient(SignaldRPCClient):
                 errors.append(
                     f"Identity failure occurred while sending message to {number}. New identity: "
                     f"{result['identityFailure']}")
+            proof_required_failure = result.get("proof_required_failure")
+            if proof_required_failure:
+                options = proof_required_failure.get('options')
+                self.log.warning(
+                    f"Proof Required Failure {options}. "
+                    f"Retry after: {proof_required_failure.get('retry_after')}. "
+                    f"Token: {proof_required_failure.get('token')}. "
+                    f"Message: {proof_required_failure.get('message')}. "
+                )
+                errors.append(
+                    f"Proof required failure occurred while sending message to {number}. Message: "
+                    f"{proof_required_failure.get('message')}"
+                )
+                if "RECAPTCHA" in options:
+                    errors.append("RECAPTCHA required.")
+                elif "PUSH_CHALLENGE" in options:
+                    # Just submit the challenge automatically.
+                    await self.request_v1("submit_challenge")
         if errors:
             raise Exception("\n".join(errors))
 
@@ -252,8 +273,11 @@ class SignaldClient(SignaldRPCClient):
                                          address=address.serialize(), **kwargs)
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
+                PROFILE_RESULT_COUNTER.labels(result="not-found").inc()
                 return None
+            PROFILE_RESULT_COUNTER.labels(result="error").inc()
             raise
+        PROFILE_RESULT_COUNTER.labels(result="found").inc()
         return Profile.deserialize(resp)
 
     async def get_identities(self, username: str, address: Address) -> GetIdentitiesResponse:

@@ -10,6 +10,7 @@ import logging
 import json
 
 from mautrix.util.logging import TraceLogger
+from mautrix.util.opt_prometheus import Counter, Gauge
 
 from .errors import NotConnected, UnexpectedError, UnexpectedResponse, make_response_error
 
@@ -21,6 +22,9 @@ CONNECT_EVENT = "_socket_connected"
 DISCONNECT_EVENT = "_socket_disconnected"
 _SOCKET_LIMIT = 1024 * 1024  # 1 MiB
 
+EVENTS_COUNTER = Counter("bridge_signal_signald_events", "The number of events processed by the signald RPC handler", ["command", "result"])
+RECONNECTIONS_COUNTER = Counter("bridge_signal_signald_reconnections", "The number of reconnections made to signald")
+CONNECTED_GAUGE = Gauge("bridge_signal_signald_connected", "Is the bridge connected to signald")
 
 class SignaldRPCClient:
     loop: asyncio.AbstractEventLoop
@@ -59,29 +63,40 @@ class SignaldRPCClient:
     async def connect(self) -> None:
         if self._writer is not None:
             return
-
+        self.log.info("Connecting to signald")
         self._communicate_task = asyncio.create_task(self._communicate_forever())
         await self._connect_future
 
     async def _communicate_forever(self) -> None:
-        while True:
-            try:
-                self._reader, self._writer = await asyncio.open_unix_connection(
-                    self.socket_path, limit=_SOCKET_LIMIT)
-            except OSError as e:
-                self.log.error(f"Connection to {self.socket_path} failed: {e}")
-                await asyncio.sleep(5)
-                continue
+        try:
+            while True:
+                await self._communicate_iteration()
+        except Exception:
+            self.log.exception("Fatal error in communication loop")
+            raise
 
-            read_loop = asyncio.create_task(self._try_read_loop())
-            self.is_connected = True
-            await self._run_rpc_handler(CONNECT_EVENT, {})
-            self._connect_future.set_result(True)
+    async def _communicate_iteration(self) -> None:
+        try:
+            self._reader, self._writer = await asyncio.open_unix_connection(
+                self.socket_path, limit=_SOCKET_LIMIT)
+        except OSError as e:
+            self.log.error(f"Connection to {self.socket_path} failed: {e}, retrying in 5s")
+            await asyncio.sleep(5)
+            return
 
-            await read_loop
-            self.is_connected = False
-            await self._run_rpc_handler(DISCONNECT_EVENT, {})
-            self._connect_future = self.loop.create_future()
+        self.log.debug(f"Connection to {self.socket_path} succeeded")
+        read_loop = asyncio.create_task(self._try_read_loop())
+        self.is_connected = True
+        CONNECTED_GAUGE.set(1)
+        await self._run_rpc_handler(CONNECT_EVENT, {})
+        self._connect_future.set_result(True)
+
+        await read_loop
+        self.is_connected = False
+        CONNECTED_GAUGE.set(0)
+        await self._run_rpc_handler(DISCONNECT_EVENT, {})
+        self._connect_future = self.loop.create_future()
+        RECONNECTIONS_COUNTER.inc(1)
 
     async def disconnect(self) -> None:
         if self._writer is not None:
@@ -105,14 +120,21 @@ class SignaldRPCClient:
         try:
             handlers = self._rpc_event_handlers[command]
         except KeyError:
+            EVENTS_COUNTER.labels(command=command, result="unhandled").inc()
             self.log.warning("No handlers for RPC request %s", command)
             self.log.trace("Data unhandled request: %s", req)
         else:
+            error = False
             for handler in handlers:
                 try:
                     await handler(req)
                 except Exception:
                     self.log.exception("Exception in RPC event handler")
+                    error = True
+            if error:
+                EVENTS_COUNTER.labels(command=command, result="error").inc()
+            else:
+                EVENTS_COUNTER.labels(command=command, result="success").inc()
 
     def _run_response_handlers(self, req_id: UUID, command: str, req: Any) -> None:
         try:
