@@ -149,12 +149,17 @@ class SignalHandler(SignaldClient):
 
     async def start(self) -> None:
         await self.connect()
+        self.log.info("Connected to signald, now subscribing to users")
         known_usernames = set()
         async for user in u.User.all_logged_in():
             # TODO report errors to user?
-            known_usernames.add(user.username)
-            if await self.subscribe(user.username):
-                asyncio.create_task(user.sync())
+            try:
+                known_usernames.add(user.username)
+                if await self.subscribe(user.username):
+                    asyncio.create_task(user.sync())
+            except Exception as ex:
+                # Don't hold up the whole bridge over this.
+                self.log.warn(f"Failed to subscribe to {user.username}: {ex}")
         if self.delete_unknown_accounts:
             self.log.debug("Checking for unknown accounts to delete")
             for account in await self.list_accounts():
