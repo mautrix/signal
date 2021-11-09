@@ -7,6 +7,7 @@ from typing import Union, Optional, List, Dict, Any, Callable, Awaitable, Set, T
 import asyncio
 
 from mautrix.util.logging import TraceLogger
+from mautrix.util.opt_prometheus import Gauge, Counter
 
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
@@ -17,6 +18,9 @@ from .types import (Address, Quote, Attachment, Reaction, Account, Message, Devi
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
 
+CONNECTED_GAUGE = Gauge("bridge_signal_connected", "Is the bridge connected to signald")
+RECONNECTIONS_COUNTER = Counter("bridge_signal_reconnections", "The number of reconnections made to signald")
+PROFILE_RESULT_COUNTER = Counter("bridge_signal_profile_result", "The result of profile requests made to signald", ["result"])
 
 class SignaldClient(SignaldRPCClient):
     _event_handlers: Dict[Type[T], List[EventHandler]]
@@ -99,12 +103,15 @@ class SignaldClient(SignaldRPCClient):
             return False
 
     async def _resubscribe(self, unused_data: Dict[str, Any]) -> None:
+        CONNECTED_GAUGE.set(1)
         if self._subscriptions:
             self.log.debug("Resubscribing to users")
             for username in list(self._subscriptions):
                 await self.subscribe(username)
 
     async def _on_disconnect(self, *_) -> None:
+        CONNECTED_GAUGE.set(0)
+        self.log.error("signald socket disconnected")
         if self._subscriptions:
             self.log.debug("Notifying of disconnection from users")
             for username in self._subscriptions:
@@ -114,6 +121,7 @@ class SignaldClient(SignaldRPCClient):
                     exception="Disconnected from signald"
                 )
                 await self._run_event_handler(evt)
+        RECONNECTIONS_COUNTER.inc(1)
 
     async def register(self, phone: str, voice: bool = False, captcha: Optional[str] = None
                        ) -> str:
@@ -252,8 +260,11 @@ class SignaldClient(SignaldRPCClient):
                                          address=address.serialize(), **kwargs)
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
+                PROFILE_RESULT_COUNTER.labels("result", "not-found").inc()
                 return None
+            PROFILE_RESULT_COUNTER.labels("result", "error").inc()
             raise
+        PROFILE_RESULT_COUNTER.labels("result", "found").inc()
         return Profile.deserialize(resp)
 
     async def get_identities(self, username: str, address: Address) -> GetIdentitiesResponse:
