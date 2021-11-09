@@ -117,7 +117,7 @@ class SignaldRPCClient:
         try:
             handlers = self._rpc_event_handlers[command]
         except KeyError:
-            EVENTS_COUNTER.labels("command", command).labels("result", "unhandled").inc()
+            EVENTS_COUNTER.labels(command=command, result="unhandled").inc()
             self.log.warning("No handlers for RPC request %s", command)
             self.log.trace("Data unhandled request: %s", req)
         else:
@@ -129,9 +129,9 @@ class SignaldRPCClient:
                     self.log.exception("Exception in RPC event handler")
                     error = True
             if error:
-                EVENTS_COUNTER.labels("command", command).labels("result", "error").inc()
+                EVENTS_COUNTER.labels(command=command, result="error").inc()
             else:
-                EVENTS_COUNTER.labels("command", command).labels("result", "success").inc()
+                EVENTS_COUNTER.labels(command=command, result="success").inc()
 
     def _run_response_handlers(self, req_id: UUID, command: str, req: Any) -> None:
         try:

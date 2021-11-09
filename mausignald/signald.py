@@ -273,8 +273,11 @@ class SignaldClient(SignaldRPCClient):
                                          address=address.serialize(), **kwargs)
         except UnexpectedResponse as e:
             if e.resp_type == "profile_not_available":
+                PROFILE_RESULT_COUNTER.labels(result="not-found").inc()
                 return None
+            PROFILE_RESULT_COUNTER.labels(result="error").inc()
             raise
+        PROFILE_RESULT_COUNTER.labels(result="found").inc()
         return Profile.deserialize(resp)
 
     async def get_identities(self, username: str, address: Address) -> GetIdentitiesResponse:
