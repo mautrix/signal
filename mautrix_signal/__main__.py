@@ -58,8 +58,8 @@ class SignalBridge(Bridge):
         self.state_store = PgBridgeStateStore(self.db, self.get_puppet, self.get_double_puppet)
 
     def prepare_db(self) -> None:
-        self.db = Database(self.config["appservice.database"], upgrade_table=upgrade_table,
-                           loop=self.loop, db_args=self.config["appservice.database_opts"])
+        self.db = Database.create(url=self.config["appservice.database"], upgrade_table=upgrade_table,
+                                     db_args=self.config["appservice.database_opts"])
         init_db(self.db)
 
     def prepare_bridge(self) -> None:
