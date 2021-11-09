@@ -73,11 +73,11 @@ class SignaldRPCClient:
                 self._reader, self._writer = await asyncio.open_unix_connection(
                     self.socket_path, limit=_SOCKET_LIMIT)
             except OSError as e:
-                self.log.error(f"Connection to {self.socket_path} failed: {e}")
+                self.log.error(f"Connection to {self.socket_path} failed: {e}, retrying in 5s")
                 await asyncio.sleep(5)
                 continue
-            self.log.info(f"Connection to {self.socket_path} succeeded")
 
+            self.log.info(f"Connection to {self.socket_path} succeeded")
             read_loop = asyncio.create_task(self._try_read_loop())
             self.is_connected = True
             CONNECTED_GAUGE.set(1)
