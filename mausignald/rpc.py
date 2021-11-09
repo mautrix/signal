@@ -10,7 +10,7 @@ import logging
 import json
 
 from mautrix.util.logging import TraceLogger
-from mautrix.util.opt_prometheus import Counter
+from mautrix.util.opt_prometheus import Counter, Gauge
 
 from .errors import NotConnected, UnexpectedError, UnexpectedResponse, make_response_error
 
@@ -23,7 +23,8 @@ DISCONNECT_EVENT = "_socket_disconnected"
 _SOCKET_LIMIT = 1024 * 1024  # 1 MiB
 
 EVENTS_COUNTER = Counter("bridge_signal_signald_events", "The number of events processed by the signald RPC handler", ["command", "result"])
-
+RECONNECTIONS_COUNTER = Counter("bridge_signal_signald_reconnections", "The number of reconnections made to signald")
+CONNECTED_GAUGE = Gauge("bridge_signal_signald_connected", "Is the bridge connected to signald")
 
 class SignaldRPCClient:
     loop: asyncio.AbstractEventLoop
@@ -75,16 +76,20 @@ class SignaldRPCClient:
                 self.log.error(f"Connection to {self.socket_path} failed: {e}")
                 await asyncio.sleep(5)
                 continue
+            self.log.info(f"Connection to {self.socket_path} succeeded")
 
             read_loop = asyncio.create_task(self._try_read_loop())
             self.is_connected = True
+            CONNECTED_GAUGE.set(1)
             await self._run_rpc_handler(CONNECT_EVENT, {})
             self._connect_future.set_result(True)
 
             await read_loop
             self.is_connected = False
+            CONNECTED_GAUGE.set(0)
             await self._run_rpc_handler(DISCONNECT_EVENT, {})
             self._connect_future = self.loop.create_future()
+            RECONNECTIONS_COUNTER.inc(1)
 
     async def disconnect(self) -> None:
         if self._writer is not None:

@@ -7,6 +7,7 @@ from typing import Union, Optional, List, Dict, Any, Callable, Awaitable, Set, T
 import asyncio
 
 from mautrix.util.logging import TraceLogger
+from mautrix.util.opt_prometheus import Counter
 
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
@@ -17,6 +18,7 @@ from .types import (Address, Quote, Attachment, Reaction, Account, Message, Devi
 T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
 
+PROFILE_RESULT_COUNTER = Counter("bridge_signal_profile_result", "The result of profile requests made to signald", ["result"])
 
 class SignaldClient(SignaldRPCClient):
     _event_handlers: Dict[Type[T], List[EventHandler]]
@@ -105,6 +107,7 @@ class SignaldClient(SignaldRPCClient):
                 await self.subscribe(username)
 
     async def _on_disconnect(self, *_) -> None:
+        self.log.error("signald socket disconnected")
         if self._subscriptions:
             self.log.debug("Notifying of disconnection from users")
             for username in self._subscriptions:
