@@ -34,7 +34,7 @@ from .puppet import Puppet
 from .web import ProvisioningAPI
 from . import commands
 
-SYNC_JITTER=10
+SYNC_JITTER = 10
 
 class SignalBridge(Bridge):
     module = "mautrix_signal"
