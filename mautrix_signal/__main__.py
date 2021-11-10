@@ -58,8 +58,8 @@ class SignalBridge(Bridge):
         self.state_store = PgBridgeStateStore(self.db, self.get_puppet, self.get_double_puppet)
 
     def prepare_db(self) -> None:
-        self.db = Database(self.config["appservice.database"], upgrade_table=upgrade_table,
-                           loop=self.loop, db_args=self.config["appservice.database_opts"])
+        self.db = Database.create(self.config["appservice.database"], upgrade_table=upgrade_table,
+                                  db_args=self.config["appservice.database_opts"])
         init_db(self.db)
 
     def prepare_bridge(self) -> None:
@@ -71,9 +71,9 @@ class SignalBridge(Bridge):
 
     async def start(self) -> None:
         await self.db.start()
-        await self.state_store.upgrade_table.upgrade(self.db.pool)
+        await self.state_store.upgrade_table.upgrade(self.db)
         if self.matrix.e2ee:
-            self.matrix.e2ee.crypto_db.override_pool(self.db.pool)
+            self.matrix.e2ee.crypto_db.override_pool(self.db)
         User.init_cls(self)
         self.add_startup_actions(Puppet.init_cls(self))
         Portal.init_cls(self)
@@ -82,6 +82,10 @@ class SignalBridge(Bridge):
         self.add_startup_actions(self.signal.start())
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
+
+    async def stop(self) -> None:
+        await super().stop()
+        await self.db.stop()
 
     @staticmethod
     async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:

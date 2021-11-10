@@ -25,7 +25,7 @@ from mautrix.util.async_db import Database
 
 from ..util import id_to_str
 
-fake_db = Database("") if TYPE_CHECKING else None
+fake_db = Database.create("") if TYPE_CHECKING else None
 
 
 @dataclass
@@ -88,9 +88,15 @@ class Message:
 
     @classmethod
     async def find_by_timestamps(cls, timestamps: List[int]) -> List['Message']:
-        q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
-             "FROM message WHERE timestamp=ANY($1)")
-        rows = await cls.db.fetch(q, timestamps)
+        if cls.db.scheme == "postgres":
+            q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
+                 "FROM message WHERE timestamp=ANY($1)")
+            rows = await cls.db.fetch(q, timestamps)
+        else:
+            placeholders = ", ".join(f"?" for _ in range(len(timestamps)))
+            q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
+                 f"FROM message WHERE timestamp IN ({placeholders})")
+            rows = await cls.db.fetch(q, *timestamps)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
