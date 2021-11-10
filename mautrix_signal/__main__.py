@@ -104,7 +104,7 @@ class SignalBridge(Bridge):
             log.info("Executing periodic syncs")
             for user in User.by_username.values():
                 # Add some randomness to the sync to avoid a thundering herd
-                await asyncio.sleep(uniform(-SYNC_JITTER, SYNC_JITTER))
+                await asyncio.sleep(uniform(0, SYNC_JITTER))
                 try:
                     await user.sync()
                 except asyncio.CancelledError:
