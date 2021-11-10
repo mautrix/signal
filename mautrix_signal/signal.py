@@ -17,6 +17,8 @@ from typing import Optional, List, TYPE_CHECKING
 import asyncio
 import logging
 
+from mautrix.util.opt_prometheus import Counter
+
 from mausignald import SignaldClient
 from mausignald.types import (Message, MessageData, Address, TypingNotification, TypingAction,
                               OwnReadReceipt, Receipt, ReceiptType,
@@ -32,6 +34,8 @@ if TYPE_CHECKING:
 # Typing notifications seem to get resent every 10 seconds and the timeout is around 15 seconds
 SIGNAL_TYPING_TIMEOUT = 15000
 
+
+SIGNAL_REQUEST_COUNTER = Counter("bridge_signal_request", "The results of signal request processing", ["result","type"])
 
 class SignalHandler(SignaldClient):
     log: TraceLogger = logging.getLogger("mau.signal")
@@ -52,27 +56,43 @@ class SignalHandler(SignaldClient):
         user = await u.User.get_by_username(evt.username)
         # TODO add lots of logging
 
+        future = None
+        counter_type = None
         if evt.data_message:
-            await self.handle_message(user, sender, evt.data_message)
+            future = self.handle_message(user, sender, evt.data_message)
+            counter_type = "message"
         if evt.typing:
-            await self.handle_typing(user, sender, evt.typing)
+            future = self.handle_typing(user, sender, evt.typing)
+            counter_type = "typing"
         if evt.receipt:
-            await self.handle_receipt(sender, evt.receipt)
+            future = self.handle_receipt(sender, evt.receipt)
+            counter_type = "receipt"
         if evt.sync_message:
             if evt.sync_message.read_messages:
-                await self.handle_own_receipts(sender, evt.sync_message.read_messages)
+                future = self.handle_own_receipts(sender, evt.sync_message.read_messages)
+                counter_type = "own_receipt"
             if evt.sync_message.sent:
-                await self.handle_message(user, sender, evt.sync_message.sent.message,
+                future = self.handle_message(user, sender, evt.sync_message.sent.message,
                                           addr_override=evt.sync_message.sent.destination)
+                counter_type = "message"
             if evt.sync_message.typing:
                 # Typing notification from own device
                 pass
             if evt.sync_message.contacts or evt.sync_message.contacts_complete:
                 self.log.debug("Sync message includes contacts meta, syncing contacts...")
-                await user.sync_contacts()
+                future = user.sync_contacts()
+                counter_type = "sync_contacts"
             if evt.sync_message.groups:
                 self.log.debug("Sync message includes groups meta, syncing groups...")
-                await user.sync_groups()
+                future = user.sync_groups()
+                counter_type = "sync_groups"
+        if future:
+            try:
+                await future
+                SIGNAL_REQUEST_COUNTER.labels(type=counter_type, result="success").inc()
+            except Exception:
+                SIGNAL_REQUEST_COUNTER.labels(type=counter_type, result="error").inc()
+                raise
 
     @staticmethod
     async def on_websocket_connection_state_change(evt: WebsocketConnectionStateChangeEvent) -> None:

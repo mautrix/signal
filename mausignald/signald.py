@@ -7,7 +7,7 @@ from typing import Union, Optional, List, Dict, Any, Callable, Awaitable, Set, T
 import asyncio
 
 from mautrix.util.logging import TraceLogger
-from mautrix.util.opt_prometheus import Counter
+from mautrix.util.opt_prometheus import Counter, Gauge
 
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
@@ -19,6 +19,9 @@ T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
 
 PROFILE_RESULT_COUNTER = Counter("bridge_signal_profile_result", "The result of profile requests made to signald", ["result"])
+SEND_COUNTER = Counter("bridge_signal_sends_result", "The result of send requests made", ["result"])
+SUBSCRIPTIONS_GAUGE = Gauge("bridge_signal_subscriptions", "The number of subscriptions to accounts", [])
+LINK_RESULT_COUNTER = Counter("bridge_signal_link_result", "The results of link requests", ["result","stage"])
 
 class SignaldClient(SignaldRPCClient):
     _event_handlers: Dict[Type[T], List[EventHandler]]
@@ -77,9 +80,10 @@ class SignaldClient(SignaldRPCClient):
         try:
             await self.request("subscribe", "subscribed", username=username)
             self._subscriptions.add(username)
+            SUBSCRIPTIONS_GAUGE.set(len(self._subscriptions))
             return True
         except UnexpectedError as e:
-            self.log.debug("Failed to subscribe to %s: %s", username, e)
+            self.log.warn("Failed to subscribe to %s: %s", username, e)
             evt = WebsocketConnectionStateChangeEvent(
                 state=(
                     WebsocketConnectionState.AUTHENTICATION_FAILED
@@ -95,6 +99,7 @@ class SignaldClient(SignaldRPCClient):
         try:
             await self.request("unsubscribe", "unsubscribed", username=username)
             self._subscriptions.remove(username)
+            SUBSCRIPTIONS_GAUGE.set(len(self._subscriptions))
             return True
         except UnexpectedError as e:
             self.log.debug("Failed to unsubscribe from %s: %s", username, e)
@@ -102,7 +107,7 @@ class SignaldClient(SignaldRPCClient):
 
     async def _resubscribe(self, unused_data: Dict[str, Any]) -> None:
         if self._subscriptions:
-            self.log.debug("Resubscribing to users")
+            self.log.info(f"Resubscribing to {len(self._subscriptions)} users")
             for username in list(self._subscriptions):
                 await self.subscribe(username)
 
@@ -128,13 +133,22 @@ class SignaldClient(SignaldRPCClient):
         return Account.deserialize(resp)
 
     async def start_link(self) -> LinkSession:
-        return LinkSession.deserialize(await self.request_v1("generate_linking_uri"))
+        try:
+            return LinkSession.deserialize(await self.request_v1("generate_linking_uri"))
+        except Exception:
+            LINK_RESULT_COUNTER.labels(result="error",stage="start").inc()
+            raise
 
     async def finish_link(self, session_id: str, device_name: str = "mausignald",
                           overwrite: bool = False) -> Account:
-        resp = await self.request_v1("finish_link", device_name=device_name, session_id=session_id,
-                                     overwrite=overwrite)
-        return Account.deserialize(resp)
+        try:
+            resp = await self.request_v1("finish_link", device_name=device_name, session_id=session_id,
+                                        overwrite=overwrite)
+            LINK_RESULT_COUNTER.labels(result="success",stage="finish").inc()
+            return Account.deserialize(resp)
+        except Exception:
+            LINK_RESULT_COUNTER.labels(result="error",stage="finish").inc()
+            raise
 
     @staticmethod
     def _recipient_to_args(recipient: Union[Address, GroupID], simple_name: bool = False
@@ -197,7 +211,9 @@ class SignaldClient(SignaldRPCClient):
                     # Just submit the challenge automatically.
                     await self.request_v1("submit_challenge")
         if errors:
+            SEND_COUNTER.labels(result="error").inc(1)
             raise Exception("\n".join(errors))
+        SEND_COUNTER.labels(result="success").inc(1)
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
                            when: Optional[int] = None, read: bool = False) -> None:
