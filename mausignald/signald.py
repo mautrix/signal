@@ -19,7 +19,7 @@ T = TypeVar('T')
 EventHandler = Callable[[T], Awaitable[None]]
 
 PROFILE_RESULT_COUNTER = Counter("bridge_signal_profile_result", "The result of profile requests made to signald", ["result"])
-SEND_COUNTER = Counter("bridge_signal_sends", "The result of send requests made", ["result"])
+SEND_COUNTER = Counter("bridge_signal_sends_result", "The result of send requests made", ["result"])
 SUBSCRIPTIONS_GAUGE = Gauge("bridge_signal_subscriptions", "The number of subscriptions to accounts", [])
 LINK_RESULT_COUNTER = Counter("bridge_signal_link_result", "The results of link requests", ["result","stage"])
 
