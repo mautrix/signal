@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Dict, Any
+from random import uniform
 import asyncio
 import logging
 
@@ -33,6 +34,7 @@ from .puppet import Puppet
 from .web import ProvisioningAPI
 from . import commands
 
+SYNC_JITTER = 10
 
 class SignalBridge(Bridge):
     module = "mautrix_signal"
@@ -96,6 +98,8 @@ class SignalBridge(Bridge):
                 return
             log.info("Executing periodic syncs")
             for user in User.by_username.values():
+                # Add some randomness to the sync to avoid a thundering herd
+                await asyncio.sleep(uniform(0, SYNC_JITTER))
                 try:
                     await user.sync()
                 except asyncio.CancelledError:
