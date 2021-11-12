@@ -38,7 +38,7 @@ from . import commands
 
 ACTIVE_USER_METRICS_INTERVAL_S = 60
 ONE_DAY_MS = 24 * 60 * 60 * 1000
-SYNC_JITTER=10
+SYNC_JITTER = 10
 
 METRIC_ACTIVE_PUPPETS = Gauge('bridge_active_puppets_total', 'Number of active Signal users bridged into Matrix')
 METRIC_BLOCKING = Gauge('bridge_blocked', 'Is the bridge currently blocking messages')
@@ -68,8 +68,8 @@ class SignalBridge(Bridge):
         self.state_store = PgBridgeStateStore(self.db, self.get_puppet, self.get_double_puppet)
 
     def prepare_db(self) -> None:
-        self.db = Database.create(url=self.config["appservice.database"], upgrade_table=upgrade_table,
-                                     db_args=self.config["appservice.database_opts"])
+        self.db = Database.create(self.config["appservice.database"], upgrade_table=upgrade_table,
+                                  db_args=self.config["appservice.database_opts"])
         init_db(self.db)
 
     def prepare_bridge(self) -> None:
@@ -81,9 +81,9 @@ class SignalBridge(Bridge):
 
     async def start(self) -> None:
         await self.db.start()
-        await self.state_store.upgrade_table.upgrade(self.db.pool)
+        await self.state_store.upgrade_table.upgrade(self.db)
         if self.matrix.e2ee:
-            self.matrix.e2ee.crypto_db.override_pool(self.db.pool)
+            self.matrix.e2ee.crypto_db.override_pool(self.db)
         User.init_cls(self)
         self.add_startup_actions(Puppet.init_cls(self))
         Portal.init_cls(self)
@@ -93,6 +93,10 @@ class SignalBridge(Bridge):
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
         self.periodic_active_metrics_task = asyncio.create_task(self._loop_active_puppet_metric())
+
+    async def stop(self) -> None:
+        await super().stop()
+        await self.db.stop()
 
     @staticmethod
     async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:

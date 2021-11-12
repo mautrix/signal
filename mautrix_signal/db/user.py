@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -21,7 +21,7 @@ from attr import dataclass
 from mautrix.types import UserID, RoomID
 from mautrix.util.async_db import Database
 
-fake_db = Database("") if TYPE_CHECKING else None
+fake_db = Database.create("") if TYPE_CHECKING else None
 
 
 @dataclass
@@ -39,8 +39,8 @@ class User:
         await self.db.execute(q, self.mxid, self.username, self.uuid, self.notice_room)
 
     async def update(self) -> None:
-        await self.db.execute('UPDATE "user" SET username=$2, uuid=$3, notice_room=$4 '
-                              'WHERE mxid=$1', self.mxid, self.username, self.uuid, self.notice_room)
+        q = 'UPDATE "user" SET username=$1, uuid=$2, notice_room=$3 WHERE mxid=$4'
+        await self.db.execute(q, self.username, self.uuid, self.notice_room, self.mxid)
 
     @classmethod
     async def get_by_mxid(cls, mxid: UserID) -> Optional['User']:

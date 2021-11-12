@@ -24,7 +24,7 @@ from mautrix.util.async_db import Database
 
 from ..util import id_to_str
 
-fake_db = Database("") if TYPE_CHECKING else None
+fake_db = Database.create("") if TYPE_CHECKING else None
 
 
 @dataclass
@@ -56,12 +56,12 @@ class Portal:
                               self.revision, self.encrypted, self.relay_user_id)
 
     async def update(self) -> None:
-        q = ("UPDATE portal SET mxid=$3, name=$4, avatar_hash=$5, avatar_url=$6, name_set=$7, "
-             "                  avatar_set=$8, revision=$9, encrypted=$10, relay_user_id=$11 "
-             "WHERE chat_id=$1 AND receiver=$2")
-        await self.db.execute(q, self.chat_id_str, self.receiver, self.mxid, self.name,
-                              self.avatar_hash, self.avatar_url, self.name_set, self.avatar_set,
-                              self.revision, self.encrypted, self.relay_user_id)
+        q = ("UPDATE portal SET mxid=$1, name=$2, avatar_hash=$3, avatar_url=$4, name_set=$5, "
+             "                  avatar_set=$6, revision=$7, encrypted=$8, relay_user_id=$9 "
+             "WHERE chat_id=$10 AND receiver=$11")
+        await self.db.execute(q, self.mxid, self.name, self.avatar_hash, self.avatar_url,
+                              self.name_set, self.avatar_set, self.revision, self.encrypted,
+                              self.relay_user_id, self.chat_id_str, self.receiver)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> 'Portal':

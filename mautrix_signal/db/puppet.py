@@ -26,7 +26,7 @@ from mausignald.types import Address
 from mautrix.types import UserID, SyncToken, ContentURI
 from mautrix.util.async_db import Database
 
-fake_db = Database("") if TYPE_CHECKING else None
+fake_db = Database.create("") if TYPE_CHECKING else None
 log = logging.getLogger("puppet")
 
 UPPER_ACTIVITY_LIMIT_MS = 60 * 1000 * 15 # 15 minutes
