@@ -81,6 +81,7 @@ async def link(evt: CommandEvent) -> None:
 
 
 @command_handler(needs_auth=False, management_only=True, help_section=SECTION_AUTH,
+                 is_enabled_for=lambda evt: evt.config["signal.registration_enabled"],
                  help_text="Sign into Signal as the primary device", help_args="<phone>")
 async def register(evt: CommandEvent) -> None:
     if len(evt.args) == 0:
