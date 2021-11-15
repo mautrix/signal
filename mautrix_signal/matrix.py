@@ -16,13 +16,12 @@
 from typing import List, Union, TYPE_CHECKING
 
 from mautrix.bridge import BaseMatrixHandler
-from mautrix.types import (Event, ReactionEvent, MessageEvent, StateEvent, EncryptedEvent, RoomID,
-                           EventID, UserID, ReactionEventContent, RelationType, EventType,
-                           ReceiptEvent, TypingEvent, PresenceEvent, RedactionEvent,
-                           SingleReceiptEventContent)
+from mautrix.types import (Event, ReactionEvent, StateEvent, RoomID, EventID, UserID, TypingEvent,
+                           ReactionEventContent, RelationType, EventType, ReceiptEvent,
+                           PresenceEvent, RedactionEvent, SingleReceiptEventContent)
 
 from .db import Message as DBMessage
-from . import puppet as pu, portal as po, user as u, signal as s
+from . import portal as po, user as u, signal as s
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -39,15 +38,6 @@ class MatrixHandler(BaseMatrixHandler):
         self.signal = bridge.signal
 
         super().__init__(bridge=bridge)
-
-    def filter_matrix_event(self, evt: Event) -> bool:
-        if isinstance(evt, (ReceiptEvent, TypingEvent)):
-            return False
-        elif not isinstance(evt, (ReactionEvent, MessageEvent, StateEvent, EncryptedEvent,
-                                  RedactionEvent)):
-            return True
-        return (evt.sender == self.az.bot_mxid
-                or pu.Puppet.get_id_from_mxid(evt.sender) is not None)
 
     async def send_welcome_message(self, room_id: RoomID, inviter: 'u.User') -> None:
         await super().send_welcome_message(room_id, inviter)
