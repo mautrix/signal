@@ -1,8 +1,6 @@
 ## Element fork
 
 The Element fork includes the following changes:
-
-- [Make it possible to disable device registration from the config](https://github.com/vector-im/mautrix-signal/pull/1)
 - [User activity tracking](https://github.com/vector-im/mautrix-signal/tree/hs/activity-blocking)
 - [Add additional metrics to the bridge](https://github.com/mautrix/signal/pull/164)
 
