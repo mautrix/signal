@@ -255,11 +255,6 @@ class Portal(DBPortal, BasePortal):
             self.log.warn(f"Bridge is blocking messages, not handling message from {sender.mxid} {event_id}")
             return
 
-        if ((message.get(self.bridge.real_user_content_key, False)
-             and await p.Puppet.get_by_custom_mxid(sender.mxid))):
-            self.log.debug(f"Ignoring puppet-sent message by confirmed puppet user {sender.mxid}")
-            return
-
         orig_sender = sender
         sender, is_relay = await self._get_relay_sender(sender, f"message {event_id}")
         if not sender:
