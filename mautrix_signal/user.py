@@ -21,9 +21,9 @@ import asyncio
 
 from mausignald.types import (Account, Address, Profile, Group, GroupV2, WebsocketConnectionState,
                               WebsocketConnectionStateChangeEvent)
-from mautrix.bridge import BaseUser, BridgeState, AutologinError, async_getter_lock
+from mautrix.bridge import BaseUser, AutologinError, async_getter_lock
 from mautrix.types import UserID, RoomID
-from mautrix.util.bridge_state import BridgeStateEvent
+from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.appservice import AppService
 from mautrix.util.opt_prometheus import Gauge
 
