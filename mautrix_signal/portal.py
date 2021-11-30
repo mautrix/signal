@@ -377,7 +377,7 @@ class Portal(DBPortal, BasePortal):
 
     async def handle_matrix_redaction(self, sender: 'u.User', event_id: EventID,
                                       redaction_event_id: EventID) -> None:
-        if not self.mxid or not await sender.is_logged_in():
+        if not await sender.is_logged_in():
             return
 
         message = await DBMessage.get_by_mxid(event_id, self.mxid)
@@ -390,7 +390,7 @@ class Portal(DBPortal, BasePortal):
                 self.log.exception("Removing message failed")
                 sender.send_remote_checkpoint(
                     MessageSendCheckpointStatus.PERM_FAILURE,
-                    event_id,
+                    redaction_event_id,
                     self.mxid,
                     EventType.ROOM_REDACTION,
                     error=e,
@@ -399,11 +399,12 @@ class Portal(DBPortal, BasePortal):
                 self.log.trace(f"Removed {message} after Matrix redaction")
                 sender.send_remote_checkpoint(
                     MessageSendCheckpointStatus.SUCCESS,
-                    event_id,
+                    redaction_event_id,
                     self.mxid,
                     EventType.ROOM_REDACTION,
                 )
                 await self._send_delivery_receipt(redaction_event_id)
+            return
 
         reaction = await DBReaction.get_by_mxid(event_id, self.mxid)
         if reaction:
@@ -418,7 +419,7 @@ class Portal(DBPortal, BasePortal):
                 self.log.exception("Removing reaction failed")
                 sender.send_remote_checkpoint(
                     MessageSendCheckpointStatus.PERM_FAILURE,
-                    event_id,
+                    redaction_event_id,
                     self.mxid,
                     EventType.ROOM_REDACTION,
                     error=e,
@@ -427,11 +428,20 @@ class Portal(DBPortal, BasePortal):
                 self.log.trace(f"Removed {reaction} after Matrix redaction")
                 sender.send_remote_checkpoint(
                     MessageSendCheckpointStatus.SUCCESS,
-                    event_id,
+                    redaction_event_id,
                     self.mxid,
                     EventType.ROOM_REDACTION,
                 )
                 await self._send_delivery_receipt(redaction_event_id)
+            return
+
+        sender.send_remote_checkpoint(
+            MessageSendCheckpointStatus.PERM_FAILURE,
+            redaction_event_id,
+            self.mxid,
+            EventType.ROOM_REDACTION,
+            error=f"No message or reaction found for redaction",
+        )
 
     async def handle_matrix_join(self, user: 'u.User') -> None:
         if self.is_direct or not await user.is_logged_in():
