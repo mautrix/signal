@@ -1248,7 +1248,10 @@ class Portal(DBPortal, BasePortal):
         elif not receiver:
             raise ValueError("Direct chats must have a receiver")
         best_id = chat_id.best_identifier if isinstance(chat_id, Address) else chat_id
-        return await cls._get_by_chat_id(best_id, receiver, create=create, chat_id=chat_id)
+        portal = await cls._get_by_chat_id(best_id, receiver, create=create, chat_id=chat_id)
+        if portal:
+            portal.log.debug(f"get_by_chat_id({chat_id}, {receiver}) -> {hex(id(portal))}")
+        return portal
 
     @classmethod
     @async_getter_lock
@@ -1258,6 +1261,7 @@ class Portal(DBPortal, BasePortal):
             return cls.by_chat_id[(best_id, receiver)]
         except KeyError:
             pass
+
         portal = cast(cls, await super().get_by_chat_id(chat_id, receiver))
         if portal is not None:
             await portal._postinit()
