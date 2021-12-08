@@ -1239,7 +1239,6 @@ class Portal(DBPortal, BasePortal):
         return None
 
     @classmethod
-    @async_getter_lock
     async def get_by_chat_id(cls, chat_id: Union[GroupID, Address], *, receiver: str = "",
                              create: bool = False) -> Optional['Portal']:
         if isinstance(chat_id, str):
@@ -1248,12 +1247,17 @@ class Portal(DBPortal, BasePortal):
             raise ValueError(f"Invalid chat ID type {type(chat_id)}")
         elif not receiver:
             raise ValueError("Direct chats must have a receiver")
+        best_id = chat_id.best_identifier if isinstance(chat_id, Address) else chat_id
+        return await cls._get_by_chat_id(best_id, receiver, create=create, chat_id=chat_id)
+
+    @classmethod
+    @async_getter_lock
+    async def _get_by_chat_id(cls, best_id: str, receiver: str, *, create: bool,
+                              chat_id: Union[GroupID, Address]) -> Optional['Portal']:
         try:
-            best_id = chat_id.best_identifier if isinstance(chat_id, Address) else chat_id
             return cls.by_chat_id[(best_id, receiver)]
         except KeyError:
             pass
-
         portal = cast(cls, await super().get_by_chat_id(chat_id, receiver))
         if portal is not None:
             await portal._postinit()
