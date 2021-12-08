@@ -19,9 +19,7 @@ import asyncio
 import logging
 
 from mautrix.bridge import Bridge
-from mautrix.bridge.state_store.asyncpg import PgBridgeStateStore
 from mautrix.types import RoomID, UserID
-from mautrix.util.async_db import Database
 
 from .version import version, linkified_version
 from .config import Config
@@ -36,6 +34,7 @@ from . import commands
 
 SYNC_JITTER = 10
 
+
 class SignalBridge(Bridge):
     module = "mautrix_signal"
     name = "mautrix-signal"
@@ -47,21 +46,16 @@ class SignalBridge(Bridge):
     markdown_version = linkified_version
     config_class = Config
     matrix_class = MatrixHandler
+    upgrade_table = upgrade_table
 
-    db: Database
     matrix: MatrixHandler
     signal: SignalHandler
     config: Config
-    state_store: PgBridgeStateStore
     provisioning_api: ProvisioningAPI
     periodic_sync_task: asyncio.Task
 
-    def make_state_store(self) -> None:
-        self.state_store = PgBridgeStateStore(self.db, self.get_puppet, self.get_double_puppet)
-
     def prepare_db(self) -> None:
-        self.db = Database.create(self.config["appservice.database"], upgrade_table=upgrade_table,
-                                  db_args=self.config["appservice.database_opts"])
+        super().prepare_db()
         init_db(self.db)
 
     def prepare_bridge(self) -> None:
@@ -72,10 +66,6 @@ class SignalBridge(Bridge):
         self.az.app.add_subapp(cfg["prefix"], self.provisioning_api.app)
 
     async def start(self) -> None:
-        await self.db.start()
-        await self.state_store.upgrade_table.upgrade(self.db)
-        if self.matrix.e2ee:
-            self.matrix.e2ee.crypto_db.override_pool(self.db)
         User.init_cls(self)
         self.add_startup_actions(Puppet.init_cls(self))
         Portal.init_cls(self)
@@ -84,10 +74,6 @@ class SignalBridge(Bridge):
         self.add_startup_actions(self.signal.start())
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
-
-    async def stop(self) -> None:
-        await super().stop()
-        await self.db.stop()
 
     @staticmethod
     async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:
