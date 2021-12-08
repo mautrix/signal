@@ -81,6 +81,9 @@ class SignalHandler(SignaldClient):
 
     async def handle_message(self, user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
                              addr_override: Optional[Address] = None) -> None:
+        if msg.profile_key_update:
+            self.log.debug("Ignoring profile key update")
+            return
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
         elif msg.group:
