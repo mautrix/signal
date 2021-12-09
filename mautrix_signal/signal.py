@@ -70,6 +70,8 @@ class SignalHandler(SignaldClient):
             await self.handle_typing(user, sender, evt.typing)
         if evt.receipt:
             await self.handle_receipt(sender, evt.receipt)
+        if evt.call_message:
+            await self.handle_call_message(user, sender, evt)
         if evt.sync_message:
             if evt.sync_message.read_messages:
                 await self.handle_own_receipts(sender, evt.sync_message.read_messages)
@@ -150,6 +152,32 @@ class SignalHandler(SignaldClient):
             await portal.update_info(user, msg.group)
         if msg.remote_delete:
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
+
+    @staticmethod
+    async def handle_call_message(user: 'u.User', sender: 'pu.Puppet', msg: Message) -> None:
+        assert msg.call_message
+        portal = await po.Portal.get_by_chat_id(
+            sender.address, receiver=user.username, create=True
+        )
+        if not portal.mxid:
+            await portal.create_matrix_room(user, (msg.group_v2 or msg.group
+                                                   or addr_override or sender.address))
+            if not portal.mxid:
+                user.log.debug(f"Failed to create room for incoming message {msg.timestamp},"
+                               " dropping message")
+                return
+
+        msg_html = f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a>'
+        if msg.call_message.offer_message:
+            msg_html += " started a call on Signal. Use the native app to answer the call."
+        elif msg.call_message.hangup_message:
+            msg_html += " ended a call on Signal."
+        else:
+            portal.log.debug(f"Unhandled call message. Likely an ICE message. {msg.call_message}")
+            return
+
+        await sender.intent_for(portal).send_text(portal.mxid, html=msg_html)
+
 
     @staticmethod
     async def handle_own_receipts(sender: pu.Puppet, receipts: list[OwnReadReceipt]) -> None:
