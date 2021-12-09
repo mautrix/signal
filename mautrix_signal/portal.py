@@ -91,6 +91,7 @@ class Portal(DBPortal, BasePortal):
     _reaction_lock: asyncio.Lock
     _pending_members: Optional[Set[UUID]]
     _relay_user: Optional['u.User']
+    _expiration_lock: asyncio.Lock
 
     def __init__(self, chat_id: Union[GroupID, Address], receiver: str,
                  mxid: Optional[RoomID] = None, name: Optional[str] = None,
@@ -109,6 +110,7 @@ class Portal(DBPortal, BasePortal):
         self._reaction_lock = asyncio.Lock()
         self._pending_members = None
         self._relay_user = None
+        self._expiration_lock = asyncio.Lock()
 
     @property
     def has_relay(self) -> bool:
@@ -569,18 +571,21 @@ class Portal(DBPortal, BasePortal):
         portal.log.debug(f"Redacting {event_id} in {wait} seconds")
         await asyncio.sleep(wait)
 
-        if not await DisappearingMessage.get(room_id, event_id):
-            portal.log.debug(f"{event_id} no longer in disappearing messages list, not redacting")
-            return
+        async with portal._expiration_lock:
+            if not await DisappearingMessage.get(room_id, event_id):
+                portal.log.debug(
+                    f"{event_id} no longer in disappearing messages list, not redacting"
+                )
+                return
 
-        portal.log.debug(f"Redacting {event_id} because it was expired")
-        try:
-            await portal.main_intent.redact(room_id, event_id)
-            portal.log.debug(f"Redacted {event_id} successfully")
-        except Exception as e:
-            portal.log.warning("Redacting expired event didn't work", e)
-        finally:
-            await DisappearingMessage.delete(room_id, event_id)
+            portal.log.debug(f"Redacting {event_id} because it was expired")
+            try:
+                await portal.main_intent.redact(room_id, event_id)
+                portal.log.debug(f"Redacted {event_id} successfully")
+            except Exception as e:
+                portal.log.warning("Redacting expired event didn't work", e)
+            finally:
+                await DisappearingMessage.delete(room_id, event_id)
 
     async def handle_read_receipt(self, event_id: EventID, data: SingleReceiptEventContent):
         # Start the redaction timers for all of the disappearing messages in the room when the user
