@@ -946,10 +946,9 @@ class Portal(DBPortal, BasePortal):
         self.expiration_time = expires_in_seconds
         await self.update()
 
-        time_str = format_duration(expires_in_seconds)
+        time_str = "Off" if expires_in_seconds is None else format_duration(expires_in_seconds)
         await self.main_intent.send_notice(
             self.mxid,
-            text=f'{sender.name} set the disappearing message timer to {time_str}.',
             html=f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a> set the '
             f'disappearing message timer to {time_str}.'
         )
