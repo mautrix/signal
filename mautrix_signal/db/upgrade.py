@@ -175,3 +175,16 @@ async def upgrade_v6(conn: Connection) -> None:
 @upgrade_table.register(description="Add relay user field to portal table")
 async def upgrade_v7(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN relay_user_id TEXT")
+
+
+@upgrade_table.register(description="Add support for disappearing messages")
+async def upgrade_v8(conn: Connection) -> None:
+    await conn.execute("""CREATE TABLE disappearing_message (
+        room_id             TEXT,
+        mxid                TEXT,
+        expiration_seconds  BIGINT,
+        expiration_ts       BIGINT,
+
+        PRIMARY KEY (room_id, mxid)
+    )""")
+    await conn.execute("ALTER TABLE portal ADD COLUMN expiration_time BIGINT")
