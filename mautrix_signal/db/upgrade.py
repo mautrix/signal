@@ -177,7 +177,7 @@ async def upgrade_v7(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN relay_user_id TEXT")
 
 
-@upgrade_table.register(description="Add table for tracking when to redact disappearing messages")
+@upgrade_table.register(description="Add support for disappearing messages")
 async def upgrade_v8(conn: Connection) -> None:
     await conn.execute("""CREATE TABLE disappearing_messages (
         room_id             TEXT,
@@ -187,8 +187,4 @@ async def upgrade_v8(conn: Connection) -> None:
 
         PRIMARY KEY (room_id, mxid)
     )""")
-
-
-@upgrade_table.register(description="Add expiration_time column to portal table")
-async def upgrade_v9(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN expiration_time BIGINT")
