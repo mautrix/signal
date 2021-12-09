@@ -169,7 +169,13 @@ class SignalHandler(SignaldClient):
 
         msg_html = f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a>'
         if msg.call_message.offer_message:
-            msg_html += " started a call on Signal. Use the native app to answer the call."
+            call_type = {
+                OfferMessageType.AUDIO_CALL: " voice ",
+                OfferMessageType.VIDEO_CALL: " video ",
+            }.get(msg.call_message.offer_message.type, " ")
+            msg_html += (
+                f" started a{call_type}call on Signal. Use the native app to answer the call."
+            )
         elif msg.call_message.hangup_message:
             msg_html += " ended a call on Signal."
         else:
