@@ -19,7 +19,6 @@ from html import escape as escape_html
 from collections import deque
 from uuid import UUID, uuid4
 from string import Template
-from datetime import datetime
 import mimetypes
 import pathlib
 import hashlib
@@ -555,7 +554,7 @@ class Portal(DBPortal, BasePortal):
         # resume the countdown. This is fairly likely to occur if the disappearance timeout is
         # weeks.
         # If there is not an expiration_ts, then set one.
-        now = datetime.now().timestamp()
+        now = time.time()
         if disappearing_message.expiration_ts is not None:
             wait = (disappearing_message.expiration_ts / 1000) - now
         else:
