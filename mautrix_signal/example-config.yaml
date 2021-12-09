@@ -105,6 +105,10 @@ signal:
     remove_file_after_handling: true
     # Whether or not users can register a primary device
     registration_enabled: true
+    # Whether or not to enable disappearing messages in groups. If enabled, then the expiration
+    # time of the messages will be determined by the first users to read the message, rather
+    # than individually. If the bridge has a single user, this can be turned on safely.
+    enable_disappearing_messages_in_groups: false
 
 # Bridge config
 bridge:

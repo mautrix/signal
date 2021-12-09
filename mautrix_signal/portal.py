@@ -341,7 +341,13 @@ class Portal(DBPortal, BasePortal):
                     pass
 
             # Handle disappearing messages
-            if self.expiration_time:
+            if (
+                self.expiration_time
+                and (
+                    self.is_direct
+                    or self.config["signal.enable_disappearing_messages_in_groups"]
+                )
+            ):
                 disappearing_message = DisappearingMessage(
                     self.mxid, event_id, self.expiration_time
                 )
@@ -550,12 +556,23 @@ class Portal(DBPortal, BasePortal):
         mechanism to stop the countdown, even after bridge restart.
         """
         room_id = disappearing_message.room_id
+        event_id = disappearing_message.mxid
 
         portal = await cls.get_by_mxid(room_id)
         if not portal:
             raise AttributeError(f"No portal found for {room_id}")
 
-        event_id = disappearing_message.mxid
+        if (
+            not portal.is_direct and not
+            cls.config["signal.enable_disappearing_messages_in_groups"]
+        ):
+            portal.log.debug(
+                "Not expiring event in group message since "
+                "signal.enable_disappearing_messages_in_groups is not enabled."
+            )
+            await disappearing_message.delete(room_id, event_id)
+            return
+
         wait = disappearing_message.expiration_seconds
         # If there is an expiration_ts, then there was probably a bridge restart, so we have to
         # resume the countdown. This is fairly likely to occur if the disappearance timeout is
@@ -696,7 +713,13 @@ class Portal(DBPortal, BasePortal):
             await self._send_delivery_receipt(event_id)
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
 
-            if message.expires_in_seconds:
+            if (
+                message.expires_in_seconds
+                and (
+                    self.is_direct
+                    or self.config["signal.enable_disappearing_messages_in_groups"]
+                )
+            ):
                 disappearing_message = DisappearingMessage(
                     self.mxid, event_id, message.expires_in_seconds
                 )
