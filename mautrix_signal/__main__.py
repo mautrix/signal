@@ -68,7 +68,7 @@ class SignalBridge(Bridge):
     async def start(self) -> None:
         User.init_cls(self)
         self.add_startup_actions(Puppet.init_cls(self))
-        Portal.init_cls(self)
+        self.add_startup_actions(Portal.init_cls(self))
         if self.config["bridge.resend_bridge_info"]:
             self.add_startup_actions(self.resend_bridge_info())
         self.add_startup_actions(self.signal.start())

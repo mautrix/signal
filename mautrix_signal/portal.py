@@ -19,6 +19,7 @@ from html import escape as escape_html
 from collections import deque
 from uuid import UUID, uuid4
 from string import Template
+from datetime import datetime
 import mimetypes
 import pathlib
 import hashlib
@@ -36,12 +37,13 @@ from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.types import (EventID, MessageEventContent, RoomID, EventType, MessageType, Format,
                            MessageEvent, EncryptedEvent, ContentURI, MediaMessageEventContent,
                            TextMessageEventContent, ImageInfo, VideoInfo, FileInfo, AudioInfo,
-                           PowerLevelStateEventContent, UserID)
+                           PowerLevelStateEventContent, UserID, SingleReceiptEventContent)
 from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 from mautrix.errors import MatrixError, MForbidden, IntentError
 
-from .db import Portal as DBPortal, Message as DBMessage, Reaction as DBReaction
+from .db import (Portal as DBPortal, Message as DBMessage, Reaction as DBReaction,
+                 DisappearingMessage)
 from .config import Config
 from .formatter import matrix_to_signal, signal_to_matrix
 from .util import id_to_str
@@ -80,6 +82,7 @@ class Portal(DBPortal, BasePortal):
     signal: 's.SignalHandler'
     az: AppService
     private_chat_portal_meta: bool
+    expiration_time: Optional[int]
 
     _main_intent: Optional[IntentAPI]
     _create_room_lock: asyncio.Lock
@@ -93,9 +96,10 @@ class Portal(DBPortal, BasePortal):
                  mxid: Optional[RoomID] = None, name: Optional[str] = None,
                  avatar_hash: Optional[str] = None, avatar_url: Optional[ContentURI] = None,
                  name_set: bool = False, avatar_set: bool = False, revision: int = 0,
-                 encrypted: bool = False, relay_user_id: Optional[UserID] = None) -> None:
+                 encrypted: bool = False, relay_user_id: Optional[UserID] = None,
+                 expiration_time: Optional[int] = None) -> None:
         super().__init__(chat_id, receiver, mxid, name, avatar_hash, avatar_url,
-                         name_set, avatar_set, revision, encrypted, relay_user_id)
+                         name_set, avatar_set, revision, encrypted, relay_user_id, expiration_time)
         self._create_room_lock = asyncio.Lock()
         self.log = self.log.getChild(self.chat_id_str)
         self._main_intent = None
@@ -141,7 +145,7 @@ class Portal(DBPortal, BasePortal):
         self.by_chat_id[(self.chat_id_str, self.receiver)] = self
 
     @classmethod
-    def init_cls(cls, bridge: 'SignalBridge') -> None:
+    async def init_cls(cls, bridge: 'SignalBridge') -> None:
         cls.config = bridge.config
         cls.matrix = bridge.matrix
         cls.signal = bridge.signal
@@ -149,6 +153,10 @@ class Portal(DBPortal, BasePortal):
         cls.loop = bridge.loop
         BasePortal.bridge = bridge
         cls.private_chat_portal_meta = cls.config["bridge.private_chat_portal_meta"]
+
+        for dm in await DisappearingMessage.get_all():
+            if dm.expiration_ts:
+                asyncio.create_task(cls._expire_event(dm))
 
     # region Misc
 
@@ -327,6 +335,14 @@ class Portal(DBPortal, BasePortal):
                     os.remove(attachment_path)
                 except FileNotFoundError:
                     pass
+
+            # Handle disappearing messages
+            if self.expiration_time:
+                disappearing_message = DisappearingMessage(
+                    self.mxid, event_id, self.expiration_time
+                )
+                await disappearing_message.insert()
+                asyncio.create_task(Portal._expire_event(disappearing_message))
 
     async def handle_matrix_reaction(self, sender: 'u.User', event_id: EventID,
                                      reacting_to: EventID, emoji: str) -> None:
@@ -522,6 +538,56 @@ class Portal(DBPortal, BasePortal):
             except FileNotFoundError:
                 pass
 
+    @classmethod
+    async def _expire_event(cls, disappearing_message: DisappearingMessage):
+        """
+        Expire a :class:`DisappearingMessage`. This should only be called once the message has been
+        read, as the timer for redaction will start immediately, and there is no (supported)
+        mechanism to stop the countdown, even after bridge restart.
+        """
+        room_id = disappearing_message.room_id
+        event_id = disappearing_message.mxid
+        wait = disappearing_message.expiration_seconds
+        # If there is an expiration_ts, then there was probably a bridge restart, so we have to
+        # resume the countdown. This is fairly likely to occur if the disappearance timeout is
+        # weeks.
+        # If there is not an expiration_ts, then set one.
+        now = datetime.now().timestamp()
+        if disappearing_message.expiration_ts is not None:
+            wait = (disappearing_message.expiration_ts / 1000) - now
+        else:
+            disappearing_message.expiration_ts = int((now + wait) * 1000)
+            await disappearing_message.update()
+
+        if wait < 0:
+            wait = 0
+
+        portal = await cls.get_by_mxid(room_id)
+        if not portal:
+            portal.log.warning(f"No portal for {room_id}")
+
+        portal.log.debug(f"Redacting {event_id} in {wait} seconds")
+        await asyncio.sleep(wait)
+
+        if not await DisappearingMessage.get(room_id, event_id):
+            portal.log.debug(f"{event_id} no longer in disappearing messages list, not redacting")
+            return
+
+        portal.log.debug(f"Redacting {event_id} because it was expired")
+        try:
+            await portal.main_intent.redact(room_id, event_id)
+            portal.log.debug(f"Redacted {event_id} successfully")
+        except Exception as e:
+            portal.log.warning("Redacting expired event didn't work", e)
+        finally:
+            await DisappearingMessage.delete(room_id, event_id)
+
+    async def handle_read_receipt(self, event_id: EventID, data: SingleReceiptEventContent):
+        # Start the redaction timers for all of the disappearing messages in the room when the user
+        # reads the room. This is the behavior of the Signal clients.
+        for disappearing_message in await DisappearingMessage.get_all_for_room(self.mxid):
+            asyncio.create_task(Portal._expire_event(disappearing_message))
+
     # endregion
     # region Signal event handling
 
@@ -621,6 +687,16 @@ class Portal(DBPortal, BasePortal):
                                            timestamps=[message.timestamp])
             await self._send_delivery_receipt(event_id)
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
+
+            if message.expires_in_seconds:
+                disappearing_message = DisappearingMessage(
+                    self.mxid, event_id, message.expires_in_seconds
+                )
+                await disappearing_message.insert()
+                self.log.debug(
+                    f"{event_id} set to be redacted {message.expires_in_seconds} seconds after "
+                    "room is read"
+                )
         else:
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
 
@@ -852,6 +928,46 @@ class Portal(DBPortal, BasePortal):
         if changed:
             await self.update_bridge_info()
             await self.update()
+
+    async def update_expires_in_seconds(self, sender: 'p.Puppet', expires_in_seconds: int) -> None:
+        if expires_in_seconds == 0:
+            expires_in_seconds = None
+        if self.expiration_time == expires_in_seconds:
+            return
+
+        def format_time(seconds) -> str:
+            if seconds is None:
+                return "Off"
+
+            # Technique from https://stackoverflow.com/a/24542445
+            intervals = (
+                ("weeks", 604800),  # 60 * 60 * 24 * 7
+                ("days", 86400),    # 60 * 60 * 24
+                ("hours", 3600),    # 60 * 60
+                ("minutes", 60),
+                ("seconds", 1),
+            )
+
+            result = []
+            for name, count in intervals:
+                value = seconds // count
+                if value:
+                    seconds -= value * count
+                    if value == 1:
+                        name = name[:-1]
+                    result.append(f"{value} {name}")
+            return ", ".join(result)
+
+        assert self.mxid
+        self.expiration_time = expires_in_seconds
+        await self.update()
+
+        await self.main_intent.send_notice(
+            self.mxid,
+            text=None,
+            html=f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a> set the '
+            f'disappearing message timer to {format_time(expires_in_seconds)}.'
+        )
 
     async def update_puppet_avatar(self, new_hash: str, avatar_url: ContentURI) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:
@@ -1194,6 +1310,7 @@ class Portal(DBPortal, BasePortal):
             self._main_intent = puppet.default_mxid_intent
         elif not self.is_direct:
             self._main_intent = self.az.intent
+
 
     async def delete(self) -> None:
         await DBMessage.delete_all(self.mxid)

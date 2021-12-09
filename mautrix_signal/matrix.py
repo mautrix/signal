@@ -14,11 +14,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import List, Union, TYPE_CHECKING
+from datetime import datetime
 
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (Event, ReactionEvent, StateEvent, RoomID, EventID, UserID, TypingEvent,
                            ReactionEventContent, RelationType, EventType, ReceiptEvent,
                            PresenceEvent, RedactionEvent, SingleReceiptEventContent)
+
+from mautrix_signal.db.disappearing_message import DisappearingMessage
 
 from .db import Message as DBMessage
 from . import portal as po, user as u, signal as s
@@ -102,6 +105,8 @@ class MatrixHandler(BaseMatrixHandler):
 
     async def handle_read_receipt(self, user: 'u.User', portal: 'po.Portal', event_id: EventID,
                                   data: SingleReceiptEventContent) -> None:
+        await portal.handle_read_receipt(event_id, data)
+
         message = await DBMessage.get_by_mxid(event_id, portal.mxid)
         if not message:
             return
