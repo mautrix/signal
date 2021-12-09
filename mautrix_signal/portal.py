@@ -147,7 +147,7 @@ class Portal(DBPortal, BasePortal):
         self.by_chat_id[(self.chat_id_str, self.receiver)] = self
 
     @classmethod
-    async def init_cls(cls, bridge: 'SignalBridge') -> None:
+    def init_cls(cls, bridge: 'SignalBridge') -> None:
         cls.config = bridge.config
         cls.matrix = bridge.matrix
         cls.signal = bridge.signal
@@ -156,6 +156,8 @@ class Portal(DBPortal, BasePortal):
         BasePortal.bridge = bridge
         cls.private_chat_portal_meta = cls.config["bridge.private_chat_portal_meta"]
 
+    @classmethod
+    async def start_disappearing_message_expirations(cls):
         for dm in await DisappearingMessage.get_all():
             if dm.expiration_ts:
                 asyncio.create_task(cls._expire_event(dm))
@@ -1293,7 +1295,6 @@ class Portal(DBPortal, BasePortal):
             self._main_intent = puppet.default_mxid_intent
         elif not self.is_direct:
             self._main_intent = self.az.intent
-
 
     async def delete(self) -> None:
         await DBMessage.delete_all(self.mxid)
