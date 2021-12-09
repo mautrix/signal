@@ -550,6 +550,11 @@ class Portal(DBPortal, BasePortal):
         mechanism to stop the countdown, even after bridge restart.
         """
         room_id = disappearing_message.room_id
+
+        portal = await cls.get_by_mxid(room_id)
+        if not portal:
+            raise AttributeError(f"No portal found for {room_id}")
+
         event_id = disappearing_message.mxid
         wait = disappearing_message.expiration_seconds
         # If there is an expiration_ts, then there was probably a bridge restart, so we have to
@@ -565,10 +570,6 @@ class Portal(DBPortal, BasePortal):
 
         if wait < 0:
             wait = 0
-
-        portal = await cls.get_by_mxid(room_id)
-        if not portal:
-            portal.log.warning(f"No portal for {room_id}")
 
         portal.log.debug(f"Redacting {event_id} in {wait} seconds")
         await asyncio.sleep(wait)
