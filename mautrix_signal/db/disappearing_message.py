@@ -59,10 +59,6 @@ class DisappearingMessage:
         await cls.db.execute(q, room_id, event_id)
 
     @classmethod
-    async def delete_all(cls, room_id: RoomID) -> None:
-        await cls.db.execute("DELETE FROM message WHERE room_id=$1", room_id)
-
-    @classmethod
     def _from_row(cls, row: asyncpg.Record) -> "DisappearingMessage":
         return cls(**row)
 
