@@ -35,7 +35,7 @@ class DisappearingMessage:
 
     async def insert(self) -> None:
         q = """
-        INSERT INTO disappearing_messages (room_id, mxid, expiration_seconds, expiration_ts)
+        INSERT INTO disappearing_message (room_id, mxid, expiration_seconds, expiration_ts)
         VALUES ($1, $2, $3, $4)
         """
         await self.db.execute(q, self.room_id, self.mxid, self.expiration_seconds,
@@ -43,7 +43,7 @@ class DisappearingMessage:
 
     async def update(self) -> None:
         q = """
-        UPDATE disappearing_messages
+        UPDATE disappearing_message
         SET expiration_seconds=$3, expiration_ts=$4
         WHERE room_id=$1 AND mxid=$2
         """
@@ -55,7 +55,7 @@ class DisappearingMessage:
 
     @classmethod
     async def delete(cls, room_id: RoomID, event_id: EventID) -> None:
-        q = "DELETE from disappearing_messages WHERE room_id=$1 AND mxid=$2"
+        q = "DELETE from disappearing_message WHERE room_id=$1 AND mxid=$2"
         await cls.db.execute(q, room_id, event_id)
 
     @classmethod
@@ -66,7 +66,7 @@ class DisappearingMessage:
     async def get(cls, room_id: RoomID, event_id: EventID) -> Optional["DisappearingMessage"]:
         q = """
         SELECT room_id, mxid, expiration_seconds, expiration_ts
-          FROM disappearing_messages
+          FROM disappearing_message
          WHERE room_id = $1
            AND mxid = $2
         """
@@ -77,14 +77,14 @@ class DisappearingMessage:
 
     @classmethod
     async def get_all(cls) -> List["DisappearingMessage"]:
-        q = "SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_messages"
+        q = "SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message"
         return [cls._from_row(r) for r in await cls.db.fetch(q)]
 
     @classmethod
     async def get_all_for_room(cls, room_id: RoomID) -> List["DisappearingMessage"]:
         q = """
         SELECT room_id, mxid, expiration_seconds, expiration_ts
-          FROM disappearing_messages
+          FROM disappearing_message
          WHERE room_id = $1
         """
         return [cls._from_row(r) for r in await cls.db.fetch(q, room_id)]

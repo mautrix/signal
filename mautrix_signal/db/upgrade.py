@@ -179,7 +179,7 @@ async def upgrade_v7(conn: Connection) -> None:
 
 @upgrade_table.register(description="Add support for disappearing messages")
 async def upgrade_v8(conn: Connection) -> None:
-    await conn.execute("""CREATE TABLE disappearing_messages (
+    await conn.execute("""CREATE TABLE disappearing_message (
         room_id             TEXT,
         mxid                TEXT,
         expiration_seconds  BIGINT,
