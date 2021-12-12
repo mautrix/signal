@@ -59,7 +59,7 @@ class User(DBUser, BaseUser):
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
     _connected: bool
-    _websocket_connection_state: Optional[WebsocketConnectionState]
+    _websocket_connection_state: Optional[BridgeStateEvent]
     _latest_non_transient_disconnect_state: Optional[datetime]
 
     def __init__(self, mxid: UserID, username: Optional[str] = None, uuid: Optional[UUID] = None,
@@ -88,6 +88,10 @@ class User(DBUser, BaseUser):
 
     async def is_logged_in(self) -> bool:
         return bool(self.username)
+
+    async def needs_relay(self, portal: 'po.Portal') -> bool:
+        return not await self.is_logged_in() or (portal.is_direct
+                                                 and portal.receiver != self.username)
 
     async def logout(self) -> None:
         if not self.username:

@@ -90,7 +90,6 @@ class Portal(DBPortal, BasePortal):
     _reaction_dedup: Deque[Tuple[Address, int, str]]
     _reaction_lock: asyncio.Lock
     _pending_members: Optional[Set[UUID]]
-    _relay_user: Optional['u.User']
     _expiration_lock: asyncio.Lock
 
     def __init__(self, chat_id: Union[GroupID, Address], receiver: str,
@@ -111,22 +110,6 @@ class Portal(DBPortal, BasePortal):
         self._pending_members = None
         self._relay_user = None
         self._expiration_lock = asyncio.Lock()
-
-    @property
-    def has_relay(self) -> bool:
-        return self.config["bridge.relay.enabled"] and bool(self.relay_user_id)
-
-    async def get_relay_user(self) -> Optional['u.User']:
-        if not self.has_relay:
-            return None
-        if self._relay_user is None:
-            self._relay_user = await u.User.get_by_mxid(self.relay_user_id)
-        return self._relay_user if await self._relay_user.is_logged_in() else None
-
-    async def set_relay_user(self, user: Optional['u.User']) -> None:
-        self._relay_user = user
-        self.relay_user_id = user.mxid if user else None
-        await self.save()
 
     @property
     def main_intent(self) -> IntentAPI:
@@ -225,53 +208,22 @@ class Portal(DBPortal, BasePortal):
             data = await self.main_intent.download_media(message.url)
         return self._write_outgoing_file(data)
 
-    async def get_displayname(self, user: 'u.User') -> str:
-        return await self.main_intent.get_room_displayname(self.mxid, user.mxid) or user.mxid
-
-    async def _apply_msg_format(self, sender: 'u.User', content: MessageEventContent) -> None:
-        if not isinstance(content, TextMessageEventContent) or content.format != Format.HTML:
-            content.format = Format.HTML
-            content.formatted_body = escape_html(content.body).replace("\n", "<br/>")
-
-        tpl = (self.config[f"relaybot.message_formats.[{content.msgtype.value}]"]
-               or "$sender_displayname: $message")
-        displayname = await self.get_displayname(sender)
-        username, _ = self.az.intent.parse_user_id(sender.mxid)
-        tpl_args = dict(sender_mxid=sender.mxid,
-                        sender_username=username,
-                        sender_displayname=escape_html(displayname),
-                        message=content.formatted_body,
-                        body=content.body,
-                        formatted_body=content.formatted_body)
-        content.formatted_body = Template(tpl).safe_substitute(tpl_args)
-        content.body = Template(tpl).safe_substitute(tpl_args)
-        if content.msgtype == MessageType.EMOTE:
-            content.msgtype = MessageType.TEXT
-
-    async def _get_relay_sender(self, sender: 'u.User', evt_identifier: str
-                                ) -> Tuple[Optional['u.User'], bool]:
-        if await sender.is_logged_in():
-            return sender, False
-
-        if not self.has_relay:
-            self.log.debug(f"Ignoring {evt_identifier} from non-logged-in user {sender.mxid}"
-                           " in chat with no relay user")
-            return None, True
-        relay_sender = await self.get_relay_user()
-        if not relay_sender:
-            self.log.debug(f"Ignoring {evt_identifier} from non-logged-in user {sender.mxid}: "
-                           f"relay user {self.relay_user_id} is not set up correctly")
-            return None, True
-        return relay_sender, True
-
     async def handle_matrix_message(self, sender: 'u.User', message: MessageEventContent,
                                     event_id: EventID) -> None:
         orig_sender = sender
-        sender, is_relay = await self._get_relay_sender(sender, f"message {event_id}")
+        sender, is_relay = await self.get_relay_sender(sender, f"message {event_id}")
         if not sender:
+            orig_sender.send_remote_checkpoint(
+                status=MessageSendCheckpointStatus.PERM_FAILURE,
+                event_id=event_id,
+                room_id=self.mxid,
+                event_type=EventType.ROOM_MESSAGE,
+                message_type=message.msgtype,
+                error="user is not logged in",
+            )
             return
         elif is_relay:
-            await self._apply_msg_format(orig_sender, message)
+            await self.apply_relay_message_format(orig_sender, message)
 
         request_id = int(time.time() * 1000)
         self._msgts_dedup.appendleft((sender.address, request_id))
