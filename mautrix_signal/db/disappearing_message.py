@@ -38,8 +38,9 @@ class DisappearingMessage:
         INSERT INTO disappearing_message (room_id, mxid, expiration_seconds, expiration_ts)
         VALUES ($1, $2, $3, $4)
         """
-        await self.db.execute(q, self.room_id, self.mxid, self.expiration_seconds,
-                              self.expiration_ts)
+        await self.db.execute(
+            q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
+        )
 
     async def update(self) -> None:
         q = """
@@ -48,8 +49,9 @@ class DisappearingMessage:
         WHERE room_id=$1 AND mxid=$2
         """
         try:
-            await self.db.execute(q, self.room_id, self.mxid, self.expiration_seconds,
-                              self.expiration_ts)
+            await self.db.execute(
+                q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
+            )
         except Exception as e:
             print(e)
 

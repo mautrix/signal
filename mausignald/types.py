@@ -11,7 +11,7 @@ from attr import dataclass
 
 from mautrix.types import SerializableAttrs, SerializableEnum, ExtensibleEnum, field
 
-GroupID = NewType('GroupID', str)
+GroupID = NewType("GroupID", str)
 
 
 @dataclass(frozen=True, eq=False)
@@ -27,7 +27,7 @@ class Address(SerializableAttrs):
     def best_identifier(self) -> str:
         return str(self.uuid) if self.uuid else self.number
 
-    def __eq__(self, other: 'Address') -> bool:
+    def __eq__(self, other: "Address") -> bool:
         if not isinstance(other, Address):
             return False
         if self.uuid and other.uuid:
@@ -42,7 +42,7 @@ class Address(SerializableAttrs):
         return hash(self.number)
 
     @classmethod
-    def parse(cls, value: str) -> 'Address':
+    def parse(cls, value: str) -> "Address":
         return Address(number=value) if value.startswith("+") else Address(uuid=UUID(value))
 
 
@@ -202,13 +202,15 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     timer: Optional[int] = None
     master_key: Optional[str] = field(default=None, json="masterKey")
     invite_link: Optional[str] = field(default=None, json="inviteLink")
-    access_control: GroupAccessControl = field(factory=lambda: GroupAccessControl(),
-                                               json="accessControl")
+    access_control: GroupAccessControl = field(
+        factory=lambda: GroupAccessControl(), json="accessControl"
+    )
     members: List[Address]
     member_detail: List[GroupMember] = field(factory=lambda: [], json="memberDetail")
     pending_members: List[Address] = field(factory=lambda: [], json="pendingMembers")
-    pending_member_detail: List[GroupMember] = field(factory=lambda: [],
-                                                     json="pendingMemberDetail")
+    pending_member_detail: List[GroupMember] = field(
+        factory=lambda: [], json="pendingMemberDetail"
+    )
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
 
 
@@ -294,8 +296,9 @@ class MessageData(SerializableAttrs):
 class SentSyncMessage(SerializableAttrs):
     message: MessageData
     timestamp: int
-    expiration_start_timestamp: Optional[int] = field(default=None,
-                                                      json="expirationStartTimestamp")
+    expiration_start_timestamp: Optional[int] = field(
+        default=None, json="expirationStartTimestamp"
+    )
     is_recipient_update: bool = field(default=False, json="isRecipientUpdate")
     unidentified_status: Dict[str, bool] = field(factory=lambda: {})
     destination: Optional[Address] = None
@@ -347,11 +350,13 @@ class ConfigItem(SerializableAttrs):
 @dataclass
 class ClientConfiguration(SerializableAttrs):
     read_receipts: Optional[ConfigItem] = field(factory=lambda: ConfigItem(), json="readReceipts")
-    typing_indicators: Optional[ConfigItem] = field(factory=lambda: ConfigItem(),
-                                                    json="typingIndicators")
+    typing_indicators: Optional[ConfigItem] = field(
+        factory=lambda: ConfigItem(), json="typingIndicators"
+    )
     link_previews: Optional[ConfigItem] = field(factory=lambda: ConfigItem(), json="linkPreviews")
     unidentified_delivery_indicators: Optional[ConfigItem] = field(
-        factory=lambda: ConfigItem(), json="unidentifiedDeliveryIndicators")
+        factory=lambda: ConfigItem(), json="unidentifiedDeliveryIndicators"
+    )
 
 
 class StickerPackOperation(ExtensibleEnum):
@@ -376,7 +381,8 @@ class SyncMessage(SerializableAttrs):
     configuration: Optional[ClientConfiguration] = None
     # blocked_list: Optional[???] = field(default=None, json="blockedList")
     sticker_pack_operations: Optional[List[StickerPackOperations]] = field(
-        default=None, json="stickerPackOperations")
+        default=None, json="stickerPackOperations"
+    )
     contacts_complete: bool = field(default=False, json="contactsComplete")
 
 

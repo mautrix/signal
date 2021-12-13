@@ -16,9 +16,22 @@
 from typing import List, Union, TYPE_CHECKING
 
 from mautrix.bridge import BaseMatrixHandler
-from mautrix.types import (Event, ReactionEvent, StateEvent, RoomID, EventID, UserID, TypingEvent,
-                           ReactionEventContent, RelationType, EventType, ReceiptEvent,
-                           PresenceEvent, RedactionEvent, SingleReceiptEventContent)
+from mautrix.types import (
+    Event,
+    ReactionEvent,
+    StateEvent,
+    RoomID,
+    EventID,
+    UserID,
+    TypingEvent,
+    ReactionEventContent,
+    RelationType,
+    EventType,
+    ReceiptEvent,
+    PresenceEvent,
+    RedactionEvent,
+    SingleReceiptEventContent,
+)
 
 from mautrix_signal.db.disappearing_message import DisappearingMessage
 
@@ -30,9 +43,9 @@ if TYPE_CHECKING:
 
 
 class MatrixHandler(BaseMatrixHandler):
-    signal: 's.SignalHandler'
+    signal: "s.SignalHandler"
 
-    def __init__(self, bridge: 'SignalBridge') -> None:
+    def __init__(self, bridge: "SignalBridge") -> None:
         prefix, suffix = bridge.config["bridge.username_template"].format(userid=":").split(":")
         homeserver = bridge.config["homeserver.domain"]
         self.user_id_prefix = f"@{prefix}"
@@ -41,13 +54,14 @@ class MatrixHandler(BaseMatrixHandler):
 
         super().__init__(bridge=bridge)
 
-    async def send_welcome_message(self, room_id: RoomID, inviter: 'u.User') -> None:
+    async def send_welcome_message(self, room_id: RoomID, inviter: "u.User") -> None:
         await super().send_welcome_message(room_id, inviter)
         if not inviter.notice_room:
             inviter.notice_room = room_id
             await inviter.update()
-            await self.az.intent.send_notice(room_id, "This room has been marked as your "
-                                                      "Signal bridge notice room.")
+            await self.az.intent.send_notice(
+                room_id, "This room has been marked as your Signal bridge notice room."
+            )
 
     async def handle_leave(self, room_id: RoomID, user_id: UserID, event_id: EventID) -> None:
         portal = await po.Portal.get_by_mxid(room_id)
@@ -72,11 +86,14 @@ class MatrixHandler(BaseMatrixHandler):
         await portal.handle_matrix_join(user)
 
     @classmethod
-    async def handle_reaction(cls, room_id: RoomID, user_id: UserID, event_id: EventID,
-                              content: ReactionEventContent) -> None:
+    async def handle_reaction(
+        cls, room_id: RoomID, user_id: UserID, event_id: EventID, content: ReactionEventContent
+    ) -> None:
         if content.relates_to.rel_type != RelationType.ANNOTATION:
-            cls.log.debug(f"Ignoring m.reaction event in {room_id} from {user_id} with unexpected "
-                          f"relation type {content.relates_to.rel_type}")
+            cls.log.debug(
+                f"Ignoring m.reaction event in {room_id} from {user_id} with unexpected "
+                f"relation type {content.relates_to.rel_type}"
+            )
             return
         user = await u.User.get_by_mxid(user_id)
         if not user:
@@ -86,12 +103,14 @@ class MatrixHandler(BaseMatrixHandler):
         if not portal:
             return
 
-        await portal.handle_matrix_reaction(user, event_id, content.relates_to.event_id,
-                                            content.relates_to.key)
+        await portal.handle_matrix_reaction(
+            user, event_id, content.relates_to.event_id, content.relates_to.key
+        )
 
     @staticmethod
-    async def handle_redaction(room_id: RoomID, user_id: UserID, event_id: EventID,
-                               redaction_event_id: EventID) -> None:
+    async def handle_redaction(
+        room_id: RoomID, user_id: UserID, event_id: EventID, redaction_event_id: EventID
+    ) -> None:
         user = await u.User.get_by_mxid(user_id)
         if not user:
             return
@@ -102,8 +121,13 @@ class MatrixHandler(BaseMatrixHandler):
 
         await portal.handle_matrix_redaction(user, event_id, redaction_event_id)
 
-    async def handle_read_receipt(self, user: 'u.User', portal: 'po.Portal', event_id: EventID,
-                                  data: SingleReceiptEventContent) -> None:
+    async def handle_read_receipt(
+        self,
+        user: "u.User",
+        portal: "po.Portal",
+        event_id: EventID,
+        data: SingleReceiptEventContent,
+    ) -> None:
         await portal.handle_read_receipt(event_id, data)
 
         message = await DBMessage.get_by_mxid(event_id, portal.mxid)
@@ -111,8 +135,9 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
-        await self.signal.send_receipt(user.username, message.sender,
-                                       timestamps=[message.timestamp], when=data.ts, read=True)
+        await self.signal.send_receipt(
+            user.username, message.sender, timestamps=[message.timestamp], when=data.ts, read=True
+        )
 
     async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
         pass
@@ -134,8 +159,9 @@ class MatrixHandler(BaseMatrixHandler):
             evt: RedactionEvent
             await self.handle_redaction(evt.room_id, evt.sender, evt.redacts, evt.event_id)
 
-    async def handle_ephemeral_event(self, evt: Union[ReceiptEvent, PresenceEvent, TypingEvent]
-                                     ) -> None:
+    async def handle_ephemeral_event(
+        self, evt: Union[ReceiptEvent, PresenceEvent, TypingEvent]
+    ) -> None:
         if evt.type == EventType.TYPING:
             await self.handle_typing(evt.room_id, evt.content.user_ids)
         else:
@@ -157,8 +183,8 @@ class MatrixHandler(BaseMatrixHandler):
         elif evt.type == EventType.ROOM_AVATAR:
             await portal.handle_matrix_avatar(user, evt.content.url)
 
-    async def allow_message(self, user: 'u.User') -> bool:
+    async def allow_message(self, user: "u.User") -> bool:
         return user.relay_whitelisted
 
-    async def allow_bridging_message(self, user: 'u.User', portal: 'po.Portal') -> bool:
+    async def allow_bridging_message(self, user: "u.User", portal: "po.Portal") -> bool:
         return portal.has_relay or await user.is_logged_in()

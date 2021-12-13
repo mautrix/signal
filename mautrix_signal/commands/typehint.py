@@ -9,6 +9,6 @@ if TYPE_CHECKING:
 
 
 class CommandEvent(BaseCommandEvent):
-    bridge: 'SignalBridge'
-    sender: 'User'
-    portal: 'Portal'
+    bridge: "SignalBridge"
+    sender: "User"
+    portal: "Portal"

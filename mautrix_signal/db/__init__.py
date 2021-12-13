@@ -18,7 +18,17 @@ def init(db: Database) -> None:
 
 # TODO should this be in mautrix-python?
 sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
-sqlite3.register_converter("UUID", lambda b: uuid.UUID(b.decode("utf-8") if isinstance(b, bytes) else b))
+sqlite3.register_converter(
+    "UUID", lambda b: uuid.UUID(b.decode("utf-8") if isinstance(b, bytes) else b)
+)
 
-__all__ = ["upgrade_table", "init", "User", "Puppet", "Portal", "Message", "Reaction",
-           "DisappearingMessage"]
+__all__ = [
+    "upgrade_table",
+    "init",
+    "User",
+    "Puppet",
+    "Portal",
+    "Message",
+    "Reaction",
+    "DisappearingMessage",
+]

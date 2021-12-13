@@ -36,8 +36,12 @@ class SignaldRPCClient:
     _response_waiters: Dict[UUID, asyncio.Future]
     _rpc_event_handlers: Dict[str, List[EventHandler]]
 
-    def __init__(self, socket_path: str, log: Optional[TraceLogger] = None,
-                 loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    def __init__(
+        self,
+        socket_path: str,
+        log: Optional[TraceLogger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> None:
         self.socket_path = socket_path
         self.log = log or logging.getLogger("mausignald")
         self.loop = loop or asyncio.get_event_loop()
@@ -67,7 +71,8 @@ class SignaldRPCClient:
         while True:
             try:
                 self._reader, self._writer = await asyncio.open_unix_connection(
-                    self.socket_path, limit=_SOCKET_LIMIT)
+                    self.socket_path, limit=_SOCKET_LIMIT
+                )
             except OSError as e:
                 self.log.error(f"Connection to {self.socket_path} failed: {e}")
                 await asyncio.sleep(5)
@@ -177,8 +182,9 @@ class SignaldRPCClient:
         self._reader = None
         self._writer = None
 
-    def _create_request(self, command: str, req_id: Optional[UUID] = None, **data: Any
-                        ) -> Tuple[asyncio.Future, Dict[str, Any]]:
+    def _create_request(
+        self, command: str, req_id: Optional[UUID] = None, **data: Any
+    ) -> Tuple[asyncio.Future, Dict[str, Any]]:
         req_id = req_id or uuid4()
         req = {"id": str(req_id), "type": command, **data}
         self.log.trace("Request %s: %s %s", req_id, command, data)
@@ -196,7 +202,8 @@ class SignaldRPCClient:
             if not waiter.done():
                 self.log.trace(f"Abandoning response for {req_id}")
                 waiter.set_exception(
-                    NotConnected("Disconnected from signald before RPC completed"))
+                    NotConnected("Disconnected from signald before RPC completed")
+                )
 
     async def _send_request(self, data: Dict[str, Any]) -> None:
         if self._writer is None:
@@ -207,8 +214,9 @@ class SignaldRPCClient:
         await self._writer.drain()
         self.log.trace("Sent data to server server: %s", data)
 
-    async def _raw_request(self, command: str, req_id: Optional[UUID] = None, **data: Any
-                           ) -> Tuple[str, Dict[str, Any]]:
+    async def _raw_request(
+        self, command: str, req_id: Optional[UUID] = None, **data: Any
+    ) -> Tuple[str, Dict[str, Any]]:
         future, data = self._create_request(command, req_id, **data)
         await self._send_request(data)
         return await asyncio.shield(future)
