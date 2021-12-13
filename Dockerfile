@@ -37,16 +37,11 @@ COPY requirements.txt /opt/mautrix-signal/requirements.txt
 COPY optional-requirements.txt /opt/mautrix-signal/optional-requirements.txt
 WORKDIR /opt/mautrix-signal
 RUN apk add --virtual .build-deps python3-dev libffi-dev build-base \
+ && pip3 install -r requirements.txt -r optional-requirements.txt \
  && apk del .build-deps
 
 COPY . /opt/mautrix-signal
-RUN apk add git \
-  && apk add --virtual .build-deps python3-dev libffi-dev build-base \
-  && pip3 install .[all] \
-  && pip3 install -r requirements.txt -r optional-requirements.txt \
-  && pip3 install 'git+https://github.com/vector-im/mautrix-python@v0.11.4-mod-2#egg=mautrix' \
-  && apk del git \
-  && apk del .build-deps \
+RUN apk add git && pip3 install .[all] && apk del git \
   # This doesn't make the image smaller, but it's needed so that the `version` command works properly
   && cp mautrix_signal/example-config.yaml . && rm -rf mautrix_signal
 
