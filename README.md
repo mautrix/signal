@@ -3,7 +3,6 @@
 The Element fork includes the following changes:
 - [User activity tracking](https://github.com/vector-im/mautrix-signal/tree/hs/activity-blocking)
 - [Add additional metrics to the bridge](https://github.com/mautrix/signal/pull/164)
-- [Use mautrix-python v0.11.4-mod-2](https://github.com/vector-im/mautrix-signal/pull/5)
 
 Some changes that appear here may get upstreamed to https://github.com/mautrix/signal, and will be removed from
 the list when they appear in both versions.
