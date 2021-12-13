@@ -54,7 +54,7 @@
   * [x] Typing notifications
   * [x] Read receipts
   * [ ] Delivery receipts (there's no good way to bridge these)
-  * [ ] Disappearing messages
+  * [x] Disappearing messages
 * Misc
   * [x] Automatic portal creation
     * [x] At startup

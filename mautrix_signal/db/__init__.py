@@ -3,6 +3,7 @@ import sqlite3
 import uuid
 
 from .upgrade import upgrade_table
+from .disappearing_message import DisappearingMessage
 from .user import User
 from .puppet import Puppet
 from .portal import Portal
@@ -11,7 +12,7 @@ from .reaction import Reaction
 
 
 def init(db: Database) -> None:
-    for table in (User, Puppet, Portal, Message, Reaction):
+    for table in (User, Puppet, Portal, Message, Reaction, DisappearingMessage):
         table.db = db
 
 
@@ -19,4 +20,5 @@ def init(db: Database) -> None:
 sqlite3.register_adapter(uuid.UUID, lambda u: str(u))
 sqlite3.register_converter("UUID", lambda b: uuid.UUID(b.decode("utf-8") if isinstance(b, bytes) else b))
 
-__all__ = ["upgrade_table", "init", "User", "Puppet", "Portal", "Message", "Reaction"]
+__all__ = ["upgrade_table", "init", "User", "Puppet", "Portal", "Message", "Reaction",
+           "DisappearingMessage"]

@@ -182,18 +182,29 @@ class SignaldClient(SignaldRPCClient):
                                      mentions=serialized_mentions, timestamp=timestamp,
                                      **self._recipient_to_args(recipient))
         errors = []
-        for result in resp.get("results", []):
-            number = result.get("address", {}).get("number")
+
+        # We handle unregisteredFailure a little differently than other errors. If there are no
+        # successful sends, then we show an error with the unregisteredFailure details, otherwise
+        # we ignore it.
+        unregistered_failures = []
+        successful_send_count = 0
+        results = resp.get("results", [])
+        for result in results:
+            number = (
+                result.get("address", {}).get("number") or result.get("address", {}).get("uuid")
+            )
+            proof_required_failure = result.get("proof_required_failure")
             if result.get("networkFailure", False):
                 errors.append(f"Network failure occurred while sending message to {number}.")
-            if result.get("unregisteredFailure", False):
-                errors.append(f"Unregistered failure occurred while sending message to {number}.")
-            if result.get("identityFailure", ""):
+            elif result.get("unregisteredFailure", False):
+                unregistered_failures.append(
+                    f"Unregistered failure occurred while sending message to {number}."
+                )
+            elif result.get("identityFailure", ""):
                 errors.append(
                     f"Identity failure occurred while sending message to {number}. New identity: "
                     f"{result['identityFailure']}")
-            proof_required_failure = result.get("proof_required_failure")
-            if proof_required_failure:
+            elif proof_required_failure:
                 options = proof_required_failure.get('options')
                 self.log.warning(
                     f"Proof Required Failure {options}. "
@@ -210,10 +221,14 @@ class SignaldClient(SignaldRPCClient):
                 elif "PUSH_CHALLENGE" in options:
                     # Just submit the challenge automatically.
                     await self.request_v1("submit_challenge")
-        if errors:
+            else:
+                successful_send_count += 1
+        self.log.info(f"Successfully sent message to {successful_send_count}/{len(results)} users in {recipient}")
+        if errors or successful_send_count == 0:
             SEND_COUNTER.labels(result="error").inc(1)
-            raise Exception("\n".join(errors))
+            raise Exception("\n".join(errors + unregistered_failures))
         SEND_COUNTER.labels(result="success").inc(1)
+>>>>>>> tulir/master
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
                            when: Optional[int] = None, read: bool = False) -> None:

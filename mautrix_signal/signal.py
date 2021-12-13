@@ -101,6 +101,9 @@ class SignalHandler(SignaldClient):
 
     async def handle_message(self, user: 'u.User', sender: 'pu.Puppet', msg: MessageData,
                              addr_override: Optional[Address] = None) -> None:
+        if msg.profile_key_update:
+            self.log.debug("Ignoring profile key update")
+            return
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
         elif msg.group:
@@ -130,6 +133,8 @@ class SignalHandler(SignaldClient):
             await portal.update_info(user, msg.group)
         if msg.remote_delete:
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
+        if msg.expires_in_seconds is not None:
+            await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
 
     @staticmethod
     async def handle_own_receipts(sender: 'pu.Puppet', receipts: List[OwnReadReceipt]) -> None:

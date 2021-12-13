@@ -176,7 +176,24 @@ async def upgrade_v6(conn: Connection) -> None:
 async def upgrade_v7(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN relay_user_id TEXT")
 
+# NOTE:
+# Since we merged the schema update `Add activity times to the puppet table`, all upgrades since `8` must be bumped by one version to avoid a clash. Please do this when merging.
+
+
 @upgrade_table.register(description="Add activity times to the puppet table")
 async def upgrade_v8(conn: Connection) -> None:
     await conn.execute("ALTER TABLE puppet ADD COLUMN first_activity_ts BIGINT")
     await conn.execute("ALTER TABLE puppet ADD COLUMN last_activity_ts BIGINT")
+    
+
+@upgrade_table.register(description="Add support for disappearing messages")
+async def upgrade_v9(conn: Connection) -> None:
+    await conn.execute("""CREATE TABLE disappearing_message (
+        room_id             TEXT,
+        mxid                TEXT,
+        expiration_seconds  BIGINT,
+        expiration_ts       BIGINT,
+
+        PRIMARY KEY (room_id, mxid)
+    )""")
+    await conn.execute("ALTER TABLE portal ADD COLUMN expiration_time BIGINT")
