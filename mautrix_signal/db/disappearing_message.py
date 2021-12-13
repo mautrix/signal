@@ -13,13 +13,12 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import ClassVar, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, List, Optional
 
 from attr import dataclass
-import asyncpg
-
-from mautrix.types import RoomID, EventID
+from mautrix.types import EventID, RoomID
 from mautrix.util.async_db import Database
+import asyncpg
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 

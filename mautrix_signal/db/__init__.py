@@ -1,14 +1,15 @@
-from mautrix.util.async_db import Database
 import sqlite3
 import uuid
 
-from .upgrade import upgrade_table
+from mautrix.util.async_db import Database
+
 from .disappearing_message import DisappearingMessage
-from .user import User
-from .puppet import Puppet
-from .portal import Portal
 from .message import Message
+from .portal import Portal
+from .puppet import Puppet
 from .reaction import Reaction
+from .upgrade import upgrade_table
+from .user import User
 
 
 def init(db: Database) -> None:

@@ -13,14 +13,14 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional, ClassVar, List, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, List, Optional, Union
 
 from attr import dataclass
+from mautrix.types import ContentURI, RoomID, UserID
+from mautrix.util.async_db import Database
 import asyncpg
 
 from mausignald.types import Address, GroupID
-from mautrix.types import RoomID, ContentURI, UserID
-from mautrix.util.async_db import Database
 
 from ..util import id_to_str
 

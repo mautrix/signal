@@ -13,8 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from mautrix.types import EventID
 from mautrix.bridge.commands import HelpSection, command_handler
+from mautrix.types import EventID
+
 from .typehint import CommandEvent
 
 SECTION_CONNECTION = HelpSection("Connection management", 15, "")

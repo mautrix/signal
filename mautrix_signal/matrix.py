@@ -13,30 +13,32 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import List, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Union
 
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (
     Event,
-    ReactionEvent,
-    StateEvent,
-    RoomID,
     EventID,
-    UserID,
-    TypingEvent,
-    ReactionEventContent,
-    RelationType,
     EventType,
-    ReceiptEvent,
     PresenceEvent,
+    ReactionEvent,
+    ReactionEventContent,
+    ReceiptEvent,
     RedactionEvent,
+    RelationType,
+    RoomID,
     SingleReceiptEventContent,
+    StateEvent,
+    TypingEvent,
+    UserID,
 )
 
 from mautrix_signal.db.disappearing_message import DisappearingMessage
 
+from . import portal as po
+from . import signal as s
+from . import user as u
 from .db import Message as DBMessage
-from . import portal as po, user as u, signal as s
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge

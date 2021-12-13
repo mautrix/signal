@@ -13,30 +13,32 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from typing import TYPE_CHECKING, AsyncGenerator, Dict, List, Optional, Union, cast
 from asyncio.tasks import sleep
 from datetime import datetime
-from typing import Union, Dict, Optional, AsyncGenerator, List, TYPE_CHECKING, cast
 from uuid import UUID
 import asyncio
+
+from mautrix.appservice import AppService
+from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
+from mautrix.types import RoomID, UserID
+from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
+from mautrix.util.opt_prometheus import Gauge
 
 from mausignald.types import (
     Account,
     Address,
-    Profile,
     Group,
     GroupV2,
+    Profile,
     WebsocketConnectionState,
     WebsocketConnectionStateChangeEvent,
 )
-from mautrix.bridge import BaseUser, AutologinError, async_getter_lock
-from mautrix.types import UserID, RoomID
-from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
-from mautrix.appservice import AppService
-from mautrix.util.opt_prometheus import Gauge
 
-from .db import User as DBUser
+from . import portal as po
+from . import puppet as pu
 from .config import Config
-from . import puppet as pu, portal as po
+from .db import User as DBUser
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge

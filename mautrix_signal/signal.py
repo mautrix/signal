@@ -13,26 +13,29 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 import asyncio
 import logging
 
+from mautrix.util.logging import TraceLogger
+
 from mausignald import SignaldClient
 from mausignald.types import (
+    Address,
     Message,
     MessageData,
-    Address,
-    TypingNotification,
-    TypingAction,
     OwnReadReceipt,
     Receipt,
     ReceiptType,
+    TypingAction,
+    TypingNotification,
     WebsocketConnectionStateChangeEvent,
 )
-from mautrix.util.logging import TraceLogger
 
+from . import portal as po
+from . import puppet as pu
+from . import user as u
 from .db import Message as DBMessage
-from . import user as u, portal as po, puppet as pu
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge

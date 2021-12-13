@@ -13,17 +13,17 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Awaitable, Dict, TYPE_CHECKING
-import logging
+from typing import TYPE_CHECKING, Awaitable, Dict
 import asyncio
 import json
+import logging
 
 from aiohttp import web
-
-from mausignald.types import Address, Account
-from mausignald.errors import InternalError, TimeoutException
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
+
+from mausignald.errors import InternalError, TimeoutException
+from mausignald.types import Account, Address
 
 from .. import user as u
 

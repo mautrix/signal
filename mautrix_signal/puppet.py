@@ -14,40 +14,41 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import (
-    Optional,
-    Dict,
+    TYPE_CHECKING,
+    AsyncGenerator,
     AsyncIterable,
     Awaitable,
-    AsyncGenerator,
-    Union,
+    Dict,
+    Optional,
     Tuple,
-    TYPE_CHECKING,
+    Union,
     cast,
 )
 from uuid import UUID
-import hashlib
 import asyncio
+import hashlib
 import os.path
 
-from yarl import URL
-
-from mausignald.types import Address, Contact, Profile
-from mautrix.bridge import BasePuppet, async_getter_lock
 from mautrix.appservice import IntentAPI
+from mautrix.bridge import BasePuppet, async_getter_lock
+from mautrix.errors import MForbidden
 from mautrix.types import (
-    UserID,
-    SyncToken,
-    RoomID,
     ContentURI,
     EventType,
     PowerLevelStateEventContent,
+    RoomID,
+    SyncToken,
+    UserID,
 )
-from mautrix.errors import MForbidden
 from mautrix.util.simple_template import SimpleTemplate
+from yarl import URL
 
-from .db import Puppet as DBPuppet
+from mausignald.types import Address, Contact, Profile
+
+from . import portal as p
+from . import user as u
 from .config import Config
-from . import portal as p, user as u
+from .db import Puppet as DBPuppet
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge

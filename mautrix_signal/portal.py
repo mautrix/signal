@@ -14,94 +14,96 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import (
-    Dict,
-    Tuple,
-    Optional,
-    List,
-    Deque,
+    TYPE_CHECKING,
     Any,
-    Union,
     AsyncGenerator,
     Awaitable,
-    Set,
     Callable,
-    TYPE_CHECKING,
+    Deque,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Union,
     cast,
 )
-from html import escape as escape_html
 from collections import deque
-from uuid import UUID, uuid4
+from html import escape as escape_html
 from string import Template
-import mimetypes
-import pathlib
-import hashlib
+from uuid import UUID, uuid4
 import asyncio
-import os.path
-import time
+import hashlib
+import mimetypes
 import os
+import os.path
+import pathlib
+import time
 
-from mausignald.types import (
-    Address,
-    MessageData,
-    Reaction,
-    Quote,
-    Group,
-    Contact,
-    Profile,
-    Attachment,
-    GroupID,
-    GroupV2ID,
-    GroupV2,
-    Mention,
-    Sticker,
-    GroupAccessControl,
-    AccessControlMode,
-    GroupMemberRole,
-)
-from mausignald.errors import RPCError, ResponseError
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
+from mautrix.errors import IntentError, MatrixError, MForbidden
 from mautrix.types import (
-    EventID,
-    MessageEventContent,
-    RoomID,
-    EventType,
-    MessageType,
-    Format,
-    MessageEvent,
-    EncryptedEvent,
-    ContentURI,
-    MediaMessageEventContent,
-    TextMessageEventContent,
-    ImageInfo,
-    VideoInfo,
-    FileInfo,
     AudioInfo,
+    ContentURI,
+    EncryptedEvent,
+    EventID,
+    EventType,
+    FileInfo,
+    Format,
+    ImageInfo,
+    MediaMessageEventContent,
+    MessageEvent,
+    MessageEventContent,
+    MessageType,
     PowerLevelStateEventContent,
-    UserID,
+    RoomID,
     SingleReceiptEventContent,
+    TextMessageEventContent,
+    UserID,
+    VideoInfo,
 )
-from mautrix.util.format_duration import format_duration
 from mautrix.util.bridge_state import BridgeStateEvent
+from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
-from mautrix.errors import MatrixError, MForbidden, IntentError
 
-from .db import (
-    Portal as DBPortal,
-    Message as DBMessage,
-    Reaction as DBReaction,
-    DisappearingMessage,
+from mausignald.errors import ResponseError, RPCError
+from mausignald.types import (
+    AccessControlMode,
+    Address,
+    Attachment,
+    Contact,
+    Group,
+    GroupAccessControl,
+    GroupID,
+    GroupMemberRole,
+    GroupV2,
+    GroupV2ID,
+    Mention,
+    MessageData,
+    Profile,
+    Quote,
+    Reaction,
+    Sticker,
 )
+
+from . import matrix as m
+from . import puppet as p
+from . import signal as s
+from . import user as u
 from .config import Config
+from .db import DisappearingMessage
+from .db import Message as DBMessage
+from .db import Portal as DBPortal
+from .db import Reaction as DBReaction
 from .formatter import matrix_to_signal, signal_to_matrix
 from .util import id_to_str
-from . import user as u, puppet as p, matrix as m, signal as s
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
 
 try:
-    from mautrix.crypto.attachments import encrypt_attachment, decrypt_attachment
+    from mautrix.crypto.attachments import decrypt_attachment, encrypt_attachment
 except ImportError:
     encrypt_attachment = decrypt_attachment = None
 

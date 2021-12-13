@@ -16,17 +16,18 @@
 from typing import Union
 import io
 
-from mausignald.errors import UnexpectedResponse, TimeoutException, AuthorizationFailedException
 from mautrix.appservice import IntentAPI
-from mautrix.types import MediaMessageEventContent, MessageType, ImageInfo, EventID
 from mautrix.bridge.commands import HelpSection, command_handler
+from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType
+
+from mausignald.errors import AuthorizationFailedException, TimeoutException, UnexpectedResponse
 
 from .. import puppet as pu
 from .typehint import CommandEvent
 
 try:
-    import qrcode
     import PIL as _
+    import qrcode
 except ImportError:
     qrcode = None
 

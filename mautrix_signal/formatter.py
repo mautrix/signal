@@ -13,21 +13,19 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Tuple, List, cast
+from typing import List, Tuple, cast
 from html import escape
 import struct
 
-from mausignald.types import MessageData, Address, Mention
-from mautrix.types import TextMessageEventContent, MessageType, Format
-from mautrix.util.formatter import (
-    MatrixParser as BaseMatrixParser,
-    EntityString,
-    SimpleEntity,
-    EntityType,
-    MarkdownString,
-)
+from mautrix.types import Format, MessageType, TextMessageEventContent
+from mautrix.util.formatter import EntityString, EntityType, MarkdownString
+from mautrix.util.formatter import MatrixParser as BaseMatrixParser
+from mautrix.util.formatter import SimpleEntity
 
-from . import puppet as pu, user as u
+from mausignald.types import Address, Mention, MessageData
+
+from . import puppet as pu
+from . import user as u
 
 
 # Helper methods from rom https://github.com/LonamiWebs/Telethon/blob/master/telethon/helpers.py

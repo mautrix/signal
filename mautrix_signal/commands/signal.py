@@ -17,18 +17,20 @@ from typing import Optional
 import base64
 import json
 
-from mautrix.bridge.commands import HelpSection, command_handler, SECTION_ADMIN
+from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import EventID
-from mausignald.types import Address
-from mausignald.errors import UnknownIdentityKey
 
-from .. import puppet as pu, portal as po
+from mausignald.errors import UnknownIdentityKey
+from mausignald.types import Address
+
+from .. import portal as po
+from .. import puppet as pu
 from .auth import make_qr, remove_extra_chars
 from .typehint import CommandEvent
 
 try:
-    import qrcode
     import PIL as _
+    import qrcode
 except ImportError:
     qrcode = None
 

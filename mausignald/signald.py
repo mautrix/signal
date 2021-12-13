@@ -3,28 +3,28 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from typing import Union, Optional, List, Dict, Any, Callable, Awaitable, Set, TypeVar, Type
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Type, TypeVar, Union
 import asyncio
 
 from mautrix.util.logging import TraceLogger
 
-from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .errors import UnexpectedError, UnexpectedResponse
+from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .types import (
-    Address,
-    Quote,
-    Attachment,
-    Reaction,
     Account,
-    Message,
+    Address,
+    Attachment,
     DeviceInfo,
-    Group,
-    Profile,
-    GroupID,
     GetIdentitiesResponse,
+    Group,
+    GroupID,
     GroupV2,
-    Mention,
     LinkSession,
+    Mention,
+    Message,
+    Profile,
+    Quote,
+    Reaction,
     WebsocketConnectionState,
     WebsocketConnectionStateChangeEvent,
 )
