@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -13,17 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import (
-    TYPE_CHECKING,
-    AsyncGenerator,
-    AsyncIterable,
-    Awaitable,
-    Dict,
-    Optional,
-    Tuple,
-    Union,
-    cast,
-)
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, AsyncGenerator, AsyncIterable, Awaitable, cast
 from uuid import UUID
 import asyncio
 import hashlib
@@ -45,8 +37,7 @@ from yarl import URL
 
 from mausignald.types import Address, Contact, Profile
 
-from . import portal as p
-from . import user as u
+from . import portal as p, user as u
 from .config import Config
 from .db import Puppet as DBPuppet
 
@@ -60,9 +51,9 @@ except ImportError:
 
 
 class Puppet(DBPuppet, BasePuppet):
-    by_uuid: Dict[UUID, "Puppet"] = {}
-    by_number: Dict[str, "Puppet"] = {}
-    by_custom_mxid: Dict[UserID, "Puppet"] = {}
+    by_uuid: dict[UUID, Puppet] = {}
+    by_number: dict[str, Puppet] = {}
+    by_custom_mxid: dict[UserID, Puppet] = {}
     hs_domain: str
     mxid_template: SimpleTemplate[str]
 
@@ -76,19 +67,19 @@ class Puppet(DBPuppet, BasePuppet):
 
     def __init__(
         self,
-        uuid: Optional[UUID],
-        number: Optional[str],
-        name: Optional[str] = None,
-        avatar_url: Optional[ContentURI] = None,
-        avatar_hash: Optional[str] = None,
+        uuid: UUID | None,
+        number: str | None,
+        name: str | None = None,
+        avatar_url: ContentURI | None = None,
+        avatar_hash: str | None = None,
         name_set: bool = False,
         avatar_set: bool = False,
         uuid_registered: bool = False,
         number_registered: bool = False,
-        custom_mxid: Optional[UserID] = None,
-        access_token: Optional[str] = None,
-        next_batch: Optional[SyncToken] = None,
-        base_url: Optional[URL] = None,
+        custom_mxid: UserID | None = None,
+        access_token: str | None = None,
+        next_batch: SyncToken | None = None,
+        base_url: URL | None = None,
     ) -> None:
         super().__init__(
             uuid=uuid,
@@ -142,7 +133,7 @@ class Puppet(DBPuppet, BasePuppet):
         cls.login_device_name = "Signal Bridge"
         return (puppet.try_start() async for puppet in cls.all_with_custom_mxid())
 
-    def intent_for(self, portal: "p.Portal") -> IntentAPI:
+    def intent_for(self, portal: p.Portal) -> IntentAPI:
         if portal.chat_id == self.address:
             return self.default_mxid_intent
         return self.intent
@@ -237,7 +228,7 @@ class Puppet(DBPuppet, BasePuppet):
         except Exception:
             self.log.warning("Failed to migrate power levels", exc_info=True)
 
-    async def update_info(self, info: Union[Profile, Contact, Address]) -> None:
+    async def update_info(self, info: Profile | Contact | Address) -> None:
         address = info.address if isinstance(info, (Contact, Profile)) else info
         if address.uuid and not self.uuid:
             await self.handle_uuid_receive(address.uuid)
@@ -276,7 +267,7 @@ class Puppet(DBPuppet, BasePuppet):
         return phonenumbers.format_number(parsed, fmt)
 
     @classmethod
-    def _get_displayname(cls, address: Address, name: Optional[str]) -> str:
+    def _get_displayname(cls, address: Address, name: str | None) -> str:
         names = name.split("\x00") if name else []
         data = {
             "first_name": names[0] if len(names) > 0 else "",
@@ -294,7 +285,7 @@ class Puppet(DBPuppet, BasePuppet):
 
         return cls.config["bridge.displayname_template"].format(**data)
 
-    async def _update_name(self, name: Optional[str]) -> bool:
+    async def _update_name(self, name: str | None) -> bool:
         name = self._get_displayname(self.address, name)
         if name != self.name or not self.name_set:
             self.name = name
@@ -309,10 +300,8 @@ class Puppet(DBPuppet, BasePuppet):
 
     @staticmethod
     async def upload_avatar(
-        self: Union["Puppet", "p.Portal"],
-        path: str,
-        intent: IntentAPI,
-    ) -> Union[bool, Tuple[str, ContentURI]]:
+        self: Puppet | p.Portal, path: str, intent: IntentAPI
+    ) -> bool | tuple[str, ContentURI]:
         if not path:
             return False
         if not path.startswith("/"):
@@ -372,7 +361,7 @@ class Puppet(DBPuppet, BasePuppet):
         await self.update()
 
     @classmethod
-    async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Optional["Puppet"]:
+    async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Puppet | None:
         address = cls.get_id_from_mxid(mxid)
         if not address:
             return None
@@ -380,7 +369,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     @classmethod
     @async_getter_lock
-    async def get_by_custom_mxid(cls, mxid: UserID) -> Optional["Puppet"]:
+    async def get_by_custom_mxid(cls, mxid: UserID) -> Puppet | None:
         try:
             return cls.by_custom_mxid[mxid]
         except KeyError:
@@ -394,7 +383,7 @@ class Puppet(DBPuppet, BasePuppet):
         return None
 
     @classmethod
-    def get_id_from_mxid(cls, mxid: UserID) -> Optional[Address]:
+    def get_id_from_mxid(cls, mxid: UserID) -> Address | None:
         identifier = cls.mxid_template.parse(mxid)
         if not identifier:
             return None
@@ -418,7 +407,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     @classmethod
     @async_getter_lock
-    async def get_by_address(cls, address: Address, create: bool = True) -> Optional["Puppet"]:
+    async def get_by_address(cls, address: Address, create: bool = True) -> Puppet | None:
         puppet = await cls._get_by_address(address, create)
         if puppet and address.uuid and not puppet.uuid:
             # We found a UUID for this user, store it ASAP
@@ -426,7 +415,7 @@ class Puppet(DBPuppet, BasePuppet):
         return puppet
 
     @classmethod
-    async def _get_by_address(cls, address: Address, create: bool = True) -> Optional["Puppet"]:
+    async def _get_by_address(cls, address: Address, create: bool = True) -> Puppet | None:
         if not address.is_valid:
             raise ValueError("Empty address")
         if address.uuid:
@@ -454,7 +443,7 @@ class Puppet(DBPuppet, BasePuppet):
         return None
 
     @classmethod
-    async def all_with_custom_mxid(cls) -> AsyncGenerator["Puppet", None]:
+    async def all_with_custom_mxid(cls) -> AsyncGenerator[Puppet, None]:
         puppets = await super().all_with_custom_mxid()
         puppet: cls
         for index, puppet in enumerate(puppets):

@@ -13,6 +13,8 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, ClassVar, List, Optional
 
 from attr import dataclass
@@ -60,11 +62,11 @@ class DisappearingMessage:
         await cls.db.execute(q, room_id, event_id)
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> "DisappearingMessage":
+    def _from_row(cls, row: asyncpg.Record) -> DisappearingMessage:
         return cls(**row)
 
     @classmethod
-    async def get(cls, room_id: RoomID, event_id: EventID) -> Optional["DisappearingMessage"]:
+    async def get(cls, room_id: RoomID, event_id: EventID) -> Optional[DisappearingMessage]:
         q = """
         SELECT room_id, mxid, expiration_seconds, expiration_ts
           FROM disappearing_message
@@ -77,12 +79,12 @@ class DisappearingMessage:
             return None
 
     @classmethod
-    async def get_all(cls) -> List["DisappearingMessage"]:
+    async def get_all(cls) -> List[DisappearingMessage]:
         q = "SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message"
         return [cls._from_row(r) for r in await cls.db.fetch(q)]
 
     @classmethod
-    async def get_all_for_room(cls, room_id: RoomID) -> List["DisappearingMessage"]:
+    async def get_all_for_room(cls, room_id: RoomID) -> List[DisappearingMessage]:
         q = """
         SELECT room_id, mxid, expiration_seconds, expiration_ts
           FROM disappearing_message

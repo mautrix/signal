@@ -13,7 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, ClassVar, List, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 from uuid import UUID
 
 from attr import dataclass
@@ -28,9 +30,9 @@ class User:
     db: ClassVar[Database] = fake_db
 
     mxid: UserID
-    username: Optional[str]
-    uuid: Optional[UUID]
-    notice_room: Optional[RoomID]
+    username: str | None
+    uuid: UUID | None
+    notice_room: RoomID | None
 
     async def insert(self) -> None:
         q = 'INSERT INTO "user" (mxid, username, uuid, notice_room) ' "VALUES ($1, $2, $3, $4)"
@@ -41,7 +43,7 @@ class User:
         await self.db.execute(q, self.username, self.uuid, self.notice_room, self.mxid)
 
     @classmethod
-    async def get_by_mxid(cls, mxid: UserID) -> Optional["User"]:
+    async def get_by_mxid(cls, mxid: UserID) -> User | None:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE mxid=$1'
         row = await cls.db.fetchrow(q, mxid)
         if not row:
@@ -49,7 +51,7 @@ class User:
         return cls(**row)
 
     @classmethod
-    async def get_by_username(cls, username: str) -> Optional["User"]:
+    async def get_by_username(cls, username: str) -> User | None:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username=$1'
         row = await cls.db.fetchrow(q, username)
         if not row:
@@ -57,7 +59,7 @@ class User:
         return cls(**row)
 
     @classmethod
-    async def get_by_uuid(cls, uuid: UUID) -> Optional["User"]:
+    async def get_by_uuid(cls, uuid: UUID) -> User | None:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE uuid=$1'
         row = await cls.db.fetchrow(q, uuid)
         if not row:
@@ -65,7 +67,7 @@ class User:
         return cls(**row)
 
     @classmethod
-    async def all_logged_in(cls) -> List["User"]:
+    async def all_logged_in(cls) -> list[User]:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username IS NOT NULL'
         rows = await cls.db.fetch(q)
         return [cls(**row) for row in rows]

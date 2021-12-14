@@ -85,7 +85,7 @@ async def link(evt: CommandEvent) -> None:
     except Exception:
         evt.log.exception("Fatal error while waiting for linking to finish")
         await evt.reply(
-            "Fatal error while waiting for linking to finish " "(see logs for more details)"
+            "Fatal error while waiting for linking to finish (see logs for more details)"
         )
     else:
         await evt.sender.on_signin(account)

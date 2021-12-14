@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -13,7 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, List, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import asyncio
 import logging
 
@@ -32,9 +34,7 @@ from mausignald.types import (
     WebsocketConnectionStateChangeEvent,
 )
 
-from . import portal as po
-from . import puppet as pu
-from . import user as u
+from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage
 
 if TYPE_CHECKING:
@@ -99,10 +99,10 @@ class SignalHandler(SignaldClient):
 
     async def handle_message(
         self,
-        user: "u.User",
-        sender: "pu.Puppet",
+        user: u.User,
+        sender: pu.Puppet,
         msg: MessageData,
-        addr_override: Optional[Address] = None,
+        addr_override: Address | None = None,
     ) -> None:
         if msg.profile_key_update:
             self.log.debug("Ignoring profile key update")
@@ -123,7 +123,7 @@ class SignalHandler(SignaldClient):
                 return
         if not portal.mxid:
             await portal.create_matrix_room(
-                user, (msg.group_v2 or msg.group or addr_override or sender.address)
+                user, msg.group_v2 or msg.group or addr_override or sender.address
             )
             if not portal.mxid:
                 user.log.debug(
@@ -145,7 +145,7 @@ class SignalHandler(SignaldClient):
             await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
 
     @staticmethod
-    async def handle_own_receipts(sender: "pu.Puppet", receipts: List[OwnReadReceipt]) -> None:
+    async def handle_own_receipts(sender: pu.Puppet, receipts: list[OwnReadReceipt]) -> None:
         for receipt in receipts:
             puppet = await pu.Puppet.get_by_address(receipt.sender, create=False)
             if not puppet:
@@ -159,9 +159,7 @@ class SignalHandler(SignaldClient):
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
 
     @staticmethod
-    async def handle_typing(
-        user: "u.User", sender: "pu.Puppet", typing: TypingNotification
-    ) -> None:
+    async def handle_typing(user: u.User, sender: pu.Puppet, typing: TypingNotification) -> None:
         if typing.group_id:
             portal = await po.Portal.get_by_chat_id(typing.group_id)
         else:
@@ -174,7 +172,7 @@ class SignalHandler(SignaldClient):
         )
 
     @staticmethod
-    async def handle_receipt(sender: "pu.Puppet", receipt: Receipt) -> None:
+    async def handle_receipt(sender: pu.Puppet, receipt: Receipt) -> None:
         if receipt.type != ReceiptType.READ:
             return
         messages = await DBMessage.find_by_timestamps(receipt.timestamps)

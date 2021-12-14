@@ -2,6 +2,7 @@
 profile = "black"
 force_to_top = "typing"
 from_first = true
+combine_as_imports = true
 line_length = 99
 
 [tool.black]

@@ -23,8 +23,7 @@ from mautrix.types import EventID
 from mausignald.errors import UnknownIdentityKey
 from mausignald.types import Address
 
-from .. import portal as po
-from .. import puppet as pu
+from .. import portal as po, puppet as pu
 from .auth import make_qr, remove_extra_chars
 from .typehint import CommandEvent
 
@@ -182,7 +181,7 @@ async def set_profile_name(evt: CommandEvent) -> None:
 async def mark_trusted(evt: CommandEvent) -> EventID:
     if len(evt.args) < 2:
         return await evt.reply(
-            "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> " "<safety number>`"
+            "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> <safety number>`"
         )
     number = evt.args[0].translate(remove_extra_chars)
     safety_num = "".join(evt.args[1:]).replace("\n", "")
@@ -253,5 +252,5 @@ async def raw(evt: CommandEvent) -> None:
             await evt.reply(f"Got reply `{resp_type}` with no content")
         else:
             await evt.reply(
-                f"Got reply `{resp_type}`:\n\n" f"```json\n{json.dumps(resp_data, indent=2)}\n```"
+                f"Got reply `{resp_type}`:\n\n```json\n{json.dumps(resp_data, indent=2)}\n```"
             )

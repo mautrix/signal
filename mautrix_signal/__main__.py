@@ -23,8 +23,7 @@ from mautrix.types import RoomID, UserID
 
 from . import commands
 from .config import Config
-from .db import init as init_db
-from .db import upgrade_table
+from .db import init as init_db, upgrade_table
 from .matrix import MatrixHandler
 from .portal import Portal
 from .puppet import Puppet

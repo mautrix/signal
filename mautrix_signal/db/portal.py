@@ -13,7 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, ClassVar, List, Optional, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 
 from attr import dataclass
 from mautrix.types import ContentURI, RoomID, UserID
@@ -31,18 +33,18 @@ fake_db = Database.create("") if TYPE_CHECKING else None
 class Portal:
     db: ClassVar[Database] = fake_db
 
-    chat_id: Union[GroupID, Address]
+    chat_id: GroupID | Address
     receiver: str
-    mxid: Optional[RoomID]
-    name: Optional[str]
-    avatar_hash: Optional[str]
-    avatar_url: Optional[ContentURI]
+    mxid: RoomID | None
+    name: str | None
+    avatar_hash: str | None
+    avatar_url: ContentURI | None
     name_set: bool
     avatar_set: bool
     revision: int
     encrypted: bool
-    relay_user_id: Optional[UserID]
-    expiration_time: Optional[int]
+    relay_user_id: UserID | None
+    expiration_time: int | None
 
     @property
     def chat_id_str(self) -> str:
@@ -94,7 +96,7 @@ class Portal:
         )
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> "Portal":
+    def _from_row(cls, row: asyncpg.Record) -> Portal:
         data = {**row}
         chat_id = data.pop("chat_id")
         if data["receiver"]:
@@ -102,12 +104,11 @@ class Portal:
         return cls(chat_id=chat_id, **data)
 
     @classmethod
-    async def get_by_mxid(cls, mxid: RoomID) -> Optional["Portal"]:
+    async def get_by_mxid(cls, mxid: RoomID) -> Portal | None:
         q = """
         SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time
-          FROM portal
-         WHERE mxid=$1
+               revision, encrypted, relay_user_id, expiration_time FROM portal
+        WHERE mxid=$1
         """
         row = await cls.db.fetchrow(q, mxid)
         if not row:
@@ -115,14 +116,11 @@ class Portal:
         return cls._from_row(row)
 
     @classmethod
-    async def get_by_chat_id(
-        cls, chat_id: Union[GroupID, Address], receiver: str = ""
-    ) -> Optional["Portal"]:
+    async def get_by_chat_id(cls, chat_id: GroupID | Address, receiver: str = "") -> Portal | None:
         q = """
         SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time
-          FROM portal
-         WHERE chat_id=$1 AND receiver=$2
+               revision, encrypted, relay_user_id, expiration_time FROM portal
+        WHERE chat_id=$1 AND receiver=$2
         """
         row = await cls.db.fetchrow(q, id_to_str(chat_id), receiver)
         if not row:
@@ -130,34 +128,31 @@ class Portal:
         return cls._from_row(row)
 
     @classmethod
-    async def find_private_chats_of(cls, receiver: str) -> List["Portal"]:
+    async def find_private_chats_of(cls, receiver: str) -> list[Portal]:
         q = """
         SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time
-          FROM portal
-         WHERE receiver=$1
+               revision, encrypted, relay_user_id, expiration_time FROM portal
+        WHERE receiver=$1
         """
         rows = await cls.db.fetch(q, receiver)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def find_private_chats_with(cls, other_user: Address) -> List["Portal"]:
+    async def find_private_chats_with(cls, other_user: Address) -> list[Portal]:
         q = """
         SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time
-          FROM portal
-         WHERE chat_id=$1 AND receiver<>''
+               revision, encrypted, relay_user_id, expiration_time FROM portal
+        WHERE chat_id=$1 AND receiver<>''
         """
         rows = await cls.db.fetch(q, other_user.best_identifier)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def all_with_room(cls) -> List["Portal"]:
+    async def all_with_room(cls) -> list[Portal]:
         q = """
         SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time
-          FROM portal
-         WHERE mxid IS NOT NULL
+               revision, encrypted, relay_user_id, expiration_time FROM portal
+        WHERE mxid IS NOT NULL
         """
         rows = await cls.db.fetch(q)
         return [cls._from_row(row) for row in rows]

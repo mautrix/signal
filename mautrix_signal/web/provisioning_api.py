@@ -13,7 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, Awaitable, Dict
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 import asyncio
 import json
 import logging
@@ -53,7 +55,7 @@ class ProvisioningAPI:
         self.app.router.add_post("/api/logout", self.logout)
 
     @property
-    def _acao_headers(self) -> Dict[str, str]:
+    def _acao_headers(self) -> dict[str, str]:
         return {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Authorization, Content-Type",
@@ -61,7 +63,7 @@ class ProvisioningAPI:
         }
 
     @property
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             **self._acao_headers,
             "Content-Type": "application/json",
@@ -163,7 +165,7 @@ class ProvisioningAPI:
             raise
         except Exception:
             self.log.exception(
-                "Fatal error while waiting for linking to finish " f"(session {session_id})"
+                "Fatal error while waiting for linking to finish (session {session_id})"
             )
             raise
         else:
@@ -182,7 +184,7 @@ class ProvisioningAPI:
             account = await asyncio.shield(self._shielded_link(user, session_id, device_name))
         except asyncio.CancelledError:
             self.log.warning(
-                f"Client cancelled link wait request ({session_id})" " before it finished"
+                f"Client cancelled link wait request ({session_id}) before it finished"
             )
         except TimeoutException:
             raise web.HTTPBadRequest(

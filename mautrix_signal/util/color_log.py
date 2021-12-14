@@ -13,8 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from mautrix.util.logging.color import PREFIX, RESET
-from mautrix.util.logging.color import ColorFormatter as BaseColorFormatter
+from mautrix.util.logging.color import PREFIX, RESET, ColorFormatter as BaseColorFormatter
 
 MAUSIGNALD_COLOR = PREFIX + "35;1m"  # magenta
 

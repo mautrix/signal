@@ -18,14 +18,17 @@ from html import escape
 import struct
 
 from mautrix.types import Format, MessageType, TextMessageEventContent
-from mautrix.util.formatter import EntityString, EntityType, MarkdownString
-from mautrix.util.formatter import MatrixParser as BaseMatrixParser
-from mautrix.util.formatter import SimpleEntity
+from mautrix.util.formatter import (
+    EntityString,
+    EntityType,
+    MarkdownString,
+    MatrixParser as BaseMatrixParser,
+    SimpleEntity,
+)
 
 from mausignald.types import Address, Mention, MessageData
 
-from . import puppet as pu
-from . import user as u
+from . import puppet as pu, user as u
 
 
 # Helper methods from rom https://github.com/LonamiWebs/Telethon/blob/master/telethon/helpers.py

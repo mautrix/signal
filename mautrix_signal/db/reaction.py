@@ -13,8 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, ClassVar, Optional, Union
-from uuid import UUID
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 
 from attr import dataclass
 from mautrix.types import EventID, RoomID
@@ -34,7 +35,7 @@ class Reaction:
 
     mxid: EventID
     mx_room: RoomID
-    signal_chat_id: Union[GroupID, Address]
+    signal_chat_id: GroupID | Address
     signal_receiver: str
     msg_author: Address
     msg_timestamp: int
@@ -89,7 +90,7 @@ class Reaction:
         )
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> "Reaction":
+    def _from_row(cls, row: asyncpg.Record) -> Reaction:
         data = {**row}
         chat_id = data.pop("signal_chat_id")
         if data["signal_receiver"]:
@@ -99,7 +100,7 @@ class Reaction:
         return cls(signal_chat_id=chat_id, msg_author=msg_author, author=author, **data)
 
     @classmethod
-    async def get_by_mxid(cls, mxid: EventID, mx_room: RoomID) -> Optional["Reaction"]:
+    async def get_by_mxid(cls, mxid: EventID, mx_room: RoomID) -> Reaction | None:
         q = (
             "SELECT mxid, mx_room, signal_chat_id, signal_receiver,"
             "       msg_author, msg_timestamp, author, emoji "
@@ -113,12 +114,12 @@ class Reaction:
     @classmethod
     async def get_by_signal_id(
         cls,
-        chat_id: Union[GroupID, Address],
+        chat_id: GroupID | Address,
         receiver: str,
         msg_author: Address,
         msg_timestamp: int,
         author: Address,
-    ) -> Optional["Reaction"]:
+    ) -> Reaction | None:
         q = (
             "SELECT mxid, mx_room, signal_chat_id, signal_receiver,"
             "       msg_author, msg_timestamp, author, emoji "

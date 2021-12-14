@@ -35,9 +35,7 @@ from mautrix.types import (
 
 from mautrix_signal.db.disappearing_message import DisappearingMessage
 
-from . import portal as po
-from . import signal as s
-from . import user as u
+from . import portal as po, signal as s, user as u
 from .db import Message as DBMessage
 
 if TYPE_CHECKING:
