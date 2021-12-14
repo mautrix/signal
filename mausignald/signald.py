@@ -228,7 +228,6 @@ class SignaldClient(SignaldRPCClient):
             SEND_COUNTER.labels(result="error").inc(1)
             raise Exception("\n".join(errors + unregistered_failures))
         SEND_COUNTER.labels(result="success").inc(1)
->>>>>>> tulir/master
 
     async def send_receipt(self, username: str, sender: Address, timestamps: List[int],
                            when: Optional[int] = None, read: bool = False) -> None:
