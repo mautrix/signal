@@ -13,12 +13,11 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional, ClassVar, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, List, Optional
 from uuid import UUID
 
 from attr import dataclass
-
-from mautrix.types import UserID, RoomID
+from mautrix.types import RoomID, UserID
 from mautrix.util.async_db import Database
 
 fake_db = Database.create("") if TYPE_CHECKING else None
@@ -34,8 +33,7 @@ class User:
     notice_room: Optional[RoomID]
 
     async def insert(self) -> None:
-        q = ('INSERT INTO "user" (mxid, username, uuid, notice_room) '
-             'VALUES ($1, $2, $3, $4)')
+        q = 'INSERT INTO "user" (mxid, username, uuid, notice_room) ' "VALUES ($1, $2, $3, $4)"
         await self.db.execute(q, self.mxid, self.username, self.uuid, self.notice_room)
 
     async def update(self) -> None:
@@ -43,7 +41,7 @@ class User:
         await self.db.execute(q, self.username, self.uuid, self.notice_room, self.mxid)
 
     @classmethod
-    async def get_by_mxid(cls, mxid: UserID) -> Optional['User']:
+    async def get_by_mxid(cls, mxid: UserID) -> Optional["User"]:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE mxid=$1'
         row = await cls.db.fetchrow(q, mxid)
         if not row:
@@ -51,7 +49,7 @@ class User:
         return cls(**row)
 
     @classmethod
-    async def get_by_username(cls, username: str) -> Optional['User']:
+    async def get_by_username(cls, username: str) -> Optional["User"]:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username=$1'
         row = await cls.db.fetchrow(q, username)
         if not row:
@@ -59,7 +57,7 @@ class User:
         return cls(**row)
 
     @classmethod
-    async def get_by_uuid(cls, uuid: UUID) -> Optional['User']:
+    async def get_by_uuid(cls, uuid: UUID) -> Optional["User"]:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE uuid=$1'
         row = await cls.db.fetchrow(q, uuid)
         if not row:
@@ -67,7 +65,7 @@ class User:
         return cls(**row)
 
     @classmethod
-    async def all_logged_in(cls) -> List['User']:
+    async def all_logged_in(cls) -> List["User"]:
         q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username IS NOT NULL'
         rows = await cls.db.fetch(q)
         return [cls(**row) for row in rows]

@@ -13,16 +13,16 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional, ClassVar, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, List, Optional
 from uuid import UUID
 
 from attr import dataclass
+from mautrix.types import ContentURI, SyncToken, UserID
+from mautrix.util.async_db import Database
 from yarl import URL
 import asyncpg
 
 from mausignald.types import Address
-from mautrix.types import UserID, SyncToken, ContentURI
-from mautrix.util.async_db import Database
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -52,36 +52,54 @@ class Puppet:
         return str(self.base_url) if self.base_url else None
 
     async def insert(self) -> None:
-        q = ("INSERT INTO puppet (uuid, number, name, avatar_hash, avatar_url, name_set, "
-             "                    avatar_set, uuid_registered, number_registered, "
-             "                    custom_mxid, access_token, next_batch, base_url) "
-             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)")
-        await self.db.execute(q, self.uuid, self.number, self.name, self.avatar_hash,
-                              self.avatar_url, self.name_set, self.avatar_set,
-                              self.uuid_registered, self.number_registered, self.custom_mxid,
-                              self.access_token, self.next_batch, self._base_url_str)
+        q = (
+            "INSERT INTO puppet (uuid, number, name, avatar_hash, avatar_url, name_set, "
+            "                    avatar_set, uuid_registered, number_registered, "
+            "                    custom_mxid, access_token, next_batch, base_url) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"
+        )
+        await self.db.execute(
+            q,
+            self.uuid,
+            self.number,
+            self.name,
+            self.avatar_hash,
+            self.avatar_url,
+            self.name_set,
+            self.avatar_set,
+            self.uuid_registered,
+            self.number_registered,
+            self.custom_mxid,
+            self.access_token,
+            self.next_batch,
+            self._base_url_str,
+        )
 
     async def _set_uuid(self, uuid: UUID) -> None:
         async with self.db.acquire() as conn, conn.transaction():
-            await conn.execute("DELETE FROM puppet WHERE uuid=$1 AND number<>$2",
-                               uuid, self.number)
+            await conn.execute(
+                "DELETE FROM puppet WHERE uuid=$1 AND number<>$2", uuid, self.number
+            )
             await conn.execute("UPDATE puppet SET uuid=$1 WHERE number=$2", uuid, self.number)
             await self._update_number_to_uuid(conn, self.number, str(uuid))
 
     async def _set_number(self, number: str) -> None:
         async with self.db.acquire() as conn, conn.transaction():
-            await conn.execute("DELETE FROM puppet WHERE number=$1 AND uuid<>$2",
-                               number, self.uuid)
+            await conn.execute(
+                "DELETE FROM puppet WHERE number=$1 AND uuid<>$2", number, self.uuid
+            )
             await conn.execute("UPDATE puppet SET number=$1 WHERE uuid=$2", number, self.uuid)
             await self._update_number_to_uuid(conn, number, str(self.uuid))
 
     @staticmethod
-    async def _update_number_to_uuid(conn: asyncpg.Connection, old_number: str, new_uuid: str
-                                     ) -> None:
+    async def _update_number_to_uuid(
+        conn: asyncpg.Connection, old_number: str, new_uuid: str
+    ) -> None:
         try:
             async with conn.transaction():
-                await conn.execute("UPDATE portal SET chat_id=$1 WHERE chat_id=$2",
-                                   new_uuid, old_number)
+                await conn.execute(
+                    "UPDATE portal SET chat_id=$1 WHERE chat_id=$2", new_uuid, old_number
+                )
         except asyncpg.UniqueViolationError:
             await conn.execute("DELETE FROM portal WHERE chat_id=$1", old_number)
         await conn.execute("UPDATE message SET sender=$1 WHERE sender=$2", new_uuid, old_number)
@@ -93,32 +111,49 @@ class Puppet:
             "uuid_registered=$8, number_registered=$9, "
             "custom_mxid=$10, access_token=$11, next_batch=$12, base_url=$13"
         )
-        q = (f"UPDATE puppet SET uuid=$1, {set_columns} WHERE number=$2"
-             if self.uuid is None
-             else f"UPDATE puppet SET number=$2, {set_columns} WHERE uuid=$1")
-        await self.db.execute(q,self.uuid, self.number, self.name, self.avatar_hash,
-                              self.avatar_url, self.name_set, self.avatar_set,
-                              self.uuid_registered, self.number_registered, self.custom_mxid,
-                              self.access_token, self.next_batch, self._base_url_str)
+        q = (
+            f"UPDATE puppet SET uuid=$1, {set_columns} WHERE number=$2"
+            if self.uuid is None
+            else f"UPDATE puppet SET number=$2, {set_columns} WHERE uuid=$1"
+        )
+        await self.db.execute(
+            q,
+            self.uuid,
+            self.number,
+            self.name,
+            self.avatar_hash,
+            self.avatar_url,
+            self.name_set,
+            self.avatar_set,
+            self.uuid_registered,
+            self.number_registered,
+            self.custom_mxid,
+            self.access_token,
+            self.next_batch,
+            self._base_url_str,
+        )
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> 'Puppet':
+    def _from_row(cls, row: asyncpg.Record) -> "Puppet":
         data = {**row}
         base_url_str = data.pop("base_url")
         base_url = URL(base_url_str) if base_url_str is not None else None
         return cls(base_url=base_url, **data)
 
-    _select_base = ("SELECT uuid, number, name, avatar_hash, avatar_url, name_set, avatar_set, "
-                    "       uuid_registered, number_registered, custom_mxid, access_token, "
-                    "       next_batch, base_url "
-                    "FROM puppet")
+    _select_base = (
+        "SELECT uuid, number, name, avatar_hash, avatar_url, name_set, avatar_set, "
+        "       uuid_registered, number_registered, custom_mxid, access_token, "
+        "       next_batch, base_url "
+        "FROM puppet"
+    )
 
     @classmethod
-    async def get_by_address(cls, address: Address) -> Optional['Puppet']:
+    async def get_by_address(cls, address: Address) -> Optional["Puppet"]:
         if address.uuid:
             if address.number:
-                row = await cls.db.fetchrow(f"{cls._select_base} WHERE uuid=$1 OR number=$2",
-                                            address.uuid, address.number)
+                row = await cls.db.fetchrow(
+                    f"{cls._select_base} WHERE uuid=$1 OR number=$2", address.uuid, address.number
+                )
             else:
                 row = await cls.db.fetchrow(f"{cls._select_base} WHERE uuid=$1", address.uuid)
         elif address.number:
@@ -130,13 +165,13 @@ class Puppet:
         return cls._from_row(row)
 
     @classmethod
-    async def get_by_custom_mxid(cls, mxid: UserID) -> Optional['Puppet']:
+    async def get_by_custom_mxid(cls, mxid: UserID) -> Optional["Puppet"]:
         row = await cls.db.fetchrow(f"{cls._select_base} WHERE custom_mxid=$1", mxid)
         if not row:
             return None
         return cls._from_row(row)
 
     @classmethod
-    async def all_with_custom_mxid(cls) -> List['Puppet']:
+    async def all_with_custom_mxid(cls) -> List["Puppet"]:
         rows = await cls.db.fetch(f"{cls._select_base} WHERE custom_mxid IS NOT NULL")
         return [cls._from_row(row) for row in rows]

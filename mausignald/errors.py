@@ -26,8 +26,12 @@ class NotConnected(RPCError):
 
 
 class ResponseError(RPCError):
-    def __init__(self, data: Dict[str, Any], error_type: Optional[str] = None,
-                 message_override: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        data: Dict[str, Any],
+        error_type: Optional[str] = None,
+        message_override: Optional[str] = None,
+    ) -> None:
         self.data = data
         msg = message_override or data["message"]
         if error_type:

@@ -13,14 +13,14 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional, ClassVar, List, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, List, Optional, Union
 
 from attr import dataclass
+from mautrix.types import ContentURI, RoomID, UserID
+from mautrix.util.async_db import Database
 import asyncpg
 
 from mausignald.types import Address, GroupID
-from mautrix.types import RoomID, ContentURI, UserID
-from mautrix.util.async_db import Database
 
 from ..util import id_to_str
 
@@ -49,27 +49,52 @@ class Portal:
         return id_to_str(self.chat_id)
 
     async def insert(self) -> None:
-        q = ("INSERT INTO portal (chat_id, receiver, mxid, name, avatar_hash, avatar_url, "
-             "                    name_set, avatar_set, revision, encrypted, relay_user_id, "
-             "                    expiration_time) "
-             "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)")
-        await self.db.execute(q, self.chat_id_str, self.receiver, self.mxid, self.name,
-                              self.avatar_hash, self.avatar_url, self.name_set, self.avatar_set,
-                              self.revision, self.encrypted, self.relay_user_id,
-                              self.expiration_time)
+        q = """
+        INSERT INTO portal (chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set,
+                            avatar_set, revision, encrypted, relay_user_id, expiration_time)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        """
+        await self.db.execute(
+            q,
+            self.chat_id_str,
+            self.receiver,
+            self.mxid,
+            self.name,
+            self.avatar_hash,
+            self.avatar_url,
+            self.name_set,
+            self.avatar_set,
+            self.revision,
+            self.encrypted,
+            self.relay_user_id,
+            self.expiration_time,
+        )
 
     async def update(self) -> None:
-        q = ("UPDATE portal SET mxid=$1, name=$2, avatar_hash=$3, avatar_url=$4, name_set=$5, "
-             "                  avatar_set=$6, revision=$7, encrypted=$8, relay_user_id=$9, "
-             "                  expiration_time=$10"
-             "WHERE chat_id=$11 AND receiver=$12")
-        await self.db.execute(q, self.mxid, self.name, self.avatar_hash, self.avatar_url,
-                              self.name_set, self.avatar_set, self.revision, self.encrypted,
-                              self.relay_user_id, self.expiration_time, self.chat_id_str,
-                              self.receiver)
+        q = """
+        UPDATE portal SET mxid=$1, name=$2, avatar_hash=$3, avatar_url=$4, name_set=$5,
+                          avatar_set=$6, revision=$7, encrypted=$8, relay_user_id=$9,
+                          expiration_time=$10
+        WHERE chat_id=$11 AND receiver=$12
+        """
+        await self.db.execute(
+            q,
+            self.mxid,
+            self.name,
+            self.avatar_hash,
+            self.avatar_url,
+            self.name_set,
+            self.avatar_set,
+            self.revision,
+            self.encrypted,
+            self.relay_user_id,
+            self.expiration_time,
+            self.chat_id_str,
+            self.receiver,
+        )
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> 'Portal':
+    def _from_row(cls, row: asyncpg.Record) -> "Portal":
         data = {**row}
         chat_id = data.pop("chat_id")
         if data["receiver"]:
@@ -77,46 +102,62 @@ class Portal:
         return cls(chat_id=chat_id, **data)
 
     @classmethod
-    async def get_by_mxid(cls, mxid: RoomID) -> Optional['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
-             "       revision, encrypted, relay_user_id, expiration_time "
-             "FROM portal WHERE mxid=$1")
+    async def get_by_mxid(cls, mxid: RoomID) -> Optional["Portal"]:
+        q = """
+        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
+               revision, encrypted, relay_user_id, expiration_time
+          FROM portal
+         WHERE mxid=$1
+        """
         row = await cls.db.fetchrow(q, mxid)
         if not row:
             return None
         return cls._from_row(row)
 
     @classmethod
-    async def get_by_chat_id(cls, chat_id: Union[GroupID, Address], receiver: str = ""
-                             ) -> Optional['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
-             "       revision, encrypted, relay_user_id, expiration_time "
-             "FROM portal WHERE chat_id=$1 AND receiver=$2")
+    async def get_by_chat_id(
+        cls, chat_id: Union[GroupID, Address], receiver: str = ""
+    ) -> Optional["Portal"]:
+        q = """
+        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
+               revision, encrypted, relay_user_id, expiration_time
+          FROM portal
+         WHERE chat_id=$1 AND receiver=$2
+        """
         row = await cls.db.fetchrow(q, id_to_str(chat_id), receiver)
         if not row:
             return None
         return cls._from_row(row)
 
     @classmethod
-    async def find_private_chats_of(cls, receiver: str) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
-             "       revision, encrypted, relay_user_id, expiration_time "
-             "FROM portal WHERE receiver=$1")
+    async def find_private_chats_of(cls, receiver: str) -> List["Portal"]:
+        q = """
+        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
+               revision, encrypted, relay_user_id, expiration_time
+          FROM portal
+         WHERE receiver=$1
+        """
         rows = await cls.db.fetch(q, receiver)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def find_private_chats_with(cls, other_user: Address) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
-             "       revision, encrypted, relay_user_id, expiration_time "
-             "FROM portal WHERE chat_id=$1 AND receiver<>''")
+    async def find_private_chats_with(cls, other_user: Address) -> List["Portal"]:
+        q = """
+        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
+               revision, encrypted, relay_user_id, expiration_time
+          FROM portal
+         WHERE chat_id=$1 AND receiver<>''
+        """
         rows = await cls.db.fetch(q, other_user.best_identifier)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def all_with_room(cls) -> List['Portal']:
-        q = ("SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,"
-             "       revision, encrypted, relay_user_id, expiration_time "
-             "FROM portal WHERE mxid IS NOT NULL")
+    async def all_with_room(cls) -> List["Portal"]:
+        q = """
+        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
+               revision, encrypted, relay_user_id, expiration_time
+          FROM portal
+         WHERE mxid IS NOT NULL
+        """
         rows = await cls.db.fetch(q)
         return [cls._from_row(row) for row in rows]
