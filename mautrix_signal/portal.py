@@ -339,7 +339,7 @@ class Portal(DBPortal, BasePortal):
                             timestamp=request_id,
                             signal_chat_id=self.chat_id, signal_receiver=self.receiver)
             await msg.insert()
-            self.log.info(f"Handled Matrix message roomId={self.mxid} evtId={event_id} msgType={message.msgtype} reqId={request_id} chat ID={self.chat_id}")
+            self.log.info(f"Handled Matrix message roomId={self.mxid} evtId={event_id} msgType={message.msgtype} reqId={request_id} chatId={self.chat_id}")
             if attachment_path and self.config["signal.remove_file_after_handling"]:
                 try:
                     os.remove(attachment_path)
