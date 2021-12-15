@@ -121,6 +121,7 @@ class SignalHandler(SignaldClient):
                     "enabled"
                 )
                 return
+        assert portal
         if not portal.mxid:
             await portal.create_matrix_room(
                 user, msg.group_v2 or msg.group or addr_override or sender.address
@@ -137,12 +138,12 @@ class SignalHandler(SignaldClient):
             await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
         if msg.body or msg.attachments or msg.sticker:
             await portal.handle_signal_message(user, sender, msg)
+            if msg.expires_in_seconds is not None:
+                await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
         if msg.group and msg.group.type == "UPDATE":
             await portal.update_info(user, msg.group)
         if msg.remote_delete:
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
-        if msg.expires_in_seconds is not None and not msg.remote_delete:
-            await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
 
     @staticmethod
     async def handle_own_receipts(sender: pu.Puppet, receipts: list[OwnReadReceipt]) -> None:
