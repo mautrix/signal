@@ -1,2 +1,3 @@
-__version__ = "0.2.1-mod-3"
+ # We cannot append -mod to this, as it breaks PIP (PEP 440).
+__version__ = "0.2.1"
 __author__ = "Tulir Asokan <tulir@maunium.net>"
