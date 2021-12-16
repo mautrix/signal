@@ -234,8 +234,4 @@ async def upgrade_v9(conn: Connection) -> None:
         PRIMARY KEY (room_id, mxid)
     )"""
     )
-
-
-@upgrade_table.register(description="Add expiration_time column to portal")
-async def upgrade_v10(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN expiration_time BIGINT")
