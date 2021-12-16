@@ -14,7 +14,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from asyncpg import Connection
-
 from mautrix.util.async_db import UpgradeTable
 
 upgrade_table = UpgradeTable()
@@ -22,73 +21,97 @@ upgrade_table = UpgradeTable()
 
 @upgrade_table.register(description="Initial revision")
 async def upgrade_v1(conn: Connection) -> None:
-    await conn.execute("""CREATE TABLE portal (
-        chat_id     TEXT,
-        receiver    TEXT,
-        mxid        TEXT,
-        name        TEXT,
-        encrypted   BOOLEAN NOT NULL DEFAULT false,
+    await conn.execute(
+        """
+        CREATE TABLE portal (
+            chat_id     TEXT,
+            receiver    TEXT,
+            mxid        TEXT,
+            name        TEXT,
+            encrypted   BOOLEAN NOT NULL DEFAULT false,
 
-        PRIMARY KEY (chat_id, receiver)
-    )""")
-    await conn.execute("""CREATE TABLE "user" (
-        mxid        TEXT PRIMARY KEY,
-        username    TEXT,
-        uuid        UUID,
-        notice_room TEXT
-    )""")
-    await conn.execute("""CREATE TABLE puppet (
-        uuid      UUID UNIQUE,
-        number    TEXT UNIQUE,
-        name      TEXT,
+            PRIMARY KEY (chat_id, receiver)
+        )
+        """
+    )
+    await conn.execute(
+        """
+        CREATE TABLE "user" (
+            mxid        TEXT PRIMARY KEY,
+            username    TEXT,
+            uuid        UUID,
+            notice_room TEXT
+        )
+        """
+    )
+    await conn.execute(
+        """
+        CREATE TABLE puppet (
+            uuid      UUID UNIQUE,
+            number    TEXT UNIQUE,
+            name      TEXT,
 
-        uuid_registered   BOOLEAN NOT NULL DEFAULT false,
-        number_registered BOOLEAN NOT NULL DEFAULT false,
+            uuid_registered   BOOLEAN NOT NULL DEFAULT false,
+            number_registered BOOLEAN NOT NULL DEFAULT false,
 
-        custom_mxid  TEXT,
-        access_token TEXT,
-        next_batch   TEXT
-    )""")
-    await conn.execute("""CREATE TABLE user_portal (
-        "user"          TEXT,
-        portal          TEXT,
-        portal_receiver TEXT,
-        in_community    BOOLEAN NOT NULL DEFAULT false,
+            custom_mxid  TEXT,
+            access_token TEXT,
+            next_batch   TEXT
+        )
+        """
+    )
+    await conn.execute(
+        """
+        CREATE TABLE user_portal (
+            "user"          TEXT,
+            portal          TEXT,
+            portal_receiver TEXT,
+            in_community    BOOLEAN NOT NULL DEFAULT false,
 
-        FOREIGN KEY (portal, portal_receiver) REFERENCES portal(chat_id, receiver)
-            ON UPDATE CASCADE ON DELETE CASCADE
-    )""")
-    await conn.execute("""CREATE TABLE message (
-        mxid    TEXT NOT NULL,
-        mx_room TEXT NOT NULL,
-        sender          UUID,
-        timestamp       BIGINT,
-        signal_chat_id  TEXT,
-        signal_receiver TEXT,
+            FOREIGN KEY (portal, portal_receiver) REFERENCES portal(chat_id, receiver)
+                ON UPDATE CASCADE ON DELETE CASCADE
+        )
+        """
+    )
+    await conn.execute(
+        """
+        CREATE TABLE message (
+            mxid    TEXT NOT NULL,
+            mx_room TEXT NOT NULL,
+            sender          UUID,
+            timestamp       BIGINT,
+            signal_chat_id  TEXT,
+            signal_receiver TEXT,
 
-        PRIMARY KEY (sender, timestamp, signal_chat_id, signal_receiver),
-        FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver)
-            ON UPDATE CASCADE ON DELETE CASCADE,
-        UNIQUE (mxid, mx_room)
-    )""")
-    await conn.execute("""CREATE TABLE reaction (
-        mxid    TEXT NOT NULL,
-        mx_room TEXT NOT NULL,
+            PRIMARY KEY (sender, timestamp, signal_chat_id, signal_receiver),
+            FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver)
+                ON UPDATE CASCADE ON DELETE CASCADE,
+            UNIQUE (mxid, mx_room)
+        )
+        """
+    )
+    await conn.execute(
+        """
+        CREATE TABLE reaction (
+            mxid    TEXT NOT NULL,
+            mx_room TEXT NOT NULL,
 
-        signal_chat_id  TEXT   NOT NULL,
-        signal_receiver TEXT   NOT NULL,
-        msg_author      UUID   NOT NULL,
-        msg_timestamp   BIGINT NOT NULL,
-        author          UUID   NOT NULL,
+            signal_chat_id  TEXT   NOT NULL,
+            signal_receiver TEXT   NOT NULL,
+            msg_author      UUID   NOT NULL,
+            msg_timestamp   BIGINT NOT NULL,
+            author          UUID   NOT NULL,
 
-        emoji TEXT NOT NULL,
+            emoji TEXT NOT NULL,
 
-        PRIMARY KEY (signal_chat_id, signal_receiver, msg_author, msg_timestamp, author),
-        FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
-            REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
-            ON DELETE CASCADE ON UPDATE CASCADE,
-        UNIQUE (mxid, mx_room)
-    )""")
+            PRIMARY KEY (signal_chat_id, signal_receiver, msg_author, msg_timestamp, author),
+            FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
+                REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
+                ON DELETE CASCADE ON UPDATE CASCADE,
+            UNIQUE (mxid, mx_room)
+        )
+        """
+    )
 
 
 @upgrade_table.register(description="Add avatar info to portal table")
@@ -109,49 +132,61 @@ async def upgrade_v4(conn: Connection, scheme: str) -> None:
         # so just recreate them without migrating data
         await conn.execute("DROP TABLE message")
         await conn.execute("DROP TABLE reaction")
-        await conn.execute("""CREATE TABLE message (
-            mxid    TEXT NOT NULL,
-            mx_room TEXT NOT NULL,
-            sender          TEXT,
-            timestamp       BIGINT,
-            signal_chat_id  TEXT,
-            signal_receiver TEXT,
+        await conn.execute(
+            """
+            CREATE TABLE message (
+                mxid    TEXT NOT NULL,
+                mx_room TEXT NOT NULL,
+                sender          TEXT,
+                timestamp       BIGINT,
+                signal_chat_id  TEXT,
+                signal_receiver TEXT,
 
-            PRIMARY KEY (sender, timestamp, signal_chat_id, signal_receiver),
-            FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver)
-                ON UPDATE CASCADE ON DELETE CASCADE,
-            UNIQUE (mxid, mx_room)
-        )""")
-        await conn.execute("""CREATE TABLE reaction (
-            mxid    TEXT NOT NULL,
-            mx_room TEXT NOT NULL,
+                PRIMARY KEY (sender, timestamp, signal_chat_id, signal_receiver),
+                FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver)
+                    ON UPDATE CASCADE ON DELETE CASCADE,
+                UNIQUE (mxid, mx_room)
+            )
+            """
+        )
+        await conn.execute(
+            """
+            CREATE TABLE reaction (
+                mxid    TEXT NOT NULL,
+                mx_room TEXT NOT NULL,
 
-            signal_chat_id  TEXT   NOT NULL,
-            signal_receiver TEXT   NOT NULL,
-            msg_author      TEXT   NOT NULL,
-            msg_timestamp   BIGINT NOT NULL,
-            author          TEXT   NOT NULL,
+                signal_chat_id  TEXT   NOT NULL,
+                signal_receiver TEXT   NOT NULL,
+                msg_author      TEXT   NOT NULL,
+                msg_timestamp   BIGINT NOT NULL,
+                author          TEXT   NOT NULL,
 
-            emoji TEXT NOT NULL,
+                emoji TEXT NOT NULL,
 
-            PRIMARY KEY (signal_chat_id, signal_receiver, msg_author, msg_timestamp, author),
-            FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
-                REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
-                ON DELETE CASCADE ON UPDATE CASCADE,
-            UNIQUE (mxid, mx_room)
-        )""")
+                PRIMARY KEY (signal_chat_id, signal_receiver, msg_author, msg_timestamp, author),
+                FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
+                    REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
+                    ON DELETE CASCADE ON UPDATE CASCADE,
+                UNIQUE (mxid, mx_room)
+            )
+            """
+        )
         return
 
-    cname = await conn.fetchval("SELECT constraint_name FROM information_schema.table_constraints "
-                                "WHERE table_name='reaction' AND constraint_name LIKE '%_fkey'")
+    cname = await conn.fetchval(
+        "SELECT constraint_name FROM information_schema.table_constraints "
+        "WHERE table_name='reaction' AND constraint_name LIKE '%_fkey'"
+    )
     await conn.execute(f"ALTER TABLE reaction DROP CONSTRAINT {cname}")
     await conn.execute("ALTER TABLE reaction ALTER COLUMN msg_author SET DATA TYPE TEXT")
     await conn.execute("ALTER TABLE reaction ALTER COLUMN author SET DATA TYPE TEXT")
     await conn.execute("ALTER TABLE message ALTER COLUMN sender SET DATA TYPE TEXT")
-    await conn.execute(f"ALTER TABLE reaction ADD CONSTRAINT {cname} "
-                       "FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver) "
-                       "  REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver) "
-                       "  ON DELETE CASCADE ON UPDATE CASCADE")
+    await conn.execute(
+        f"ALTER TABLE reaction ADD CONSTRAINT {cname} "
+        "FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver) "
+        "  REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver) "
+        "  ON DELETE CASCADE ON UPDATE CASCADE"
+    )
 
 
 @upgrade_table.register(description="Add avatar info to puppet table")
@@ -176,6 +211,7 @@ async def upgrade_v6(conn: Connection) -> None:
 async def upgrade_v7(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN relay_user_id TEXT")
 
+
 # NOTE:
 # Since we merged the schema update `Add activity times to the puppet table`, all upgrades since `8` must be bumped by one version to avoid a clash. Please do this when merging.
 
@@ -184,16 +220,22 @@ async def upgrade_v7(conn: Connection) -> None:
 async def upgrade_v8(conn: Connection) -> None:
     await conn.execute("ALTER TABLE puppet ADD COLUMN first_activity_ts BIGINT")
     await conn.execute("ALTER TABLE puppet ADD COLUMN last_activity_ts BIGINT")
-    
+
 
 @upgrade_table.register(description="Add support for disappearing messages")
 async def upgrade_v9(conn: Connection) -> None:
-    await conn.execute("""CREATE TABLE disappearing_message (
+    await conn.execute(
+        """CREATE TABLE disappearing_message (
         room_id             TEXT,
         mxid                TEXT,
         expiration_seconds  BIGINT,
         expiration_ts       BIGINT,
 
         PRIMARY KEY (room_id, mxid)
-    )""")
+    )"""
+    )
+
+
+@upgrade_table.register(description="Add expiration_time column to portal")
+async def upgrade_v10(conn: Connection) -> None:
     await conn.execute("ALTER TABLE portal ADD COLUMN expiration_time BIGINT")

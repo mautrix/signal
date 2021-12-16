@@ -4,7 +4,7 @@
 #/e2be
 python-olm>=3,<4
 pycryptodome>=3,<4
-unpaddedbase64>=1,<2
+unpaddedbase64>=1,<3
 
 #/metrics
 prometheus_client>=0.6,<0.13

@@ -16,10 +16,10 @@
 from typing import Any, List, NamedTuple
 import os
 
-from mautrix.types import UserID
-from mautrix.client import Client
-from mautrix.util.config import ConfigUpdateHelper, ForbiddenKey, ForbiddenDefault
 from mautrix.bridge.config import BaseBridgeConfig
+from mautrix.client import Client
+from mautrix.types import UserID
+from mautrix.util.config import ConfigUpdateHelper, ForbiddenDefault, ForbiddenKey
 
 Permissions = NamedTuple("Permissions", relay=bool, user=bool, admin=bool, level=str)
 

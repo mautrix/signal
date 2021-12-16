@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2021 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -13,26 +13,33 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import (Optional, Dict, AsyncIterable, Awaitable, AsyncGenerator, Union, Tuple,
-                    TYPE_CHECKING, cast)
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, AsyncGenerator, AsyncIterable, Awaitable, Optional, cast
 from uuid import UUID
-import hashlib
 import asyncio
+import hashlib
 import os.path
 
+from mautrix.appservice import IntentAPI
+from mautrix.bridge import BasePuppet, async_getter_lock
+from mautrix.errors import MForbidden
+from mautrix.types import (
+    ContentURI,
+    EventType,
+    PowerLevelStateEventContent,
+    RoomID,
+    SyncToken,
+    UserID,
+)
+from mautrix.util.simple_template import SimpleTemplate
 from yarl import URL
 
 from mausignald.types import Address, Contact, Profile
-from mautrix.bridge import BasePuppet, async_getter_lock
-from mautrix.appservice import IntentAPI
-from mautrix.types import (UserID, SyncToken, RoomID, ContentURI, EventType,
-                           PowerLevelStateEventContent)
-from mautrix.errors import MForbidden
-from mautrix.util.simple_template import SimpleTemplate
 
-from .db import Puppet as DBPuppet
-from .config import Config
 from . import portal as p, user as u
+from .config import Config
+from .db import Puppet as DBPuppet
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -44,9 +51,9 @@ except ImportError:
 
 
 class Puppet(DBPuppet, BasePuppet):
-    by_uuid: Dict[UUID, 'Puppet'] = {}
-    by_number: Dict[str, 'Puppet'] = {}
-    by_custom_mxid: Dict[UserID, 'Puppet'] = {}
+    by_uuid: dict[UUID, Puppet] = {}
+    by_number: dict[str, Puppet] = {}
+    by_custom_mxid: dict[UserID, Puppet] = {}
     hs_domain: str
     mxid_template: SimpleTemplate[str]
 
@@ -58,18 +65,41 @@ class Puppet(DBPuppet, BasePuppet):
     _uuid_lock: asyncio.Lock
     _update_info_lock: asyncio.Lock
 
-    def __init__(self, uuid: Optional[UUID], number: Optional[str], name: Optional[str] = None,
-                 avatar_url: Optional[ContentURI] = None, avatar_hash: Optional[str] = None,
-                 name_set: bool = False, avatar_set: bool = False, uuid_registered: bool = False,
-                 number_registered: bool = False, custom_mxid: Optional[UserID] = None,
-                 access_token: Optional[str] = None, next_batch: Optional[SyncToken] = None,
-                 base_url: Optional[URL] = None, first_activity_ts: Optional[int] = None, 
-                 last_activity_ts: Optional[int] = None) -> None:
-        super().__init__(uuid=uuid, number=number, name=name, avatar_url=avatar_url,
-                         avatar_hash=avatar_hash, name_set=name_set, avatar_set=avatar_set,
-                         uuid_registered=uuid_registered, number_registered=number_registered,
-                         custom_mxid=custom_mxid, access_token=access_token, next_batch=next_batch,
-                         base_url=base_url, first_activity_ts=first_activity_ts, last_activity_ts=last_activity_ts)
+    def __init__(
+        self,
+        uuid: UUID | None,
+        number: str | None,
+        name: str | None = None,
+        avatar_url: ContentURI | None = None,
+        avatar_hash: str | None = None,
+        name_set: bool = False,
+        avatar_set: bool = False,
+        uuid_registered: bool = False,
+        number_registered: bool = False,
+        custom_mxid: UserID | None = None,
+        access_token: str | None = None,
+        next_batch: SyncToken | None = None,
+        base_url: URL | None = None,
+        first_activity_ts: int | None = None,
+        last_activity_ts: int | None = None,
+    ) -> None:
+        super().__init__(
+            uuid=uuid,
+            number=number,
+            name=name,
+            avatar_url=avatar_url,
+            avatar_hash=avatar_hash,
+            name_set=name_set,
+            avatar_set=avatar_set,
+            uuid_registered=uuid_registered,
+            number_registered=number_registered,
+            custom_mxid=custom_mxid,
+            access_token=access_token,
+            next_batch=next_batch,
+            base_url=base_url,
+            first_activity_ts=first_activity_ts,
+            last_activity_ts=last_activity_ts,
+        )
         self.log = self.log.getChild(str(uuid) if uuid else number)
 
         self.default_mxid = self.get_mxid_from_id(self.address)
@@ -80,25 +110,34 @@ class Puppet(DBPuppet, BasePuppet):
         self._update_info_lock = asyncio.Lock()
 
     @classmethod
-    def init_cls(cls, bridge: 'SignalBridge') -> AsyncIterable[Awaitable[None]]:
+    def init_cls(cls, bridge: "SignalBridge") -> AsyncIterable[Awaitable[None]]:
         cls.config = bridge.config
         cls.loop = bridge.loop
         cls.mx = bridge.matrix
         cls.az = bridge.az
         cls.hs_domain = cls.config["homeserver.domain"]
-        cls.mxid_template = SimpleTemplate(cls.config["bridge.username_template"], "userid",
-                                           prefix="@", suffix=f":{cls.hs_domain}", type=str)
+        cls.mxid_template = SimpleTemplate(
+            cls.config["bridge.username_template"],
+            "userid",
+            prefix="@",
+            suffix=f":{cls.hs_domain}",
+            type=str,
+        )
         cls.sync_with_custom_puppets = cls.config["bridge.sync_with_custom_puppets"]
 
-        cls.homeserver_url_map = {server: URL(url) for server, url
-                                  in cls.config["bridge.double_puppet_server_map"].items()}
+        cls.homeserver_url_map = {
+            server: URL(url)
+            for server, url in cls.config["bridge.double_puppet_server_map"].items()
+        }
         cls.allow_discover_url = cls.config["bridge.double_puppet_allow_discovery"]
-        cls.login_shared_secret_map = {server: secret.encode("utf-8") for server, secret
-                                       in cls.config["bridge.login_shared_secret_map"].items()}
+        cls.login_shared_secret_map = {
+            server: secret.encode("utf-8")
+            for server, secret in cls.config["bridge.login_shared_secret_map"].items()
+        }
         cls.login_device_name = "Signal Bridge"
         return (puppet.try_start() async for puppet in cls.all_with_custom_mxid())
 
-    def intent_for(self, portal: 'p.Portal') -> IntentAPI:
+    def intent_for(self, portal: p.Portal) -> IntentAPI:
         if portal.chat_id == self.address:
             return self.default_mxid_intent
         return self.intent
@@ -168,8 +207,10 @@ class Puppet(DBPuppet, BasePuppet):
         try:
             joined_rooms = await prev_intent.get_joined_rooms()
         except MForbidden as e:
-            self.log.debug(f"Got MForbidden ({e.message}) when getting joined rooms of old mxid, "
-                           "assuming there are no rooms to rejoin")
+            self.log.debug(
+                f"Got MForbidden ({e.message}) when getting joined rooms of old mxid, "
+                "assuming there are no rooms to rejoin"
+            )
             return
         for room_id in joined_rooms:
             await prev_intent.invite_user(room_id, self.default_mxid)
@@ -177,8 +218,9 @@ class Puppet(DBPuppet, BasePuppet):
             await prev_intent.leave_room(room_id)
             await new_intent.join_room_by_id(room_id)
 
-    async def _migrate_powers(self, prev_intent: IntentAPI, new_intent: IntentAPI, room_id: RoomID
-                              ) -> None:
+    async def _migrate_powers(
+        self, prev_intent: IntentAPI, new_intent: IntentAPI, room_id: RoomID
+    ) -> None:
         try:
             powers: PowerLevelStateEventContent
             powers = await prev_intent.get_state_event(room_id, EventType.ROOM_POWER_LEVELS)
@@ -190,7 +232,7 @@ class Puppet(DBPuppet, BasePuppet):
         except Exception:
             self.log.warning("Failed to migrate power levels", exc_info=True)
 
-    async def update_info(self, info: Union[Profile, Contact, Address]) -> None:
+    async def update_info(self, info: Profile | Contact | Address) -> None:
         address = info.address if isinstance(info, (Contact, Profile)) else info
         if address.uuid and not self.uuid:
             await self.handle_uuid_receive(address.uuid)
@@ -229,7 +271,7 @@ class Puppet(DBPuppet, BasePuppet):
         return phonenumbers.format_number(parsed, fmt)
 
     @classmethod
-    def _get_displayname(cls, address: Address, name: Optional[str]) -> str:
+    def _get_displayname(cls, address: Address, name: str | None) -> str:
         names = name.split("\x00") if name else []
         data = {
             "first_name": names[0] if len(names) > 0 else "",
@@ -247,7 +289,7 @@ class Puppet(DBPuppet, BasePuppet):
 
         return cls.config["bridge.displayname_template"].format(**data)
 
-    async def _update_name(self, name: Optional[str]) -> bool:
+    async def _update_name(self, name: str | None) -> bool:
         name = self._get_displayname(self.address, name)
         if name != self.name or not self.name_set:
             self.name = name
@@ -261,8 +303,9 @@ class Puppet(DBPuppet, BasePuppet):
         return False
 
     @staticmethod
-    async def upload_avatar(self: Union['Puppet', 'p.Portal'], path: str, intent: IntentAPI,
-                            ) -> Union[bool, Tuple[str, ContentURI]]:
+    async def upload_avatar(
+        self: Puppet | p.Portal, path: str, intent: IntentAPI
+    ) -> bool | tuple[str, ContentURI]:
         if not path:
             return False
         if not path.startswith("/"):
@@ -322,7 +365,7 @@ class Puppet(DBPuppet, BasePuppet):
         await self.update()
 
     @classmethod
-    async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Optional['Puppet']:
+    async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Puppet | None:
         address = cls.get_id_from_mxid(mxid)
         if not address:
             return None
@@ -330,7 +373,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     @classmethod
     @async_getter_lock
-    async def get_by_custom_mxid(cls, mxid: UserID) -> Optional['Puppet']:
+    async def get_by_custom_mxid(cls, mxid: UserID) -> Puppet | None:
         try:
             return cls.by_custom_mxid[mxid]
         except KeyError:
@@ -344,12 +387,12 @@ class Puppet(DBPuppet, BasePuppet):
         return None
 
     @classmethod
-    def get_id_from_mxid(cls, mxid: UserID) -> Optional[Address]:
+    def get_id_from_mxid(cls, mxid: UserID) -> Address | None:
         identifier = cls.mxid_template.parse(mxid)
         if not identifier:
             return None
         if identifier.startswith("phone_"):
-            return Address(number="+" + identifier[len("phone_"):])
+            return Address(number="+" + identifier[len("phone_") :])
         else:
             try:
                 return Address(uuid=UUID(identifier.upper()))
@@ -368,7 +411,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     @classmethod
     @async_getter_lock
-    async def get_by_address(cls, address: Address, create: bool = True) -> Optional['Puppet']:
+    async def get_by_address(cls, address: Address, create: bool = True) -> Puppet | None:
         puppet = await cls._get_by_address(address, create)
         if puppet and address.uuid and not puppet.uuid:
             # We found a UUID for this user, store it ASAP
@@ -376,7 +419,7 @@ class Puppet(DBPuppet, BasePuppet):
         return puppet
 
     @classmethod
-    async def _get_by_address(cls, address: Address, create: bool = True) -> Optional['Puppet']:
+    async def _get_by_address(cls, address: Address, create: bool = True) -> Puppet | None:
         if not address.is_valid:
             raise ValueError("Empty address")
         if address.uuid:
@@ -404,7 +447,7 @@ class Puppet(DBPuppet, BasePuppet):
         return None
 
     @classmethod
-    async def all_with_custom_mxid(cls) -> AsyncGenerator['Puppet', None]:
+    async def all_with_custom_mxid(cls) -> AsyncGenerator[Puppet, None]:
         puppets = await super().all_with_custom_mxid()
         puppet: cls
         for index, puppet in enumerate(puppets):

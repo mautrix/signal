@@ -13,13 +13,14 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import ClassVar, List, Optional, TYPE_CHECKING
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar, List, Optional
 
 from attr import dataclass
-import asyncpg
-
-from mautrix.types import RoomID, EventID
+from mautrix.types import EventID, RoomID
 from mautrix.util.async_db import Database
+import asyncpg
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -38,8 +39,9 @@ class DisappearingMessage:
         INSERT INTO disappearing_message (room_id, mxid, expiration_seconds, expiration_ts)
         VALUES ($1, $2, $3, $4)
         """
-        await self.db.execute(q, self.room_id, self.mxid, self.expiration_seconds,
-                              self.expiration_ts)
+        await self.db.execute(
+            q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
+        )
 
     async def update(self) -> None:
         q = """
@@ -48,8 +50,9 @@ class DisappearingMessage:
         WHERE room_id=$1 AND mxid=$2
         """
         try:
-            await self.db.execute(q, self.room_id, self.mxid, self.expiration_seconds,
-                              self.expiration_ts)
+            await self.db.execute(
+                q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
+            )
         except Exception as e:
             print(e)
 
@@ -59,11 +62,11 @@ class DisappearingMessage:
         await cls.db.execute(q, room_id, event_id)
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> "DisappearingMessage":
+    def _from_row(cls, row: asyncpg.Record) -> DisappearingMessage:
         return cls(**row)
 
     @classmethod
-    async def get(cls, room_id: RoomID, event_id: EventID) -> Optional["DisappearingMessage"]:
+    async def get(cls, room_id: RoomID, event_id: EventID) -> Optional[DisappearingMessage]:
         q = """
         SELECT room_id, mxid, expiration_seconds, expiration_ts
           FROM disappearing_message
@@ -76,12 +79,12 @@ class DisappearingMessage:
             return None
 
     @classmethod
-    async def get_all(cls) -> List["DisappearingMessage"]:
+    async def get_all(cls) -> List[DisappearingMessage]:
         q = "SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message"
         return [cls._from_row(r) for r in await cls.db.fetch(q)]
 
     @classmethod
-    async def get_all_for_room(cls, room_id: RoomID) -> List["DisappearingMessage"]:
+    async def get_all_for_room(cls, room_id: RoomID) -> List[DisappearingMessage]:
         q = """
         SELECT room_id, mxid, expiration_seconds, expiration_ts
           FROM disappearing_message

@@ -13,15 +13,16 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional, ClassVar, Union, List, TYPE_CHECKING
-from uuid import UUID
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar
 
 from attr import dataclass
+from mautrix.types import EventID, RoomID
+from mautrix.util.async_db import Database
 import asyncpg
 
 from mausignald.types import Address, GroupID
-from mautrix.types import RoomID, EventID
-from mautrix.util.async_db import Database
 
 from ..util import id_to_str
 
@@ -36,27 +37,43 @@ class Message:
     mx_room: RoomID
     sender: Address
     timestamp: int
-    signal_chat_id: Union[GroupID, Address]
+    signal_chat_id: GroupID | Address
     signal_receiver: str
 
     async def insert(self) -> None:
-        q = ("INSERT INTO message (mxid, mx_room, sender, timestamp, signal_chat_id,"
-             "                     signal_receiver) VALUES ($1, $2, $3, $4, $5, $6)")
-        await self.db.execute(q, self.mxid, self.mx_room, self.sender.best_identifier,
-                              self.timestamp, id_to_str(self.signal_chat_id), self.signal_receiver)
+        q = """
+        INSERT INTO message (mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        """
+        await self.db.execute(
+            q,
+            self.mxid,
+            self.mx_room,
+            self.sender.best_identifier,
+            self.timestamp,
+            id_to_str(self.signal_chat_id),
+            self.signal_receiver,
+        )
 
     async def delete(self) -> None:
-        q = ("DELETE FROM message WHERE sender=$1 AND timestamp=$2"
-             "                          AND signal_chat_id=$3 AND signal_receiver=$4")
-        await self.db.execute(q, self.sender.best_identifier, self.timestamp,
-                              id_to_str(self.signal_chat_id), self.signal_receiver)
+        q = """
+        DELETE FROM message
+        WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
+        """
+        await self.db.execute(
+            q,
+            self.sender.best_identifier,
+            self.timestamp,
+            id_to_str(self.signal_chat_id),
+            self.signal_receiver,
+        )
 
     @classmethod
     async def delete_all(cls, room_id: RoomID) -> None:
         await cls.db.execute("DELETE FROM message WHERE mx_room=$1", room_id)
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> 'Message':
+    def _from_row(cls, row: asyncpg.Record) -> Message:
         data = {**row}
         chat_id = data.pop("signal_chat_id")
         if data["signal_receiver"]:
@@ -65,44 +82,58 @@ class Message:
         return cls(signal_chat_id=chat_id, sender=sender, **data)
 
     @classmethod
-    async def get_by_mxid(cls, mxid: EventID, mx_room: RoomID) -> Optional['Message']:
-        q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
-             "FROM message WHERE mxid=$1 AND mx_room=$2")
+    async def get_by_mxid(cls, mxid: EventID, mx_room: RoomID) -> Message | None:
+        q = """
+        SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+        WHERE mxid=$1 AND mx_room=$2
+        """
         row = await cls.db.fetchrow(q, mxid, mx_room)
         if not row:
             return None
         return cls._from_row(row)
 
     @classmethod
-    async def get_by_signal_id(cls, sender: Address, timestamp: int,
-                               signal_chat_id: Union[GroupID, Address], signal_receiver: str = ""
-                               ) -> Optional['Message']:
-        q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
-             "FROM message WHERE sender=$1 AND timestamp=$2"
-             "                   AND signal_chat_id=$3 AND signal_receiver=$4")
-        row = await cls.db.fetchrow(q, sender.best_identifier, timestamp,
-                                    id_to_str(signal_chat_id), signal_receiver)
+    async def get_by_signal_id(
+        cls,
+        sender: Address,
+        timestamp: int,
+        signal_chat_id: GroupID | Address,
+        signal_receiver: str = "",
+    ) -> Message | None:
+        q = """
+        SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+        WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
+        """
+        row = await cls.db.fetchrow(
+            q, sender.best_identifier, timestamp, id_to_str(signal_chat_id), signal_receiver
+        )
         if not row:
             return None
         return cls._from_row(row)
 
     @classmethod
-    async def find_by_timestamps(cls, timestamps: List[int]) -> List['Message']:
+    async def find_by_timestamps(cls, timestamps: list[int]) -> list[Message]:
         if cls.db.scheme == "postgres":
-            q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
-                 "FROM message WHERE timestamp=ANY($1)")
+            q = """
+            SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+            WHERE timestamp=ANY($1)
+            """
             rows = await cls.db.fetch(q, timestamps)
         else:
-            placeholders = ", ".join(f"?" for _ in range(len(timestamps)))
-            q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
-                 f"FROM message WHERE timestamp IN ({placeholders})")
+            placeholders = ", ".join("?" for _ in range(len(timestamps)))
+            q = f"""
+            SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+            WHERE timestamp IN ({placeholders})
+            """
             rows = await cls.db.fetch(q, *timestamps)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def find_by_sender_timestamp(cls, sender: Address, timestamp: int) -> Optional['Message']:
-        q = ("SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver "
-             "FROM message WHERE sender=$1 AND timestamp=$2")
+    async def find_by_sender_timestamp(cls, sender: Address, timestamp: int) -> Message | None:
+        q = """
+        SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+        WHERE sender=$1 AND timestamp=$2
+        """
         row = await cls.db.fetchrow(q, sender.best_identifier, timestamp)
         if not row:
             return None

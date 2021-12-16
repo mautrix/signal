@@ -13,14 +13,20 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Tuple, List, cast
+from typing import List, Tuple, cast
 from html import escape
 import struct
 
-from mausignald.types import MessageData, Address, Mention
-from mautrix.types import TextMessageEventContent, MessageType, Format
-from mautrix.util.formatter import (MatrixParser as BaseMatrixParser, EntityString, SimpleEntity,
-                                    EntityType, MarkdownString)
+from mautrix.types import Format, MessageType, TextMessageEventContent
+from mautrix.util.formatter import (
+    EntityString,
+    EntityType,
+    MarkdownString,
+    MatrixParser as BaseMatrixParser,
+    SimpleEntity,
+)
+
+from mausignald.types import Address, Mention, MessageData
 
 from . import puppet as pu, user as u
 
@@ -29,14 +35,16 @@ from . import puppet as pu, user as u
 # I don't know if this is how Signal actually calculates lengths, but it seems
 # to work better than plain len()
 def add_surrogate(text: str) -> str:
-    return ''.join(
-        ''.join(chr(y) for y in struct.unpack('<HH', x.encode('utf-16le')))
-        if (0x10000 <= ord(x) <= 0x10FFFF) else x for x in text
+    return "".join(
+        "".join(chr(y) for y in struct.unpack("<HH", x.encode("utf-16le")))
+        if (0x10000 <= ord(x) <= 0x10FFFF)
+        else x
+        for x in text
     )
 
 
 def del_surrogate(text: str) -> str:
-    return text.encode('utf-16', 'surrogatepass').decode('utf-16')
+    return text.encode("utf-16", "surrogatepass").decode("utf-16")
 
 
 async def signal_to_matrix(message: MessageData) -> TextMessageEventContent:
@@ -47,7 +55,7 @@ async def signal_to_matrix(message: MessageData) -> TextMessageEventContent:
         html_chunks = []
         last_offset = 0
         for mention in message.mentions:
-            before = surrogated_text[last_offset:mention.start]
+            before = surrogated_text[last_offset : mention.start]
             last_offset = mention.start + mention.length
 
             text_chunks.append(before)
@@ -67,11 +75,17 @@ async def signal_to_matrix(message: MessageData) -> TextMessageEventContent:
 
 # TODO this has a lot of duplication with mautrix-facebook, maybe move to mautrix-python
 class SignalFormatString(EntityString[SimpleEntity, EntityType], MarkdownString):
-    def format(self, entity_type: EntityType, **kwargs) -> 'SignalFormatString':
+    def format(self, entity_type: EntityType, **kwargs) -> "SignalFormatString":
         prefix = suffix = ""
         if entity_type == EntityType.USER_MENTION:
-            self.entities.append(SimpleEntity(type=entity_type, offset=0, length=len(self.text),
-                                              extra_info={"user_id": kwargs["user_id"]}))
+            self.entities.append(
+                SimpleEntity(
+                    type=entity_type,
+                    offset=0,
+                    length=len(self.text),
+                    extra_info={"user_id": kwargs["user_id"]},
+                )
+            )
             return self
         elif entity_type == EntityType.BOLD:
             prefix = suffix = "**"
@@ -80,7 +94,7 @@ class SignalFormatString(EntityString[SimpleEntity, EntityType], MarkdownString)
         elif entity_type == EntityType.STRIKETHROUGH:
             prefix = suffix = "~~"
         elif entity_type == EntityType.URL:
-            if kwargs['url'] != self.text:
+            if kwargs["url"] != self.text:
                 suffix = f" ({kwargs['url']})"
         elif entity_type == EntityType.PREFORMATTED:
             prefix = f"```{kwargs['language']}\n"

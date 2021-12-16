@@ -3,11 +3,11 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from typing import Optional, Dict, List, Callable, Awaitable, Any, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 import asyncio
-import logging
 import json
+import logging
 
 from mautrix.util.logging import TraceLogger
 from mautrix.util.opt_prometheus import Counter, Gauge
@@ -22,9 +22,16 @@ CONNECT_EVENT = "_socket_connected"
 DISCONNECT_EVENT = "_socket_disconnected"
 _SOCKET_LIMIT = 1024 * 1024  # 1 MiB
 
-EVENTS_COUNTER = Counter("bridge_signal_signald_events", "The number of events processed by the signald RPC handler", ["command", "result"])
-RECONNECTIONS_COUNTER = Counter("bridge_signal_signald_reconnections", "The number of reconnections made to signald")
+EVENTS_COUNTER = Counter(
+    "bridge_signal_signald_events",
+    "The number of events processed by the signald RPC handler",
+    ["command", "result"],
+)
+RECONNECTIONS_COUNTER = Counter(
+    "bridge_signal_signald_reconnections", "The number of reconnections made to signald"
+)
 CONNECTED_GAUGE = Gauge("bridge_signal_signald_connected", "Is the bridge connected to signald")
+
 
 class SignaldRPCClient:
     loop: asyncio.AbstractEventLoop
@@ -40,8 +47,12 @@ class SignaldRPCClient:
     _response_waiters: Dict[UUID, asyncio.Future]
     _rpc_event_handlers: Dict[str, List[EventHandler]]
 
-    def __init__(self, socket_path: str, log: Optional[TraceLogger] = None,
-                 loop: Optional[asyncio.AbstractEventLoop] = None) -> None:
+    def __init__(
+        self,
+        socket_path: str,
+        log: Optional[TraceLogger] = None,
+        loop: Optional[asyncio.AbstractEventLoop] = None,
+    ) -> None:
         self.socket_path = socket_path
         self.log = log or logging.getLogger("mausignald")
         self.loop = loop or asyncio.get_event_loop()
@@ -68,35 +79,29 @@ class SignaldRPCClient:
         await self._connect_future
 
     async def _communicate_forever(self) -> None:
-        try:
-            while True:
-                await self._communicate_iteration()
-        except Exception:
-            self.log.exception("Fatal error in communication loop")
-            raise
+        while True:
+            try:
+                self._reader, self._writer = await asyncio.open_unix_connection(
+                    self.socket_path, limit=_SOCKET_LIMIT
+                )
+            except OSError as e:
+                self.log.error(f"Connection to {self.socket_path} failed: {e}")
+                await asyncio.sleep(5)
+                continue
 
-    async def _communicate_iteration(self) -> None:
-        try:
-            self._reader, self._writer = await asyncio.open_unix_connection(
-                self.socket_path, limit=_SOCKET_LIMIT)
-        except OSError as e:
-            self.log.error(f"Connection to {self.socket_path} failed: {e}, retrying in 5s")
-            await asyncio.sleep(5)
-            return
+            self.log.debug(f"Connection to {self.socket_path} succeeded")
+            read_loop = asyncio.create_task(self._try_read_loop())
+            self.is_connected = True
+            CONNECTED_GAUGE.set(1)
+            await self._run_rpc_handler(CONNECT_EVENT, {})
+            self._connect_future.set_result(True)
 
-        self.log.debug(f"Connection to {self.socket_path} succeeded")
-        read_loop = asyncio.create_task(self._try_read_loop())
-        self.is_connected = True
-        CONNECTED_GAUGE.set(1)
-        await self._run_rpc_handler(CONNECT_EVENT, {})
-        self._connect_future.set_result(True)
-
-        await read_loop
-        self.is_connected = False
-        CONNECTED_GAUGE.set(0)
-        await self._run_rpc_handler(DISCONNECT_EVENT, {})
-        self._connect_future = self.loop.create_future()
-        RECONNECTIONS_COUNTER.inc(1)
+            await read_loop
+            self.is_connected = False
+            CONNECTED_GAUGE.set(0)
+            await self._run_rpc_handler(DISCONNECT_EVENT, {})
+            self._connect_future = self.loop.create_future()
+            RECONNECTIONS_COUNTER.inc(1)
 
     async def disconnect(self) -> None:
         if self._writer is not None:
@@ -199,8 +204,9 @@ class SignaldRPCClient:
         self._reader = None
         self._writer = None
 
-    def _create_request(self, command: str, req_id: Optional[UUID] = None, **data: Any
-                        ) -> Tuple[asyncio.Future, Dict[str, Any]]:
+    def _create_request(
+        self, command: str, req_id: Optional[UUID] = None, **data: Any
+    ) -> Tuple[asyncio.Future, Dict[str, Any]]:
         req_id = req_id or uuid4()
         req = {"id": str(req_id), "type": command, **data}
         self.log.trace("Request %s: %s %s", req_id, command, data)
@@ -218,7 +224,8 @@ class SignaldRPCClient:
             if not waiter.done():
                 self.log.trace(f"Abandoning response for {req_id}")
                 waiter.set_exception(
-                    NotConnected("Disconnected from signald before RPC completed"))
+                    NotConnected("Disconnected from signald before RPC completed")
+                )
 
     async def _send_request(self, data: Dict[str, Any]) -> None:
         if self._writer is None:
@@ -229,8 +236,9 @@ class SignaldRPCClient:
         await self._writer.drain()
         self.log.trace("Sent data to server server: %s", data)
 
-    async def _raw_request(self, command: str, req_id: Optional[UUID] = None, **data: Any
-                           ) -> Tuple[str, Dict[str, Any]]:
+    async def _raw_request(
+        self, command: str, req_id: Optional[UUID] = None, **data: Any
+    ) -> Tuple[str, Dict[str, Any]]:
         future, data = self._create_request(command, req_id, **data)
         await self._send_request(data)
         return await asyncio.shield(future)

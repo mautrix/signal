@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Dict, Any
+from typing import Any, Dict
 from random import uniform
 import asyncio
 import logging
@@ -23,31 +23,33 @@ from mautrix.bridge import Bridge
 from mautrix.types import RoomID, UserID
 from mautrix.util.opt_prometheus import Gauge
 
-
-from .version import version, linkified_version
+from . import commands
 from .config import Config
-from .db import upgrade_table, init as init_db
+from .db import init as init_db, upgrade_table
 from .matrix import MatrixHandler
-from .signal import SignalHandler
-from .user import User
 from .portal import Portal
 from .puppet import Puppet
+from .signal import SignalHandler
+from .user import User
+from .version import linkified_version, version
 from .web import ProvisioningAPI
-from . import commands
 
 ACTIVE_USER_METRICS_INTERVAL_S = 60
 ONE_DAY_MS = 24 * 60 * 60 * 1000
 SYNC_JITTER = 10
 
-METRIC_ACTIVE_PUPPETS = Gauge('bridge_active_puppets_total', 'Number of active Signal users bridged into Matrix')
-METRIC_BLOCKING = Gauge('bridge_blocked', 'Is the bridge currently blocking messages')
+METRIC_ACTIVE_PUPPETS = Gauge(
+    "bridge_active_puppets_total", "Number of active Signal users bridged into Matrix"
+)
+METRIC_BLOCKING = Gauge("bridge_blocked", "Is the bridge currently blocking messages")
+
+
 class SignalBridge(Bridge):
     module = "mautrix_signal"
     name = "mautrix-signal"
     command = "python -m mautrix-signal"
     description = "A Matrix-Signal puppeting bridge."
     repo_url = "https://github.com/mautrix/signal"
-    real_user_content_key = "net.maunium.signal.puppet"
     version = version
     markdown_version = linkified_version
     config_class = Config
@@ -146,19 +148,21 @@ class SignalBridge(Bridge):
         return bool(Puppet.get_id_from_mxid(user_id))
 
     async def _update_active_puppet_metric(self, log: logging.Logger) -> None:
-        maxActivityDays = self.config['bridge.limits.puppet_inactivity_days']
-        minActivityDays = self.config['bridge.limits.min_puppet_activity_days']
+        maxActivityDays = self.config["bridge.limits.puppet_inactivity_days"]
+        minActivityDays = self.config["bridge.limits.min_puppet_activity_days"]
         users = await Puppet.all_with_initial_activity()
         currentMs = time.time() / 1000
         activeUsers = 0
         for user in users:
             daysOfActivity = (user.last_activity_ts - user.first_activity_ts / 1000) / ONE_DAY_MS
             # If maxActivityTime is not set, they are always active
-            isActive = maxActivityDays is None or (currentMs - user.last_activity_ts) <= (maxActivityDays * ONE_DAY_MS) 
+            isActive = maxActivityDays is None or (currentMs - user.last_activity_ts) <= (
+                maxActivityDays * ONE_DAY_MS
+            )
             if isActive and daysOfActivity > minActivityDays:
                 activeUsers += 1
-        blockOnLimitReached = self.config['bridge.limits.block_on_limit_reached']
-        maxPuppetLimit = self.config['bridge.limits.max_puppet_limit']
+        blockOnLimitReached = self.config["bridge.limits.block_on_limit_reached"]
+        maxPuppetLimit = self.config["bridge.limits.max_puppet_limit"]
         if blockOnLimitReached is not None and maxPuppetLimit is not None:
             self.bridge_blocked = maxPuppetLimit < activeUsers
             METRIC_BLOCKING.set(int(self.bridge_blocked))

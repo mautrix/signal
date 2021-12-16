@@ -242,7 +242,7 @@ bridge:
         "@admin:example.com": "admin"
 
     relay:
-        # Whether or not relay mode should be allowed. If allowed, `!signal set-relay` can be used to turn any
+        # Whether relay mode should be allowed. If allowed, `!signal set-relay` can be used to turn any
         # authenticated user into a relaybot for that chat.
         enabled: false
         # The formats to use when sending messages to Signal via a relay user.
@@ -257,10 +257,10 @@ bridge:
             m.notice: '$sender_displayname: $message'
             m.emote: '* $sender_displayname $message'
             m.file: '$sender_displayname sent a file'
-            m.image: '$sender_displayname  sent an image'
-            m.audio: '$sender_displayname  sent an audio file'
-            m.video: '$sender_displayname  sent a video'
-            m.location: '$sender_displayname  sent a location'
+            m.image: '$sender_displayname sent an image'
+            m.audio: '$sender_displayname sent an audio file'
+            m.video: '$sender_displayname sent a video'
+            m.location: '$sender_displayname sent a location'
     
     # Limit usage of the bridge
     limits:
@@ -272,7 +272,6 @@ bridge:
         puppet_inactivity_days: 30
         # Should the bridge block traffic when a limit has been reached
         block_on_limit_reached: false
-
 
 # Python logging configuration.
 #

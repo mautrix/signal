@@ -13,44 +13,53 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, AsyncGenerator, cast
 from asyncio.tasks import sleep
 from datetime import datetime
-from typing import Union, Dict, Optional, AsyncGenerator, List, TYPE_CHECKING, cast
 from uuid import UUID
 import asyncio
 
-from mausignald.types import (Account, Address, Profile, Group, GroupV2, WebsocketConnectionState,
-                              WebsocketConnectionStateChangeEvent)
-from mautrix.bridge import BaseUser, AutologinError, async_getter_lock
-from mautrix.types import UserID, RoomID
-from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.appservice import AppService
+from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
+from mautrix.types import RoomID, UserID
+from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.util.opt_prometheus import Gauge
 
-from .db import User as DBUser
+from mausignald.types import (
+    Account,
+    Address,
+    Group,
+    GroupV2,
+    Profile,
+    WebsocketConnectionState,
+    WebsocketConnectionStateChangeEvent,
+)
+
+from . import portal as po, puppet as pu
 from .config import Config
-from . import puppet as pu, portal as po
+from .db import User as DBUser
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
 
-METRIC_CONNECTED = Gauge('bridge_connected', 'Bridge users connected to Signal')
-METRIC_LOGGED_IN = Gauge('bridge_logged_in', 'Bridge users logged into Signal')
+METRIC_CONNECTED = Gauge("bridge_connected", "Bridge users connected to Signal")
+METRIC_LOGGED_IN = Gauge("bridge_logged_in", "Bridge users logged into Signal")
 
-BridgeState.human_readable_errors.update({
-    "logged-out": "You're not logged into Signal",
-    "signal-not-connected": None,
-})
+BridgeState.human_readable_errors.update(
+    {"logged-out": "You're not logged into Signal", "signal-not-connected": None,}
+)
 
 
 class User(DBUser, BaseUser):
-    by_mxid: Dict[UserID, 'User'] = {}
-    by_username: Dict[str, 'User'] = {}
-    by_uuid: Dict[UUID, 'User'] = {}
+    by_mxid: dict[UserID, User] = {}
+    by_username: dict[str, User] = {}
+    by_uuid: dict[UUID, User] = {}
     config: Config
     az: AppService
     loop: asyncio.AbstractEventLoop
-    bridge: 'SignalBridge'
+    bridge: "SignalBridge"
 
     relay_whitelisted: bool
     is_admin: bool
@@ -59,11 +68,16 @@ class User(DBUser, BaseUser):
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
     _connected: bool
-    _websocket_connection_state: Optional[WebsocketConnectionState]
-    _latest_non_transient_disconnect_state: Optional[datetime]
+    _websocket_connection_state: BridgeStateEvent | None
+    _latest_non_transient_disconnect_state: datetime | None
 
-    def __init__(self, mxid: UserID, username: Optional[str] = None, uuid: Optional[UUID] = None,
-                 notice_room: Optional[RoomID] = None) -> None:
+    def __init__(
+        self,
+        mxid: UserID,
+        username: str | None = None,
+        uuid: UUID | None = None,
+        notice_room: RoomID | None = None,
+    ) -> None:
         super().__init__(mxid=mxid, username=username, uuid=uuid, notice_room=notice_room)
         BaseUser.__init__(self)
         self._notice_room_lock = asyncio.Lock()
@@ -74,20 +88,25 @@ class User(DBUser, BaseUser):
         self.relay_whitelisted, self.is_whitelisted, self.is_admin, self.permission_level = perms
 
     @classmethod
-    def init_cls(cls, bridge: 'SignalBridge') -> None:
+    def init_cls(cls, bridge: "SignalBridge") -> None:
         cls.bridge = bridge
         cls.config = bridge.config
         cls.az = bridge.az
         cls.loop = bridge.loop
 
     @property
-    def address(self) -> Optional[Address]:
+    def address(self) -> Address | None:
         if not self.username:
             return None
         return Address(uuid=self.uuid, number=self.username)
 
     async def is_logged_in(self) -> bool:
         return bool(self.username)
+
+    async def needs_relay(self, portal: po.Portal) -> bool:
+        return not await self.is_logged_in() or (
+            portal.is_direct and portal.receiver != self.username
+        )
 
     async def logout(self) -> None:
         if not self.username:
@@ -115,7 +134,7 @@ class User(DBUser, BaseUser):
             puppet = await self.get_puppet()
             state.remote_name = puppet.name or self.username
 
-    async def get_bridge_states(self) -> List[BridgeState]:
+    async def get_bridge_states(self) -> list[BridgeState]:
         if not self.username:
             return []
         state = BridgeState(state_event=BridgeStateEvent.UNKNOWN_ERROR)
@@ -125,7 +144,7 @@ class User(DBUser, BaseUser):
             state.state_event = BridgeStateEvent.TRANSIENT_DISCONNECT
         return [state]
 
-    async def get_puppet(self) -> Optional['pu.Puppet']:
+    async def get_puppet(self) -> pu.Puppet | None:
         if not self.address:
             return None
         return await pu.Puppet.get_by_address(self.address)
@@ -139,7 +158,9 @@ class User(DBUser, BaseUser):
         asyncio.create_task(self.sync())
         self._track_metric(METRIC_LOGGED_IN, True)
 
-    def on_websocket_connection_state_change(self, evt: WebsocketConnectionStateChangeEvent) -> None:
+    def on_websocket_connection_state_change(
+        self, evt: WebsocketConnectionStateChangeEvent
+    ) -> None:
         if evt.state == WebsocketConnectionState.CONNECTED:
             self.log.info("Connected to Signal")
             self._track_metric(METRIC_CONNECTED, True)
@@ -147,14 +168,14 @@ class User(DBUser, BaseUser):
             self._connected = True
         else:
             self.log.warning(
-                f"New websocket state from signald: {evt.state}. Error: {evt.exception}")
+                f"New websocket state from signald: {evt.state}. Error: {evt.exception}"
+            )
             self._track_metric(METRIC_CONNECTED, False)
             self._connected = False
 
         bridge_state = {
             # Signald disconnected
             WebsocketConnectionState.SOCKET_DISCONNECTED: BridgeStateEvent.TRANSIENT_DISCONNECT,
-
             # Websocket state reported by signald
             WebsocketConnectionState.DISCONNECTED: (
                 None
@@ -174,6 +195,7 @@ class User(DBUser, BaseUser):
 
         now = datetime.now()
         if bridge_state == BridgeStateEvent.TRANSIENT_DISCONNECT:
+
             async def wait_report_transient_disconnect():
                 # Wait for 10 seconds (that should be enough for the bridge to get connected)
                 # before sending a TRANSIENT_DISCONNECT.
@@ -212,7 +234,7 @@ class User(DBUser, BaseUser):
             self.uuid = puppet.uuid
             self.by_uuid[self.uuid] = self
         if puppet.custom_mxid != self.mxid and puppet.can_auto_login(self.mxid):
-            self.log.info(f"Automatically enabling custom puppet")
+            self.log.info("Automatically enabling custom puppet")
             try:
                 await puppet.switch_mxid(access_token="auto", mxid=self.mxid)
             except AutologinError as e:
@@ -244,8 +266,7 @@ class User(DBUser, BaseUser):
         except Exception:
             self.log.exception("Error while syncing groups")
 
-    async def sync_contact(self, contact: Union[Profile, Address], create_portals: bool = False
-                           ) -> None:
+    async def sync_contact(self, contact: Profile | Address, create_portals: bool = False) -> None:
         self.log.trace("Syncing contact %s", contact)
         if isinstance(contact, Address):
             address = contact
@@ -258,8 +279,9 @@ class User(DBUser, BaseUser):
         puppet = await pu.Puppet.get_by_address(address)
         await puppet.update_info(profile)
         if create_portals:
-            portal = await po.Portal.get_by_chat_id(puppet.address, receiver=self.username,
-                                                    create=True)
+            portal = await po.Portal.get_by_chat_id(
+                puppet.address, receiver=self.username, create=True
+            )
             await portal.create_matrix_room(self, profile)
 
     async def _sync_group(self, group: Group, create_portals: bool) -> None:
@@ -311,7 +333,7 @@ class User(DBUser, BaseUser):
 
     @classmethod
     @async_getter_lock
-    async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Optional['User']:
+    async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> User | None:
         # Never allow ghosts to be users
         if pu.Puppet.get_id_from_mxid(mxid):
             return None
@@ -335,7 +357,7 @@ class User(DBUser, BaseUser):
 
     @classmethod
     @async_getter_lock
-    async def get_by_username(cls, username: str) -> Optional['User']:
+    async def get_by_username(cls, username: str) -> User | None:
         try:
             return cls.by_username[username]
         except KeyError:
@@ -350,7 +372,7 @@ class User(DBUser, BaseUser):
 
     @classmethod
     @async_getter_lock
-    async def get_by_uuid(cls, uuid: UUID) -> Optional['User']:
+    async def get_by_uuid(cls, uuid: UUID) -> User | None:
         try:
             return cls.by_uuid[uuid]
         except KeyError:
@@ -364,7 +386,7 @@ class User(DBUser, BaseUser):
         return None
 
     @classmethod
-    async def get_by_address(cls, address: Address) -> Optional['User']:
+    async def get_by_address(cls, address: Address) -> User | None:
         if address.uuid:
             return await cls.get_by_uuid(address.uuid)
         elif address.number:
@@ -373,7 +395,7 @@ class User(DBUser, BaseUser):
             raise ValueError("Given address is blank")
 
     @classmethod
-    async def all_logged_in(cls) -> AsyncGenerator['User', None]:
+    async def all_logged_in(cls) -> AsyncGenerator[User, None]:
         users = await super().all_logged_in()
         user: cls
         for user in users:
