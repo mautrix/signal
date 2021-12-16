@@ -1347,6 +1347,16 @@ class Portal(DBPortal, BasePortal):
             levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
         return levels
 
+    async def ensure_portal_has_room(self, source: u.User, info: ChatInfo, msgTs: int):
+        if self.mxid:
+            return
+        await self.create_matrix_room(
+            source, info
+        )
+        if not self.mxid:
+            raise Exception(f"Failed to create room for incoming message {msgTs}, dropping message")
+
+
     async def _create_matrix_room(self, source: u.User, info: ChatInfo) -> RoomID | None:
         if self.mxid:
             await self._update_matrix_room(source, info)
