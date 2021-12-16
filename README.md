@@ -4,6 +4,7 @@ The Element fork includes the following changes:
 - [User activity tracking](https://github.com/vector-im/mautrix-signal/tree/hs/activity-blocking)
 - [Add additional metrics to the bridge](https://github.com/mautrix/signal/pull/164)
 - [Make handledMatrixMessage log at info, and include more details](https://github.com/vector-im/mautrix-signal/pull/6)
+- [Only create matrix rooms on message events](https://github.com/mautrix/signal/pull/191)
 
 Some changes that appear here may get upstreamed to https://github.com/mautrix/signal, and will be removed from
 the list when they appear in both versions.
