@@ -123,11 +123,17 @@ class SignalHandler(SignaldClient):
                 return
         assert portal
         if not portal.mxid:
+            if not msg.body and not msg.attachments and not msg.sticker and not msg.group_v2:
+                user.log.debug(
+                    f"Ignoring message {msg.timestamp},"
+                    " probably not bridgeable as there's no portal yet"
+                )
+                return
             await portal.create_matrix_room(
                 user, msg.group_v2 or msg.group or addr_override or sender.address
             )
             if not portal.mxid:
-                user.log.debug(
+                user.log.warning(
                     f"Failed to create room for incoming message {msg.timestamp}, dropping message"
                 )
                 return
