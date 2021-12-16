@@ -124,7 +124,9 @@ class SignalHandler(SignaldClient):
         assert portal
 
         if msg.body or msg.attachments or msg.sticker:
-            await portal.ensure_portal_has_room(user, msg.group_v2 or msg.group or addr_override or sender.address, msg.timestamp)
+            await portal.ensure_portal_has_room(
+                user, msg.group_v2 or msg.group or addr_override or sender.address, msg.timestamp
+            )
             await portal.handle_signal_message(user, sender, msg)
             if msg.expires_in_seconds is not None:
                 await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
