@@ -144,24 +144,24 @@ class SignalHandler(SignaldClient):
                 )
                 return
         assert portal
-        if not portal.mxid:
-            await portal.create_matrix_room(
-                user, msg.group_v2 or msg.group or addr_override or sender.address
+
+        if msg.body or msg.attachments or msg.sticker:
+            await portal.ensure_portal_has_room(
+                user, msg.group_v2 or msg.group or addr_override or sender.address, msg.timestamp
             )
-            if not portal.mxid:
-                user.log.debug(
-                    f"Failed to create room for incoming message {msg.timestamp}, dropping message"
-                )
-                return
-        elif msg.group_v2 and msg.group_v2.revision > portal.revision:
+            await portal.handle_signal_message(user, sender, msg)
+            if msg.expires_in_seconds is not None:
+                await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
+        elif portal.mxid == None:
+            # The rest of the updates only apply to rooms that exist, so drop
+            portal.log.debug(f"Ignoring message {msg.timestamp}, as portal doesn't exist yet.")
+            return
+
+        if msg.group_v2 and msg.group_v2.revision > portal.revision:
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
             await portal.update_info(user, msg.group_v2, sender)
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
-        if msg.body or msg.attachments or msg.sticker:
-            await portal.handle_signal_message(user, sender, msg)
-            if msg.expires_in_seconds is not None:
-                await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
         if msg.group and msg.group.type == "UPDATE":
             await portal.update_info(user, msg.group)
         if msg.remote_delete:
