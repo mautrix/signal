@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 import asyncio
 import logging
 
+from mautrix.types import MessageType
 from mautrix.util.logging import TraceLogger
 
 from mausignald import SignaldClient
@@ -26,6 +27,7 @@ from mausignald.types import (
     Address,
     Message,
     MessageData,
+    OfferMessageType,
     OwnReadReceipt,
     Receipt,
     ReceiptType,
@@ -154,17 +156,20 @@ class SignalHandler(SignaldClient):
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
 
     @staticmethod
-    async def handle_call_message(user: 'u.User', sender: 'pu.Puppet', msg: Message) -> None:
+    async def handle_call_message(user: "u.User", sender: "pu.Puppet", msg: Message) -> None:
         assert msg.call_message
         portal = await po.Portal.get_by_chat_id(
             sender.address, receiver=user.username, create=True
         )
         if not portal.mxid:
-            await portal.create_matrix_room(user, (msg.group_v2 or msg.group
-                                                   or addr_override or sender.address))
+            await portal.create_matrix_room(
+                user, (msg.group_v2 or msg.group or addr_override or sender.address)
+            )
             if not portal.mxid:
-                user.log.debug(f"Failed to create room for incoming message {msg.timestamp},"
-                               " dropping message")
+                user.log.debug(
+                    f"Failed to create room for incoming message {msg.timestamp},"
+                    " dropping message"
+                )
                 return
 
         msg_html = f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a>'
@@ -176,14 +181,15 @@ class SignalHandler(SignaldClient):
             msg_html += (
                 f" started a{call_type}call on Signal. Use the native app to answer the call."
             )
+            msg_type = MessageType.TEXT
         elif msg.call_message.hangup_message:
             msg_html += " ended a call on Signal."
+            msg_type = MessageType.NOTICE
         else:
             portal.log.debug(f"Unhandled call message. Likely an ICE message. {msg.call_message}")
             return
 
-        await sender.intent_for(portal).send_text(portal.mxid, html=msg_html)
-
+        await sender.intent_for(portal).send_text(portal.mxid, html=msg_html, msgtype=msg_type)
 
     @staticmethod
     async def handle_own_receipts(sender: pu.Puppet, receipts: list[OwnReadReceipt]) -> None:
