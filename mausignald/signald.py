@@ -209,11 +209,11 @@ class SignaldClient(SignaldRPCClient):
             timestamp=timestamp,
             **self._recipient_to_args(recipient),
         )
-        errors = []
 
         # We handle unregisteredFailure a little differently than other errors. If there are no
         # successful sends, then we show an error with the unregisteredFailure details, otherwise
         # we ignore it.
+        errors = []
         unregistered_failures = []
         successful_send_count = 0
         results = resp.get("results", [])
@@ -252,10 +252,13 @@ class SignaldClient(SignaldRPCClient):
             else:
                 successful_send_count += 1
         self.log.info(
-            f"Successfully sent message to {successful_send_count}/{len(results)} users in {recipient}"
+            f"Successfully sent message to {successful_send_count}/{len(results)} users in "
+            f"{recipient} with {len(unregistered_failures)} unregistered failures"
         )
-        if errors or successful_send_count == 0:
-            raise Exception("\n".join(errors + unregistered_failures))
+        if len(unregistered_failures) == len(results):
+            errors.extend(unregistered_failures)
+        if errors:
+            raise Exception("\n".join(errors))
 
     async def send_receipt(
         self,

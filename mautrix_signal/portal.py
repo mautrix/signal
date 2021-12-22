@@ -288,6 +288,32 @@ class Portal(DBPortal, BasePortal):
     async def handle_matrix_message(
         self, sender: u.User, message: MessageEventContent, event_id: EventID
     ) -> None:
+        try:
+            await self._handle_matrix_message(sender, message, event_id)
+        except Exception as e:
+            sender.send_remote_checkpoint(
+                MessageSendCheckpointStatus.PERM_FAILURE,
+                event_id,
+                self.mxid,
+                EventType.ROOM_MESSAGE,
+                message.msgtype,
+                error=e,
+            )
+            auth_failed = (
+                "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
+            )
+            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions", []):
+                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+            await self._send_message(
+                self.main_intent,
+                TextMessageEventContent(
+                    msgtype=MessageType.NOTICE, body=f"\u26a0 Your message was not bridged: {e}"
+                ),
+            )
+
+    async def _handle_matrix_message(
+        self, sender: u.User, message: MessageEventContent, event_id: EventID
+    ) -> None:
         orig_sender = sender
         sender, is_relay = await self.get_relay_sender(sender, f"message {event_id}")
         if not sender:
@@ -338,26 +364,9 @@ class Portal(DBPortal, BasePortal):
                 attachments=attachments,
                 timestamp=request_id,
             )
-        except Exception as e:
-            sender.send_remote_checkpoint(
-                MessageSendCheckpointStatus.PERM_FAILURE,
-                event_id,
-                self.mxid,
-                EventType.ROOM_MESSAGE,
-                message.msgtype,
-                error=e,
-            )
-            auth_failed = (
-                "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
-            )
-            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions", []):
-                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
-            await self._send_message(
-                self.main_intent,
-                TextMessageEventContent(
-                    msgtype=MessageType.NOTICE, body=f"\u26a0 Your message was not bridged: {e}"
-                ),
-            )
+        except Exception:
+            self.log.exception("Sending message failed")
+            raise
         else:
             sender.send_remote_checkpoint(
                 MessageSendCheckpointStatus.SUCCESS,
