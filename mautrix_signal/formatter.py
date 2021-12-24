@@ -19,6 +19,7 @@ from typing import cast
 import html
 import struct
 
+from mausignald.types import Address, Mention, MessageData
 from mautrix.types import Format, MessageType, TextMessageEventContent, UserID
 from mautrix.util.formatter import (
     EntityString,
@@ -27,8 +28,6 @@ from mautrix.util.formatter import (
     MatrixParser as BaseMatrixParser,
     SemiAbstractEntity,
 )
-
-from mausignald.types import Address, Mention, MessageData
 
 from . import puppet as pu, user as u
 

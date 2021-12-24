@@ -32,7 +32,6 @@ from mautrix.types import (
     TypingEvent,
     UserID,
 )
-
 from mautrix_signal.db.disappearing_message import DisappearingMessage
 
 from . import portal as po, signal as s, user as u

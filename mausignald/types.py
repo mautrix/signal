@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from attr import dataclass
+
 from mautrix.types import ExtensibleEnum, SerializableAttrs, SerializableEnum, field
 
 GroupID = NewType("GroupID", str)

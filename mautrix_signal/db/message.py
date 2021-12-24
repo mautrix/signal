@@ -18,11 +18,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar
 
 from attr import dataclass
-from mautrix.types import EventID, RoomID
-from mautrix.util.async_db import Database
 import asyncpg
 
 from mausignald.types import Address, GroupID
+from mautrix.types import EventID, RoomID
+from mautrix.util.async_db import Database
 
 from ..util import id_to_str
 

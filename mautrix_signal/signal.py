@@ -19,9 +19,6 @@ from typing import TYPE_CHECKING
 import asyncio
 import logging
 
-from mautrix.types import MessageType
-from mautrix.util.logging import TraceLogger
-
 from mausignald import SignaldClient
 from mausignald.types import (
     Address,
@@ -35,6 +32,8 @@ from mausignald.types import (
     TypingNotification,
     WebsocketConnectionStateChangeEvent,
 )
+from mautrix.types import MessageType
+from mautrix.util.logging import TraceLogger
 
 from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage

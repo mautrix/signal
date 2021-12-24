@@ -17,11 +17,10 @@ from typing import Optional
 import base64
 import json
 
-from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
-from mautrix.types import EventID
-
 from mausignald.errors import UnknownIdentityKey
 from mausignald.types import Address
+from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
+from mautrix.types import EventID
 
 from .. import portal as po, puppet as pu
 from .auth import make_qr, remove_extra_chars

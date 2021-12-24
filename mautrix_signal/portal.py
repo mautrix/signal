@@ -26,6 +26,25 @@ import os.path
 import pathlib
 import time
 
+from mausignald.errors import ResponseError, RPCError
+from mausignald.types import (
+    AccessControlMode,
+    Address,
+    Attachment,
+    Contact,
+    Group,
+    GroupAccessControl,
+    GroupID,
+    GroupMemberRole,
+    GroupV2,
+    GroupV2ID,
+    Mention,
+    MessageData,
+    Profile,
+    Quote,
+    Reaction,
+    Sticker,
+)
 from mautrix.appservice import AppService, IntentAPI
 from mautrix.bridge import BasePortal, async_getter_lock
 from mautrix.errors import IntentError, MatrixError, MForbidden
@@ -51,26 +70,6 @@ from mautrix.types import (
 from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
-
-from mausignald.errors import ResponseError, RPCError
-from mausignald.types import (
-    AccessControlMode,
-    Address,
-    Attachment,
-    Contact,
-    Group,
-    GroupAccessControl,
-    GroupID,
-    GroupMemberRole,
-    GroupV2,
-    GroupV2ID,
-    Mention,
-    MessageData,
-    Profile,
-    Quote,
-    Reaction,
-    Sticker,
-)
 
 from . import matrix as m, puppet as p, signal as s, user as u
 from .config import Config

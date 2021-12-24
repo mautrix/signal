@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from asyncpg import Connection
+
 from mautrix.util.async_db import UpgradeTable
 
 upgrade_table = UpgradeTable()

@@ -21,12 +21,6 @@ from datetime import datetime
 from uuid import UUID
 import asyncio
 
-from mautrix.appservice import AppService
-from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
-from mautrix.types import RoomID, UserID
-from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
-from mautrix.util.opt_prometheus import Gauge
-
 from mausignald.types import (
     Account,
     Address,
@@ -36,6 +30,11 @@ from mausignald.types import (
     WebsocketConnectionState,
     WebsocketConnectionStateChangeEvent,
 )
+from mautrix.appservice import AppService
+from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
+from mautrix.types import RoomID, UserID
+from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
+from mautrix.util.opt_prometheus import Gauge
 
 from . import portal as po, puppet as pu
 from .config import Config

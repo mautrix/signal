@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, ClassVar
 from uuid import UUID
 
 from attr import dataclass
+
 from mautrix.types import RoomID, UserID
 from mautrix.util.async_db import Database
 
