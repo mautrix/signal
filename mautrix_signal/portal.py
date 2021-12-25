@@ -856,9 +856,21 @@ class Portal(DBPortal, BasePortal):
         if attachment.blurhash:
             info["blurhash"] = attachment.blurhash
             info["xyz.amorgan.blurhash"] = attachment.blurhash
-        return MediaMessageEventContent(
+        content = MediaMessageEventContent(
             msgtype=msgtype, info=info, body=attachment.custom_filename
         )
+
+        # Add the additional voice message metadata.
+        if attachment.voice_note:
+            content["org.matrix.msc1767.file"] = {
+                "url": content.url,
+                "name": content.body,
+                **(content.file.serialize() if content.file else {}),
+                **(content.info.serialize() if content.info else {}),
+            }
+            content["org.matrix.msc3245.voice"] = {}
+
+        return content
 
     async def _handle_signal_attachment(
         self, intent: IntentAPI, attachment: Attachment, sticker: bool = False
