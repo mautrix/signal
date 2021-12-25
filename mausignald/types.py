@@ -385,6 +385,38 @@ class SyncMessage(SerializableAttrs):
     contacts_complete: bool = field(default=False, json="contactsComplete")
 
 
+class OfferMessageType(SerializableEnum):
+    AUDIO_CALL = "AUDIO_CALL"
+    VIDEO_CALL = "VIDEO_CALL"
+
+
+@dataclass
+class OfferMessage(SerializableAttrs):
+    id: int
+    type: OfferMessageType
+
+
+class HangupMessageType(SerializableEnum):
+    NORMAL = "NORMAL"
+    ACCEPTED = "ACCEPTED"
+    DECLINED = "DECLINED"
+    BUSY = "BUSY"
+    NEED_PERMISSION = "NEED_PERMISSION"
+
+
+@dataclass
+class HangupMessage(SerializableAttrs):
+    id: int
+    type: HangupMessageType
+    device_id: int = field(json="deviceId")
+
+
+@dataclass
+class CallMessage(SerializableAttrs):
+    offer_message: Optional[OfferMessage] = field(default=None, json="offerMessage")
+    hangup_message: Optional[HangupMessage] = field(default=None, json="hangupMessage")
+
+
 class MessageType(SerializableEnum):
     CIPHERTEXT = "CIPHERTEXT"
     UNIDENTIFIED_SENDER = "UNIDENTIFIED_SENDER"
@@ -409,6 +441,7 @@ class Message(SerializableAttrs):
     is_unidentified_sender: Optional[bool] = field(json="isUnidentifiedSender", default=None)
     has_legacy_message: bool = field(default=False, json="hasLegacyMessage")
 
+    call_message: Optional[CallMessage] = field(default=None, json="callMessage")
     data_message: Optional[MessageData] = field(default=None, json="dataMessage")
     sync_message: Optional[SyncMessage] = field(default=None, json="syncMessage")
     typing: Optional[TypingNotification] = None
