@@ -80,7 +80,7 @@ from .db import (
     Reaction as DBReaction,
 )
 from .formatter import matrix_to_signal, signal_to_matrix
-from .util import id_to_str
+from .util import id_to_str, to_ogg
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -833,7 +833,9 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
 
     @staticmethod
-    def _make_media_content(attachment: Attachment) -> MediaMessageEventContent:
+    async def _make_media_content(
+        attachment: Attachment, data: bytes
+    ) -> tuple[MediaMessageEventContent, bytes]:
         if attachment.content_type.startswith("image/"):
             msgtype = MessageType.IMAGE
             info = ImageInfo(
@@ -846,7 +848,9 @@ class Portal(DBPortal, BasePortal):
             )
         elif attachment.voice_note or attachment.content_type.startswith("audio/"):
             msgtype = MessageType.AUDIO
-            info = AudioInfo(mimetype=attachment.content_type)
+            info = AudioInfo(
+                mimetype=attachment.content_type if not attachment.voice_note else "audio/ogg"
+            )
         else:
             msgtype = MessageType.FILE
             info = FileInfo(mimetype=attachment.content_type)
@@ -860,7 +864,7 @@ class Portal(DBPortal, BasePortal):
             msgtype=msgtype, info=info, body=attachment.custom_filename
         )
 
-        # Add the additional voice message metadata.
+        # If this is a voice note, add the additional voice message metadata and convert to OGG.
         if attachment.voice_note:
             content["org.matrix.msc1767.file"] = {
                 "url": content.url,
@@ -869,8 +873,9 @@ class Portal(DBPortal, BasePortal):
                 **(content.info.serialize() if content.info else {}),
             }
             content["org.matrix.msc3245.voice"] = {}
+            data = await to_ogg(data, attachment.content_type)
 
-        return content
+        return content, data
 
     async def _handle_signal_attachment(
         self, intent: IntentAPI, attachment: Attachment, sticker: bool = False
@@ -883,14 +888,14 @@ class Portal(DBPortal, BasePortal):
                 else "application/octet-stream"
             )
 
-        content = self._make_media_content(attachment)
-        if sticker:
-            self._adjust_sticker_size(content.info)
-
         with open(attachment.incoming_filename, "rb") as file:
             data = file.read()
         if self.config["signal.remove_file_after_handling"]:
             os.remove(attachment.incoming_filename)
+
+        content, data = await self._make_media_content(attachment, data)
+        if sticker:
+            self._adjust_sticker_size(content.info)
 
         await self._upload_attachment(intent, content, data, attachment.id)
         return content
