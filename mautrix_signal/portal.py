@@ -68,6 +68,7 @@ from mautrix.types import (
     VideoInfo,
 )
 from mautrix.util.bridge_state import BridgeStateEvent
+from mautrix.util.ffmpeg import convert_bytes, convert_path
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -80,7 +81,7 @@ from .db import (
     Reaction as DBReaction,
 )
 from .formatter import matrix_to_signal, signal_to_matrix
-from .util import id_to_str, to_m4a, to_ogg
+from .util import id_to_str
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -253,7 +254,11 @@ class Portal(DBPortal, BasePortal):
     async def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
         outgoing_filename = path
         if message.msgtype == MessageType.AUDIO:
-            outgoing_filename = await to_m4a(path)
+            outgoing_filename = (
+                (await convert_path(path, ".m4a", output_args=("-c:a", "aac"), remove_input=True))
+                .absolute()
+                .as_posix()
+            )
             message.info.mimetype = "audio/mp4"
         attachment = Attachment(
             custom_filename=message.body,
@@ -877,7 +882,9 @@ class Portal(DBPortal, BasePortal):
                 **(content.info.serialize() if content.info else {}),
             }
             content["org.matrix.msc3245.voice"] = {}
-            data = await to_ogg(data, attachment.content_type)
+            data = await convert_bytes(
+                data, ".ogg", output_args=("-c:a", "libvorbis"), input_mime=attachment.content_type
+            )
 
         return content, data
 
