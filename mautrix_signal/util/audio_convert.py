@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from typing import Optional
+from pathlib import Path
 import asyncio
 import logging
 import mimetypes
@@ -58,3 +59,25 @@ async def to_ogg(data: bytes, mime: str) -> Optional[bytes]:
                 stderr.decode("utf-8") if stderr is not None else f"unknown ({proc.returncode})"
             )
             raise ChildProcessError(f"ffmpeg error: {err_text}")
+
+
+async def to_m4a(path_str: str) -> Optional[str]:
+    path = Path(path_str)
+    output_file_name = (path.parent / (path.stem + ".m4a")).absolute().as_posix()
+    proc = await asyncio.create_subprocess_exec(
+        "ffmpeg",
+        "-i",
+        path,
+        "-c:a",
+        "aac",
+        output_file_name,
+        stdout=asyncio.subprocess.PIPE,
+        stdin=asyncio.subprocess.PIPE,
+    )
+    _, stderr = await proc.communicate()
+    if proc.returncode == 0:
+        path.unlink(missing_ok=True)
+        return output_file_name
+    else:
+        err_text = stderr.decode("utf-8") if stderr is not None else f"unknown ({proc.returncode})"
+        raise ChildProcessError(f"ffmpeg error: {err_text}")

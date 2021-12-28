@@ -80,7 +80,7 @@ from .db import (
     Reaction as DBReaction,
 )
 from .formatter import matrix_to_signal, signal_to_matrix
-from .util import id_to_str, to_ogg
+from .util import id_to_str, to_m4a, to_ogg
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -250,11 +250,15 @@ class Portal(DBPortal, BasePortal):
     # region Matrix event handling
 
     @staticmethod
-    def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
+    async def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
+        outgoing_filename = path
+        if message.msgtype == MessageType.AUDIO:
+            outgoing_filename = await to_m4a(path)
+            message.info.mimetype = "audio/mp4"
         attachment = Attachment(
             custom_filename=message.body,
             content_type=message.info.mimetype,
-            outgoing_filename=path,
+            outgoing_filename=outgoing_filename,
         )
         info = message.info
         attachment.width = info.get("w", info.get("width", 0))
@@ -345,7 +349,7 @@ class Portal(DBPortal, BasePortal):
             text, mentions = await matrix_to_signal(message)
         elif message.msgtype.is_media:
             attachment_path = await self._download_matrix_media(message)
-            attachment = self._make_attachment(message, attachment_path)
+            attachment = await self._make_attachment(message, attachment_path)
             attachments = [attachment]
             text = message.body if is_relay else None
             self.log.trace("Formed outgoing attachment %s", attachment)
