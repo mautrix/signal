@@ -68,6 +68,7 @@ from mautrix.types import (
     VideoInfo,
 )
 from mautrix.util.bridge_state import BridgeStateEvent
+from mautrix.util.ffmpeg import convert_bytes, convert_path
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -250,11 +251,19 @@ class Portal(DBPortal, BasePortal):
     # region Matrix event handling
 
     @staticmethod
-    def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
+    async def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
+        outgoing_filename = path
+        if message.msgtype == MessageType.AUDIO:
+            outgoing_filename = (
+                (await convert_path(path, ".m4a", output_args=("-c:a", "aac"), remove_input=True))
+                .absolute()
+                .as_posix()
+            )
+            message.info.mimetype = "audio/mp4"
         attachment = Attachment(
             custom_filename=message.body,
             content_type=message.info.mimetype,
-            outgoing_filename=path,
+            outgoing_filename=outgoing_filename,
         )
         info = message.info
         attachment.width = info.get("w", info.get("width", 0))
@@ -345,7 +354,7 @@ class Portal(DBPortal, BasePortal):
             text, mentions = await matrix_to_signal(message)
         elif message.msgtype.is_media:
             attachment_path = await self._download_matrix_media(message)
-            attachment = self._make_attachment(message, attachment_path)
+            attachment = await self._make_attachment(message, attachment_path)
             attachments = [attachment]
             text = message.body if is_relay else None
             self.log.trace("Formed outgoing attachment %s", attachment)
@@ -833,7 +842,9 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
 
     @staticmethod
-    def _make_media_content(attachment: Attachment) -> MediaMessageEventContent:
+    async def _make_media_content(
+        attachment: Attachment, data: bytes
+    ) -> tuple[MediaMessageEventContent, bytes]:
         if attachment.content_type.startswith("image/"):
             msgtype = MessageType.IMAGE
             info = ImageInfo(
@@ -846,7 +857,9 @@ class Portal(DBPortal, BasePortal):
             )
         elif attachment.voice_note or attachment.content_type.startswith("audio/"):
             msgtype = MessageType.AUDIO
-            info = AudioInfo(mimetype=attachment.content_type)
+            info = AudioInfo(
+                mimetype=attachment.content_type if not attachment.voice_note else "audio/ogg"
+            )
         else:
             msgtype = MessageType.FILE
             info = FileInfo(mimetype=attachment.content_type)
@@ -856,9 +869,24 @@ class Portal(DBPortal, BasePortal):
         if attachment.blurhash:
             info["blurhash"] = attachment.blurhash
             info["xyz.amorgan.blurhash"] = attachment.blurhash
-        return MediaMessageEventContent(
+        content = MediaMessageEventContent(
             msgtype=msgtype, info=info, body=attachment.custom_filename
         )
+
+        # If this is a voice note, add the additional voice message metadata and convert to OGG.
+        if attachment.voice_note:
+            content["org.matrix.msc1767.file"] = {
+                "url": content.url,
+                "name": content.body,
+                **(content.file.serialize() if content.file else {}),
+                **(content.info.serialize() if content.info else {}),
+            }
+            content["org.matrix.msc3245.voice"] = {}
+            data = await convert_bytes(
+                data, ".ogg", output_args=("-c:a", "libvorbis"), input_mime=attachment.content_type
+            )
+
+        return content, data
 
     async def _handle_signal_attachment(
         self, intent: IntentAPI, attachment: Attachment, sticker: bool = False
@@ -871,14 +899,14 @@ class Portal(DBPortal, BasePortal):
                 else "application/octet-stream"
             )
 
-        content = self._make_media_content(attachment)
-        if sticker:
-            self._adjust_sticker_size(content.info)
-
         with open(attachment.incoming_filename, "rb") as file:
             data = file.read()
         if self.config["signal.remove_file_after_handling"]:
             os.remove(attachment.incoming_filename)
+
+        content, data = await self._make_media_content(attachment, data)
+        if sticker:
+            self._adjust_sticker_size(content.info)
 
         await self._upload_attachment(intent, content, data, attachment.id)
         return content
