@@ -98,7 +98,7 @@ except ImportError:
     StickersClient = StickerPack = None
 
 try:
-    import magic
+    from mautrix.util import magic
 except ImportError:
     magic = None
 
@@ -900,7 +900,7 @@ class Portal(DBPortal, BasePortal):
         self.log.trace(f"Reuploading attachment {attachment}")
         if not attachment.content_type:
             attachment.content_type = (
-                magic.from_file(attachment.incoming_filename, mime=True)
+                magic.mimetype(attachment.incoming_filename)
                 if magic is not None
                 else "application/octet-stream"
             )
@@ -985,7 +985,7 @@ class Portal(DBPortal, BasePortal):
         )
         self._adjust_sticker_size(info)
         if magic:
-            info.mimetype = magic.from_buffer(data, mime=True)
+            info.mimetype = magic.mimetype(data)
         ext = mimetypes.guess_extension(info.mimetype)
         if not ext and info.mimetype == "image/webp":
             ext = ".webp"
