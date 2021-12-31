@@ -864,8 +864,14 @@ class Portal(DBPortal, BasePortal):
             msgtype = MessageType.FILE
             info = FileInfo(mimetype=attachment.content_type)
         if not attachment.custom_filename:
-            ext = mimetypes.guess_extension(attachment.content_type) or ""
+            ext = mimetypes.guess_extension(info.mimetype) or ""
             attachment.custom_filename = attachment.id + ext
+        else:
+            for ext in mimetypes.guess_all_extensions(info.mimetype):
+                if attachment.custom_filename.endswith(ext):
+                    break
+            else:
+                attachment.custom_filename += mimetypes.guess_extension(info.mimetype)
         if attachment.blurhash:
             info["blurhash"] = attachment.blurhash
             info["xyz.amorgan.blurhash"] = attachment.blurhash
