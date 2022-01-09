@@ -1,6 +1,6 @@
-# v0.2.2 (unreleased)
+# v0.2.2 (2022-01-??, unreleased)
 
-Target signald version: [v0.15.1?](https://gitlab.com/signald/signald/-/releases/0.15.1)
+Target signald version: [v0.16.0](https://gitlab.com/signald/signald/-/releases/0.16.0)
 
 ### Added
 * Support for disappearing messages.
@@ -13,6 +13,7 @@ Target signald version: [v0.15.1?](https://gitlab.com/signald/signald/-/releases
 ### Improved
 * Formatted all code using [black](https://github.com/psf/black)
   and [isort](https://github.com/PyCQA/isort).
+* Moved most relay mode code to mautrix-python to be shared with other bridges.
 
 ### Fixed
 * Fixed empty DM rooms being unnecessarily created when receiving

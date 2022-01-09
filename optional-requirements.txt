@@ -13,8 +13,8 @@ prometheus_client>=0.6,<0.13
 phonenumbers>=8,<9
 
 #/qrlink
-qrcode>=6,<7
-Pillow>=4,<9
+qrcode>=6,<8
+Pillow>=4,<10
 
 #/stickers
 signalstickers-client>=3,<4
