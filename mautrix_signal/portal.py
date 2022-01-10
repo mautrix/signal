@@ -889,7 +889,7 @@ class Portal(DBPortal, BasePortal):
             }
             content["org.matrix.msc3245.voice"] = {}
             data = await convert_bytes(
-                data, ".ogg", output_args=("-c:a", "libvorbis"), input_mime=attachment.content_type
+                data, ".ogg", output_args=("-c:a", "libopus"), input_mime=attachment.content_type
             )
 
         return content, data
