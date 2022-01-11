@@ -235,11 +235,25 @@ class Attachment(SerializableAttrs):
 
 
 @dataclass
+class Mention(SerializableAttrs):
+    uuid: UUID
+    length: int
+    start: int = 0
+
+
+@dataclass
+class QuotedAttachment(SerializableAttrs):
+    content_type: Optional[str] = field(default=None, json="contentType")
+    filename: Optional[str] = field(default=None, json="fileName")
+
+
+@dataclass
 class Quote(SerializableAttrs):
     id: int
     author: Address
     text: Optional[str] = None
-    # TODO: attachments, mentions
+    attachments: Optional[List[QuotedAttachment]] = None
+    mentions: Optional[List[Mention]] = None
 
 
 @dataclass(kw_only=True)
@@ -261,13 +275,6 @@ class Sticker(SerializableAttrs):
 @dataclass
 class RemoteDelete(SerializableAttrs):
     target_sent_timestamp: int = field(json="targetSentTimestamp")
-
-
-@dataclass
-class Mention(SerializableAttrs):
-    uuid: UUID
-    length: int
-    start: int = 0
 
 
 @dataclass

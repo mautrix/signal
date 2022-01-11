@@ -42,6 +42,7 @@ from mausignald.types import (
     MessageData,
     Profile,
     Quote,
+    QuotedAttachment,
     Reaction,
     Sticker,
 )
@@ -346,6 +347,9 @@ class Portal(DBPortal, BasePortal):
             # TODO include actual text? either store in db or fetch event from homeserver
             if reply is not None:
                 quote = Quote(id=reply.timestamp, author=reply.sender, text="")
+                # TODO only send this when it's actually a reply to an attachment?
+                #      Neither Signal Android nor iOS seem to care though, so this works too
+                quote.attachments = [QuotedAttachment("", "")]
 
         attachments: list[Attachment] | None = None
         attachment_path: str | None = None
