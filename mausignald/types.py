@@ -542,8 +542,14 @@ class WebsocketConnectionState(SerializableEnum):
     SOCKET_DISCONNECTED = "SOCKET_DISCONNECTED"
 
 
+class WebsocketType(SerializableEnum):
+    IDENTIFIED = "IDENTIFIED"
+    UNIDENTIFIED = "UNIDENTIFIED"
+
+
 @dataclass
 class WebsocketConnectionStateChangeEvent(SerializableAttrs):
     state: WebsocketConnectionState
     account: str
+    socket: Optional[WebsocketType] = None
     exception: Optional[str] = None
