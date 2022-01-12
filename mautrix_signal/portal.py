@@ -1459,13 +1459,6 @@ class Portal(DBPortal, BasePortal):
                     "content": {"url": self.avatar_url},
                 }
             )
-        if self.config["appservice.community_id"]:
-            initial_state.append(
-                {
-                    "type": "m.room.related_groups",
-                    "content": {"groups": [self.config["appservice.community_id"]]},
-                }
-            )
 
         creation_content = {}
         if not self.config["bridge.federate_rooms"]:
@@ -1511,11 +1504,6 @@ class Portal(DBPortal, BasePortal):
         self.by_mxid[self.mxid] = self
         if not self.is_direct:
             await self._update_participants(source, info)
-
-        # TODO
-        # in_community = await source._community_helper.add_room(source._community_id, self.mxid)
-        # DBUserPortal(user=source.fbid, portal=self.fbid, portal_receiver=self.fb_receiver,
-        #              in_community=in_community).upsert()
 
         return self.mxid
 

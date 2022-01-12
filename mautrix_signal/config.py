@@ -45,8 +45,6 @@ class Config(BaseBridgeConfig):
 
         copy("homeserver.asmux")
 
-        copy("appservice.community_id")
-
         copy("signal.socket_path")
         copy("signal.outgoing_attachment_dir")
         copy("signal.avatar_dir")
