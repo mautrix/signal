@@ -25,6 +25,7 @@ from aiohttp import web
 from mausignald.errors import InternalError, TimeoutException
 from mausignald.types import Account, Address
 from mautrix.types import UserID
+from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.logging import TraceLogger
 
 from .. import user as u
@@ -112,6 +113,11 @@ class ProvisioningAPI:
                 )
             except Exception as e:
                 self.log.exception(f"Failed to get {user.username}'s profile for whoami")
+
+                auth_failed = "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
+                if isinstance(e, InternalError) and auth_failed in e.data.get("exceptions", []):
+                    await user.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+
                 data["signal"] = {
                     "number": user.username,
                     "ok": False,
