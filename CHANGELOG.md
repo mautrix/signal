@@ -9,6 +9,7 @@ Target signald version: [v0.16.0](https://gitlab.com/signald/signald/-/releases/
     to enable the `enable_disappearing_messages_in_groups` config option.
 * Notifications about incoming calls.
 * Support for voice messages with [MSC3245].
+* Support for incoming contact share messages.
 
 ### Improved
 * Formatted all code using [black](https://github.com/psf/black)

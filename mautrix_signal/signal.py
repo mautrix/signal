@@ -123,7 +123,7 @@ class SignalHandler(SignaldClient):
                 return
         assert portal
         if not portal.mxid:
-            if not msg.body and not msg.attachments and not msg.sticker and not msg.group_v2:
+            if not msg.is_message and not msg.group_v2:
                 user.log.debug(
                     f"Ignoring message {msg.timestamp},"
                     " probably not bridgeable as there's no portal yet"
@@ -142,7 +142,7 @@ class SignalHandler(SignaldClient):
             await portal.update_info(user, msg.group_v2, sender)
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
-        if msg.body or msg.attachments or msg.sticker:
+        if msg.is_message:
             await portal.handle_signal_message(user, sender, msg)
             if msg.expires_in_seconds is not None:
                 await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)

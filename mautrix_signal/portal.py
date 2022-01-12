@@ -44,6 +44,7 @@ from mausignald.types import (
     Quote,
     QuotedAttachment,
     Reaction,
+    SharedContact,
     Sticker,
 )
 from mautrix.appservice import AppService, IntentAPI
@@ -794,6 +795,13 @@ class Portal(DBPortal, BasePortal):
                     intent, content, timestamp=message.timestamp, event_type=EventType.STICKER
                 )
 
+        for contact in message.contacts:
+            content = await self._handle_signal_contact(contact)
+            if reply_to and not message.body:
+                content.set_reply(reply_to)
+                reply_to = None
+            event_id = await self._send_message(intent, content, timestamp=message.timestamp)
+
         for attachment in message.attachments:
             if not attachment.incoming_filename:
                 self.log.warning(
@@ -917,6 +925,21 @@ class Portal(DBPortal, BasePortal):
             self._adjust_sticker_size(content.info)
 
         await self._upload_attachment(intent, content, data, attachment.id)
+        return content
+
+    @staticmethod
+    async def _handle_signal_contact(contact: SharedContact) -> TextMessageEventContent:
+        msg = f"Shared contact: {contact.name!s}"
+        if contact.phone:
+            msg += "\n"
+            for phone in contact.phone:
+                msg += f"\nPhone: {phone.value} ({phone.type_or_label})"
+        if contact.email:
+            msg += "\n"
+            for email in contact.email:
+                msg += f"\nEmail: {email.value} ({email.type_or_label})"
+        content = TextMessageEventContent(msgtype=MessageType.TEXT, body=msg)
+        content["fi.mau.signal.contact"] = contact.serialize()
         return content
 
     async def _add_sticker_meta(self, sticker: Sticker, content: MediaMessageEventContent) -> None:

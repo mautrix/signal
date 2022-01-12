@@ -277,9 +277,72 @@ class RemoteDelete(SerializableAttrs):
     target_sent_timestamp: int = field(json="targetSentTimestamp")
 
 
+class SharedContactDetailType(SerializableEnum):
+    HOME = "HOME"
+    WORK = "WORK"
+    MOBILE = "MOBILE"
+    CUSTOM = "CUSTOM"
+
+
+@dataclass
+class SharedContactDetail(SerializableAttrs):
+    type: SharedContactDetailType
+    value: str
+    label: Optional[str] = None
+
+    @property
+    def type_or_label(self) -> str:
+        if self.type != SharedContactDetailType.CUSTOM:
+            return self.type.value.title()
+        return self.label
+
+
+@dataclass
+class SharedContactAvatar(SerializableAttrs):
+    attachment: Attachment
+    is_profile: bool
+
+
+@dataclass
+class SharedContactName(SerializableAttrs):
+    display: Optional[str] = None
+    given: Optional[str] = None
+    middle: Optional[str] = None
+    family: Optional[str] = None
+    prefix: Optional[str] = None
+    suffix: Optional[str] = None
+
+    @property
+    def parts(self) -> List[str]:
+        return [self.prefix, self.given, self.middle, self.family, self.suffix]
+
+    def __str__(self) -> str:
+        if self.display:
+            return self.display
+        return " ".join(part for part in self.parts if part)
+
+
+@dataclass
+class SharedContactAddress(SerializableAttrs):
+    type: SharedContactDetailType
+    label: Optional[str] = None
+    street: Optional[str] = None
+    pobox: Optional[str] = None
+    neighborhood: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
+    postcode: Optional[str] = None
+    country: Optional[str] = None
+
+
 @dataclass
 class SharedContact(SerializableAttrs):
-    pass
+    name: SharedContactName
+    organization: Optional[str] = None
+    avatar: Optional[SharedContactAvatar] = None
+    email: List[SharedContactDetail] = field(factory=lambda: [])
+    phone: List[SharedContactDetail] = field(factory=lambda: [])
+    address: Optional[SharedContactAddress] = None
 
 
 @dataclass
@@ -303,6 +366,10 @@ class MessageData(SerializableAttrs):
     view_once: bool = field(default=False, json="viewOnce")
 
     remote_delete: Optional[RemoteDelete] = field(default=None, json="remoteDelete")
+
+    @property
+    def is_message(self) -> bool:
+        return bool(self.body or self.attachments or self.sticker or self.contacts)
 
 
 @dataclass
