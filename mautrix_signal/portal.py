@@ -1413,10 +1413,6 @@ class Portal(DBPortal, BasePortal):
                 "state_key": self.bridge_info_state_key,
                 "content": self.bridge_info,
             },
-            {
-                "type": str(EventType.ROOM_POWER_LEVELS),
-                "content": power_levels.serialize(),
-            },
         ]
         invites = []
         if self.config["bridge.encryption.default"] and self.matrix.e2ee:
@@ -1457,6 +1453,7 @@ class Portal(DBPortal, BasePortal):
             initial_state=initial_state,
             invitees=invites,
             creation_content=creation_content,
+            power_level_override=power_levels,
         )
         if not self.mxid:
             raise Exception("Failed to create room: no mxid returned")
