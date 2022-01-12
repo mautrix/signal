@@ -574,7 +574,7 @@ class Portal(DBPortal, BasePortal):
             self.log.info(f"{user.mxid} left private chat portal with {self.chat_id}")
             if user.username == self.receiver:
                 self.log.info(
-                    f"{user.mxid} was the recipient of this portal. " "Cleaning up and deleting..."
+                    f"{user.mxid} was the recipient of this portal. Cleaning up and deleting..."
                 )
                 await self.cleanup_and_delete()
         else:
@@ -1335,7 +1335,7 @@ class Portal(DBPortal, BasePortal):
             )
         elif isinstance(info, GroupV2ID) and not isinstance(info, GroupV2):
             self.log.debug(
-                f"create_matrix_room() called with {info}, " "fetching full info from signald"
+                f"create_matrix_room() called with {info}, fetching full info from signald"
             )
             info = await self.signal.get_group(source.username, info.id, info.revision or -1)
             if not info:

@@ -36,7 +36,7 @@ class User:
     notice_room: RoomID | None
 
     async def insert(self) -> None:
-        q = 'INSERT INTO "user" (mxid, username, uuid, notice_room) ' "VALUES ($1, $2, $3, $4)"
+        q = 'INSERT INTO "user" (mxid, username, uuid, notice_room) VALUES ($1, $2, $3, $4)'
         await self.db.execute(q, self.mxid, self.username, self.uuid, self.notice_room)
 
     async def update(self) -> None:
