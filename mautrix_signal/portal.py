@@ -1476,6 +1476,11 @@ class Portal(DBPortal, BasePortal):
             initial_state=initial_state,
             invitees=invites,
             creation_content=creation_content,
+            # Make sure the power level event in initial_state is allowed
+            # even if the server sends a default power level event before it.
+            # TODO remove this if the spec is changed to require servers to
+            #      use the power level event in initial_state
+            power_level_override={"users": {self.main_intent.mxid: 9001}},
         )
         if not self.mxid:
             raise Exception("Failed to create room: no mxid returned")
