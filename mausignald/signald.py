@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Tulir Asokan
+# Copyright (c) 2022 Tulir Asokan
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -19,9 +19,9 @@ from .types import (
     Group,
     GroupID,
     GroupV2,
+    IncomingMessage,
     LinkSession,
     Mention,
-    Message,
     Profile,
     Quote,
     Reaction,
@@ -46,7 +46,7 @@ class SignaldClient(SignaldRPCClient):
         super().__init__(socket_path, log, loop)
         self._event_handlers = {}
         self._subscriptions = set()
-        self.add_rpc_handler("message", self._parse_message)
+        self.add_rpc_handler("IncomingMessage", self._parse_message)
         self.add_rpc_handler(
             "websocket_connection_state_change", self._websocket_connection_state_change
         )
@@ -76,7 +76,7 @@ class SignaldClient(SignaldRPCClient):
         event_type = data["type"]
         event_data = data["data"]
         event_class = {
-            "message": Message,
+            "IncomingMessage": IncomingMessage,
         }[event_type]
         event = event_class.deserialize(event_data)
         await self._run_event_handler(event)
@@ -92,7 +92,7 @@ class SignaldClient(SignaldRPCClient):
 
     async def subscribe(self, username: str) -> bool:
         try:
-            await self.request("subscribe", "subscribed", username=username)
+            await self.request_v1("subscribe", account=username)
             self._subscriptions.add(username)
             return True
         except UnexpectedError as e:
@@ -110,7 +110,7 @@ class SignaldClient(SignaldRPCClient):
 
     async def unsubscribe(self, username: str) -> bool:
         try:
-            await self.request("unsubscribe", "unsubscribed", username=username)
+            await self.request_v1("unsubscribe", account=username)
             self._subscriptions.remove(username)
             return True
         except UnexpectedError as e:

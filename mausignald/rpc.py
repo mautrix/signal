@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Tulir Asokan
+# Copyright (c) 2022 Tulir Asokan
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -221,11 +221,11 @@ class SignaldRPCClient:
         await self._send_request(data)
         return await asyncio.shield(future)
 
-    async def request(self, command: str, expected_response: str, **data: Any) -> Any:
+    async def _request(self, command: str, expected_response: str, **data: Any) -> Any:
         resp_type, resp_data = await self._raw_request(command, **data)
         if resp_type != expected_response:
             raise UnexpectedResponse(resp_type, resp_data)
         return resp_data
 
     async def request_v1(self, command: str, **data: Any) -> Any:
-        return await self.request(command, expected_response=command, version="v1", **data)
+        return await self._request(command, expected_response=command, version="v1", **data)

@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Tulir Asokan
+# Copyright (c) 2022 Tulir Asokan
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -278,6 +278,11 @@ class RemoteDelete(SerializableAttrs):
 
 
 @dataclass
+class SharedContact(SerializableAttrs):
+    pass
+
+
+@dataclass
 class MessageData(SerializableAttrs):
     timestamp: int
 
@@ -287,6 +292,7 @@ class MessageData(SerializableAttrs):
     attachments: List[Attachment] = field(factory=lambda: [])
     sticker: Optional[Sticker] = None
     mentions: List[Mention] = field(factory=lambda: [])
+    contacts: List[SharedContact] = field(factory=lambda: [])
 
     group: Optional[Group] = None
     group_v2: Optional[GroupV2ID] = field(default=None, json="groupV2")
@@ -318,10 +324,10 @@ class TypingAction(SerializableEnum):
 
 
 @dataclass
-class TypingNotification(SerializableAttrs):
+class TypingMessage(SerializableAttrs):
     action: TypingAction
     timestamp: int
-    group_id: Optional[GroupID] = field(default=None, json="groupId")
+    group_id: Optional[GroupID]
 
 
 @dataclass
@@ -338,7 +344,7 @@ class ReceiptType(SerializableEnum):
 
 
 @dataclass
-class Receipt(SerializableAttrs):
+class ReceiptMessage(SerializableAttrs):
     type: ReceiptType
     timestamps: List[int]
     when: int
@@ -381,7 +387,6 @@ class StickerPackOperations(SerializableAttrs):
 @dataclass
 class SyncMessage(SerializableAttrs):
     sent: Optional[SentSyncMessage] = None
-    typing: Optional[TypingNotification] = None
     read_messages: Optional[List[OwnReadReceipt]] = field(default=None, json="readMessages")
     contacts: Optional[ContactSyncMeta] = None
     groups: Optional[ContactSyncMeta] = None
@@ -435,25 +440,25 @@ class MessageType(SerializableEnum):
 
 
 @dataclass(kw_only=True)
-class Message(SerializableAttrs):
-    username: str
+class IncomingMessage(SerializableAttrs):
+    account: str
     source: Address
     timestamp: int
-    timestamp_iso: str = field(json="timestampISO")
 
     type: MessageType
-    source_device: Optional[int] = field(json="sourceDevice", default=None)
-    server_timestamp: Optional[int] = field(json="serverTimestamp", default=None)
-    server_delivered_timestamp: int = field(json="serverDeliveredTimestamp")
-    has_content: bool = field(json="hasContent", default=False)
-    is_unidentified_sender: Optional[bool] = field(json="isUnidentifiedSender", default=None)
-    has_legacy_message: bool = field(default=False, json="hasLegacyMessage")
+    source_device: Optional[int] = None
+    server_guid: str
+    server_receiver_timestamp: int
+    server_deliver_timestamp: int
+    has_content: bool
+    unidentified_sender: bool
+    has_legacy_message: bool
 
-    call_message: Optional[CallMessage] = field(default=None, json="callMessage")
-    data_message: Optional[MessageData] = field(default=None, json="dataMessage")
-    sync_message: Optional[SyncMessage] = field(default=None, json="syncMessage")
-    typing: Optional[TypingNotification] = None
-    receipt: Optional[Receipt] = None
+    call_message: Optional[CallMessage] = field(default=None)
+    data_message: Optional[MessageData] = field(default=None)
+    sync_message: Optional[SyncMessage] = field(default=None)
+    typing_message: Optional[TypingMessage] = None
+    receipt_message: Optional[ReceiptMessage] = None
 
 
 class WebsocketConnectionState(SerializableEnum):

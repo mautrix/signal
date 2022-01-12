@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2021 Tulir Asokan
+# Copyright (C) 2022 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -22,14 +22,14 @@ import logging
 from mausignald import SignaldClient
 from mausignald.types import (
     Address,
-    Message,
+    IncomingMessage,
     MessageData,
     OfferMessageType,
     OwnReadReceipt,
-    Receipt,
+    ReceiptMessage,
     ReceiptType,
     TypingAction,
-    TypingNotification,
+    TypingMessage,
     WebsocketConnectionStateChangeEvent,
 )
 from mautrix.types import MessageType
@@ -55,22 +55,22 @@ class SignalHandler(SignaldClient):
         super().__init__(bridge.config["signal.socket_path"], loop=bridge.loop)
         self.data_dir = bridge.config["signal.data_dir"]
         self.delete_unknown_accounts = bridge.config["signal.delete_unknown_accounts_on_start"]
-        self.add_event_handler(Message, self.on_message)
+        self.add_event_handler(IncomingMessage, self.on_message)
         self.add_event_handler(
             WebsocketConnectionStateChangeEvent, self.on_websocket_connection_state_change
         )
 
-    async def on_message(self, evt: Message) -> None:
+    async def on_message(self, evt: IncomingMessage) -> None:
         sender = await pu.Puppet.get_by_address(evt.source)
-        user = await u.User.get_by_username(evt.username)
+        user = await u.User.get_by_username(evt.account)
         # TODO add lots of logging
 
         if evt.data_message:
             await self.handle_message(user, sender, evt.data_message)
-        if evt.typing:
-            await self.handle_typing(user, sender, evt.typing)
-        if evt.receipt:
-            await self.handle_receipt(sender, evt.receipt)
+        if evt.typing_message:
+            await self.handle_typing(user, sender, evt.typing_message)
+        if evt.receipt_message:
+            await self.handle_receipt(sender, evt.receipt_message)
         if evt.call_message:
             await self.handle_call_message(user, sender, evt)
         if evt.sync_message:
@@ -83,9 +83,6 @@ class SignalHandler(SignaldClient):
                     evt.sync_message.sent.message,
                     addr_override=evt.sync_message.sent.destination,
                 )
-            if evt.sync_message.typing:
-                # Typing notification from own device
-                pass
             if evt.sync_message.contacts or evt.sync_message.contacts_complete:
                 self.log.debug("Sync message includes contacts meta, syncing contacts...")
                 await user.sync_contacts()
@@ -155,31 +152,30 @@ class SignalHandler(SignaldClient):
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
 
     @staticmethod
-    async def handle_call_message(user: "u.User", sender: "pu.Puppet", msg: Message) -> None:
+    async def handle_call_message(user: u.User, sender: pu.Puppet, msg: IncomingMessage) -> None:
         assert msg.call_message
         portal = await po.Portal.get_by_chat_id(
             sender.address, receiver=user.username, create=True
         )
         if not portal.mxid:
-            await portal.create_matrix_room(
-                user, (msg.group_v2 or msg.group or addr_override or sender.address)
-            )
-            if not portal.mxid:
-                user.log.debug(
-                    f"Failed to create room for incoming message {msg.timestamp},"
-                    " dropping message"
-                )
-                return
+            # FIXME
+            # await portal.create_matrix_room(
+            #     user, (msg.group_v2 or msg.group or addr_override or sender.address)
+            # )
+            # if not portal.mxid:
+            #     user.log.debug(
+            #         f"Failed to create room for incoming message {msg.timestamp},"
+            #         " dropping message"
+            #     )
+            return
 
         msg_html = f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a>'
         if msg.call_message.offer_message:
             call_type = {
-                OfferMessageType.AUDIO_CALL: " voice ",
-                OfferMessageType.VIDEO_CALL: " video ",
-            }.get(msg.call_message.offer_message.type, " ")
-            msg_html += (
-                f" started a{call_type}call on Signal. Use the native app to answer the call."
-            )
+                OfferMessageType.AUDIO_CALL: "voice call",
+                OfferMessageType.VIDEO_CALL: "video call",
+            }.get(msg.call_message.offer_message.type, "call")
+            msg_html += f" started a {call_type} on Signal. Use the native app to answer the call."
             msg_type = MessageType.TEXT
         elif msg.call_message.hangup_message:
             msg_html += " ended a call on Signal."
@@ -205,7 +201,7 @@ class SignalHandler(SignaldClient):
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
 
     @staticmethod
-    async def handle_typing(user: u.User, sender: pu.Puppet, typing: TypingNotification) -> None:
+    async def handle_typing(user: u.User, sender: pu.Puppet, typing: TypingMessage) -> None:
         if typing.group_id:
             portal = await po.Portal.get_by_chat_id(typing.group_id)
         else:
@@ -218,7 +214,7 @@ class SignalHandler(SignaldClient):
         )
 
     @staticmethod
-    async def handle_receipt(sender: pu.Puppet, receipt: Receipt) -> None:
+    async def handle_receipt(sender: pu.Puppet, receipt: ReceiptMessage) -> None:
         if receipt.type != ReceiptType.READ:
             return
         messages = await DBMessage.find_by_timestamps(receipt.timestamps)

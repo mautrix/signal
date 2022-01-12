@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2021 Tulir Asokan
+# Copyright (C) 2022 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -68,8 +68,8 @@ from mautrix.types import (
     UserID,
     VideoInfo,
 )
+from mautrix.util import ffmpeg, variation_selector
 from mautrix.util.bridge_state import BridgeStateEvent
-from mautrix.util.ffmpeg import convert_bytes, convert_path
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -122,7 +122,7 @@ class Portal(DBPortal, BasePortal):
     _main_intent: IntentAPI | None
     _create_room_lock: asyncio.Lock
     _msgts_dedup: deque[tuple[Address, int]]
-    _reaction_dedup: deque[tuple[Address, int, str]]
+    _reaction_dedup: deque[tuple[Address, int, str, Address]]
     _reaction_lock: asyncio.Lock
     _pending_members: set[UUID] | None
     _expiration_lock: asyncio.Lock
@@ -255,16 +255,14 @@ class Portal(DBPortal, BasePortal):
     async def _make_attachment(message: MediaMessageEventContent, path: str) -> Attachment:
         outgoing_filename = path
         if message.msgtype == MessageType.AUDIO:
-            outgoing_filename = (
-                (await convert_path(path, ".m4a", output_args=("-c:a", "aac"), remove_input=True))
-                .absolute()
-                .as_posix()
+            outgoing_filename = await ffmpeg.convert_path(
+                path, ".m4a", output_args=("-c:a", "aac"), remove_input=True
             )
             message.info.mimetype = "audio/mp4"
         attachment = Attachment(
             custom_filename=message.body,
             content_type=message.info.mimetype,
-            outgoing_filename=outgoing_filename,
+            outgoing_filename=str(outgoing_filename),
         )
         info = message.info
         attachment.width = info.get("w", info.get("width", 0))
@@ -421,7 +419,7 @@ class Portal(DBPortal, BasePortal):
             return
 
         # Signal doesn't seem to use variation selectors at all
-        emoji = emoji.rstrip("\ufe0f")
+        emoji = variation_selector.remove(emoji)
 
         message = await DBMessage.get_by_mxid(reacting_to, self.mxid)
         if not message:
@@ -434,7 +432,7 @@ class Portal(DBPortal, BasePortal):
         if existing and existing.emoji == emoji:
             return
 
-        dedup_id = (message.sender, message.timestamp, emoji)
+        dedup_id = (message.sender, message.timestamp, emoji, sender.address)
         self._reaction_dedup.appendleft(dedup_id)
         async with self._reaction_lock:
             reaction = Reaction(
@@ -892,7 +890,7 @@ class Portal(DBPortal, BasePortal):
                 **(content.info.serialize() if content.info else {}),
             }
             content["org.matrix.msc3245.voice"] = {}
-            data = await convert_bytes(
+            data = await ffmpeg.convert_bytes(
                 data, ".ogg", output_args=("-c:a", "libopus"), input_mime=attachment.content_type
             )
 
@@ -1024,7 +1022,7 @@ class Portal(DBPortal, BasePortal):
         author_address = await self._resolve_address(reaction.target_author)
         target_id = reaction.target_sent_timestamp
         async with self._reaction_lock:
-            dedup_id = (author_address, target_id, reaction.emoji)
+            dedup_id = (author_address, target_id, reaction.emoji, sender.address)
             if dedup_id in self._reaction_dedup:
                 return
             self._reaction_dedup.appendleft(dedup_id)
@@ -1053,10 +1051,8 @@ class Portal(DBPortal, BasePortal):
             return
 
         intent = sender.intent_for(self)
-        # TODO add variation selectors to emoji before sending to Matrix
-        mxid = await intent.react(
-            message.mx_room, message.mxid, reaction.emoji, timestamp=timestamp
-        )
+        matrix_emoji = variation_selector.add(reaction.emoji)
+        mxid = await intent.react(message.mx_room, message.mxid, matrix_emoji, timestamp=timestamp)
         self.log.debug(f"{sender.address} reacted to {message.mxid} -> {mxid}")
         await self._upsert_reaction(existing, intent, mxid, sender, message, reaction.emoji)
 
