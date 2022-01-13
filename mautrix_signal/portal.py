@@ -26,7 +26,7 @@ import os.path
 import pathlib
 import time
 
-from mausignald.errors import ResponseError, RPCError
+from mausignald.errors import NotConnected, ResponseError, RPCError
 from mausignald.types import (
     AccessControlMode,
     Address,
@@ -364,9 +364,13 @@ class Portal(DBPortal, BasePortal):
         else:
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
             return
+
         self.log.debug(f"Sending Matrix message {event_id} to Signal with timestamp {request_id}")
         try:
-            await self.signal.send(
+            retry_count = await self._signal_send_with_retries(
+                sender,
+                message,
+                event_id,
                 username=sender.username,
                 recipient=self.chat_id,
                 body=text,
@@ -385,6 +389,7 @@ class Portal(DBPortal, BasePortal):
                 self.mxid,
                 EventType.ROOM_MESSAGE,
                 message.msgtype,
+                retry_num=retry_count,
             )
             await self._send_delivery_receipt(event_id)
 
@@ -411,6 +416,54 @@ class Portal(DBPortal, BasePortal):
                 dm = DisappearingMessage(self.mxid, event_id, self.expiration_time)
                 await dm.insert()
                 await Portal._expire_event(dm.room_id, dm.mxid)
+
+    async def _signal_send_with_retries(
+        self, sender: u.User, message: MessageEventContent, event_id: EventID, **send_args
+    ) -> int:
+        retry_count = 7
+        retry_message_event_id = None
+        for retry_num in range(retry_count):
+            try:
+                self.log.info(f"Send attempt {retry_num}")
+                await self.signal.send(**send_args)
+
+                # It was successful.
+                if retry_message_event_id is not None:
+                    await self.main_intent.redact(self.mxid, retry_message_event_id)
+                return retry_num
+            except NotConnected as e:
+                # Only handle NotConnected exceptions so that other exceptions actually continue to
+                # error.
+                sleep_seconds = (retry_num + 1) ** 2
+                msg = f"Not connected to signald. Going to sleep for {sleep_seconds}s. Error: {e}"
+                self.log.exception(msg)
+                sender.send_remote_checkpoint(
+                    MessageSendCheckpointStatus.WILL_RETRY,
+                    event_id,
+                    self.mxid,
+                    EventType.ROOM_MESSAGE,
+                    message.msgtype,
+                    error=msg,
+                    retry_num=retry_num,
+                )
+
+                if retry_num > 2:
+                    # User has waited > ~15 seconds, send a notice that we are retrying.
+                    event_content = TextMessageEventContent(
+                        MessageType.NOTICE,
+                        f"There was an error connecting to signald. Waiting for {sleep_seconds} "
+                        "before retrying.",
+                    )
+                    if retry_message_event_id is not None:
+                        event_content.set_edit(retry_message_event_id)
+                    new_event_id = await self.main_intent.send_message(self.mxid, event_content)
+                    retry_message_event_id = retry_message_event_id or new_event_id
+
+                await asyncio.sleep(sleep_seconds)
+
+        if retry_message_event_id is not None:
+            await self.main_intent.redact(self.mxid, retry_message_event_id)
+        raise NotConnected(f"Connection to signald still did not work after {retry_count} retries")
 
     async def handle_matrix_reaction(
         self, sender: u.User, event_id: EventID, reacting_to: EventID, emoji: str
