@@ -1223,11 +1223,9 @@ class Portal(DBPortal, BasePortal):
         await self.update()
 
         time_str = "Off" if expires_in_seconds is None else format_duration(expires_in_seconds)
-        await self.main_intent.send_notice(
-            self.mxid,
-            html=f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a> set the '
-            f"disappearing message timer to {time_str}.",
-        )
+        body = f"Set the disappearing message timer to {time_str}"
+        content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=body)
+        await self._send_message(sender.intent_for(self), content)
 
     async def update_puppet_avatar(self, new_hash: str, avatar_url: ContentURI) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:
