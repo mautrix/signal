@@ -1,6 +1,6 @@
 # v0.2.2 (2022-01-??, unreleased)
 
-Target signald version: [v0.16.0](https://gitlab.com/signald/signald/-/releases/0.16.0)
+Target signald version: [v0.16.1](https://gitlab.com/signald/signald/-/releases/0.16.1)
 
 ### Added
 * Support for disappearing messages.
@@ -10,17 +10,22 @@ Target signald version: [v0.16.0](https://gitlab.com/signald/signald/-/releases/
 * Notifications about incoming calls.
 * Support for voice messages with [MSC3245].
 * Support for incoming contact share messages.
+* Support for long text messages from Signal.
 
 ### Improved
 * Formatted all code using [black](https://github.com/psf/black)
   and [isort](https://github.com/PyCQA/isort).
 * Moved most relay mode code to mautrix-python to be shared with other bridges.
+* The bridge will now queue messages temporarily if signald is down while sending.
+* Removed legacy community-related features.
+* Updated remaining things to use signald's v1 API.
 
 ### Fixed
 * Fixed empty DM rooms being unnecessarily created when receiving
   non-bridgeable events (e.g. profile key updates).
 * Fixed duplicate rooms being created in certain cases due to the room mapping
   cache not working.
+* Fixed replies to attachments not rendering on Signal iOS properly.
 
 [MSC3245]: https://github.com/matrix-org/matrix-doc/pull/3245
 
