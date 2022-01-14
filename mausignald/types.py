@@ -229,6 +229,7 @@ class Attachment(SerializableAttrs):
     id: Optional[str] = None
     incoming_filename: Optional[str] = field(default=None, json="storedFilename")
     digest: Optional[str] = None
+    size: Optional[int] = None
 
     # Only for outgoing
     outgoing_filename: Optional[str] = field(default=None, json="filename")

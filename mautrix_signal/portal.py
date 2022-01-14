@@ -107,6 +107,7 @@ except ImportError:
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
 ChatInfo = Union[Group, GroupV2, GroupV2ID, Contact, Profile, Address]
+MAX_MATRIX_MESSAGE_SIZE = 60000
 
 
 class Portal(DBPortal, BasePortal):
@@ -855,13 +856,22 @@ class Portal(DBPortal, BasePortal):
                 reply_to = None
             event_id = await self._send_message(intent, content, timestamp=message.timestamp)
 
+        is_first_text = True
         for attachment in message.attachments:
             if not attachment.incoming_filename:
                 self.log.warning(
                     "Failed to bridge attachment, no incoming filename: %s", attachment
                 )
                 continue
-            content = await self._handle_signal_attachment(intent, attachment)
+            as_text = (
+                is_first_text
+                and attachment.content_type == "text/x-signal-plain"
+                and attachment.size < MAX_MATRIX_MESSAGE_SIZE
+            )
+            content = await self._handle_signal_attachment(intent, attachment, text=as_text)
+            if as_text:
+                is_first_text = False
+                message.body = ""
             if reply_to and not message.body:
                 # If there's no text, set the first image as the reply
                 content.set_reply(reply_to)
@@ -934,7 +944,7 @@ class Portal(DBPortal, BasePortal):
                 if attachment.custom_filename.endswith(ext):
                     break
             else:
-                attachment.custom_filename += mimetypes.guess_extension(info.mimetype)
+                attachment.custom_filename += mimetypes.guess_extension(info.mimetype) or ""
         if attachment.blurhash:
             info["blurhash"] = attachment.blurhash
             info["xyz.amorgan.blurhash"] = attachment.blurhash
@@ -958,8 +968,8 @@ class Portal(DBPortal, BasePortal):
         return content, data
 
     async def _handle_signal_attachment(
-        self, intent: IntentAPI, attachment: Attachment, sticker: bool = False
-    ) -> MediaMessageEventContent:
+        self, intent: IntentAPI, attachment: Attachment, sticker: bool = False, text: bool = False
+    ) -> MediaMessageEventContent | TextMessageEventContent:
         self.log.trace(f"Reuploading attachment {attachment}")
         if not attachment.content_type:
             attachment.content_type = (
@@ -972,6 +982,12 @@ class Portal(DBPortal, BasePortal):
             data = file.read()
         if self.config["signal.remove_file_after_handling"]:
             os.remove(attachment.incoming_filename)
+
+        if text:
+            assert attachment.content_type == "text/x-signal-plain"
+            assert attachment.size < MAX_MATRIX_MESSAGE_SIZE
+            content = TextMessageEventContent(msgtype=MessageType.TEXT, body=data.decode("utf-8"))
+            return content
 
         content, data = await self._make_media_content(attachment, data)
         if sticker:
