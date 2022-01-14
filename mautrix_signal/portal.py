@@ -300,6 +300,7 @@ class Portal(DBPortal, BasePortal):
         try:
             await self._handle_matrix_message(sender, message, event_id)
         except Exception as e:
+            self.log.exception(f"Failed to handle Matrix message {event_id}")
             sender.send_remote_checkpoint(
                 MessageSendCheckpointStatus.PERM_FAILURE,
                 event_id,

@@ -395,7 +395,7 @@ class TypingAction(SerializableEnum):
 class TypingMessage(SerializableAttrs):
     action: TypingAction
     timestamp: int
-    group_id: Optional[GroupID]
+    group_id: Optional[GroupID] = None
 
 
 @dataclass
