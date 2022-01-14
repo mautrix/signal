@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, List, Optional
+from typing import TYPE_CHECKING, ClassVar
 
 from attr import dataclass
 import asyncpg
@@ -33,29 +33,21 @@ class DisappearingMessage:
     room_id: RoomID
     mxid: EventID
     expiration_seconds: int
-    expiration_ts: Optional[int] = None
+    expiration_ts: int | None = None
 
     async def insert(self) -> None:
         q = """
-        INSERT INTO disappearing_message (room_id, mxid, expiration_seconds, expiration_ts)
-        VALUES ($1, $2, $3, $4)
+            INSERT INTO disappearing_message (room_id, mxid, expiration_seconds, expiration_ts)
+            VALUES ($1, $2, $3, $4)
         """
         await self.db.execute(
             q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
         )
 
-    async def update(self) -> None:
-        q = """
-        UPDATE disappearing_message
-        SET expiration_seconds=$3, expiration_ts=$4
-        WHERE room_id=$1 AND mxid=$2
-        """
-        try:
-            await self.db.execute(
-                q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
-            )
-        except Exception as e:
-            print(e)
+    async def set_expiration_ts(self, ts: int) -> None:
+        q = "UPDATE disappearing_message SET expiration_ts=$3 WHERE room_id=$1 AND mxid=$2"
+        self.expiration_ts = ts
+        await self.db.execute(q, self.room_id, self.mxid, self.expiration_ts)
 
     @classmethod
     async def delete(cls, room_id: RoomID, event_id: EventID) -> None:
@@ -67,12 +59,10 @@ class DisappearingMessage:
         return cls(**row)
 
     @classmethod
-    async def get(cls, room_id: RoomID, event_id: EventID) -> Optional[DisappearingMessage]:
+    async def get(cls, room_id: RoomID, event_id: EventID) -> DisappearingMessage | None:
         q = """
-        SELECT room_id, mxid, expiration_seconds, expiration_ts
-          FROM disappearing_message
-         WHERE room_id = $1
-           AND mxid = $2
+            SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message
+            WHERE room_id=$1 AND mxid=$2
         """
         try:
             return cls._from_row(await cls.db.fetchrow(q, room_id, event_id))
@@ -80,15 +70,17 @@ class DisappearingMessage:
             return None
 
     @classmethod
-    async def get_all(cls) -> List[DisappearingMessage]:
-        q = "SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message"
+    async def get_all_scheduled(cls) -> list[DisappearingMessage]:
+        q = """
+            SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message
+            WHERE expiration_ts IS NOT NULL
+        """
         return [cls._from_row(r) for r in await cls.db.fetch(q)]
 
     @classmethod
-    async def get_all_for_room(cls, room_id: RoomID) -> List[DisappearingMessage]:
+    async def get_unscheduled_for_room(cls, room_id: RoomID) -> list[DisappearingMessage]:
         q = """
-        SELECT room_id, mxid, expiration_seconds, expiration_ts
-          FROM disappearing_message
-         WHERE room_id = $1
+            SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message
+            WHERE room_id = $1 AND expiration_ts IS NULL
         """
         return [cls._from_row(r) for r in await cls.db.fetch(q, room_id)]

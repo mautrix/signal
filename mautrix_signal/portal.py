@@ -204,7 +204,7 @@ class Portal(DBPortal, BasePortal):
         await asyncio.gather(
             *(
                 cls._expire_event(dm.room_id, dm.mxid, restart=True)
-                for dm in await DisappearingMessage.get_all()
+                for dm in await DisappearingMessage.get_all_scheduled()
                 if dm.expiration_ts
             )
         )
@@ -731,8 +731,7 @@ class Portal(DBPortal, BasePortal):
 
             # Set the expiration_ts only after we have actually created the expiration task.
             if not disappearing_message.expiration_ts:
-                disappearing_message.expiration_ts = int((now + wait) * 1000)
-                await disappearing_message.update()
+                await disappearing_message.set_expiration_ts(int((now + wait) * 1000))
 
     @classmethod
     async def _expire_event_task(cls, portal: Portal, event_id: EventID, wait: float):
@@ -756,12 +755,12 @@ class Portal(DBPortal, BasePortal):
                 await DisappearingMessage.delete(portal.mxid, event_id)
 
     async def handle_read_receipt(self, event_id: EventID, data: SingleReceiptEventContent):
-        # Start the redaction timers for all of the disappearing messages in the room when the user
+        # Start the redaction timers for all the disappearing messages in the room when the user
         # reads the room. This is the behavior of the Signal clients.
         await asyncio.gather(
             *(
                 Portal._expire_event(dm.room_id, dm.mxid)
-                for dm in await DisappearingMessage.get_all_for_room(self.mxid)
+                for dm in await DisappearingMessage.get_unscheduled_for_room(self.mxid)
             )
         )
 
