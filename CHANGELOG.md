@@ -1,4 +1,4 @@
-# v0.2.2 (2022-01-??, unreleased)
+# v0.2.2 (2022-01-15)
 
 Target signald version: [v0.16.1](https://gitlab.com/signald/signald/-/releases/0.16.1)
 
