@@ -8,7 +8,7 @@ import asyncio
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import UnexpectedError, UnexpectedResponse
+from .errors import RPCError, UnexpectedResponse
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .types import (
     Account,
@@ -98,7 +98,7 @@ class SignaldClient(SignaldRPCClient):
             await self.request_v1("subscribe", account=username)
             self._subscriptions.add(username)
             return True
-        except UnexpectedError as e:
+        except RPCError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
             evt = WebsocketConnectionStateChangeEvent(
                 state=(
@@ -116,7 +116,7 @@ class SignaldClient(SignaldRPCClient):
             await self.request_v1("unsubscribe", account=username)
             self._subscriptions.remove(username)
             return True
-        except UnexpectedError as e:
+        except RPCError as e:
             self.log.debug("Failed to unsubscribe from %s: %s", username, e)
             return False
 
