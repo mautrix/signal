@@ -110,6 +110,10 @@ ChatInfo = Union[Group, GroupV2, GroupV2ID, Contact, Profile, Address]
 MAX_MATRIX_MESSAGE_SIZE = 60000
 
 
+class UnknownReactionTarget(Exception):
+    pass
+
+
 class Portal(DBPortal, BasePortal):
     by_mxid: dict[RoomID, Portal] = {}
     by_chat_id: dict[tuple[str, str], Portal] = {}
@@ -441,11 +445,15 @@ class Portal(DBPortal, BasePortal):
                 if retry_message_event_id is not None:
                     await self.main_intent.redact(self.mxid, retry_message_event_id)
                 return retry_num
-            except NotConnected as e:
-                # Only handle NotConnected exceptions so that other exceptions actually continue to
-                # error.
+            except (NotConnected, UnknownReactionTarget) as e:
+                # Only handle NotConnected and UnknownReactionTarget exceptions so that other
+                # exceptions actually continue to error.
                 sleep_seconds = (retry_num + 1) ** 2
-                msg = f"Not connected to signald. Going to sleep for {sleep_seconds}s. Error: {e}"
+                msg = (
+                    f"Not connected to signald. Going to sleep for {sleep_seconds}s. Error: {e}"
+                    if isinstance(e, NotConnected)
+                    else f"UnknownReactionTarget: Going to sleep for {sleep_seconds}s. Error: {e}"
+                )
                 self.log.exception(msg)
                 sender.send_remote_checkpoint(
                     MessageSendCheckpointStatus.WILL_RETRY,
@@ -459,10 +467,14 @@ class Portal(DBPortal, BasePortal):
 
                 if retry_num > 2:
                     # User has waited > ~15 seconds, send a notice that we are retrying.
+                    user_friendly_message = (
+                        "There was an error connecting to signald."
+                        if isinstance(e, NotConnected)
+                        else "Could not find message to react to on Signal."
+                    )
                     event_content = TextMessageEventContent(
                         MessageType.NOTICE,
-                        f"There was an error connecting to signald. Waiting for {sleep_seconds} "
-                        "before retrying.",
+                        f"{user_friendly_message} Waiting for {sleep_seconds} before retrying.",
                     )
                     if retry_message_event_id is not None:
                         event_content.set_edit(retry_message_event_id)
@@ -473,7 +485,11 @@ class Portal(DBPortal, BasePortal):
 
         if retry_message_event_id is not None:
             await self.main_intent.redact(self.mxid, retry_message_event_id)
-        raise NotConnected(f"Connection to signald still did not work after {retry_count} retries")
+        event_type_name = {
+            EventType.ROOM_MESSAGE: "message",
+            EventType.REACTION: "reaction",
+        }.get(event_type, str(event_type))
+        raise NotConnected(f"Failed to send {event_type_name} after {retry_count} retries.")
 
     async def handle_matrix_reaction(
         self, sender: u.User, event_id: EventID, reacting_to: EventID, emoji: str
@@ -518,7 +534,7 @@ class Portal(DBPortal, BasePortal):
         message = await DBMessage.get_by_mxid(reacting_to, self.mxid)
         if not message:
             self.log.debug(f"Ignoring reaction to unknown event {reacting_to}")
-            raise NotConnected(f"Ignoring reaction to unknown event {reacting_to}")
+            raise UnknownReactionTarget(f"Ignoring reaction to unknown event {reacting_to}")
 
         existing = await DBReaction.get_by_signal_id(
             self.chat_id, self.receiver, message.sender, message.timestamp, sender.address
