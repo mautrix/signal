@@ -77,10 +77,10 @@ class SignalHandler(SignaldClient):
         if evt.data_message:
             future = self.handle_message(user, sender, evt.data_message)
             counter_type = "message"
-        if evt.typing:
+        if evt.typing_message:
             future = self.handle_typing(user, sender, evt.typing_message)
             counter_type = "typing"
-        if evt.receipt:
+        if evt.receipt_message:
             future = self.handle_receipt(sender, evt.receipt_message)
             counter_type = "receipt"
         if evt.call_message:
