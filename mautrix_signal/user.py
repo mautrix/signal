@@ -216,7 +216,12 @@ class User(DBUser, BaseUser):
                     self._latest_non_transient_disconnect_state
                     and now > self._latest_non_transient_disconnect_state
                 ):
-                    asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
+                    asyncio.create_task(
+                        self.push_bridge_state(
+                            BridgeStateEvent.UNKNOWN_ERROR,
+                            message="Failed restore connection to Signal",
+                        )
+                    )
                 else:
                     self.log.info(
                         "New state since last TRANSIENT_DISCONNECT push. "
