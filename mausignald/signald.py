@@ -150,6 +150,9 @@ class SignaldClient(SignaldRPCClient):
     async def start_link(self) -> LinkSession:
         return LinkSession.deserialize(await self.request_v1("generate_linking_uri"))
 
+    async def wait_for_scan(self, session_id: str) -> None:
+        await self.request_v1("wait_for_scan", session_id=session_id)
+
     async def finish_link(
         self, session_id: str, device_name: str = "mausignald", overwrite: bool = False
     ) -> Account:

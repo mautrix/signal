@@ -25,7 +25,7 @@ from aiohttp import web
 from mausignald.errors import InternalError, TimeoutException
 from mausignald.types import Account, Address
 from mautrix.types import UserID
-from mautrix.util.bridge_state import BridgeStateEvent
+from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.util.logging import TraceLogger
 
 from .. import user as u
@@ -186,6 +186,18 @@ class ProvisioningAPI:
             )
         session_id = user.command_status["session_id"]
         device_name = user.command_status["device_name"]
+        try:
+            await self.bridge.signal.wait_for_scan(session_id)
+            status_endpoint = self.bridge.config["homeserver.status_endpoint"]
+            if status_endpoint:
+                state = BridgeState(state_event=BridgeStateEvent.CONNECTING).fill()
+                asyncio.create_task(state.send(status_endpoint, self.bridge.az.as_token, self.log))
+        except Exception as e:
+            self.log.exception(f"Failed waiting for scan. Error: {e}")
+            raise web.HTTPBadRequest(
+                text='{"error": "Failed to wait for scan"}', headers=self._headers
+            )
+
         try:
             account = await asyncio.shield(self._shielded_link(user, session_id, device_name))
         except asyncio.CancelledError:
