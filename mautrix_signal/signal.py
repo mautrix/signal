@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2021 Tulir Asokan
+# Copyright (C) 2022 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -19,21 +19,23 @@ from typing import TYPE_CHECKING
 import asyncio
 import logging
 
-from mautrix.util.logging import TraceLogger
-from mautrix.util.opt_prometheus import Counter
 
 from mausignald import SignaldClient
 from mausignald.types import (
     Address,
-    Message,
+    IncomingMessage,
     MessageData,
+    OfferMessageType,
     OwnReadReceipt,
-    Receipt,
+    ReceiptMessage,
     ReceiptType,
     TypingAction,
-    TypingNotification,
+    TypingMessage,
     WebsocketConnectionStateChangeEvent,
 )
+from mautrix.types import MessageType
+from mautrix.util.logging import TraceLogger
+from mautrix.util.opt_prometheus import Counter
 
 from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage
@@ -60,14 +62,14 @@ class SignalHandler(SignaldClient):
         super().__init__(bridge.config["signal.socket_path"], loop=bridge.loop)
         self.data_dir = bridge.config["signal.data_dir"]
         self.delete_unknown_accounts = bridge.config["signal.delete_unknown_accounts_on_start"]
-        self.add_event_handler(Message, self.on_message)
+        self.add_event_handler(IncomingMessage, self.on_message)
         self.add_event_handler(
             WebsocketConnectionStateChangeEvent, self.on_websocket_connection_state_change
         )
 
-    async def on_message(self, evt: Message) -> None:
+    async def on_message(self, evt: IncomingMessage) -> None:
         sender = await pu.Puppet.get_by_address(evt.source)
-        user = await u.User.get_by_username(evt.username)
+        user = await u.User.get_by_username(evt.account)
         # TODO add lots of logging
 
         future = None
@@ -76,11 +78,14 @@ class SignalHandler(SignaldClient):
             future = self.handle_message(user, sender, evt.data_message)
             counter_type = "message"
         if evt.typing:
-            future = self.handle_typing(user, sender, evt.typing)
+            future = self.handle_typing(user, sender, evt.typing_message)
             counter_type = "typing"
         if evt.receipt:
-            future = self.handle_receipt(sender, evt.receipt)
+            future = self.handle_receipt(sender, evt.receipt_message)
             counter_type = "receipt"
+        if evt.call_message:
+            await self.handle_call_message(user, sender, evt)
+            counter_type = "call"
         if evt.sync_message:
             if evt.sync_message.read_messages:
                 future = self.handle_own_receipts(sender, evt.sync_message.read_messages)
@@ -92,10 +97,6 @@ class SignalHandler(SignaldClient):
                     evt.sync_message.sent.message,
                     addr_override=evt.sync_message.sent.destination,
                 )
-                counter_type = "message"
-            if evt.sync_message.typing:
-                # Typing notification from own device
-                pass
             if evt.sync_message.contacts or evt.sync_message.contacts_complete:
                 self.log.debug("Sync message includes contacts meta, syncing contacts...")
                 future = user.sync_contacts()
@@ -144,28 +145,69 @@ class SignalHandler(SignaldClient):
                 )
                 return
         assert portal
-
-        if msg.body or msg.attachments or msg.sticker:
-            await portal.ensure_portal_has_room(
-                user, msg.group_v2 or msg.group or addr_override or sender.address, msg.timestamp
+        if not portal.mxid:
+            if not msg.is_message and not msg.group_v2:
+                user.log.debug(
+                    f"Ignoring message {msg.timestamp},"
+                    " probably not bridgeable as there's no portal yet"
+                )
+                return
+            await portal.create_matrix_room(
+                user, msg.group_v2 or msg.group or addr_override or sender.address
             )
-            await portal.handle_signal_message(user, sender, msg)
-            if msg.expires_in_seconds is not None:
-                await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
-        elif portal.mxid == None:
-            # The rest of the updates only apply to rooms that exist, so drop
-            portal.log.debug(f"Ignoring message {msg.timestamp}, as portal doesn't exist yet.")
-            return
-
-        if msg.group_v2 and msg.group_v2.revision > portal.revision:
+            if not portal.mxid:
+                user.log.warning(
+                    f"Failed to create room for incoming message {msg.timestamp}, dropping message"
+                )
+                return
+        elif msg.group_v2 and msg.group_v2.revision > portal.revision:
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
             await portal.update_info(user, msg.group_v2, sender)
         if msg.reaction:
             await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
+        if msg.is_message:
+            await portal.handle_signal_message(user, sender, msg)
+            if msg.expires_in_seconds is not None:
+                await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
         if msg.group and msg.group.type == "UPDATE":
             await portal.update_info(user, msg.group)
         if msg.remote_delete:
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
+
+    @staticmethod
+    async def handle_call_message(user: u.User, sender: pu.Puppet, msg: IncomingMessage) -> None:
+        assert msg.call_message
+        portal = await po.Portal.get_by_chat_id(
+            sender.address, receiver=user.username, create=True
+        )
+        if not portal.mxid:
+            # FIXME
+            # await portal.create_matrix_room(
+            #     user, (msg.group_v2 or msg.group or addr_override or sender.address)
+            # )
+            # if not portal.mxid:
+            #     user.log.debug(
+            #         f"Failed to create room for incoming message {msg.timestamp},"
+            #         " dropping message"
+            #     )
+            return
+
+        msg_html = f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a>'
+        if msg.call_message.offer_message:
+            call_type = {
+                OfferMessageType.AUDIO_CALL: "voice call",
+                OfferMessageType.VIDEO_CALL: "video call",
+            }.get(msg.call_message.offer_message.type, "call")
+            msg_html += f" started a {call_type} on Signal. Use the native app to answer the call."
+            msg_type = MessageType.TEXT
+        elif msg.call_message.hangup_message:
+            msg_html += " ended a call on Signal."
+            msg_type = MessageType.NOTICE
+        else:
+            portal.log.debug(f"Unhandled call message. Likely an ICE message. {msg.call_message}")
+            return
+
+        await sender.intent_for(portal).send_text(portal.mxid, html=msg_html, msgtype=msg_type)
 
     @staticmethod
     async def handle_own_receipts(sender: pu.Puppet, receipts: list[OwnReadReceipt]) -> None:
@@ -182,7 +224,7 @@ class SignalHandler(SignaldClient):
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
 
     @staticmethod
-    async def handle_typing(user: u.User, sender: pu.Puppet, typing: TypingNotification) -> None:
+    async def handle_typing(user: u.User, sender: pu.Puppet, typing: TypingMessage) -> None:
         if typing.group_id:
             portal = await po.Portal.get_by_chat_id(typing.group_id)
         else:
@@ -195,7 +237,7 @@ class SignalHandler(SignaldClient):
         )
 
     @staticmethod
-    async def handle_receipt(sender: pu.Puppet, receipt: Receipt) -> None:
+    async def handle_receipt(sender: pu.Puppet, receipt: ReceiptMessage) -> None:
         if receipt.type != ReceiptType.READ:
             return
         messages = await DBMessage.find_by_timestamps(receipt.timestamps)

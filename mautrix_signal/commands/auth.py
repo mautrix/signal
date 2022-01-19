@@ -16,11 +16,10 @@
 from typing import Union
 import io
 
+from mausignald.errors import AuthorizationFailedException, TimeoutException, UnexpectedResponse
 from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import HelpSection, command_handler
 from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType
-
-from mausignald.errors import AuthorizationFailedException, TimeoutException, UnexpectedResponse
 
 from .. import puppet as pu
 from .typehint import CommandEvent

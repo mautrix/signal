@@ -29,12 +29,12 @@
   * [ ] Message content
     * [x] Text
     * [x] Mentions
-    * [ ] Media
+    * [x] Media
       * [x] Images
       * [x] Voice notes
       * [x] Files
       * [x] Gifs
-      * [ ] Contacts
+      * [x] Contacts
       * [x] Locations
       * [x] Stickers
   * [x] Message reactions

@@ -58,12 +58,6 @@ appservice:
     bot_displayname: Signal bridge bot
     bot_avatar: mxc://maunium.net/wPJgTQbZOtpBFmDNkiNEMDUp
 
-    # Community ID for bridged users (changes registration file) and rooms.
-    # Must be created manually.
-    #
-    # Example: "+signal:example.com". Set to false to disable.
-    community_id: false
-
     # Whether or not to receive ephemeral events via appservice transactions.
     # Requires MSC2409 support (i.e. Synapse 1.22+).
     # You should disable bridge -> sync_with_custom_puppets when this is enabled.
@@ -162,7 +156,7 @@ bridge:
     # If false, created portal rooms will never be federated.
     federate_rooms: true
     # End-to-bridge encryption support options. You must install the e2be optional dependency for
-    # this to work. See https://github.com/tulir/mautrix-telegram/wiki/End‐to‐bridge-encryption
+    # this to work. See https://docs.mau.fi/bridges/general/end-to-bridge-encryption.html
     encryption:
         # Allow encryption, work in group chat rooms with e2ee enabled
         allow: false

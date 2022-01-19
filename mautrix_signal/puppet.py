@@ -21,6 +21,9 @@ import asyncio
 import hashlib
 import os.path
 
+from yarl import URL
+
+from mausignald.types import Address, Contact, Profile
 from mautrix.appservice import IntentAPI
 from mautrix.bridge import BasePuppet, async_getter_lock
 from mautrix.errors import MForbidden
@@ -33,9 +36,6 @@ from mautrix.types import (
     UserID,
 )
 from mautrix.util.simple_template import SimpleTemplate
-from yarl import URL
-
-from mausignald.types import Address, Contact, Profile
 
 from . import portal as p, user as u
 from .config import Config

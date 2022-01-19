@@ -14,6 +14,7 @@ RUN apk add --no-cache \
       py3-phonenumbers \
       py3-prometheus-client \
       # Other dependencies
+      ffmpeg \
       py3-cryptography \
       py3-protobuf \
       py3-sniffio \

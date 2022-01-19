@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Tulir Asokan
+# Copyright (c) 2022 Tulir Asokan
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -20,9 +20,9 @@ from .types import (
     Group,
     GroupID,
     GroupV2,
+    IncomingMessage,
     LinkSession,
     Mention,
-    Message,
     Profile,
     Quote,
     Reaction,
@@ -60,10 +60,8 @@ class SignaldClient(SignaldRPCClient):
         super().__init__(socket_path, log, loop)
         self._event_handlers = {}
         self._subscriptions = set()
-        self.add_rpc_handler("message", self._parse_message)
-        self.add_rpc_handler(
-            "websocket_connection_state_change", self._websocket_connection_state_change
-        )
+        self.add_rpc_handler("IncomingMessage", self._parse_message)
+        self.add_rpc_handler("WebSocketConnectionState", self._websocket_connection_state_change)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
         self.add_rpc_handler(DISCONNECT_EVENT, self._on_disconnect)
@@ -89,7 +87,9 @@ class SignaldClient(SignaldRPCClient):
     async def _parse_message(self, data: Dict[str, Any]) -> None:
         event_type = data["type"]
         event_data = data["data"]
-        event_class = {"message": Message,}[event_type]
+        event_class = {
+            "IncomingMessage": IncomingMessage,
+        }[event_type]
         event = event_class.deserialize(event_data)
         await self._run_event_handler(event)
 
@@ -99,12 +99,17 @@ class SignaldClient(SignaldRPCClient):
         self.log.info(f"Connected to {name} v{version}")
 
     async def _websocket_connection_state_change(self, change_event: Dict[str, Any]) -> None:
-        evt = WebsocketConnectionStateChangeEvent.deserialize(change_event["data"])
+        evt = WebsocketConnectionStateChangeEvent.deserialize(
+            {
+                "account": change_event["account"],
+                **change_event["data"],
+            }
+        )
         await self._run_event_handler(evt)
 
     async def subscribe(self, username: str) -> bool:
         try:
-            await self.request("subscribe", "subscribed", username=username)
+            await self.request_v1("subscribe", account=username)
             self._subscriptions.add(username)
             SUBSCRIPTIONS_GAUGE.set(len(self._subscriptions))
             return True
@@ -123,7 +128,7 @@ class SignaldClient(SignaldRPCClient):
 
     async def unsubscribe(self, username: str) -> bool:
         try:
-            await self.request("unsubscribe", "unsubscribed", username=username)
+            await self.request_v1("unsubscribe", account=username)
             self._subscriptions.remove(username)
             SUBSCRIPTIONS_GAUGE.set(len(self._subscriptions))
             return True
@@ -233,11 +238,11 @@ class SignaldClient(SignaldRPCClient):
             timestamp=timestamp,
             **self._recipient_to_args(recipient),
         )
-        errors = []
 
         # We handle unregisteredFailure a little differently than other errors. If there are no
         # successful sends, then we show an error with the unregisteredFailure details, otherwise
         # we ignore it.
+        errors = []
         unregistered_failures = []
         successful_send_count = 0
         results = resp.get("results", [])
@@ -276,12 +281,20 @@ class SignaldClient(SignaldRPCClient):
             else:
                 successful_send_count += 1
         self.log.info(
-            f"Successfully sent message to {successful_send_count}/{len(results)} users in {recipient}"
+            f"Successfully sent message to {successful_send_count}/{len(results)} users in "
+            f"{recipient} with {len(unregistered_failures)} unregistered failures"
         )
+<<<<<<< HEAD
         if errors or successful_send_count == 0:
             SEND_COUNTER.labels(result="error").inc(1)
             raise Exception("\n".join(errors + unregistered_failures))
         SEND_COUNTER.labels(result="success").inc(1)
+=======
+        if len(unregistered_failures) == len(results):
+            errors.extend(unregistered_failures)
+        if errors:
+            raise Exception("\n".join(errors))
+>>>>>>> v0.2.2
 
     async def send_receipt(
         self,

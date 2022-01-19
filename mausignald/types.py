@@ -1,4 +1,4 @@
-# Copyright (c) 2020 Tulir Asokan
+# Copyright (c) 2022 Tulir Asokan
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from attr import dataclass
+
 from mautrix.types import ExtensibleEnum, SerializableAttrs, SerializableEnum, field
 
 GroupID = NewType("GroupID", str)
@@ -228,9 +229,23 @@ class Attachment(SerializableAttrs):
     id: Optional[str] = None
     incoming_filename: Optional[str] = field(default=None, json="storedFilename")
     digest: Optional[str] = None
+    size: Optional[int] = None
 
     # Only for outgoing
     outgoing_filename: Optional[str] = field(default=None, json="filename")
+
+
+@dataclass
+class Mention(SerializableAttrs):
+    uuid: UUID
+    length: int
+    start: int = 0
+
+
+@dataclass
+class QuotedAttachment(SerializableAttrs):
+    content_type: Optional[str] = field(default=None, json="contentType")
+    filename: Optional[str] = field(default=None, json="fileName")
 
 
 @dataclass
@@ -238,7 +253,8 @@ class Quote(SerializableAttrs):
     id: int
     author: Address
     text: Optional[str] = None
-    # TODO: attachments, mentions
+    attachments: Optional[List[QuotedAttachment]] = None
+    mentions: Optional[List[Mention]] = None
 
 
 @dataclass(kw_only=True)
@@ -262,11 +278,72 @@ class RemoteDelete(SerializableAttrs):
     target_sent_timestamp: int = field(json="targetSentTimestamp")
 
 
+class SharedContactDetailType(SerializableEnum):
+    HOME = "HOME"
+    WORK = "WORK"
+    MOBILE = "MOBILE"
+    CUSTOM = "CUSTOM"
+
+
 @dataclass
-class Mention(SerializableAttrs):
-    uuid: UUID
-    length: int
-    start: int = 0
+class SharedContactDetail(SerializableAttrs):
+    type: SharedContactDetailType
+    value: str
+    label: Optional[str] = None
+
+    @property
+    def type_or_label(self) -> str:
+        if self.type != SharedContactDetailType.CUSTOM:
+            return self.type.value.title()
+        return self.label
+
+
+@dataclass
+class SharedContactAvatar(SerializableAttrs):
+    attachment: Attachment
+    is_profile: bool
+
+
+@dataclass
+class SharedContactName(SerializableAttrs):
+    display: Optional[str] = None
+    given: Optional[str] = None
+    middle: Optional[str] = None
+    family: Optional[str] = None
+    prefix: Optional[str] = None
+    suffix: Optional[str] = None
+
+    @property
+    def parts(self) -> List[str]:
+        return [self.prefix, self.given, self.middle, self.family, self.suffix]
+
+    def __str__(self) -> str:
+        if self.display:
+            return self.display
+        return " ".join(part for part in self.parts if part)
+
+
+@dataclass
+class SharedContactAddress(SerializableAttrs):
+    type: SharedContactDetailType
+    label: Optional[str] = None
+    street: Optional[str] = None
+    pobox: Optional[str] = None
+    neighborhood: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
+    postcode: Optional[str] = None
+    country: Optional[str] = None
+
+
+@dataclass
+class SharedContact(SerializableAttrs):
+    name: SharedContactName
+    organization: Optional[str] = None
+    avatar: Optional[SharedContactAvatar] = None
+    email: List[SharedContactDetail] = field(factory=lambda: [])
+    phone: List[SharedContactDetail] = field(factory=lambda: [])
+    address: Optional[SharedContactAddress] = None
 
 
 @dataclass
@@ -279,6 +356,7 @@ class MessageData(SerializableAttrs):
     attachments: List[Attachment] = field(factory=lambda: [])
     sticker: Optional[Sticker] = None
     mentions: List[Mention] = field(factory=lambda: [])
+    contacts: List[SharedContact] = field(factory=lambda: [])
 
     group: Optional[Group] = None
     group_v2: Optional[GroupV2ID] = field(default=None, json="groupV2")
@@ -289,6 +367,10 @@ class MessageData(SerializableAttrs):
     view_once: bool = field(default=False, json="viewOnce")
 
     remote_delete: Optional[RemoteDelete] = field(default=None, json="remoteDelete")
+
+    @property
+    def is_message(self) -> bool:
+        return bool(self.body or self.attachments or self.sticker or self.contacts)
 
 
 @dataclass
@@ -310,10 +392,10 @@ class TypingAction(SerializableEnum):
 
 
 @dataclass
-class TypingNotification(SerializableAttrs):
+class TypingMessage(SerializableAttrs):
     action: TypingAction
     timestamp: int
-    group_id: Optional[GroupID] = field(default=None, json="groupId")
+    group_id: Optional[GroupID] = None
 
 
 @dataclass
@@ -330,7 +412,7 @@ class ReceiptType(SerializableEnum):
 
 
 @dataclass
-class Receipt(SerializableAttrs):
+class ReceiptMessage(SerializableAttrs):
     type: ReceiptType
     timestamps: List[int]
     when: int
@@ -373,7 +455,6 @@ class StickerPackOperations(SerializableAttrs):
 @dataclass
 class SyncMessage(SerializableAttrs):
     sent: Optional[SentSyncMessage] = None
-    typing: Optional[TypingNotification] = None
     read_messages: Optional[List[OwnReadReceipt]] = field(default=None, json="readMessages")
     contacts: Optional[ContactSyncMeta] = None
     groups: Optional[ContactSyncMeta] = None
@@ -383,6 +464,38 @@ class SyncMessage(SerializableAttrs):
         default=None, json="stickerPackOperations"
     )
     contacts_complete: bool = field(default=False, json="contactsComplete")
+
+
+class OfferMessageType(SerializableEnum):
+    AUDIO_CALL = "AUDIO_CALL"
+    VIDEO_CALL = "VIDEO_CALL"
+
+
+@dataclass
+class OfferMessage(SerializableAttrs):
+    id: int
+    type: OfferMessageType
+
+
+class HangupMessageType(SerializableEnum):
+    NORMAL = "NORMAL"
+    ACCEPTED = "ACCEPTED"
+    DECLINED = "DECLINED"
+    BUSY = "BUSY"
+    NEED_PERMISSION = "NEED_PERMISSION"
+
+
+@dataclass
+class HangupMessage(SerializableAttrs):
+    id: int
+    type: HangupMessageType
+    device_id: int = field(json="deviceId")
+
+
+@dataclass
+class CallMessage(SerializableAttrs):
+    offer_message: Optional[OfferMessage] = field(default=None, json="offerMessage")
+    hangup_message: Optional[HangupMessage] = field(default=None, json="hangupMessage")
 
 
 class MessageType(SerializableEnum):
@@ -395,24 +508,25 @@ class MessageType(SerializableEnum):
 
 
 @dataclass(kw_only=True)
-class Message(SerializableAttrs):
-    username: str
+class IncomingMessage(SerializableAttrs):
+    account: str
     source: Address
     timestamp: int
-    timestamp_iso: str = field(json="timestampISO")
 
     type: MessageType
-    source_device: Optional[int] = field(json="sourceDevice", default=None)
-    server_timestamp: Optional[int] = field(json="serverTimestamp", default=None)
-    server_delivered_timestamp: int = field(json="serverDeliveredTimestamp")
-    has_content: bool = field(json="hasContent", default=False)
-    is_unidentified_sender: Optional[bool] = field(json="isUnidentifiedSender", default=None)
-    has_legacy_message: bool = field(default=False, json="hasLegacyMessage")
+    source_device: Optional[int] = None
+    server_guid: str
+    server_receiver_timestamp: int
+    server_deliver_timestamp: int
+    has_content: bool
+    unidentified_sender: bool
+    has_legacy_message: bool
 
-    data_message: Optional[MessageData] = field(default=None, json="dataMessage")
-    sync_message: Optional[SyncMessage] = field(default=None, json="syncMessage")
-    typing: Optional[TypingNotification] = None
-    receipt: Optional[Receipt] = None
+    call_message: Optional[CallMessage] = field(default=None)
+    data_message: Optional[MessageData] = field(default=None)
+    sync_message: Optional[SyncMessage] = field(default=None)
+    typing_message: Optional[TypingMessage] = None
+    receipt_message: Optional[ReceiptMessage] = None
 
 
 class WebsocketConnectionState(SerializableEnum):
@@ -429,8 +543,14 @@ class WebsocketConnectionState(SerializableEnum):
     SOCKET_DISCONNECTED = "SOCKET_DISCONNECTED"
 
 
+class WebsocketType(SerializableEnum):
+    IDENTIFIED = "IDENTIFIED"
+    UNIDENTIFIED = "UNIDENTIFIED"
+
+
 @dataclass
 class WebsocketConnectionStateChangeEvent(SerializableAttrs):
     state: WebsocketConnectionState
     account: str
+    socket: Optional[WebsocketType] = None
     exception: Optional[str] = None

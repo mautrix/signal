@@ -13,7 +13,9 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, List, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from mautrix.bridge import BaseMatrixHandler
 from mautrix.types import (
@@ -33,8 +35,6 @@ from mautrix.types import (
     UserID,
 )
 
-from mautrix_signal.db.disappearing_message import DisappearingMessage
-
 from . import portal as po, signal as s, user as u
 from .db import Message as DBMessage
 
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 
 class MatrixHandler(BaseMatrixHandler):
-    signal: "s.SignalHandler"
+    signal: s.SignalHandler
 
     def __init__(self, bridge: "SignalBridge") -> None:
         prefix, suffix = bridge.config["bridge.username_template"].format(userid=":").split(":")
@@ -54,7 +54,7 @@ class MatrixHandler(BaseMatrixHandler):
 
         super().__init__(bridge=bridge)
 
-    async def send_welcome_message(self, room_id: RoomID, inviter: "u.User") -> None:
+    async def send_welcome_message(self, room_id: RoomID, inviter: u.User) -> None:
         await super().send_welcome_message(room_id, inviter)
         if not inviter.notice_room:
             inviter.notice_room = room_id
@@ -123,8 +123,8 @@ class MatrixHandler(BaseMatrixHandler):
 
     async def handle_read_receipt(
         self,
-        user: "u.User",
-        portal: "po.Portal",
+        user: u.User,
+        portal: po.Portal,
         event_id: EventID,
         data: SingleReceiptEventContent,
     ) -> None:
@@ -139,7 +139,7 @@ class MatrixHandler(BaseMatrixHandler):
             user.username, message.sender, timestamps=[message.timestamp], when=data.ts, read=True
         )
 
-    async def handle_typing(self, room_id: RoomID, typing: List[UserID]) -> None:
+    async def handle_typing(self, room_id: RoomID, typing: list[UserID]) -> None:
         pass
         # portal = await po.Portal.get_by_mxid(room_id)
         # if not portal:
@@ -160,7 +160,7 @@ class MatrixHandler(BaseMatrixHandler):
             await self.handle_redaction(evt.room_id, evt.sender, evt.redacts, evt.event_id)
 
     async def handle_ephemeral_event(
-        self, evt: Union[ReceiptEvent, PresenceEvent, TypingEvent]
+        self, evt: ReceiptEvent | PresenceEvent | TypingEvent
     ) -> None:
         if evt.type == EventType.TYPING:
             await self.handle_typing(evt.room_id, evt.content.user_ids)
@@ -183,8 +183,8 @@ class MatrixHandler(BaseMatrixHandler):
         elif evt.type == EventType.ROOM_AVATAR:
             await portal.handle_matrix_avatar(user, evt.content.url)
 
-    async def allow_message(self, user: "u.User") -> bool:
+    async def allow_message(self, user: u.User) -> bool:
         return user.relay_whitelisted
 
-    async def allow_bridging_message(self, user: "u.User", portal: "po.Portal") -> bool:
+    async def allow_bridging_message(self, user: u.User, portal: po.Portal) -> bool:
         return portal.has_relay or await user.is_logged_in()

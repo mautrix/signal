@@ -21,12 +21,12 @@ import logging
 import time
 
 from attr import dataclass
-from mautrix.types import ContentURI, SyncToken, UserID
-from mautrix.util.async_db import Database
 from yarl import URL
 import asyncpg
 
 from mausignald.types import Address
+from mautrix.types import ContentURI, SyncToken, UserID
+from mautrix.util.async_db import Database
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 log = logging.getLogger("puppet")
