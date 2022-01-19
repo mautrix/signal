@@ -284,17 +284,15 @@ class SignaldClient(SignaldRPCClient):
             f"Successfully sent message to {successful_send_count}/{len(results)} users in "
             f"{recipient} with {len(unregistered_failures)} unregistered failures"
         )
-<<<<<<< HEAD
-        if errors or successful_send_count == 0:
-            SEND_COUNTER.labels(result="error").inc(1)
-            raise Exception("\n".join(errors + unregistered_failures))
-        SEND_COUNTER.labels(result="success").inc(1)
-=======
+
         if len(unregistered_failures) == len(results):
             errors.extend(unregistered_failures)
+
         if errors:
+            SEND_COUNTER.labels(result="error").inc(1)
             raise Exception("\n".join(errors))
->>>>>>> v0.2.2
+        else:
+            SEND_COUNTER.labels(result="success").inc(1)
 
     async def send_receipt(
         self,
