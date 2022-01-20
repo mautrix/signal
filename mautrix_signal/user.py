@@ -155,8 +155,6 @@ class User(DBUser, BaseUser):
         self.username = account.account_id
         self.uuid = account.address.uuid
         self._add_to_cache()
-        # Push a remote state immediately so that the client knows that it's doing something.
-        asyncio.create_task(self.push_bridge_state(BridgeStateEvent.CONNECTING))
         await self.update()
         await self.bridge.signal.subscribe(self.username)
         asyncio.create_task(self.sync())
