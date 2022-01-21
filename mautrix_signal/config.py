@@ -91,6 +91,8 @@ class Config(BaseBridgeConfig):
 
         copy("bridge.provisioning.enabled")
         copy("bridge.provisioning.prefix")
+        if base["bridge.provisioning.prefix"].endswith("/v1"):
+            base["bridge.provisioning.prefix"] = base["bridge.provisioning.prefix"][: -len("/v1")]
         copy("bridge.provisioning.shared_secret")
         if base["bridge.provisioning.shared_secret"] == "generate":
             base["bridge.provisioning.shared_secret"] = self._new_token()

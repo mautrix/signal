@@ -45,25 +45,28 @@ class ProvisioningAPI:
         self.shared_secret = shared_secret
 
         # Whoami
-        self.app.router.add_get("/api/whoami", self.status)
+        self.app.router.add_get("/v1/api/whoami", self.status)
+        self.app.router.add_get("/v2/whoami", self.status)
 
         # Logout
-        self.app.router.add_options("/api/logout", self.login_options)
-        self.app.router.add_post("/api/logout", self.logout)
+        self.app.router.add_options("/v1/api/logout", self.login_options)
+        self.app.router.add_post("/v1/api/logout", self.logout)
+        self.app.router.add_options("/v2/logout", self.login_options)
+        self.app.router.add_post("/v2/logout", self.logout)
 
         # Link API (will be deprecated soon)
-        self.app.router.add_options("/api/link", self.login_options)
-        self.app.router.add_options("/api/link/wait", self.login_options)
-        self.app.router.add_post("/api/link", self.link)
-        self.app.router.add_post("/api/link/wait", self.link_wait)
+        self.app.router.add_options("/v1/api/link", self.login_options)
+        self.app.router.add_options("/v1/api/link/wait", self.login_options)
+        self.app.router.add_post("/v1/api/link", self.link)
+        self.app.router.add_post("/v1/api/link/wait", self.link_wait)
 
         # New Login API
-        self.app.router.add_options("/api/link/v2/new", self.login_options)
-        self.app.router.add_options("/api/link/v2/waitForScan", self.login_options)
-        self.app.router.add_options("/api/link/v2/waitForAccount", self.login_options)
-        self.app.router.add_post("/api/link/v2/new", self.link_new)
-        self.app.router.add_post("/api/link/v2/waitForScan", self.link_wait_for_scan)
-        self.app.router.add_post("/api/link/v2/waitForAccount", self.link_wait_for_account)
+        self.app.router.add_options("/v2/link/new", self.login_options)
+        self.app.router.add_options("/v2/link/wait/scan", self.login_options)
+        self.app.router.add_options("/v2/link/wait/account", self.login_options)
+        self.app.router.add_post("/v2/link/new", self.link_new)
+        self.app.router.add_post("/v2/link/wait/scan", self.link_wait_for_scan)
+        self.app.router.add_post("/v2/link/wait/account", self.link_wait_for_account)
 
     @property
     def _acao_headers(self) -> dict[str, str]:
