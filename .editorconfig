@@ -17,5 +17,5 @@ trim_trailing_whitespace = false
 [*.{yaml,yml,py,md}]
 indent_style = space
 
-[{.gitlab-ci.yml,*.md,.github/workflows/*.yml}]
+[{.gitlab-ci.yml,*.md,.github/workflows/*.yml,.pre-commit-config.yaml}]
 indent_size = 2
