@@ -106,6 +106,7 @@ class Config(BaseBridgeConfig):
         copy("bridge.limits.min_puppet_activity_days")
         copy("bridge.limits.puppet_inactivity_days")
         copy("bridge.limits.block_on_limit_reached")
+        copy("bridge.noop_invites")
 
     def _get_permissions(self, key: str) -> Permissions:
         level = self["bridge.permissions"].get(key, "")
