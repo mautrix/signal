@@ -172,11 +172,10 @@ class ProvisioningAPI:
         try:
             account = await asyncio.shield(self._shielded_link(user, session_id, device_name))
         except asyncio.CancelledError:
-            error_text = f"Client cancelled link wait request ({session_id}) before it finished"
-            self.log.warning(error_text)
-            raise web.HTTPInternalServerError(
-                text=f'{{"error": "{error_text}"}}', headers=self._headers
+            self.log.warning(
+                f"Client cancelled link wait request ({session_id}) before it finished"
             )
+            raise
         except TimeoutException:
             raise web.HTTPBadRequest(
                 text='{"error": "Signal linking timed out"}', headers=self._headers
@@ -238,7 +237,7 @@ class ProvisioningAPI:
 
     # region New Link API
 
-    async def _get_request_data(self, request: web.Request) -> tuple[u.User, web.Response]:
+    async def _get_request_data(self, request: web.Request) -> tuple[u.User, dict]:
         user = await self.check_token(request)
         if await user.is_logged_in():
             error_text = """{"error": "You're already logged in"}"""
@@ -287,7 +286,6 @@ class ProvisioningAPI:
         except Exception as e:
             error_text = f"Failed waiting for scan. Error: {e}"
             self.log.exception(error_text)
-            self.log.info(e.__class__)
             raise web.HTTPBadRequest(text=error_text, headers=self._headers)
         else:
             return web.json_response({}, headers=self._acao_headers)
