@@ -21,7 +21,6 @@ import json
 import logging
 
 from aiohttp import web
-from attr import asdict
 
 from mausignald.errors import InternalError, TimeoutException
 from mausignald.types import Account, Address
@@ -266,7 +265,7 @@ class ProvisioningAPI:
         self.log.debug(f"Getting session ID and link URI for {user.mxid}")
         sess = await self.bridge.signal.start_link()
         self.log.debug(f"Returning session ID and link URI for {user.mxid} / {sess.session_id}")
-        return web.json_response(asdict(sess), headers=self._acao_headers)
+        return web.json_response(sess.serialize(), headers=self._acao_headers)
 
     async def link_wait_for_scan(self, request: web.Request) -> web.Response:
         """
