@@ -47,7 +47,10 @@ METRIC_CONNECTED = Gauge("bridge_connected", "Bridge users connected to Signal")
 METRIC_LOGGED_IN = Gauge("bridge_logged_in", "Bridge users logged into Signal")
 
 BridgeState.human_readable_errors.update(
-    {"logged-out": "You're not logged into Signal", "signal-not-connected": None,}
+    {
+        "logged-out": "You're not logged into Signal",
+        "signal-not-connected": None,
+    }
 )
 
 

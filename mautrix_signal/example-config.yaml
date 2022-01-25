@@ -266,6 +266,9 @@ bridge:
         puppet_inactivity_days: 30
         # Should the bridge block traffic when a limit has been reached
         block_on_limit_reached: false
+    
+    # Do not send invites to Matrix users. Use for debugging only.
+    noop_invites: False
 
 # Python logging configuration.
 #

@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING
 import asyncio
 import logging
 
-
 from mausignald import SignaldClient
 from mausignald.types import (
     Address,

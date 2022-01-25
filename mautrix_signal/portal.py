@@ -519,7 +519,10 @@ class Portal(DBPortal, BasePortal):
             else:
                 self.log.trace(f"{sender.mxid} reacted to {message.timestamp} with {emoji}")
                 sender.send_remote_checkpoint(
-                    MessageSendCheckpointStatus.SUCCESS, event_id, self.mxid, EventType.REACTION,
+                    MessageSendCheckpointStatus.SUCCESS,
+                    event_id,
+                    self.mxid,
+                    EventType.REACTION,
                 )
                 await self._upsert_reaction(
                     existing, self.main_intent, event_id, sender, message, emoji
@@ -1038,7 +1041,10 @@ class Portal(DBPortal, BasePortal):
         if not pack:
             content.info["fi.mau.signal.sticker"] = {
                 "id": sticker.sticker_id,
-                "pack": {"id": sticker.pack_id, "key": sticker.pack_key,},
+                "pack": {
+                    "id": sticker.pack_id,
+                    "key": sticker.pack_key,
+                },
             }
             return
         sticker_meta = pack.stickers[sticker.sticker_id]
@@ -1046,7 +1052,12 @@ class Portal(DBPortal, BasePortal):
         content.info["fi.mau.signal.sticker"] = {
             "id": sticker.sticker_id,
             "emoji": sticker_meta.emoji,
-            "pack": {"id": pack.id, "key": pack.key, "title": pack.title, "author": pack.author,},
+            "pack": {
+                "id": pack.id,
+                "key": pack.key,
+                "title": pack.title,
+                "author": pack.author,
+            },
         }
 
     @staticmethod
@@ -1316,7 +1327,11 @@ class Portal(DBPortal, BasePortal):
         for address in info.members:
             user = await u.User.get_by_address(address)
             if user:
-                await self.main_intent.invite_user(self.mxid, user.mxid)
+                self.log.debug(
+                    f"_update_participants info.members inviting {self.mxid} to {user.mxid}"
+                )
+                if self.config["bridge.noop_invites"] != True:
+                    await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
             await source.sync_contact(address)
@@ -1325,10 +1340,17 @@ class Portal(DBPortal, BasePortal):
         for address in pending_members:
             user = await u.User.get_by_address(address)
             if user:
-                await self.main_intent.invite_user(self.mxid, user.mxid)
+                self.log.debug(
+                    f"_update_participants info.pending_members inviting {self.mxid} to {user.mxid}"
+                )
+                if self.config["bridge.noop_invites"] != True:
+                    await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
             await source.sync_contact(address)
+            self.log.debug(
+                f"_update_participants info.pending_members inviting {self.mxid} to {puppet.intent_for(self).mxid}"
+            )
             await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
@@ -1428,12 +1450,14 @@ class Portal(DBPortal, BasePortal):
 
     async def _update_matrix_room(self, source: u.User, info: ChatInfo) -> None:
         puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
-        await self.main_intent.invite_user(
-            self.mxid,
-            source.mxid,
-            check_cache=True,
-            extra_content=self._get_invite_content(puppet),
-        )
+        self.log.debug(f"_update_matrix_room inviting {source.mxid} to {self.mxid}")
+        if self.config["bridge.noop_invites"] != True:
+            await self.main_intent.invite_user(
+                self.mxid,
+                source.mxid,
+                check_cache=True,
+                extra_content=self._get_invite_content(puppet),
+            )
         if puppet:
             did_join = await puppet.intent.ensure_joined(self.mxid)
             if did_join and self.is_direct:
@@ -1510,7 +1534,10 @@ class Portal(DBPortal, BasePortal):
                 "state_key": self.bridge_info_state_key,
                 "content": self.bridge_info,
             },
-            {"type": str(EventType.ROOM_POWER_LEVELS), "content": power_levels.serialize(),},
+            {
+                "type": str(EventType.ROOM_POWER_LEVELS),
+                "content": power_levels.serialize(),
+            },
         ]
         invites = []
         if self.config["bridge.encryption.default"] and self.matrix.e2ee:
@@ -1529,7 +1556,10 @@ class Portal(DBPortal, BasePortal):
             name = self.name
         if self.avatar_url:
             initial_state.append(
-                {"type": str(EventType.ROOM_AVATAR), "content": {"url": self.avatar_url},}
+                {
+                    "type": str(EventType.ROOM_AVATAR),
+                    "content": {"url": self.avatar_url},
+                }
             )
 
         creation_content = {}
@@ -1559,9 +1589,11 @@ class Portal(DBPortal, BasePortal):
                 self.log.warning("Failed to add bridge bot to new private chat {self.mxid}")
 
         puppet = await p.Puppet.get_by_custom_mxid(source.mxid)
-        await self.main_intent.invite_user(
-            self.mxid, source.mxid, extra_content=self._get_invite_content(puppet)
-        )
+        self.log.debug(f"_create_matrix_room inviting {source.mxid} to {self.mxid}")
+        if self.config["bridge.noop_invites"] != True:
+            await self.main_intent.invite_user(
+                self.mxid, source.mxid, extra_content=self._get_invite_content(puppet)
+            )
         if puppet:
             try:
                 await source.update_direct_chats({self.main_intent.mxid: [self.mxid]})
