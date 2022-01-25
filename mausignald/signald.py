@@ -403,3 +403,7 @@ class SignaldClient(SignaldRPCClient):
             trust_level=trust_level,
             address=recipient.serialize(),
         )
+
+    async def find_uuid(self, number: str) -> UUID | None:
+        resp = await self.request_v1("resolve_address", partial=Address(number=number).serialize())
+        return Address.deserialize(resp).uuid

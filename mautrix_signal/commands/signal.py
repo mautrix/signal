@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2022 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -13,7 +13,8 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional
+from __future__ import annotations
+
 import base64
 import json
 
@@ -35,7 +36,7 @@ except ImportError:
 SECTION_SIGNAL = HelpSection("Signal actions", 20, "")
 
 
-async def _get_puppet_from_cmd(evt: CommandEvent) -> Optional["pu.Puppet"]:
+async def _get_puppet_from_cmd(evt: CommandEvent) -> pu.Puppet | None:
     if len(evt.args) == 0 or not evt.args[0].startswith("+"):
         await evt.reply(
             f"**Usage:** `$cmdprefix+sp {evt.command} <phone>` "
@@ -49,7 +50,12 @@ async def _get_puppet_from_cmd(evt: CommandEvent) -> Optional["pu.Puppet"]:
             "(enter phone number in international format)"
         )
         return None
-    return await pu.Puppet.get_by_address(Address(number=phone))
+    puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=phone))
+    if not puppet.uuid and evt.sender.username:
+        uuid = await evt.bridge.signal.find_uuid(puppet.number)
+        if uuid:
+            await puppet.handle_uuid_receive(uuid)
+    return puppet
 
 
 def _format_safety_number(number: str) -> str:
