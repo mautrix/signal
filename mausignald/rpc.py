@@ -3,7 +3,9 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
+from __future__ import annotations
+
+from typing import Any, Awaitable, Callable, Dict
 from uuid import UUID, uuid4
 import asyncio
 import json
@@ -27,20 +29,20 @@ class SignaldRPCClient:
     log: TraceLogger
 
     socket_path: str
-    _reader: Optional[asyncio.StreamReader]
-    _writer: Optional[asyncio.StreamWriter]
+    _reader: asyncio.StreamReader | None
+    _writer: asyncio.StreamWriter | None
     is_connected: bool
     _connect_future: asyncio.Future
-    _communicate_task: Optional[asyncio.Task]
+    _communicate_task: asyncio.Task | None
 
-    _response_waiters: Dict[UUID, asyncio.Future]
-    _rpc_event_handlers: Dict[str, List[EventHandler]]
+    _response_waiters: dict[UUID, asyncio.Future]
+    _rpc_event_handlers: dict[str, list[EventHandler]]
 
     def __init__(
         self,
         socket_path: str,
-        log: Optional[TraceLogger] = None,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
+        log: TraceLogger | None = None,
+        loop: asyncio.AbstractEventLoop | None = None,
     ) -> None:
         self.socket_path = socket_path
         self.log = log or logging.getLogger("mausignald")
@@ -54,7 +56,7 @@ class SignaldRPCClient:
         self._rpc_event_handlers = {CONNECT_EVENT: [], DISCONNECT_EVENT: []}
         self.add_rpc_handler(DISCONNECT_EVENT, self._abandon_responses)
 
-    async def wait_for_connected(self, timeout: Optional[int] = None) -> bool:
+    async def wait_for_connected(self, timeout: int | None = None) -> bool:
         if self.is_connected:
             return True
         await asyncio.wait_for(asyncio.shield(self._connect_future), timeout)
@@ -106,7 +108,7 @@ class SignaldRPCClient:
     def remove_rpc_handler(self, method: str, handler: EventHandler) -> None:
         self._rpc_event_handlers.setdefault(method, []).remove(handler)
 
-    async def _run_rpc_handler(self, command: str, req: Dict[str, Any]) -> None:
+    async def _run_rpc_handler(self, command: str, req: dict[str, Any]) -> None:
         try:
             handlers = self._rpc_event_handlers[command]
         except KeyError:
@@ -183,8 +185,8 @@ class SignaldRPCClient:
         self._writer = None
 
     def _create_request(
-        self, command: str, req_id: Optional[UUID] = None, **data: Any
-    ) -> Tuple[asyncio.Future, Dict[str, Any]]:
+        self, command: str, req_id: UUID | None = None, **data: Any
+    ) -> tuple[asyncio.Future, dict[str, Any]]:
         req_id = req_id or uuid4()
         req = {"id": str(req_id), "type": command, **data}
         self.log.trace("Request %s: %s %s", req_id, command, data)
@@ -197,7 +199,7 @@ class SignaldRPCClient:
             future = self._response_waiters[req_id] = self.loop.create_future()
         return future
 
-    async def _abandon_responses(self, unused_data: Dict[str, Any]) -> None:
+    async def _abandon_responses(self, unused_data: dict[str, Any]) -> None:
         for req_id, waiter in self._response_waiters.items():
             if not waiter.done():
                 self.log.trace(f"Abandoning response for {req_id}")
@@ -205,7 +207,7 @@ class SignaldRPCClient:
                     NotConnected("Disconnected from signald before RPC completed")
                 )
 
-    async def _send_request(self, data: Dict[str, Any]) -> None:
+    async def _send_request(self, data: dict[str, Any]) -> None:
         if self._writer is None:
             raise NotConnected("Not connected to signald")
 
@@ -215,8 +217,8 @@ class SignaldRPCClient:
         self.log.trace("Sent data to server server: %s", data)
 
     async def _raw_request(
-        self, command: str, req_id: Optional[UUID] = None, **data: Any
-    ) -> Tuple[str, Dict[str, Any]]:
+        self, command: str, req_id: UUID | None = None, **data: Any
+    ) -> tuple[str, dict[str, Any]]:
         future, data = self._create_request(command, req_id, **data)
         await self._send_request(data)
         return await asyncio.shield(future)
