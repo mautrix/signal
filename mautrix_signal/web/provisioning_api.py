@@ -25,7 +25,7 @@ from aiohttp import web
 from mausignald.errors import InternalError, TimeoutException
 from mausignald.types import Account, Address
 from mautrix.types import UserID
-from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
+from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.logging import TraceLogger
 
 from .. import user as u
