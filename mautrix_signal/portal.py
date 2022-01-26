@@ -1323,43 +1323,62 @@ class Portal(DBPortal, BasePortal):
             return
 
         # Drop any users that should NOT be in the room
-        members_to_drop = await self.main_intent.get_room_members(self.mxid, (Membership.INVITE, Membership.JOIN))
-        members_to_drop.remove(self.az.bot_mxid)
+        if not self.config["bridge.relay.enabled"]:
+            members_to_drop = set(
+                await self.main_intent.get_room_members(
+                    self.mxid, (Membership.INVITE, Membership.JOIN)
+                )
+            )
+            members_to_drop.discard(self.az.bot_mxid)
+        else:
+            # Don't drop users if we're a relay, because relays allow Matrix users to sit in rooms
+            # without a linked account.
+            members_to_drop = {}
 
         pending_members = info.pending_members if isinstance(info, GroupV2) else []
         self._pending_members = {addr.uuid for addr in pending_members}
-
+        self.log.debug(
+            f"_update_participants called with {len(pending_members)} pending members and {len(info.members)} members"
+        )
         for address in info.members:
-            user = await u.User.get_by_address(address)
-            if user:
-                self.log.debug(
-                    f"_update_participants info.members inviting {user.mxid} to {self.mxid}"
-                )
-                if self.config["bridge.noop_invites"] != True:
-                    await self.main_intent.invite_user(self.mxid, user.mxid)
-            members_to_drop.remove(user.mxid)
-
-            puppet = await p.Puppet.get_by_address(address)
-            await source.sync_contact(address)
-            await puppet.intent_for(self).ensure_joined(self.mxid)
+            try:
+                user = await u.User.get_by_address(address)
+                if user:
+                    members_to_drop.discard(user.mxid)
+                    self.log.debug(
+                        f"_update_participants info.members inviting {user.mxid} to {self.mxid}"
+                    )
+                    if self.config["bridge.noop_invites"] != True:
+                        await self.main_intent.invite_user(self.mxid, user.mxid)
+                puppet = await p.Puppet.get_by_address(address)
+                puppet_intent = puppet.intent_for(self)
+                await source.sync_contact(address)
+                await puppet_intent.ensure_joined(self.mxid)
+                members_to_drop.discard(puppet_intent.mxid)
+            except Exception as ex:
+                self.log.warning(f"failed to join member {address}", ex)
 
         for address in pending_members:
-            user = await u.User.get_by_address(address)
-            if user:
-                self.log.debug(
-                    f"_update_participants info.pending_members inviting {user.mxid} to {self.mxid}"
-                )
-                if self.config["bridge.noop_invites"] != True:
-                    await self.main_intent.invite_user(self.mxid, user.mxid)
+            try:
+                user = await u.User.get_by_address(address)
+                if user:
+                    members_to_drop.discard(user.mxid)
+                    self.log.debug(
+                        f"_update_participants info.pending_members inviting {user.mxid} to {self.mxid}"
+                    )
+                    if self.config["bridge.noop_invites"] != True:
+                        await self.main_intent.invite_user(self.mxid, user.mxid)
 
-            puppet = await p.Puppet.get_by_address(address)
-            await source.sync_contact(address)
-            pending_mxid = puppet.intent_for(self).mxid
-            self.log.debug(
-                f"_update_participants info.pending_members inviting {pending_mxid} to {self.mxid}"
-            )
-            members_to_drop.remove(pending_mxid)
-            await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
+                puppet = await p.Puppet.get_by_address(address)
+                await source.sync_contact(address)
+                pending_mxid = puppet.intent_for(self).mxid
+                self.log.debug(
+                    f"_update_participants info.pending_members inviting {pending_mxid} to {self.mxid}"
+                )
+                members_to_drop.discard(pending_mxid)
+                await self.main_intent.invite_user(self.mxid, pending_mxid)
+            except Exception as ex:
+                self.log.warning(f"failed to invite pending_member {address}", ex)
 
         if len(members_to_drop) == 0:
             return
@@ -1367,7 +1386,9 @@ class Portal(DBPortal, BasePortal):
         self.log.warning(f"_update_participants is dropping {members_to_drop} from {self.mxid}")
         for member in members_to_drop:
             try:
-                await self.main_intent.kick_user(self.mxid, member, "You are not part of this conversation.")
+                await self.main_intent.kick_user(
+                    self.mxid, member, "You are not part of this conversation."
+                )
             except Exception as ex:
                 self.log.warning(f"failed to kick {member} from {self.mxid}", ex)
 
