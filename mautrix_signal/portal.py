@@ -59,6 +59,7 @@ from mautrix.types import (
     FileInfo,
     ImageInfo,
     MediaMessageEventContent,
+    Membership,
     MessageEvent,
     MessageEventContent,
     MessageType,
@@ -1321,6 +1322,10 @@ class Portal(DBPortal, BasePortal):
         if not self.mxid or not isinstance(info, (Group, GroupV2)):
             return
 
+        # Drop any users that should NOT be in the room
+        members_to_drop = await self.main_intent.get_room_members(self.mxid, (Membership.INVITE, Membership.JOIN))
+        members_to_drop.remove(self.az.bot_mxid)
+
         pending_members = info.pending_members if isinstance(info, GroupV2) else []
         self._pending_members = {addr.uuid for addr in pending_members}
 
@@ -1328,10 +1333,11 @@ class Portal(DBPortal, BasePortal):
             user = await u.User.get_by_address(address)
             if user:
                 self.log.debug(
-                    f"_update_participants info.members inviting {self.mxid} to {user.mxid}"
+                    f"_update_participants info.members inviting {user.mxid} to {self.mxid}"
                 )
                 if self.config["bridge.noop_invites"] != True:
                     await self.main_intent.invite_user(self.mxid, user.mxid)
+            members_to_drop.remove(user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
             await source.sync_contact(address)
@@ -1341,17 +1347,29 @@ class Portal(DBPortal, BasePortal):
             user = await u.User.get_by_address(address)
             if user:
                 self.log.debug(
-                    f"_update_participants info.pending_members inviting {self.mxid} to {user.mxid}"
+                    f"_update_participants info.pending_members inviting {user.mxid} to {self.mxid}"
                 )
                 if self.config["bridge.noop_invites"] != True:
                     await self.main_intent.invite_user(self.mxid, user.mxid)
 
             puppet = await p.Puppet.get_by_address(address)
             await source.sync_contact(address)
+            pending_mxid = puppet.intent_for(self).mxid
             self.log.debug(
-                f"_update_participants info.pending_members inviting {self.mxid} to {puppet.intent_for(self).mxid}"
+                f"_update_participants info.pending_members inviting {pending_mxid} to {self.mxid}"
             )
+            members_to_drop.remove(pending_mxid)
             await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
+
+        if len(members_to_drop) == 0:
+            return
+
+        self.log.warning(f"_update_participants is dropping {members_to_drop} from {self.mxid}")
+        for member in members_to_drop:
+            try:
+                await self.main_intent.kick_user(self.mxid, member, "You are not part of this conversation.")
+            except Exception as ex:
+                self.log.warning(f"failed to kick {member} from {self.mxid}", ex)
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
         if not self.mxid:
