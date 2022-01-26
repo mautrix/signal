@@ -404,6 +404,8 @@ class SignaldClient(SignaldRPCClient):
             address=recipient.serialize(),
         )
 
-    async def find_uuid(self, number: str) -> UUID | None:
-        resp = await self.request_v1("resolve_address", partial=Address(number=number).serialize())
+    async def find_uuid(self, username: str, number: str) -> UUID | None:
+        resp = await self.request_v1(
+            "resolve_address", partial=Address(number=number).serialize(), account=username
+        )
         return Address.deserialize(resp).uuid

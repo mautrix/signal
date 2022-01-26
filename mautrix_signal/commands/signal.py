@@ -52,7 +52,7 @@ async def _get_puppet_from_cmd(evt: CommandEvent) -> pu.Puppet | None:
         return None
     puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=phone))
     if not puppet.uuid and evt.sender.username:
-        uuid = await evt.bridge.signal.find_uuid(puppet.number)
+        uuid = await evt.bridge.signal.find_uuid(evt.sender.username, puppet.number)
         if uuid:
             await puppet.handle_uuid_receive(uuid)
     return puppet
