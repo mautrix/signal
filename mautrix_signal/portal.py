@@ -1380,10 +1380,10 @@ class Portal(DBPortal, BasePortal):
             except Exception as ex:
                 self.log.warning(f"failed to invite pending_member {address}", ex)
 
-        if len(members_to_drop) == 0:
-            return
-
-        self.log.warning(f"_update_participants is dropping {members_to_drop} from {self.mxid}")
+        if len(members_to_drop) > 0:
+            self.log.warning(
+                f"_update_participants is dropping {members_to_drop} from {self.mxid}"
+            )
         for member in members_to_drop:
             try:
                 await self.main_intent.kick_user(
