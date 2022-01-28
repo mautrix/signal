@@ -72,23 +72,30 @@ class SignaldRPCClient:
     async def _communicate_forever(self) -> None:
         while True:
             try:
-                self._reader, self._writer = await asyncio.open_unix_connection(
-                    self.socket_path, limit=_SOCKET_LIMIT
-                )
-            except OSError as e:
-                self.log.error(f"Connection to {self.socket_path} failed: {e}")
-                await asyncio.sleep(5)
-                continue
+                await self._communicate()
+            except Exception:
+                self.log.exception("Unknown error in signald socket")
+                await asyncio.sleep(30)
 
-            read_loop = asyncio.create_task(self._try_read_loop())
-            self.is_connected = True
-            await self._run_rpc_handler(CONNECT_EVENT, {})
-            self._connect_future.set_result(True)
+    async def _communicate(self) -> None:
+        try:
+            self._reader, self._writer = await asyncio.open_unix_connection(
+                self.socket_path, limit=_SOCKET_LIMIT
+            )
+        except OSError as e:
+            self.log.error(f"Connection to {self.socket_path} failed: {e}")
+            await asyncio.sleep(5)
+            return
 
-            await read_loop
-            self.is_connected = False
-            await self._run_rpc_handler(DISCONNECT_EVENT, {})
-            self._connect_future = self.loop.create_future()
+        read_loop = asyncio.create_task(self._try_read_loop())
+        self.is_connected = True
+        await self._run_rpc_handler(CONNECT_EVENT, {})
+        self._connect_future.set_result(True)
+
+        await read_loop
+        self.is_connected = False
+        await self._run_rpc_handler(DISCONNECT_EVENT, {})
+        self._connect_future = self.loop.create_future()
 
     async def disconnect(self) -> None:
         if self._writer is not None:
@@ -165,6 +172,11 @@ class SignaldRPCClient:
             await self._read_loop()
         except Exception:
             self.log.exception("Fatal error in read loop")
+        else:
+            self.log.debug("Reader disconnected")
+        finally:
+            self._reader = None
+            self._writer = None
 
     async def _read_loop(self) -> None:
         while self._reader is not None and not self._reader.at_eof():
@@ -180,9 +192,6 @@ class SignaldRPCClient:
                 await self._handle_incoming_line(line_str)
             except Exception:
                 self.log.exception("Failed to handle incoming request %s", line_str)
-        self.log.debug("Reader disconnected")
-        self._reader = None
-        self._writer = None
 
     def _create_request(
         self, command: str, req_id: UUID | None = None, **data: Any

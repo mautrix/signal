@@ -219,7 +219,7 @@ class User(DBUser, BaseUser):
                     asyncio.create_task(
                         self.push_bridge_state(
                             BridgeStateEvent.UNKNOWN_ERROR,
-                            message="Failed restore connection to Signal",
+                            message="Failed to restore connection to Signal",
                         )
                     )
                 else:
