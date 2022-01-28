@@ -172,11 +172,18 @@ class SignaldClient(SignaldRPCClient):
             field_name = "group" if simple_name else "recipientGroupId"
         return {field_name: recipient}
 
-    async def react(self, username: str, recipient: Address | GroupID, reaction: Reaction) -> None:
+    async def react(
+        self,
+        username: str,
+        recipient: Address | GroupID,
+        reaction: Reaction,
+        req_id: UUID | None = None,
+    ) -> None:
         await self.request_v1(
             "react",
             username=username,
             reaction=reaction.serialize(),
+            req_id=req_id,
             **self._recipient_to_args(recipient),
         )
 
@@ -199,6 +206,7 @@ class SignaldClient(SignaldRPCClient):
         attachments: list[Attachment] | None = None,
         mentions: list[Mention] | None = None,
         timestamp: int | None = None,
+        req_id: UUID | None = None,
     ) -> None:
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
@@ -211,6 +219,7 @@ class SignaldClient(SignaldRPCClient):
             quote=serialized_quote,
             mentions=serialized_mentions,
             timestamp=timestamp,
+            req_id=req_id,
             **self._recipient_to_args(recipient),
         )
 

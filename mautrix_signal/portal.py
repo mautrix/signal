@@ -438,8 +438,11 @@ class Portal(DBPortal, BasePortal):
         retry_message_event_id = None
         for retry_num in range(retry_count):
             try:
-                self.log.info(f"Send attempt {retry_num}")
-                await send_fn(sender, event_id, **send_args)
+                req_id = uuid4()
+                self.log.info(
+                    f"Send attempt {retry_num}. Attempting to send {event_id} with {req_id}"
+                )
+                await send_fn(sender, event_id, req_id=req_id, **send_args)
 
                 # It was successful.
                 if retry_message_event_id is not None:
@@ -529,7 +532,12 @@ class Portal(DBPortal, BasePortal):
             await self._send_delivery_receipt(event_id)
 
     async def _handle_matrix_reaction(
-        self, sender: u.User, event_id: EventID, reacting_to: EventID, emoji: str
+        self,
+        sender: u.User,
+        event_id: EventID,
+        reacting_to: EventID,
+        emoji: str,
+        req_id: UUID | None = None,
     ) -> None:
         message = await DBMessage.get_by_mxid(reacting_to, self.mxid)
         if not message:
@@ -552,7 +560,9 @@ class Portal(DBPortal, BasePortal):
                 target_sent_timestamp=message.timestamp,
             )
             self.log.trace(f"{sender.mxid} reacted to {message.timestamp} with {emoji}")
-            await self.signal.react(sender.username, recipient=self.chat_id, reaction=reaction)
+            await self.signal.react(
+                sender.username, recipient=self.chat_id, reaction=reaction, req_id=req_id
+            )
 
         await self._upsert_reaction(existing, self.main_intent, event_id, sender, message, emoji)
 

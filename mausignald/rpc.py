@@ -198,7 +198,8 @@ class SignaldRPCClient:
     ) -> tuple[asyncio.Future, dict[str, Any]]:
         req_id = req_id or uuid4()
         req = {"id": str(req_id), "type": command, **data}
-        self.log.trace("Request %s: %s %s", req_id, command, data)
+        self.log.debug("Request %s: %s", req_id, command)
+        self.log.trace("Request %s: %s with data: %s", req_id, command, data)
         return self._wait_response(req_id), req
 
     def _wait_response(self, req_id: UUID) -> asyncio.Future:
