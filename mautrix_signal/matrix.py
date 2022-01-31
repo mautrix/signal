@@ -128,8 +128,6 @@ class MatrixHandler(BaseMatrixHandler):
         event_id: EventID,
         data: SingleReceiptEventContent,
     ) -> None:
-        await portal.handle_read_receipt(event_id, data)
-
         message = await DBMessage.get_by_mxid(event_id, portal.mxid)
         if not message:
             return

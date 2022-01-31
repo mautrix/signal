@@ -68,12 +68,12 @@ class SignalBridge(Bridge):
         User.init_cls(self)
         self.add_startup_actions(Puppet.init_cls(self))
         Portal.init_cls(self)
+        self.add_startup_actions(Portal.restart_scheduled_disappearing())
         if self.config["bridge.resend_bridge_info"]:
             self.add_startup_actions(self.resend_bridge_info())
         self.add_startup_actions(self.signal.start())
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
-        asyncio.create_task(Portal.start_disappearing_message_expirations())
 
     @staticmethod
     async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:
