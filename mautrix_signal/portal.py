@@ -539,15 +539,16 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Ignoring reaction to unknown event {reacting_to}")
             raise UnknownReactionTarget(f"Ignoring reaction to unknown event {reacting_to}")
 
-        existing = await DBReaction.get_by_signal_id(
-            self.chat_id, self.receiver, message.sender, message.timestamp, sender.address
-        )
-        if existing and existing.emoji == emoji:
-            return
-
-        dedup_id = (message.sender, message.timestamp, emoji, sender.address)
-        self._reaction_dedup.appendleft(dedup_id)
         async with self._reaction_lock:
+            existing = await DBReaction.get_by_signal_id(
+                self.chat_id, self.receiver, message.sender, message.timestamp, sender.address
+            )
+            if existing and existing.emoji == emoji:
+                return
+
+            dedup_id = (message.sender, message.timestamp, emoji, sender.address)
+            self._reaction_dedup.appendleft(dedup_id)
+
             reaction = Reaction(
                 emoji=emoji,
                 remove=False,
@@ -559,7 +560,9 @@ class Portal(DBPortal, BasePortal):
                 sender.username, recipient=self.chat_id, reaction=reaction, req_id=req_id
             )
 
-        await self._upsert_reaction(existing, self.main_intent, event_id, sender, message, emoji)
+            await self._upsert_reaction(
+                existing, self.main_intent, event_id, sender, message, emoji
+            )
 
     async def handle_matrix_redaction(
         self, sender: u.User, event_id: EventID, redaction_event_id: EventID
