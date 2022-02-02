@@ -275,7 +275,7 @@ class Sticker(SerializableAttrs):
 
 @dataclass
 class RemoteDelete(SerializableAttrs):
-    target_sent_timestamp: int = field(json="targetSentTimestamp")
+    target_sent_timestamp: int
 
 
 class SharedContactDetailType(SerializableEnum):
