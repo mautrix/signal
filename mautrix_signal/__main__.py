@@ -20,7 +20,7 @@ import logging
 import time
 
 from mautrix.bridge import Bridge
-from mautrix.types import RoomID, UserID
+from mautrix.types import MessageType, RoomID, TextMessageEventContent, UserID
 from mautrix.util.opt_prometheus import Gauge
 
 from . import commands
@@ -164,7 +164,12 @@ class SignalBridge(Bridge):
         blockOnLimitReached = self.config["bridge.limits.block_on_limit_reached"]
         maxPuppetLimit = self.config["bridge.limits.max_puppet_limit"]
         if blockOnLimitReached is not None and maxPuppetLimit is not None:
-            self.bridge_blocked = maxPuppetLimit < activeUsers
+            blocked = maxPuppetLimit < activeUsers
+            if blocked and not self.bridge_blocked:
+                await self._notify_bridge_blocked()
+            if not blocked and self.bridge_blocked:
+                await self._notify_bridge_blocked(False)
+            self.bridge_blocked = blocked
             METRIC_BLOCKING.set(int(self.bridge_blocked))
         log.debug("Current active puppet count is %d", activeUsers)
         METRIC_ACTIVE_PUPPETS.set(activeUsers)
@@ -196,5 +201,33 @@ class SignalBridge(Bridge):
             "Puppet": Puppet,
         }
 
+    async def _notify_bridge_blocked(self, is_blocked: bool = True) -> None:
+        admins = list(map(lambda entry: entry[0],
+            filter(lambda entry: entry[1] == 'admin',
+                self.config["bridge.permissions"].items()
+            )
+        ))
+        if len(admins) == 0:
+            self.log.debug('No bridge admins to notify about the bridge being blocked')
+            return
+
+        self.log.debug(f'Notifying bridge admins ({",".join(admins)}) about bridge being blocked')
+        for admin_mxid in admins:
+            admin = await User.get_by_mxid(admin_mxid, True) # create if needed
+            if admin.notice_room is None:
+                room_id = await self.az.intent.create_room(
+                    name='Signal Bridge notice room',
+                    is_direct=True,
+                    invitees=[admin_mxid],
+                )
+                admin.notice_room = room_id
+                admin.update()
+
+            msg = 'The bridge is no longer blocking messages'
+            if is_blocked:
+                msg = 'The bridge is currently blocking messages. You may need to increase your usage limits in EMS'
+            await self.az.intent.send_message(admin.notice_room, TextMessageEventContent(
+                msgtype=MessageType.NOTICE, body=f"\u26a0 {msg}"
+            ))
 
 SignalBridge().run()
