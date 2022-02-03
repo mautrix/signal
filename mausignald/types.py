@@ -529,6 +529,24 @@ class IncomingMessage(SerializableAttrs):
     receipt_message: Optional[ReceiptMessage] = None
 
 
+@dataclass(kw_only=True)
+class ErrorMessageData(SerializableAttrs):
+    sender: str
+    timestamp: int
+    message: str
+    sender_device: int
+    content_hint: int
+
+
+@dataclass(kw_only=True)
+class ErrorMessage(SerializableAttrs):
+    type: str
+    version: str
+    data: ErrorMessageData
+    error: bool
+    account: str
+
+
 class WebsocketConnectionState(SerializableEnum):
     # States from signald itself
     DISCONNECTED = "DISCONNECTED"
