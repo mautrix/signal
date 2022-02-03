@@ -129,7 +129,7 @@ class Portal(DBPortal, BasePortal):
     _main_intent: IntentAPI | None
     _create_room_lock: asyncio.Lock
     _msgts_dedup: deque[tuple[Address, int]]
-    _reaction_dedup: deque[tuple[Address, int, str, Address]]
+    _reaction_dedup: deque[tuple[Address, int, str, Address, bool]]
     _reaction_lock: asyncio.Lock
     _pending_members: set[UUID] | None
     _expiration_lock: asyncio.Lock
@@ -546,7 +546,7 @@ class Portal(DBPortal, BasePortal):
             if existing and existing.emoji == emoji:
                 return
 
-            dedup_id = (message.sender, message.timestamp, emoji, sender.address)
+            dedup_id = (message.sender, message.timestamp, emoji, sender.address, False)
             self._reaction_dedup.appendleft(dedup_id)
 
             reaction = Reaction(
@@ -1068,7 +1068,7 @@ class Portal(DBPortal, BasePortal):
         author_address = await self._resolve_address(reaction.target_author)
         target_id = reaction.target_sent_timestamp
         async with self._reaction_lock:
-            dedup_id = (author_address, target_id, reaction.emoji, sender.address)
+            dedup_id = (author_address, target_id, reaction.emoji, sender.address, reaction.remove)
             if dedup_id in self._reaction_dedup:
                 return
             self._reaction_dedup.appendleft(dedup_id)
