@@ -347,6 +347,14 @@ class SharedContact(SerializableAttrs):
 
 
 @dataclass
+class LinkPreview(SerializableAttrs):
+    url: str
+    title: str
+    description: str
+    attachment: Optional[Attachment] = None
+
+
+@dataclass
 class MessageData(SerializableAttrs):
     timestamp: int
 
@@ -367,6 +375,8 @@ class MessageData(SerializableAttrs):
     view_once: bool = field(default=False, json="viewOnce")
 
     remote_delete: Optional[RemoteDelete] = field(default=None, json="remoteDelete")
+
+    previews: List[LinkPreview] = field(factory=lambda: [])
 
     @property
     def is_message(self) -> bool:
