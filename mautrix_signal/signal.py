@@ -94,16 +94,27 @@ class SignalHandler(SignaldClient):
                 self.log.debug("Sync message includes groups meta, syncing groups...")
                 await user.sync_groups()
 
-        event_id_future = self.error_message_events.pop(
-            (sender.address, user.username, evt.timestamp), None
-        )
-        event_id = await event_id_future if event_id_future is not None else None
-        if event_id is not None:
-            portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
-            if portal and portal.mxid:
-                await sender.intent_for(portal).redact(portal.mxid, event_id)
+        try:
+            event_id_future = self.error_message_events.pop(
+                (sender.address, user.username, evt.timestamp)
+            )
+        except KeyError:
+            pass
+        else:
+            self.log.debug(f"Got previously errored message {evt.timestamp} from {sender.address}")
+            event_id = await event_id_future if event_id_future is not None else None
+            if event_id is not None:
+                portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
+                if portal and portal.mxid:
+                    await sender.intent_for(portal).redact(portal.mxid, event_id)
 
     async def on_error_message(self, err: ErrorMessage) -> None:
+        self.log.warning(
+            f"Error reading message from {err.data.sender}/{err.data.sender_device} "
+            f"(timestamp: {err.data.timestamp}, content hint: {err.data.content_hint}): "
+            f"{err.data.message}"
+        )
+
         sender = await pu.Puppet.get_by_address(Address.parse(err.data.sender))
         user = await u.User.get_by_username(err.account)
         portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
@@ -119,8 +130,7 @@ class SignalHandler(SignaldClient):
         await asyncio.sleep(10)
 
         err_text = (
-            "There was an error receiving a message. Check your Signal app for missing messages. "
-            f"{err.type}: {err.data.message}"
+            "There was an error receiving a message. Check your Signal app for missing messages."
         )
         if error_message_event_key in self.error_message_events:
             fut = self.error_message_events[error_message_event_key] = self.loop.create_future()
