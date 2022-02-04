@@ -26,7 +26,7 @@ import os.path
 import pathlib
 import time
 
-from mausignald.errors import NotConnected, ResponseError, RPCError
+from mausignald.errors import NotConnected, RPCError
 from mausignald.types import (
     AccessControlMode,
     Address,
@@ -64,13 +64,11 @@ from mautrix.types import (
     MessageType,
     PowerLevelStateEventContent,
     RoomID,
-    SingleReceiptEventContent,
     TextMessageEventContent,
     UserID,
     VideoInfo,
 )
 from mautrix.util import ffmpeg, variation_selector
-from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -309,11 +307,7 @@ class Portal(DBPortal, BasePortal):
                 message.msgtype,
                 error=e,
             )
-            auth_failed = (
-                "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
-            )
-            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions", []):
-                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+            await sender.handle_auth_failure(e)
             await self._send_message(
                 self.main_intent,
                 TextMessageEventContent(

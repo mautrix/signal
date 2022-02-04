@@ -133,9 +133,16 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")
-        await self.signal.send_receipt(
-            user.username, message.sender, timestamps=[message.timestamp], when=data.ts, read=True
-        )
+        try:
+            await self.signal.send_receipt(
+                user.username,
+                message.sender,
+                timestamps=[message.timestamp],
+                when=data.ts,
+                read=True,
+            )
+        except Exception as e:
+            await user.handle_auth_failure(e)
 
     async def handle_typing(self, room_id: RoomID, typing: list[UserID]) -> None:
         pass
