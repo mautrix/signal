@@ -18,6 +18,7 @@ from .types import (
     Address,
     Attachment,
     DeviceInfo,
+    ErrorMessage,
     GetIdentitiesResponse,
     Group,
     GroupID,
@@ -50,6 +51,7 @@ class SignaldClient(SignaldRPCClient):
         self._event_handlers = {}
         self._subscriptions = set()
         self.add_rpc_handler("IncomingMessage", self._parse_message)
+        self.add_rpc_handler("ProtocolInvalidMessageError", self._parse_error)
         self.add_rpc_handler("WebSocketConnectionState", self._websocket_connection_state_change)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
@@ -72,6 +74,11 @@ class SignaldClient(SignaldRPCClient):
                     await handler(event)
                 except Exception:
                     self.log.exception("Exception in event handler")
+
+    async def _parse_error(self, data: dict[str, Any]) -> None:
+        if not data.get("error"):
+            return
+        await self._run_event_handler(ErrorMessage.deserialize(data))
 
     async def _parse_message(self, data: dict[str, Any]) -> None:
         event_type = data["type"]
