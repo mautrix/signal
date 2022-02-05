@@ -55,6 +55,7 @@ from mautrix.types import (
     AudioInfo,
     ContentURI,
     EncryptedEvent,
+    EncryptedFile,
     EventID,
     EventType,
     FileInfo,
@@ -318,6 +319,32 @@ class Portal(DBPortal, BasePortal):
                 ),
             )
 
+    async def _beeper_link_preview_to_signal(
+        self, beeper_link_preview: dict[str, Any]
+    ) -> LinkPreview | None:
+        link_preview = LinkPreview(
+            url=beeper_link_preview["matched_url"],
+            title=beeper_link_preview.get("og:title", ""),
+            description=beeper_link_preview.get("og:description", ""),
+        )
+        if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview or "og:image" in beeper_link_preview:
+            if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview:
+                file = EncryptedFile.deserialize(beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY])
+                data = await self.main_intent.download_media(file.url)
+                data = decrypt_attachment(data, file.key.key, file.hashes.get("sha256"), file.iv)
+            else:
+                data = await self.main_intent.download_media(beeper_link_preview["og:image"])
+
+            attachment_path = self._write_outgoing_file(data)
+            link_preview.attachment = Attachment(
+                content_type=beeper_link_preview.get("og:image:type"),
+                outgoing_filename=attachment_path,
+                width=beeper_link_preview.get("og:image:width", 0),
+                height=beeper_link_preview.get("og:image:height", 0),
+                size=beeper_link_preview.get("matrix:image:size", 0),
+            )
+        return link_preview
+
     async def _handle_matrix_message(
         self, sender: u.User, message: MessageEventContent, event_id: EventID
     ) -> None:
@@ -352,8 +379,14 @@ class Portal(DBPortal, BasePortal):
         attachments: list[Attachment] | None = None
         attachment_path: str | None = None
         mentions: list[Mention] | None = None
+        link_previews: list[LinkPreview] | None = None
         if message.msgtype.is_text:
             text, mentions = await matrix_to_signal(message)
+            message_previews = message.get(BEEPER_LINK_PREVIEWS_KEY, [])
+            potential_link_previews = await asyncio.gather(
+                *(self._beeper_link_preview_to_signal(m) for m in message_previews)
+            )
+            link_previews = [p for p in potential_link_previews if p is not None]
         elif message.msgtype.is_media:
             attachment_path = await self._download_matrix_media(message)
             attachment = await self._make_attachment(message, attachment_path)
@@ -376,6 +409,7 @@ class Portal(DBPortal, BasePortal):
                 recipient=self.chat_id,
                 body=text,
                 mentions=mentions,
+                previews=link_previews,
                 quote=quote,
                 attachments=attachments,
                 timestamp=request_id,
