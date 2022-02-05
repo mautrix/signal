@@ -1,3 +1,22 @@
+# unreleased
+
+Target signald version: v0.17.0?
+
+### Added
+* New v2 link API to provide immediate feedback after the QR code is scanned.
+
+### Improved
+* Added automatic retrying for failed Matrix->Signal reactions.
+* Commands using phone numbers will now try to resolve the UUID first
+  (especially useful for `pm` so the portal is created with the correct ghost
+  immediately)
+* Improved signald socket handling to catch weird errors and reconnect.
+
+### Fixed
+* Fixed catching errors when connecting to Signal (e.g. if the account was
+  deleted from signald's database, but not the bridge's).
+* Fixed handling message deletions from Signal.
+
 # v0.2.2 (2022-01-15)
 
 Target signald version: [v0.16.1](https://gitlab.com/signald/signald/-/releases/0.16.1)
