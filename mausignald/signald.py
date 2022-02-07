@@ -24,6 +24,7 @@ from .types import (
     GroupID,
     GroupV2,
     IncomingMessage,
+    LinkPreview,
     LinkSession,
     Mention,
     Profile,
@@ -212,12 +213,14 @@ class SignaldClient(SignaldRPCClient):
         quote: Quote | None = None,
         attachments: list[Attachment] | None = None,
         mentions: list[Mention] | None = None,
+        previews: list[LinkPreview] | None = None,
         timestamp: int | None = None,
         req_id: UUID | None = None,
     ) -> None:
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
         serialized_mentions = [mention.serialize() for mention in (mentions or [])]
+        serialized_previews = [preview.serialize() for preview in (previews or [])]
         resp = await self.request_v1(
             "send",
             username=username,
@@ -225,6 +228,7 @@ class SignaldClient(SignaldRPCClient):
             attachments=serialized_attachments,
             quote=serialized_quote,
             mentions=serialized_mentions,
+            previews=serialized_previews,
             timestamp=timestamp,
             req_id=req_id,
             **self._recipient_to_args(recipient),

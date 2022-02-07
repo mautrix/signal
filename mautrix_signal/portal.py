@@ -38,6 +38,7 @@ from mausignald.types import (
     GroupMemberRole,
     GroupV2,
     GroupV2ID,
+    LinkPreview,
     Mention,
     MessageData,
     Profile,
@@ -54,6 +55,7 @@ from mautrix.types import (
     AudioInfo,
     ContentURI,
     EncryptedEvent,
+    EncryptedFile,
     EventID,
     EventType,
     FileInfo,
@@ -106,6 +108,8 @@ StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
 ChatInfo = Union[Group, GroupV2, GroupV2ID, Contact, Profile, Address]
 MAX_MATRIX_MESSAGE_SIZE = 60000
+BEEPER_LINK_PREVIEWS_KEY = "com.beeper.linkpreviews"
+BEEPER_IMAGE_ENCRYPTION_KEY = "beeper:image:encryption"
 
 
 class UnknownReactionTarget(Exception):
@@ -315,6 +319,32 @@ class Portal(DBPortal, BasePortal):
                 ),
             )
 
+    async def _beeper_link_preview_to_signal(
+        self, beeper_link_preview: dict[str, Any]
+    ) -> LinkPreview | None:
+        link_preview = LinkPreview(
+            url=beeper_link_preview["matched_url"],
+            title=beeper_link_preview.get("og:title", ""),
+            description=beeper_link_preview.get("og:description", ""),
+        )
+        if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview or "og:image" in beeper_link_preview:
+            if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview:
+                file = EncryptedFile.deserialize(beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY])
+                data = await self.main_intent.download_media(file.url)
+                data = decrypt_attachment(data, file.key.key, file.hashes.get("sha256"), file.iv)
+            else:
+                data = await self.main_intent.download_media(beeper_link_preview["og:image"])
+
+            attachment_path = self._write_outgoing_file(data)
+            link_preview.attachment = Attachment(
+                content_type=beeper_link_preview.get("og:image:type"),
+                outgoing_filename=attachment_path,
+                width=beeper_link_preview.get("og:image:width", 0),
+                height=beeper_link_preview.get("og:image:height", 0),
+                size=beeper_link_preview.get("matrix:image:size", 0),
+            )
+        return link_preview
+
     async def _handle_matrix_message(
         self, sender: u.User, message: MessageEventContent, event_id: EventID
     ) -> None:
@@ -349,8 +379,14 @@ class Portal(DBPortal, BasePortal):
         attachments: list[Attachment] | None = None
         attachment_path: str | None = None
         mentions: list[Mention] | None = None
+        link_previews: list[LinkPreview] | None = None
         if message.msgtype.is_text:
             text, mentions = await matrix_to_signal(message)
+            message_previews = message.get(BEEPER_LINK_PREVIEWS_KEY, [])
+            potential_link_previews = await asyncio.gather(
+                *(self._beeper_link_preview_to_signal(m) for m in message_previews)
+            )
+            link_previews = [p for p in potential_link_previews if p is not None]
         elif message.msgtype.is_media:
             attachment_path = await self._download_matrix_media(message)
             attachment = await self._make_attachment(message, attachment_path)
@@ -373,6 +409,7 @@ class Portal(DBPortal, BasePortal):
                 recipient=self.chat_id,
                 body=text,
                 mentions=mentions,
+                previews=link_previews,
                 quote=quote,
                 attachments=attachments,
                 timestamp=request_id,
@@ -744,6 +781,45 @@ class Portal(DBPortal, BasePortal):
         except MatrixError:
             return reply_msg.mxid
 
+    async def _signal_link_preview_to_beeper(
+        self, link_preview: LinkPreview, intent: IntentAPI
+    ) -> dict[str, Any]:
+        beeper_link_preview: dict[str, Any] = {
+            "matched_url": link_preview.url,
+            "og:title": link_preview.title,
+            "og:url": link_preview.url,
+            "og:description": link_preview.description,
+        }
+
+        # Upload an image corresponding to the link preview if it exists.
+        if link_preview.attachment and link_preview.attachment.incoming_filename:
+            beeper_link_preview["og:image:type"] = link_preview.attachment.content_type
+            beeper_link_preview["og:image:height"] = link_preview.attachment.height
+            beeper_link_preview["og:image:width"] = link_preview.attachment.width
+            beeper_link_preview["matrix:image:size"] = link_preview.attachment.size
+
+            with open(link_preview.attachment.incoming_filename, "rb") as file:
+                data = file.read()
+            if self.config["signal.remove_file_after_handling"]:
+                os.remove(link_preview.attachment.incoming_filename)
+
+            upload_mime_type = link_preview.attachment.content_type
+            if self.encrypted and encrypt_attachment:
+                data, beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY] = encrypt_attachment(data)
+                upload_mime_type = "application/octet-stream"
+
+            upload_uri = await intent.upload_media(
+                data, mime_type=upload_mime_type, filename=link_preview.attachment.id
+            )
+            if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview:
+                beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY].url = upload_uri
+                beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY] = beeper_link_preview[
+                    BEEPER_IMAGE_ENCRYPTION_KEY
+                ].serialize()
+            else:
+                beeper_link_preview["og:image"] = upload_uri
+        return beeper_link_preview
+
     async def handle_signal_message(
         self, source: u.User, sender: p.Puppet, message: MessageData
     ) -> None:
@@ -833,6 +909,11 @@ class Portal(DBPortal, BasePortal):
 
         if message.body:
             content = await signal_to_matrix(message)
+            if message.previews:
+                content[BEEPER_LINK_PREVIEWS_KEY] = await asyncio.gather(
+                    *(self._signal_link_preview_to_beeper(p, intent) for p in message.previews)
+                )
+
             if reply_to:
                 content.set_reply(reply_to)
             event_id = await self._send_message(intent, content, timestamp=message.timestamp)
