@@ -832,6 +832,7 @@ class Portal(DBPortal, BasePortal):
                 source.username, sender.address, timestamps=[message.timestamp]
             )
             return
+        self._msgts_dedup.appendleft((sender.address, message.timestamp))
         old_message = await DBMessage.get_by_signal_id(
             sender.address, message.timestamp, self.chat_id, self.receiver
         )
@@ -846,7 +847,6 @@ class Portal(DBPortal, BasePortal):
             return
         self.log.debug(f"Started handling message {message.timestamp} by {sender.uuid}")
         self.log.trace(f"Message content: {message}")
-        self._msgts_dedup.appendleft((sender.address, message.timestamp))
         intent = sender.intent_for(self)
         await intent.set_typing(self.mxid, False)
         event_id = None
