@@ -63,6 +63,7 @@ class SignalBridge(Bridge):
     periodic_sync_task: asyncio.Task
     periodic_active_metrics_task: asyncio.Task
     bridge_blocked: bool = False
+    last_blocking_notification: int = 0
 
     def prepare_db(self) -> None:
         super().prepare_db()
@@ -202,6 +203,15 @@ class SignalBridge(Bridge):
         }
 
     async def _notify_bridge_blocked(self, is_blocked: bool = True) -> None:
+        msg = self.config["bridge.limits.block_ends_notification"]
+        if is_blocked:
+            msg = self.config["bridge.limits.block_begins_notification"]
+            next_notification = self.last_blocking_notification + self.config["bridge.limits.block_notification_interval_seconds"]
+            # We're only checking if the block is active, since the block-end notification will not be resent and we want it ASAP
+            if next_notification > int(time.time()):
+                return
+            self.last_blocking_notification = int(time.time())
+
         admins = list(map(lambda entry: entry[0],
             filter(lambda entry: entry[1] == 'admin',
                 self.config["bridge.permissions"].items()
@@ -223,9 +233,6 @@ class SignalBridge(Bridge):
                 admin.notice_room = room_id
                 admin.update()
 
-            msg = 'The bridge is no longer blocking messages'
-            if is_blocked:
-                msg = 'The bridge is currently blocking messages. You may need to increase your usage limits in EMS'
             await self.az.intent.send_message(admin.notice_room, TextMessageEventContent(
                 msgtype=MessageType.NOTICE, body=f"\u26a0 {msg}"
             ))
