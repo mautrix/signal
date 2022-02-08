@@ -77,6 +77,12 @@ class InternalError(ResponseError):
         super().__init__(data, error_type=", ".join(exceptions), message_override=message)
 
 
+class AttachmentTooLargeError(ResponseError):
+    def __init__(self, data: dict[str, Any]) -> None:
+        self.filename = data.get("filename", "")
+        super().__init__(data, message_override="File is over the 100MB limit.")
+
+
 response_error_types = {
     "invalid_request": RequestValidationFailure,
     "TimeoutException": TimeoutException,
@@ -86,6 +92,7 @@ response_error_types = {
     "CaptchaRequired": CaptchaRequired,
     "AuthorizationFailedException": AuthorizationFailedException,
     "InternalError": InternalError,
+    "AttachmentTooLargeError": AttachmentTooLargeError,
     # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
 }
 
