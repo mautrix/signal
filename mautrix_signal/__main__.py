@@ -234,6 +234,7 @@ class SignalBridge(Bridge):
                 admin.update()
 
             await self.az.intent.send_message(admin.notice_room, TextMessageEventContent(
+                # \u26a0 is a warning sign
                 msgtype=MessageType.NOTICE, body=f"\u26a0 {msg}"
             ))
 
