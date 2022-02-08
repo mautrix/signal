@@ -26,7 +26,7 @@ import os.path
 import pathlib
 import time
 
-from mausignald.errors import NotConnected, RPCError
+from mausignald.errors import AttachmentTooLargeError, NotConnected, RPCError
 from mausignald.types import (
     AccessControlMode,
     Address,
@@ -303,13 +303,13 @@ class Portal(DBPortal, BasePortal):
             await self._handle_matrix_message(sender, message, event_id)
         except Exception as e:
             self.log.exception(f"Failed to handle Matrix message {event_id}")
+            status = (
+                MessageSendCheckpointStatus.UNSUPPORTED
+                if isinstance(e, AttachmentTooLargeError)
+                else MessageSendCheckpointStatus.PERM_FAILURE
+            )
             sender.send_remote_checkpoint(
-                MessageSendCheckpointStatus.PERM_FAILURE,
-                event_id,
-                self.mxid,
-                EventType.ROOM_MESSAGE,
-                message.msgtype,
-                error=e,
+                status, event_id, self.mxid, EventType.ROOM_MESSAGE, message.msgtype, error=e
             )
             await sender.handle_auth_failure(e)
             await self._send_message(
