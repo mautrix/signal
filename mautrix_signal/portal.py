@@ -299,10 +299,10 @@ class Portal(DBPortal, BasePortal):
         self, sender: u.User, message: MessageEventContent, event_id: EventID
     ) -> None:
         if self.bridge.bridge_blocked:
-            await self.bridge._notify_bridge_blocked()
             self.log.warn(
                 f"Bridge is blocking messages, not handling message from {sender.mxid} {event_id}"
             )
+            await self.bridge._notify_bridge_blocked()
             return
         try:
             await self._handle_matrix_message(sender, message, event_id)
@@ -804,10 +804,10 @@ class Portal(DBPortal, BasePortal):
         self, source: u.User, sender: p.Puppet, message: MessageData
     ) -> None:
         if self.bridge.bridge_blocked:
-            await self.bridge._notify_bridge_blocked()
             self.log.warn(
                 f"Bridge is blocking messages, not handling message from {sender.uuid} {message.timestamp}"
             )
+            await self.bridge._notify_bridge_blocked()
             return
         if (sender.address, message.timestamp) in self._msgts_dedup:
             self.log.debug(
