@@ -207,7 +207,7 @@ class SignalBridge(Bridge):
         if is_blocked:
             msg = self.config["bridge.limits.block_begins_notification"]
             next_notification = self.last_blocking_notification + self.config["bridge.limits.block_notification_interval_seconds"]
-            # We're only checking if the block is active, since the block-end notification will not be resent and we want it ASAP
+            # We're only checking if the block is active, since the unblock notification will not be resent and we want it ASAP
             if next_notification > int(time.time()):
                 return
             self.last_blocking_notification = int(time.time())
