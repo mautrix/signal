@@ -32,6 +32,7 @@ fake_db = Database.create("") if TYPE_CHECKING else None
 log = logging.getLogger("puppet")
 
 UPPER_ACTIVITY_LIMIT_MS = 60 * 1000 * 15  # 15 minutes
+ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 
 @dataclass
@@ -203,6 +204,13 @@ class Puppet:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def all_with_initial_activity(cls) -> list["Puppet"]:
-        rows = await cls.db.fetch(f"{cls._select_base} WHERE first_activity_ts is not NULL")
-        return [cls._from_row(row) for row in rows]
+    async def recently_active_count(cls, min_activity_days: int, max_activity_days: int | None) -> int:
+        current_ms = time.time() * 1000
+        query = (
+            "SELECT COUNT(*) FROM puppet WHERE (last_activity_ts - first_activity_ts) > $2"
+        )
+        args = [current_ms, ONE_DAY_MS * min_activity_days]
+        if max_activity_days is not None:
+            query += " AND ($1 - last_activity_ts) <= $3"
+            args.append(ONE_DAY_MS * max_activity_days)
+        return await cls.db.fetchval(query, *args)
