@@ -207,10 +207,10 @@ class Puppet:
     async def recently_active_count(cls, min_activity_days: int, max_activity_days: int | None) -> int:
         current_ms = time.time() * 1000
         query = (
-            "SELECT COUNT(*) FROM puppet WHERE (last_activity_ts - first_activity_ts) > $2"
+            "SELECT COUNT(*) FROM puppet WHERE (last_activity_ts - first_activity_ts) > $1"
         )
-        args = [current_ms, ONE_DAY_MS * min_activity_days]
+        args = [ONE_DAY_MS * min_activity_days]
         if max_activity_days is not None:
-            query += " AND ($1 - last_activity_ts) <= $3"
-            args.append(ONE_DAY_MS * max_activity_days)
+            query += " AND ($2 - last_activity_ts) <= $3"
+            args += [current_ms, ONE_DAY_MS * max_activity_days]
         return await cls.db.fetchval(query, *args)
