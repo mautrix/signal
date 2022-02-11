@@ -287,7 +287,7 @@ class Portal(DBPortal, BasePortal):
         return str(path)
 
     async def _download_matrix_media(self, message: MediaMessageEventContent) -> str:
-        if message.info.size > 100 * 10**6:
+        if message.info and message.info.size and message.info.size > 100 * 10**6:
             raise AttachmentTooLargeError({"filename": message.body})
         if message.file:
             data = await self.main_intent.download_media(message.file.url)
