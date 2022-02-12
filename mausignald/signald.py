@@ -307,6 +307,9 @@ class SignaldClient(SignaldRPCClient):
         resp = await self.request_v1("get_linked_devices", account=username)
         return [DeviceInfo.deserialize(dev) for dev in resp.get("devices", [])]
 
+    async def add_linked_device(self, username: str, uri: str) -> None:
+        await self.request_v1("add_device", account=username, uri=uri)
+
     async def remove_linked_device(self, username: str, device_id: int) -> None:
         await self.request_v1("remove_linked_device", account=username, deviceId=device_id)
 

@@ -194,6 +194,23 @@ async def list_devices(evt: CommandEvent) -> None:
     needs_auth=True,
     management_only=True,
     help_section=SECTION_AUTH,
+    help_text="Add a linked device",
+)
+async def add_linked_device(evt: CommandEvent) -> EventID:
+    if len(evt.args) == 0:
+        return await evt.reply("**Usage:** `$cmdprefix+sp add-linked-device <link from QR-Code>`")
+    uri = evt.args[0]
+    try:
+        await evt.bridge.signal.add_linked_device(evt.sender.username, uri)
+    except AuthorizationFailedException as e:
+        return await evt.reply(f"{e} Only the primary device can add linked devices.")
+    return await evt.reply("Device added")
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=True,
+    help_section=SECTION_AUTH,
     help_text="Remove a linked device",
 )
 async def remove_linked_device(evt: CommandEvent) -> EventID:
