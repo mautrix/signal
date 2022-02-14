@@ -21,7 +21,7 @@ from datetime import datetime
 from uuid import UUID
 import asyncio
 
-from mausignald.errors import ResponseError
+from mausignald.errors import AuthorizationFailedError, ResponseError
 from mausignald.types import (
     Account,
     Address,
@@ -148,10 +148,7 @@ class User(DBUser, BaseUser):
         return [state]
 
     async def handle_auth_failure(self, e: Exception) -> None:
-        auth_failed = (
-            "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
-        )
-        if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions", []):
+        if isinstance(e, AuthorizationFailedError):
             await self.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
 
     async def get_puppet(self) -> pu.Puppet | None:

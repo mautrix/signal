@@ -22,7 +22,7 @@ import logging
 
 from aiohttp import web
 
-from mausignald.errors import InternalError, TimeoutException
+from mausignald.errors import InternalError, ScanTimeoutError, TimeoutException
 from mausignald.types import Account, Address
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
@@ -176,12 +176,12 @@ class ProvisioningAPI:
             raise web.HTTPBadRequest(
                 text='{"error": "Signal linking timed out"}', headers=self._headers
             )
-        except InternalError as ie:
-            if "java.io.IOException" in ie.exceptions:
-                raise web.HTTPBadRequest(
-                    text='{"error": "Signald websocket disconnected before linking finished"}',
-                    headers=self._headers,
-                )
+        except ScanTimeoutError:
+            raise web.HTTPBadRequest(
+                text='{"error": "Signald websocket disconnected before linking finished"}',
+                headers=self._headers,
+            )
+        except InternalError:
             raise web.HTTPInternalServerError(
                 text='{"error": "Fatal error in Signal linking"}', headers=self._headers
             )
