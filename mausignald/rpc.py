@@ -79,6 +79,7 @@ class SignaldRPCClient:
 
     async def _communicate(self) -> None:
         try:
+            self.log.debug(f"Connecting to {self.socket_path}...")
             self._reader, self._writer = await asyncio.open_unix_connection(
                 self.socket_path, limit=_SOCKET_LIMIT
             )
@@ -89,13 +90,13 @@ class SignaldRPCClient:
 
         read_loop = asyncio.create_task(self._try_read_loop())
         self.is_connected = True
-        await self._run_rpc_handler(CONNECT_EVENT, {})
+        asyncio.create_task(self._run_rpc_handler(CONNECT_EVENT, {}))
         self._connect_future.set_result(True)
 
         await read_loop
         self.is_connected = False
-        await self._run_rpc_handler(DISCONNECT_EVENT, {})
         self._connect_future = self.loop.create_future()
+        await self._run_rpc_handler(DISCONNECT_EVENT, {})
 
     async def disconnect(self) -> None:
         if self._writer is not None:
