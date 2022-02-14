@@ -150,17 +150,8 @@ class SignalBridge(Bridge):
     async def _update_active_puppet_metric(self, log: logging.Logger) -> None:
         maxActivityDays = self.config["bridge.limits.puppet_inactivity_days"]
         minActivityDays = self.config["bridge.limits.min_puppet_activity_days"]
-        users = await Puppet.all_with_initial_activity()
-        currentMs = time.time() / 1000
-        activeUsers = 0
-        for user in users:
-            daysOfActivity = (user.last_activity_ts - user.first_activity_ts / 1000) / ONE_DAY_MS
-            # If maxActivityTime is not set, they are always active
-            isActive = maxActivityDays is None or (currentMs - user.last_activity_ts) <= (
-                maxActivityDays * ONE_DAY_MS
-            )
-            if isActive and daysOfActivity > minActivityDays:
-                activeUsers += 1
+        activeUsers = await Puppet.recently_active_count(minActivityDays, maxActivityDays)
+
         blockOnLimitReached = self.config["bridge.limits.block_on_limit_reached"]
         maxPuppetLimit = self.config["bridge.limits.max_puppet_limit"]
         if blockOnLimitReached is not None and maxPuppetLimit is not None:
