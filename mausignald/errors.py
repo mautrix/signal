@@ -53,7 +53,11 @@ class CaptchaRequired(ResponseError):
     pass
 
 
-class AuthorizationFailedException(ResponseError):
+class AuthorizationFailedError(ResponseError):
+    pass
+
+
+class ScanTimeoutError(ResponseError):
     pass
 
 
@@ -70,6 +74,11 @@ class RequestValidationFailure(ResponseError):
 
 
 class InternalError(ResponseError):
+    """
+    If you find yourself using this, please file an issue against signald. We want to make
+    explicit error types at the protocol for anything a client might normally expect.
+    """
+
     def __init__(self, data: dict[str, Any]) -> None:
         exceptions = data.get("exceptions", [])
         self.exceptions = exceptions
@@ -90,9 +99,10 @@ response_error_types = {
     "RequestValidationFailure": RequestValidationFailure,
     "UnknownIdentityKey": UnknownIdentityKey,
     "CaptchaRequired": CaptchaRequired,
-    "AuthorizationFailedException": AuthorizationFailedException,
     "InternalError": InternalError,
     "AttachmentTooLargeError": AttachmentTooLargeError,
+    "AuthorizationFailedError": AuthorizationFailedError,
+    "ScanTimeoutError": ScanTimeoutError,
     # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
 }
 
