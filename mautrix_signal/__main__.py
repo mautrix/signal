@@ -20,7 +20,7 @@ import logging
 import time
 
 from mautrix.bridge import Bridge
-from mautrix.types import RoomID, UserID
+from mautrix.types import MessageType, RoomID, TextMessageEventContent, UserID
 from mautrix.util.opt_prometheus import Gauge
 
 from . import commands
@@ -63,6 +63,7 @@ class SignalBridge(Bridge):
     periodic_sync_task: asyncio.Task
     periodic_active_metrics_task: asyncio.Task
     bridge_blocked: bool = False
+    last_blocking_notification: int = 0
 
     def prepare_db(self) -> None:
         super().prepare_db()
@@ -155,7 +156,12 @@ class SignalBridge(Bridge):
         blockOnLimitReached = self.config["bridge.limits.block_on_limit_reached"]
         maxPuppetLimit = self.config["bridge.limits.max_puppet_limit"]
         if blockOnLimitReached is not None and maxPuppetLimit is not None:
-            self.bridge_blocked = maxPuppetLimit < activeUsers
+            blocked = maxPuppetLimit < activeUsers
+            if blocked and not self.bridge_blocked:
+                await self._notify_bridge_blocked()
+            if not blocked and self.bridge_blocked:
+                await self._notify_bridge_blocked(False)
+            self.bridge_blocked = blocked
             METRIC_BLOCKING.set(int(self.bridge_blocked))
         log.debug("Current active puppet count is %d", activeUsers)
         METRIC_ACTIVE_PUPPETS.set(activeUsers)
@@ -187,5 +193,40 @@ class SignalBridge(Bridge):
             "Puppet": Puppet,
         }
 
+    async def _notify_bridge_blocked(self, is_blocked: bool = True) -> None:
+        msg = self.config["bridge.limits.block_ends_notification"]
+        if is_blocked:
+            msg = self.config["bridge.limits.block_begins_notification"]
+            next_notification = self.last_blocking_notification + self.config["bridge.limits.block_notification_interval_seconds"]
+            # We're only checking if the block is active, since the unblock notification will not be resent and we want it ASAP
+            if next_notification > int(time.time()):
+                return
+            self.last_blocking_notification = int(time.time())
+
+        admins = list(map(lambda entry: entry[0],
+            filter(lambda entry: entry[1] == 'admin',
+                self.config["bridge.permissions"].items()
+            )
+        ))
+        if len(admins) == 0:
+            self.log.debug('No bridge admins to notify about the bridge being blocked')
+            return
+
+        self.log.debug(f'Notifying bridge admins ({",".join(admins)}) about bridge being blocked')
+        for admin_mxid in admins:
+            admin = await User.get_by_mxid(admin_mxid, True) # create if needed
+            if admin.notice_room is None:
+                room_id = await self.az.intent.create_room(
+                    name='Signal Bridge notice room',
+                    is_direct=True,
+                    invitees=[admin_mxid],
+                )
+                admin.notice_room = room_id
+                admin.update()
+
+            await self.az.intent.send_message(admin.notice_room, TextMessageEventContent(
+                # \u26a0 is a warning sign
+                msgtype=MessageType.NOTICE, body=f"\u26a0 {msg}"
+            ))
 
 SignalBridge().run()
