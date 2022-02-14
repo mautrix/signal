@@ -945,6 +945,10 @@ class Portal(DBPortal, BasePortal):
         else:
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
 
+    async def handle_signal_kicked(self, user: u.User, sender: pu.Puppet) -> None:
+        self.log.debug(f"{user.mxid} was kicked by {sender.number} from {self.mxid}")
+        await self.main_intent.kick_user(self.mxid, user.mxid, f"{sender.name} kicked you")
+
     @staticmethod
     async def _make_media_content(
         attachment: Attachment, data: bytes

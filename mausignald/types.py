@@ -163,6 +163,7 @@ class Group(SerializableAttrs):
 class GroupV2ID(SerializableAttrs):
     id: GroupID
     revision: Optional[int] = None
+    removed: Optional[bool] = False
 
 
 class AccessControlMode(SerializableEnum):
