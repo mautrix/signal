@@ -175,6 +175,13 @@ class SignalHandler(SignaldClient):
                 )
                 return
         assert portal
+
+        # Handle the user being removed from the group.
+        if msg.group_v2 and msg.group_v2.removed:
+            if portal.mxid:
+                await portal.handle_signal_kicked(user, sender)
+            return
+
         if not portal.mxid:
             if not msg.is_message and not msg.group_v2:
                 user.log.debug(
