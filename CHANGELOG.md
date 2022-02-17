@@ -1,6 +1,10 @@
-# unreleased
+# v0.2.3 (2022-02-17)
 
-Target signald version: v0.17.0?
+Target signald version: [v0.17.0](https://gitlab.com/signald/signald/-/releases/0.17.0)
+
+**N.B.** This will be the last release to support Python 3.7. Future versions
+will require Python 3.8 or higher. In general, the mautrix bridges will only
+support the lowest Python version in the latest Debian or Ubuntu LTS.
 
 ### Added
 * New v2 link API to provide immediate feedback after the QR code is scanned.
@@ -16,6 +20,7 @@ Target signald version: v0.17.0?
 * Fixed catching errors when connecting to Signal (e.g. if the account was
   deleted from signald's database, but not the bridge's).
 * Fixed handling message deletions from Signal.
+* Fixed race condition in incoming message deduplication.
 
 # v0.2.2 (2022-01-15)
 
