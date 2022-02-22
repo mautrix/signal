@@ -971,6 +971,7 @@ class Portal(DBPortal, BasePortal):
         else:
             msgtype = MessageType.FILE
             info = FileInfo(mimetype=attachment.content_type)
+        info.size = attachment.size or len(data)
         if not attachment.custom_filename:
             ext = mimetypes.guess_extension(info.mimetype) or ""
             attachment.custom_filename = attachment.id + ext
@@ -999,6 +1000,7 @@ class Portal(DBPortal, BasePortal):
             data = await ffmpeg.convert_bytes(
                 data, ".ogg", output_args=("-c:a", "libopus"), input_mime=attachment.content_type
             )
+            info.size = len(data)
 
         return content, data
 
