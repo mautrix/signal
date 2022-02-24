@@ -513,6 +513,9 @@ class Portal(DBPortal, BasePortal):
                     retry_message_event_id = retry_message_event_id or new_event_id
 
                 await asyncio.sleep(sleep_seconds)
+            except Exception as e:
+                await sender.handle_auth_failure(e)
+                raise
 
         if retry_message_event_id is not None:
             await self.main_intent.redact(self.mxid, retry_message_event_id)
@@ -549,6 +552,7 @@ class Portal(DBPortal, BasePortal):
                 EventType.REACTION,
                 error=e,
             )
+            await sender.handle_auth_failure(e)
         else:
             sender.send_remote_checkpoint(
                 MessageSendCheckpointStatus.SUCCESS,
@@ -619,6 +623,7 @@ class Portal(DBPortal, BasePortal):
                     EventType.ROOM_REDACTION,
                     error=e,
                 )
+                await sender.handle_auth_failure(e)
             else:
                 self.log.trace(f"Removed {message} after Matrix redaction")
                 sender.send_remote_checkpoint(
@@ -652,6 +657,7 @@ class Portal(DBPortal, BasePortal):
                     EventType.ROOM_REDACTION,
                     error=e,
                 )
+                await sender.handle_auth_failure(e)
             else:
                 self.log.trace(f"Removed {reaction} after Matrix redaction")
                 sender.send_remote_checkpoint(
@@ -694,6 +700,7 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.send_notice(
                     self.mxid, f"\u26a0 Failed to accept invite on Signal: {e}"
                 )
+                await user.handle_auth_failure(e)
             else:
                 await self.update_info(user, resp)
 
@@ -723,8 +730,9 @@ class Portal(DBPortal, BasePortal):
         )
         try:
             await self.signal.update_group(sender.username, self.chat_id, title=name)
-        except Exception:
+        except Exception as e:
             self.log.exception("Failed to update Signal group name")
+            await user.handle_auth_failure(e)
             self.name = None
 
     async def handle_matrix_avatar(self, user: u.User, url: ContentURI) -> None:
@@ -748,8 +756,9 @@ class Portal(DBPortal, BasePortal):
         try:
             await self.signal.update_group(sender.username, self.chat_id, avatar_path=path)
             self.avatar_set = True
-        except Exception:
+        except Exception as e:
             self.log.exception("Failed to update Signal group avatar")
+            await user.handle_auth_failure(e)
             self.avatar_set = False
         if self.config["signal.remove_file_after_handling"]:
             try:
@@ -1214,7 +1223,11 @@ class Portal(DBPortal, BasePortal):
             return
 
         if isinstance(info, GroupV2ID):
-            info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            try:
+                info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            except Exception as e:
+                await source.handle_auth_failure(e)
+                raise
             if not info:
                 self.log.debug(
                     f"Failed to get full group v2 info through {source.username}, "
@@ -1433,7 +1446,11 @@ class Portal(DBPortal, BasePortal):
         elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
             raise ValueError(f"Unexpected type for creating direct chat portal: {type(info)}")
         if isinstance(info, Group) and not info.members:
-            groups = await self.signal.list_groups(source.username)
+            try:
+                groups = await self.signal.list_groups(source.username)
+            except Exception as e:
+                await source.handle_auth_failure(e)
+                raise
             info = next(
                 (g for g in groups if isinstance(g, Group) and g.group_id == info.group_id), info
             )
@@ -1441,7 +1458,11 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(
                 f"create_matrix_room() called with {info}, fetching full info from signald"
             )
-            info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            try:
+                info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            except Exception as e:
+                await source.handle_auth_failure(e)
+                raise
             if not info:
                 self.log.warning(f"Full info not found, canceling room creation")
                 return None
