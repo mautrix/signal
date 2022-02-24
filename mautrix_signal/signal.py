@@ -157,6 +157,19 @@ class SignalHandler(SignaldClient):
         msg: MessageData,
         addr_override: Address | None = None,
     ) -> None:
+        try:
+            await self._handle_message(user, sender, msg, addr_override)
+        except Exception as e:
+            await user.handle_auth_failure(e)
+            raise
+
+    async def _handle_message(
+        self,
+        user: u.User,
+        sender: pu.Puppet,
+        msg: MessageData,
+        addr_override: Address | None = None,
+    ) -> None:
         if msg.profile_key_update:
             self.log.debug("Ignoring profile key update")
             return
