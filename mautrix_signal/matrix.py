@@ -173,7 +173,7 @@ class MatrixHandler(BaseMatrixHandler):
             await super().handle_ephemeral_event(evt)
 
     async def handle_state_event(self, evt: StateEvent) -> None:
-        if evt.type not in (EventType.ROOM_NAME, EventType.ROOM_AVATAR):
+        if evt.type not in (EventType.ROOM_NAME, EventType.ROOM_TOPIC, EventType.ROOM_AVATAR):
             return
 
         user = await u.User.get_by_mxid(evt.sender)
@@ -187,6 +187,8 @@ class MatrixHandler(BaseMatrixHandler):
             await portal.handle_matrix_name(user, evt.content.name)
         elif evt.type == EventType.ROOM_AVATAR:
             await portal.handle_matrix_avatar(user, evt.content.url)
+        elif evt.type == EventType.ROOM_TOPIC:
+            await portal.handle_matrix_topic(user, evt.content.topic)
 
     async def allow_message(self, user: u.User) -> bool:
         return user.relay_whitelisted

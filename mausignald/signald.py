@@ -325,6 +325,7 @@ class SignaldClient(SignaldRPCClient):
         username: str,
         group_id: GroupID,
         title: str | None = None,
+        description: str | None = None,
         avatar_path: str | None = None,
         add_members: list[Address] | None = None,
         remove_members: list[Address] | None = None,
@@ -335,6 +336,7 @@ class SignaldClient(SignaldRPCClient):
                 "groupID": group_id,
                 "avatar": avatar_path,
                 "title": title,
+                "description": description,
                 "addMembers": [addr.serialize() for addr in add_members] if add_members else None,
                 "removeMembers": (
                     [addr.serialize() for addr in remove_members] if remove_members else None

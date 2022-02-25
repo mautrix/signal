@@ -738,6 +738,22 @@ class Portal(DBPortal, BasePortal):
             await user.handle_auth_failure(e)
             self.name = None
 
+    async def handle_matrix_topic(self, user: u.User, topic: str) -> None:
+        if self.topic == topic or self.is_direct or not topic:
+            return
+        sender, is_relay = await self.get_relay_sender(user, "topic change")
+        if not sender:
+            return
+        self.topic = topic
+        self.log.debug(
+            f"{user.mxid} changed the group topic, sending to Signal through {sender.username}"
+        )
+        try:
+            await self.signal.update_group(sender.username, self.chat_id, description=topic)
+        except Exception:
+            self.log.exception("Failed to update Signal group description")
+            self.name = None
+
     async def handle_matrix_avatar(self, user: u.User, url: ContentURI) -> None:
         if self.is_direct or not url:
             return
