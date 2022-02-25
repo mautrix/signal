@@ -11,7 +11,7 @@ import asyncio
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import AuthorizationFailedError, InternalError, RPCError, UnexpectedResponse
+from .errors import AuthorizationFailedError, RPCError, UnexpectedResponse
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .types import (
     Account,
@@ -24,6 +24,7 @@ from .types import (
     GroupID,
     GroupV2,
     IncomingMessage,
+    JoinGroupResponse,
     LinkPreview,
     LinkSession,
     Mention,
@@ -319,6 +320,10 @@ class SignaldClient(SignaldRPCClient):
         legacy = [Group.deserialize(group) for group in resp.get("legacyGroups", [])]
         v2 = [GroupV2.deserialize(group) for group in resp.get("groups", [])]
         return legacy + v2
+
+    async def join_group(self, username: str, uri: str) -> JoinGroupResponse:
+        resp = await self.request_v1("join_group", account=username, uri=uri)
+        return JoinGroupResponse.deserialize(resp)
 
     async def update_group(
         self,

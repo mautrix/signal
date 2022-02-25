@@ -105,6 +105,29 @@ async def pm(evt: CommandEvent) -> None:
     needs_auth=True,
     management_only=False,
     help_section=SECTION_SIGNAL,
+    help_text="Join a Signal group with an invite link",
+    help_args="<_link_>",
+)
+async def join(evt: CommandEvent) -> EventID:
+    if len(evt.args) == 0:
+        return await evt.reply("**Usage:** `$cmdprefix+sp join <invite link>`")
+    try:
+        resp = await evt.bridge.signal.join_group(evt.sender.username, evt.args[0])
+        if resp.pending_admin_approval:
+            return await evt.reply(
+                f"Successfully requested to join {resp.title}, waiting for admin approval."
+            )
+        else:
+            return await evt.reply(f"Successfully joined {resp.title}")
+    except Exception:
+        evt.log.exception("Error trying to join group")
+        await evt.reply("Failed to join group (see logs for more details)")
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
     help_text="Get the invite link to the current group",
 )
 async def invite_link(evt: CommandEvent) -> EventID:

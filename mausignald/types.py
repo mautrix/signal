@@ -591,3 +591,13 @@ class WebsocketConnectionStateChangeEvent(SerializableAttrs):
     account: str
     socket: Optional[WebsocketType] = None
     exception: Optional[str] = None
+
+
+@dataclass
+class JoinGroupResponse(SerializableAttrs):
+    group_id: str = field(json="groupID")
+    pending_admin_approval: bool = field(json="pendingAdminApproval")
+    member_count: Optional[int] = field(json="memberCount", default=None)
+    revision: Optional[int] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
