@@ -175,6 +175,12 @@ class AccessControlMode(SerializableEnum):
     UNRECOGNIZED = "UNRECOGNIZED"
 
 
+class AnnouncementsMode(SerializableEnum):
+    UNKNOWN = "UNKNOWN"
+    ENABLED = "ENABLED"
+    DISABLED = "DISABLED"
+
+
 @dataclass
 class GroupAccessControl(SerializableAttrs):
     attributes: AccessControlMode = AccessControlMode.UNKNOWN
@@ -213,6 +219,7 @@ class GroupV2(GroupV2ID, SerializableAttrs):
         factory=lambda: [], json="pendingMemberDetail"
     )
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
+    announcements: AnnouncementsMode = field(default=AnnouncementsMode.UNKNOWN)
 
 
 @dataclass

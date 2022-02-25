@@ -30,6 +30,7 @@ from mausignald.errors import AttachmentTooLargeError, NotConnected, RPCError
 from mausignald.types import (
     AccessControlMode,
     Address,
+    AnnouncementsMode,
     Attachment,
     Contact,
     Group,
@@ -1504,6 +1505,7 @@ class Portal(DBPortal, BasePortal):
         is_initial: bool = False,
     ) -> PowerLevelStateEventContent:
         levels = levels or PowerLevelStateEventContent()
+        levels.events_default = 0
         if self.is_direct:
             levels.ban = 99
             levels.kick = 99
@@ -1517,20 +1519,24 @@ class Portal(DBPortal, BasePortal):
                     puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
                     level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
                     levels.users[puppet.intent_for(self).mxid] = level
+                announcements = info.announcements
             else:
                 ac = GroupAccessControl()
+                announcements = AnnouncementsMode.UNKNOWN
             levels.ban = 50
             levels.kick = 50
             levels.invite = 50 if ac.members == AccessControlMode.ADMINISTRATOR else 0
             levels.state_default = 50
             meta_edit_level = 50 if ac.attributes == AccessControlMode.ADMINISTRATOR else 0
+            if announcements == AnnouncementsMode.ENABLED:
+                levels.events_default = 50
+        levels.events[EventType.REACTION] = 0
         levels.events[EventType.ROOM_NAME] = meta_edit_level
         levels.events[EventType.ROOM_AVATAR] = meta_edit_level
         levels.events[EventType.ROOM_TOPIC] = meta_edit_level
         levels.events[EventType.ROOM_ENCRYPTION] = 50 if self.matrix.e2ee else 99
         levels.events[EventType.ROOM_TOMBSTONE] = 99
         levels.users_default = 0
-        levels.events_default = 0
         # Remote delete is only for your own messages
         levels.redact = 99
         if self.main_intent.mxid not in levels.users:
