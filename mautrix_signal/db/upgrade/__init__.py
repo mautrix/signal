@@ -11,4 +11,5 @@ from . import (
     v06_portal_revision,
     v07_portal_relay_user,
     v08_disappearing_messages,
+    v09_group_topic,
 )

@@ -143,6 +143,7 @@ class Portal(DBPortal, BasePortal):
         receiver: str,
         mxid: RoomID | None = None,
         name: str | None = None,
+        topic: str | None = None,
         avatar_hash: str | None = None,
         avatar_url: ContentURI | None = None,
         name_set: bool = False,
@@ -157,6 +158,7 @@ class Portal(DBPortal, BasePortal):
             receiver=receiver,
             mxid=mxid,
             name=name,
+            topic=topic,
             avatar_hash=avatar_hash,
             avatar_url=avatar_url,
             name_set=name_set,
@@ -955,7 +957,7 @@ class Portal(DBPortal, BasePortal):
         else:
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
 
-    async def handle_signal_kicked(self, user: u.User, sender: pu.Puppet) -> None:
+    async def handle_signal_kicked(self, user: u.User, sender: p.Puppet) -> None:
         self.log.debug(f"{user.mxid} was kicked by {sender.number} from {self.mxid}")
         await self.main_intent.kick_user(self.mxid, user.mxid, f"{sender.name} kicked you")
 
@@ -1250,6 +1252,7 @@ class Portal(DBPortal, BasePortal):
                 )
                 return
             changed = await self._update_name(info.title, sender) or changed
+            changed = await self._update_topic(info.description, sender) or changed
         elif isinstance(info, GroupV2ID):
             return
         else:
@@ -1318,6 +1321,20 @@ class Portal(DBPortal, BasePortal):
                 except Exception:
                     self.log.exception("Error setting name")
                     self.name_set = False
+            return True
+        return False
+
+    async def _update_topic(self, topic: str, sender: p.Puppet | None = None) -> bool:
+        if self.topic != topic:
+            self.topic = topic
+            if self.mxid:
+                try:
+                    await self._try_with_puppet(
+                        lambda i: i.set_room_topic(self.mxid, self.topic), puppet=sender
+                    )
+                except Exception:
+                    self.log.exception("Error setting topic")
+                    self.topic = None
             return True
         return False
 
@@ -1596,6 +1613,7 @@ class Portal(DBPortal, BasePortal):
             creation_content["m.federate"] = False
         self.mxid = await self.main_intent.create_room(
             name=name,
+            topic=self.topic,
             is_direct=self.is_direct,
             initial_state=initial_state,
             invitees=invites,

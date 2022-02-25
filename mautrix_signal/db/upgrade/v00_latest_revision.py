@@ -18,7 +18,7 @@ from mautrix.util.async_db import Connection
 from . import upgrade_table
 
 
-@upgrade_table.register(description="Initial revision", upgrades_to=8)
+@upgrade_table.register(description="Initial revision", upgrades_to=9)
 async def upgrade_latest(conn: Connection) -> None:
     await conn.execute(
         """CREATE TABLE portal (
@@ -26,6 +26,7 @@ async def upgrade_latest(conn: Connection) -> None:
             receiver    TEXT,
             mxid        TEXT,
             name        TEXT,
+            topic       TEXT,
             encrypted   BOOLEAN NOT NULL DEFAULT false,
             avatar_hash TEXT,
             avatar_url  TEXT,

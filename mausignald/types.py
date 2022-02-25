@@ -205,6 +205,7 @@ class GroupMember(SerializableAttrs):
 @dataclass(kw_only=True)
 class GroupV2(GroupV2ID, SerializableAttrs):
     title: str
+    description: Optional[str] = None
     avatar: Optional[str] = None
     timer: Optional[int] = None
     master_key: Optional[str] = field(default=None, json="masterKey")
