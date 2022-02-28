@@ -904,6 +904,7 @@ class Portal(DBPortal, BasePortal):
                 if reply_to and not message.body:
                     content.set_reply(reply_to)
                     reply_to = None
+                content.msgtype = None
                 event_id = await self._send_message(
                     intent, content, timestamp=message.timestamp, event_type=EventType.STICKER
                 )
