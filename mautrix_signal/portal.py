@@ -1427,7 +1427,7 @@ class Portal(DBPortal, BasePortal):
 
     @property
     def bridge_info_state_key(self) -> str:
-        return f"net.maunium.signal://signal/{self.chat_id}"
+        return f"net.maunium.signal://signal/{self.chat_id_str}"
 
     @property
     def bridge_info(self) -> dict[str, Any]:
@@ -1440,7 +1440,7 @@ class Portal(DBPortal, BasePortal):
                 "avatar_url": self.config["appservice.bot_avatar"],
             },
             "channel": {
-                "id": str(self.chat_id),
+                "id": self.chat_id_str,
                 "displayname": self.name,
                 "avatar_url": self.avatar_url,
             },
