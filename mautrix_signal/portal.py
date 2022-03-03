@@ -1236,7 +1236,7 @@ class Portal(DBPortal, BasePortal):
             if not isinstance(info, (Contact, Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
             if not self.name:
-                puppet = await p.Puppet.get_by_address(self.chat_id)
+                puppet = await self.get_dm_puppet()
                 if not puppet.name:
                     await puppet.update_info(info)
                 self.name = puppet.name
@@ -1299,7 +1299,22 @@ class Portal(DBPortal, BasePortal):
         content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=body)
         await self._send_message(sender.intent_for(self), content)
 
-    async def update_puppet_avatar(self, new_hash: str, avatar_url: ContentURI) -> None:
+    async def get_dm_puppet(self) -> p.Puppet | None:
+        if not self.is_direct:
+            return None
+        return await p.Puppet.get_by_address(self.chat_id)
+
+    async def update_info_from_puppet(self, puppet: p.Puppet | None = None) -> None:
+        if not self.is_direct:
+            return
+        if not puppet:
+            puppet = await self.get_dm_puppet()
+        await self.update_puppet_name(puppet.name, save=False)
+        await self.update_puppet_avatar(puppet.avatar_hash, puppet.avatar_url, save=False)
+
+    async def update_puppet_avatar(
+        self, new_hash: str, avatar_url: ContentURI, save: bool = True
+    ) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:
             return
 
@@ -1313,16 +1328,17 @@ class Portal(DBPortal, BasePortal):
                 except Exception:
                     self.log.exception("Error setting avatar")
                     self.avatar_set = False
-                await self.update_bridge_info()
-                await self.update()
+                if save:
+                    await self.update_bridge_info()
+                    await self.update()
 
-    async def update_puppet_name(self, name: str) -> None:
+    async def update_puppet_name(self, name: str, save: bool = True) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:
             return
 
         changed = await self._update_name(name)
 
-        if changed:
+        if changed and save:
             await self.update_bridge_info()
             await self.update()
 
@@ -1681,7 +1697,7 @@ class Portal(DBPortal, BasePortal):
         if self.mxid:
             self.by_mxid[self.mxid] = self
         if self.is_direct:
-            puppet = await p.Puppet.get_by_address(self.chat_id)
+            puppet = await self.get_dm_puppet()
             self._main_intent = puppet.default_mxid_intent
         elif not self.is_direct:
             self._main_intent = self.az.intent
@@ -1690,6 +1706,10 @@ class Portal(DBPortal, BasePortal):
         await DBMessage.delete_all(self.mxid)
         self.by_mxid.pop(self.mxid, None)
         self.mxid = None
+        self.name_set = False
+        self.avatar_set = False
+        self.relay_user_id = None
+        self.topic = None
         self.encrypted = False
         await self.update()
 

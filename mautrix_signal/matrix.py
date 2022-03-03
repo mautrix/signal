@@ -35,7 +35,7 @@ from mautrix.types import (
     UserID,
 )
 
-from . import portal as po, signal as s, user as u
+from . import portal as po, puppet as pu, signal as s, user as u
 from .db import Message as DBMessage
 
 if TYPE_CHECKING:

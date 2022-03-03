@@ -156,6 +156,13 @@ class User(DBUser, BaseUser):
             return None
         return await pu.Puppet.get_by_address(self.address)
 
+    async def get_portal_with(self, puppet: pu.Puppet, create: bool = True) -> po.Portal | None:
+        if not self.username:
+            return None
+        return await po.Portal.get_by_chat_id(
+            puppet.address, receiver=self.username, create=create
+        )
+
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
         self.uuid = account.address.uuid
