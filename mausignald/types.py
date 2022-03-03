@@ -27,6 +27,10 @@ class Address(SerializableAttrs):
     def best_identifier(self) -> str:
         return str(self.uuid) if self.uuid else self.number
 
+    @property
+    def number_or_uuid(self) -> str:
+        return self.number or str(self.uuid)
+
     def __eq__(self, other: "Address") -> bool:
         if not isinstance(other, Address):
             return False
@@ -601,3 +605,40 @@ class JoinGroupResponse(SerializableAttrs):
     revision: Optional[int] = None
     title: Optional[str] = None
     description: Optional[str] = None
+
+
+class ProofRequiredType(SerializableEnum):
+    RECAPTCHA = "RECAPTCHA"
+    PUSH_CHALLENGE = "PUSH_CHALLENGE"
+
+
+@dataclass
+class ProofRequiredError(SerializableAttrs):
+    options: List[ProofRequiredType] = field(factory=lambda: [])
+    message: Optional[str] = None
+    retry_after: Optional[int] = None
+    token: Optional[str] = None
+
+
+@dataclass
+class SendSuccessData(SerializableAttrs):
+    devices: List[int] = field(factory=lambda: [])
+    duration: Optional[int] = None
+    needs_sync: bool = field(json="needsSync", default=False)
+    unidentified: bool = field(json="unidentified", default=False)
+
+
+@dataclass
+class SendMessageResult(SerializableAttrs):
+    address: Address
+    success: Optional[SendSuccessData] = None
+    proof_required_failure: Optional[ProofRequiredError] = None
+    identity_failure: Optional[str] = field(json="identityFailure", default=None)
+    network_failure: bool = field(json="networkFailure", default=False)
+    unregistered_failure: bool = field(json="unregisteredFailure", default=False)
+
+
+@dataclass
+class SendMessageResponse(SerializableAttrs):
+    results: List[SendMessageResult]
+    timestamp: int

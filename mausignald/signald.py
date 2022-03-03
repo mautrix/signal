@@ -29,8 +29,10 @@ from .types import (
     LinkSession,
     Mention,
     Profile,
+    ProofRequiredType,
     Quote,
     Reaction,
+    SendMessageResponse,
     WebsocketConnectionState,
     WebsocketConnectionStateChangeEvent,
 )
@@ -203,7 +205,7 @@ class SignaldClient(SignaldRPCClient):
             **self._recipient_to_args(recipient, simple_name=True),
         )
 
-    async def send(
+    async def send_raw(
         self,
         username: str,
         recipient: Address | GroupID,
@@ -214,7 +216,7 @@ class SignaldClient(SignaldRPCClient):
         previews: list[LinkPreview] | None = None,
         timestamp: int | None = None,
         req_id: UUID | None = None,
-    ) -> None:
+    ) -> SendMessageResponse:
         serialized_quote = quote.serialize() if quote else None
         serialized_attachments = [attachment.serialize() for attachment in (attachments or [])]
         serialized_mentions = [mention.serialize() for mention in (mentions or [])]
@@ -231,6 +233,23 @@ class SignaldClient(SignaldRPCClient):
             req_id=req_id,
             **self._recipient_to_args(recipient),
         )
+        return SendMessageResponse.deserialize(resp)
+
+    async def send(
+        self,
+        username: str,
+        recipient: Address | GroupID,
+        body: str,
+        quote: Quote | None = None,
+        attachments: list[Attachment] | None = None,
+        mentions: list[Mention] | None = None,
+        previews: list[LinkPreview] | None = None,
+        timestamp: int | None = None,
+        req_id: UUID | None = None,
+    ) -> None:
+        resp = await self.send_raw(
+            username, recipient, body, quote, attachments, mentions, previews, timestamp, req_id
+        )
 
         # We handle unregisteredFailure a little differently than other errors. If there are no
         # successful sends, then we show an error with the unregisteredFailure details, otherwise
@@ -238,46 +257,41 @@ class SignaldClient(SignaldRPCClient):
         errors = []
         unregistered_failures = []
         successful_send_count = 0
-        results = resp.get("results", [])
-        for result in results:
-            address = result.get("address", {})
-            number = address.get("number") or address.get("uuid")
-            proof_required_failure = result.get("proof_required_failure")
-            if result.get("networkFailure", False):
+        for result in resp.results:
+            number = result.address.number_or_uuid
+            if result.network_failure:
                 errors.append(f"Network failure occurred while sending message to {number}.")
-            elif result.get("unregisteredFailure", False):
+            elif result.unregistered_failure:
                 unregistered_failures.append(
                     f"Unregistered failure occurred while sending message to {number}."
                 )
-            elif result.get("identityFailure", ""):
+            elif result.identity_failure:
                 errors.append(
                     f"Identity failure occurred while sending message to {number}. New identity: "
-                    f"{result['identityFailure']}"
+                    f"{result.identity_failure}"
                 )
-            elif proof_required_failure:
-                options = proof_required_failure.get("options")
+            elif result.proof_required_failure:
+                prf = result.proof_required_failure
                 self.log.warning(
-                    f"Proof Required Failure {options}. "
-                    f"Retry after: {proof_required_failure.get('retry_after')}. "
-                    f"Token: {proof_required_failure.get('token')}. "
-                    f"Message: {proof_required_failure.get('message')}. "
+                    f"Proof Required Failure {prf.options}. Retry after: {prf.retry_after}. "
+                    f"Token: {prf.token}. Message: {prf.message}."
                 )
                 errors.append(
                     f"Proof required failure occurred while sending message to {number}. Message: "
-                    f"{proof_required_failure.get('message')}"
+                    f"{prf.message}"
                 )
-                if "RECAPTCHA" in options:
+                if ProofRequiredType.RECAPTCHA in prf.options:
                     errors.append("RECAPTCHA required.")
-                elif "PUSH_CHALLENGE" in options:
+                elif ProofRequiredType.PUSH_CHALLENGE in prf.options:
                     # Just submit the challenge automatically.
                     await self.request_v1("submit_challenge")
             else:
                 successful_send_count += 1
         self.log.info(
-            f"Successfully sent message to {successful_send_count}/{len(results)} users in "
+            f"Successfully sent message to {successful_send_count}/{len(resp.results)} users in "
             f"{recipient} with {len(unregistered_failures)} unregistered failures"
         )
-        if len(unregistered_failures) == len(results):
+        if len(unregistered_failures) == len(resp.results):
             errors.extend(unregistered_failures)
         if errors:
             raise Exception("\n".join(errors))
