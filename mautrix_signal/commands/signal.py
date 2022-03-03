@@ -19,7 +19,7 @@ import base64
 import json
 
 from mausignald.errors import UnknownIdentityKey
-from mausignald.types import Address
+from mausignald.types import Address, TrustLevel
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import EventID
 
@@ -199,20 +199,28 @@ async def set_profile_name(evt: CommandEvent) -> None:
     await evt.reply("Successfully updated profile name")
 
 
+_trust_levels = [x.value for x in TrustLevel]
+
+
 @command_handler(
     needs_auth=True,
     management_only=False,
     help_section=SECTION_SIGNAL,
     help_text="Mark another user's safety number as trusted",
-    help_args="<_recipient phone_> <_safety number_>",
+    help_args="<_recipient phone_> [_level_] <_safety number_>",
 )
 async def mark_trusted(evt: CommandEvent) -> EventID:
     if len(evt.args) < 2:
         return await evt.reply(
-            "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> <safety number>`"
+            "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> [level] <safety number>`"
         )
     number = evt.args[0].translate(remove_extra_chars)
-    safety_num = "".join(evt.args[1:]).replace("\n", "")
+    remaining_args = evt.args[1:]
+    trust_level = TrustLevel.TRUSTED_VERIFIED
+    if len(evt.args) > 2 and evt.args[1].upper() in _trust_levels:
+        trust_level = TrustLevel(evt.args[1])
+        remaining_args = evt.args[2:]
+    safety_num = "".join(remaining_args).replace("\n", "")
     if len(safety_num) != 60 or not safety_num.isdecimal():
         return await evt.reply("That doesn't look like a valid safety number")
     try:
@@ -220,11 +228,11 @@ async def mark_trusted(evt: CommandEvent) -> EventID:
             evt.sender.username,
             Address(number=number),
             safety_number=safety_num,
-            trust_level="TRUSTED_VERIFIED",
+            trust_level=trust_level,
         )
     except UnknownIdentityKey as e:
-        return await evt.reply(f"Failed to mark {number} as trusted: {e}")
-    return await evt.reply(f"Successfully marked {number} as trusted")
+        return await evt.reply(f"Failed to mark {number} as {trust_level.human_str}: {e}")
+    return await evt.reply(f"Successfully marked {number} as {trust_level.human_str}")
 
 
 @command_handler(

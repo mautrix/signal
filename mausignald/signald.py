@@ -33,6 +33,7 @@ from .types import (
     Quote,
     Reaction,
     SendMessageResponse,
+    TrustLevel,
     WebsocketConnectionState,
     WebsocketConnectionStateChangeEvent,
 )
@@ -420,7 +421,7 @@ class SignaldClient(SignaldRPCClient):
         self,
         username: str,
         recipient: Address,
-        trust_level: str,
+        trust_level: TrustLevel | str,
         safety_number: str | None = None,
         qr_code_data: str | None = None,
     ) -> None:
@@ -437,7 +438,7 @@ class SignaldClient(SignaldRPCClient):
             "trust",
             account=username,
             **args,
-            trust_level=trust_level,
+            trust_level=trust_level.value if isinstance(trust_level, TrustLevel) else trust_level,
             address=recipient.serialize(),
         )
 

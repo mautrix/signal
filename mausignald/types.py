@@ -100,11 +100,20 @@ class LinkSession(SerializableAttrs):
     session_id: str
 
 
-@dataclass
 class TrustLevel(SerializableEnum):
     TRUSTED_UNVERIFIED = "TRUSTED_UNVERIFIED"
     TRUSTED_VERIFIED = "TRUSTED_VERIFIED"
     UNTRUSTED = "UNTRUSTED"
+
+    @property
+    def human_str(self) -> str:
+        if self == TrustLevel.TRUSTED_VERIFIED:
+            return "trusted"
+        elif self == TrustLevel.TRUSTED_UNVERIFIED:
+            return "trusted (unverified)"
+        elif self == TrustLevel.UNTRUSTED:
+            return "untrusted"
+        return "unknown"
 
 
 @dataclass
