@@ -240,7 +240,7 @@ class SignaldClient(SignaldRPCClient):
         successful_send_count = 0
         results = resp.get("results", [])
         for result in results:
-            address = result.get("addres", {})
+            address = result.get("address", {})
             number = address.get("number") or address.get("uuid")
             proof_required_failure = result.get("proof_required_failure")
             if result.get("networkFailure", False):
