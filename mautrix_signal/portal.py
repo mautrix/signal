@@ -1619,6 +1619,8 @@ class Portal(DBPortal, BasePortal):
             },
         ]
         invites = []
+        if self.is_direct:
+            invites.append(self.az.bot_mxid)
         if self.config["bridge.encryption.default"] and self.matrix.e2ee:
             self.encrypted = True
             initial_state.append(
@@ -1627,8 +1629,6 @@ class Portal(DBPortal, BasePortal):
                     "content": {"algorithm": "m.megolm.v1.aes-sha2"},
                 }
             )
-            if self.is_direct:
-                invites.append(self.az.bot_mxid)
         if self.is_direct and source.address == self.chat_id:
             name = self.name = "Signal Note to Self"
         elif self.encrypted or self.private_chat_portal_meta or not self.is_direct:
