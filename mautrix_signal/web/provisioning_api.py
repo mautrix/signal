@@ -28,6 +28,7 @@ from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
 
 from .. import user as u
+from .segment_analytics import init as init_segment, track
 
 if TYPE_CHECKING:
     from ..__main__ import SignalBridge
@@ -38,10 +39,15 @@ class ProvisioningAPI:
     app: web.Application
     bridge: "SignalBridge"
 
-    def __init__(self, bridge: "SignalBridge", shared_secret: str) -> None:
+    def __init__(
+        self, bridge: "SignalBridge", shared_secret: str, segment_key: str | None
+    ) -> None:
         self.bridge = bridge
         self.app = web.Application()
         self.shared_secret = shared_secret
+
+        if segment_key:
+            init_segment(segment_key)
 
         # Whoami
         self.app.router.add_get("/v1/api/whoami", self.status)
@@ -258,9 +264,17 @@ class ProvisioningAPI:
         """
         user, _ = await self._get_request_data(request)
         self.log.debug(f"Getting session ID and link URI for {user.mxid}")
-        sess = await self.bridge.signal.start_link()
-        self.log.debug(f"Returning session ID and link URI for {user.mxid} / {sess.session_id}")
-        return web.json_response(sess.serialize(), headers=self._acao_headers)
+        try:
+            sess = await self.bridge.signal.start_link()
+            track(user, "$link_new_success")
+            self.log.debug(
+                f"Returning session ID and link URI for {user.mxid} / {sess.session_id}"
+            )
+            return web.json_response(sess.serialize(), headers=self._acao_headers)
+        except Exception as e:
+            error = {"error": f"Getting a new link failed: {e}"}
+            track(user, "$link_new_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
 
     async def link_wait_for_scan(self, request: web.Request) -> web.Response:
         """
@@ -270,7 +284,7 @@ class ProvisioningAPI:
 
         * session_id: a session ID that you got from a call to /link/v2/new.
         """
-        _, request_data = await self._get_request_data(request)
+        user, request_data = await self._get_request_data(request)
         try:
             session_id = request_data["session_id"]
         except KeyError:
@@ -279,10 +293,12 @@ class ProvisioningAPI:
 
         try:
             await self.bridge.signal.wait_for_scan(session_id)
+            track(user, "$qrcode_scanned")
         except Exception as e:
-            error_text = f"Failed waiting for scan. Error: {e}"
-            self.log.exception(error_text)
-            raise web.HTTPBadRequest(text=error_text, headers=self._headers)
+            error = {"error": f"Failed waiting for scan. Error: {e}"}
+            self.log.exception(error["error"])
+            track(user, "$qrcode_scan_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
         else:
             return web.json_response({}, headers=self._acao_headers)
 
@@ -302,10 +318,19 @@ class ProvisioningAPI:
             session_id = request_data["session_id"]
             device_name = request_data.get("device_name", "Mautrix-Signal bridge")
         except KeyError:
-            error_text = '{"error": "session_id not provided"}'
-            raise web.HTTPBadRequest(text=error_text, headers=self._headers)
+            error = {"error": "session_id not provided"}
+            track(user, "$wait_for_account_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
 
-        return await self._try_shielded_link(user, session_id, device_name)
+        try:
+            resp = await self._try_shielded_link(user, session_id, device_name)
+            track(user, "$wait_for_account_success")
+            return resp
+        except Exception as e:
+            error = {"error": f"Failed waiting for account. Error: {e}"}
+            self.log.exception(error["error"])
+            track(user, "$wait_for_account_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
 
     async def logout(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)

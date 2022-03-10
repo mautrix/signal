@@ -202,6 +202,11 @@ bridge:
         # The shared secret to authorize users of the API.
         # Set to "generate" to generate and save a new token.
         shared_secret: generate
+        # Segment API key to enable analytics tracking for web server
+        # endpoints. Set to null to disable.
+        # Currently the only events are login start, QR code scan, and login
+        # success/failure.
+        segment_key: null
 
     # The prefix for commands. Only required in non-management rooms.
     command_prefix: "!signal"
