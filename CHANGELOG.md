@@ -1,3 +1,26 @@
+# v0.2.4 (unreleased)
+
+### Added
+* Support for creating DM portals by inviting user (i.e. just making a DM the
+  normal Matrix way).
+* Signal group descriptions are now bridged into Matrix room topics.
+* Signal announcement group status is now bridged into power levels on Matrix
+  (the group will be read-only for everyone except admins).
+* Added optional parameter to `mark-trusted` command to set trust level
+  (instead of always using `TRUSTED_VERIFIED`).
+
+### Improved
+* Dropped Python 3.7 support.
+* Files bridged to Matrix now include the `size` field in the file `info`.
+* Removed redundant `msgtype` field in sticker events sent to Matrix.
+
+### Fixed
+* Logging into the bridge with double puppeting no longer removes your Signal
+  user's Matrix ghost from DM portals with other bridge users.
+* Fixed identity failure error message always saying "while sending message to
+  None" instead of specifying the problematic phone number.
+* Fixed `channel` -> `id` field in `m.bridge` events.
+
 # v0.2.3 (2022-02-17)
 
 Target signald version: [v0.17.0](https://gitlab.com/signald/signald/-/releases/0.17.0)
