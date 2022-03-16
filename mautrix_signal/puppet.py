@@ -344,8 +344,15 @@ class Puppet(DBPuppet, BasePuppet):
                 self.log.exception(f"Error updating portal meta for {portal.receiver}")
 
     async def default_puppet_should_leave_room(self, room_id: RoomID) -> bool:
-        portal = await p.Portal.get_by_mxid(room_id)
-        return portal and portal.chat_id != self.uuid
+        portal: p.Portal = await p.Portal.get_by_mxid(room_id)
+        if not portal or not portal.is_direct:
+            return True
+        elif portal.chat_id.uuid and self.uuid:
+            return portal.chat_id.uuid != self.uuid
+        elif portal.chat_id.number and self.number:
+            return portal.chat_id.number != self.number
+        else:
+            return True
 
     # region Database getters
 
