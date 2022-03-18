@@ -66,6 +66,16 @@ class UserAlreadyExistsError(ResponseError):
         super().__init__(data, message_override="You're already logged in")
 
 
+class OwnProfileKeyDoesNotExistError(ResponseError):
+    def __init__(self, data: dict[str, Any]) -> None:
+        super().__init__(
+            data,
+            message_override=(
+                "Cannot find own profile key. Please make sure you have a Signal profile name set."
+            ),
+        )
+
+
 class RequestValidationFailure(ResponseError):
     def __init__(self, data: dict[str, Any]) -> None:
         results = data["validationResults"]
@@ -103,7 +113,8 @@ response_error_types = {
     "AttachmentTooLargeError": AttachmentTooLargeError,
     "AuthorizationFailedError": AuthorizationFailedError,
     "ScanTimeoutError": ScanTimeoutError,
-    # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
+    "OwnProfileKeyDoesNotExistError": OwnProfileKeyDoesNotExistError,
+    # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/clientprotocol/v1/exceptions
 }
 
 
