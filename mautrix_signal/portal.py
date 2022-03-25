@@ -839,7 +839,10 @@ class Portal(DBPortal, BasePortal):
                 upload_mime_type = "application/octet-stream"
 
             upload_uri = await intent.upload_media(
-                data, mime_type=upload_mime_type, filename=link_preview.attachment.id
+                data,
+                mime_type=upload_mime_type,
+                filename=link_preview.attachment.id,
+                async_upload=self.config["homeserver.async_media"],
             )
             if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview:
                 beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY].url = upload_uri
@@ -1163,7 +1166,12 @@ class Portal(DBPortal, BasePortal):
             data, content.file = encrypt_attachment(data)
             upload_mime_type = "application/octet-stream"
 
-        content.url = await intent.upload_media(data, mime_type=upload_mime_type, filename=id)
+        content.url = await intent.upload_media(
+            data,
+            mime_type=upload_mime_type,
+            filename=id,
+            async_upload=self.config["homeserver.async_media"],
+        )
         if content.file:
             content.file.url = content.url
             content.url = None
