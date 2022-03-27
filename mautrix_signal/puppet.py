@@ -316,7 +316,7 @@ class Puppet(DBPuppet, BasePuppet):
         new_hash = hashlib.sha256(data).hexdigest()
         if self.avatar_set and new_hash == self.avatar_hash:
             return False
-        mxc = await intent.upload_media(data)
+        mxc = await intent.upload_media(data, async_upload=self.config["homeserver.async_media"])
         return new_hash, mxc
 
     async def _update_avatar(self, path: str) -> bool:
