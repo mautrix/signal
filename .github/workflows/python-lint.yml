@@ -16,7 +16,7 @@ jobs:
     - uses: psf/black@stable
       with:
         src: "./mausignald ./mautrix_signal"
-        version: "22.1.0"
+        version: "22.3.0"
     - name: pre-commit
       run: |
         pip install pre-commit
