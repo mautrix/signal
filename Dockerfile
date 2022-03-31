@@ -47,5 +47,6 @@ RUN apk add git && pip3 install .[all] && apk del git \
   && cp mautrix_signal/example-config.yaml . && rm -rf mautrix_signal
 
 VOLUME /data
+ENV UID=1337 GID=1337
 
 CMD ["/opt/mautrix-signal/docker-run.sh"]
