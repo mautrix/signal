@@ -22,12 +22,18 @@ import logging
 
 from aiohttp import web
 
-from mausignald.errors import InternalError, ScanTimeoutError, TimeoutException
+from mausignald.errors import (
+    InternalError,
+    ScanTimeoutError,
+    TimeoutException,
+    UnregisteredUserError,
+)
 from mausignald.types import Account, Address
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
 
-from .. import user as u
+from .. import portal as po, puppet as pu, user as u
+from ..util import normalize_number
 from .segment_analytics import init as init_segment, track
 
 if TYPE_CHECKING:
@@ -73,6 +79,9 @@ class ProvisioningAPI:
         self.app.router.add_post("/v2/link/wait/scan", self.link_wait_for_scan)
         self.app.router.add_post("/v2/link/wait/account", self.link_wait_for_account)
 
+        # Start new chat API
+        self.app.router.add_post("/v2/pm/{number}", self.start_pm)
+
     @property
     def _acao_headers(self) -> dict[str, str]:
         return {
@@ -116,6 +125,13 @@ class ProvisioningAPI:
             await self.bridge.signal.wait_for_connected()
 
         return await u.User.get_by_mxid(UserID(user_id))
+
+    async def check_token_and_logged_in(self, request: web.Request) -> "u.User":
+        user = await self.check_token(request)
+        if not await user.is_logged_in():
+            error = {"error": "You're not logged in"}
+            raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
+        return user
 
     async def status(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
@@ -332,11 +348,55 @@ class ProvisioningAPI:
             track(user, "$wait_for_account_failed", error)
             raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
 
+    # endregion
+
+    # region Logout
+
     async def logout(self, request: web.Request) -> web.Response:
-        user = await self.check_token(request)
-        if not await user.is_logged_in():
-            raise web.HTTPNotFound(
-                text="""{"error": "You're not logged in"}""", headers=self._headers
-            )
+        user = await self.check_token_and_logged_in(request)
         await user.logout()
         return web.json_response({}, headers=self._acao_headers)
+
+    # endregion
+
+    # region Start new chat API
+
+    async def start_pm(self, request: web.Request) -> web.Response:
+        user = await self.check_token_and_logged_in(request)
+        number = normalize_number(request.match_info.get("number"))
+
+        puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=number))
+        if not puppet.uuid and user.username:
+            try:
+                uuid = await self.bridge.signal.find_uuid(user.username, puppet.number)
+                if uuid:
+                    await puppet.handle_uuid_receive(uuid)
+            except UnregisteredUserError:
+                error = {"error": f"The phone number {number} is not a registered Signal account"}
+                raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
+            except Exception as e:
+                raise web.HTTPBadRequest(reason=str(e), headers=self._headers)
+
+        if not puppet:
+            error = {"error": f"No puppet was found for {number}"}
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
+
+        portal = await po.Portal.get_by_chat_id(
+            puppet.address, receiver=user.username, create=True
+        )
+        if not portal:
+            error = {"error": f"Failed finding a portal for {puppet.address}"}
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
+
+        if portal.mxid:
+            await portal.main_intent.invite_user(portal.mxid, user.mxid)
+            error = {
+                "error": f"You already have a PM with {number}",
+                "room_id": f"{portal.mxid}",
+            }
+            raise web.HTTPConflict(text=json.dumps(error), headers=self._headers)
+
+        room_id = await portal.create_matrix_room(user, puppet.address)
+        return web.json_response({"room_id": room_id}, headers=self._acao_headers)
+
+    # endregion

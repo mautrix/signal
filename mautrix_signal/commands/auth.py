@@ -22,6 +22,7 @@ from mautrix.bridge.commands import HelpSection, command_handler
 from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType
 
 from .. import puppet as pu
+from ..util import normalize_number
 from .typehint import CommandEvent
 
 try:
@@ -31,7 +32,6 @@ except ImportError:
     qrcode = None
 
 SECTION_AUTH = HelpSection("Authentication", 10, "")
-remove_extra_chars = str.maketrans("", "", " .,-()")
 
 
 async def make_qr(
@@ -127,9 +127,10 @@ async def register(evt: CommandEvent) -> None:
                 evt.args = evt.args[2:]
         else:
             break
-    phone = evt.args[0].translate(remove_extra_chars)
-    if not phone.startswith("+") or not phone[1:].isdecimal():
-        await evt.reply(f"Please enter the phone number in international format (E.164)")
+    try:
+        phone = normalize_number(evt.args[0])
+    except Exception:
+        await evt.reply("Please enter the phone number in international format (E.164)")
         return
     username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
     evt.sender.command_status = {
