@@ -28,7 +28,7 @@ from mausignald.errors import (
     TimeoutException,
     UnregisteredUserError,
 )
-from mausignald.types import Account, Address
+from mausignald.types import Account, Address, Profile
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
 
@@ -80,6 +80,7 @@ class ProvisioningAPI:
         self.app.router.add_post("/v2/link/wait/account", self.link_wait_for_account)
 
         # Start new chat API
+        self.app.router.add_get("/v2/contacts", self.list_contacts)
         self.app.router.add_post("/v2/pm/{number}", self.start_pm)
 
     @property
@@ -360,6 +361,21 @@ class ProvisioningAPI:
     # endregion
 
     # region Start new chat API
+
+    async def list_contacts(self, request: web.Request) -> web.Response:
+        user = await self.check_token_and_logged_in(request)
+        contacts = await self.bridge.signal.list_contacts(user.username)
+        return web.json_response(
+            {
+                str(c.address.number): {
+                    "name": c.name,
+                    "address": Address.serialize(c.address),
+                }
+                for c in contacts
+                if c.address is not None
+            },
+            headers=self._acao_headers,
+        )
 
     async def start_pm(self, request: web.Request) -> web.Response:
         user = await self.check_token_and_logged_in(request)
