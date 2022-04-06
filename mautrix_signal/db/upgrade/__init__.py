@@ -10,6 +10,9 @@ from . import (
     v05_puppet_avatar_info,
     v06_portal_revision,
     v07_portal_relay_user,
-    v08_disappearing_messages,
-    v09_group_topic,
+    v08_user_activity,
+    # NOTE:
+    # Since we merged the schema update `v08_user_activity`, all upgrades since `8` must be bumped by one version to avoid a clash. Please do this when merging.
+    v09_disappearing_messages,
+    v10_group_topic,
 )

@@ -63,7 +63,10 @@ async def upgrade_latest(conn: Connection) -> None:
             custom_mxid  TEXT,
             access_token TEXT,
             next_batch   TEXT,
-            base_url     TEXT
+            base_url     TEXT,
+
+            first_activity_ts BIGINT,
+            last_activity_ts BIGINT,
         )"""
     )
     await conn.execute(
