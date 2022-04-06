@@ -391,8 +391,10 @@ class ProvisioningAPI:
             except UnregisteredUserError:
                 error = {"error": f"The phone number {number} is not a registered Signal account"}
                 raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
-            except Exception as e:
-                raise web.HTTPBadRequest(reason=str(e), headers=self._headers)
+            except Exception:
+                self.log.exception(f"Unknown error fetching UUID for {puppet.number}")
+                error = {"error": "Unknown error while fetching UUID"}
+                raise web.HTTPInternalServerError(text=json.dumps(error), headers=self._headers)
 
         portal = await po.Portal.get_by_chat_id(
             puppet.address, receiver=user.username, create=True
