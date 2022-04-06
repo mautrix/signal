@@ -367,22 +367,23 @@ class ProvisioningAPI:
         contacts = await self.bridge.signal.list_contacts(user.username)
         return web.json_response(
             {
-                str(c.address.number): {
+                c.address.number: {
                     "name": c.name,
-                    "address": Address.serialize(c.address),
+                    "address": c.address.serialize(),
                 }
                 for c in contacts
-                if c.address is not None
+                if c.address and c.address.number
             },
             headers=self._acao_headers,
         )
 
     async def start_pm(self, request: web.Request) -> web.Response:
         user = await self.check_token_and_logged_in(request)
-        number = normalize_number(request.match_info.get("number"))
+        number = normalize_number(request.match_info["number"])
 
         puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=number))
-        if not puppet.uuid and user.username:
+        assert puppet, "Puppet.get_by_address with create=True can't return None"
+        if not puppet.uuid:
             try:
                 uuid = await self.bridge.signal.find_uuid(user.username, puppet.number)
                 if uuid:
@@ -393,26 +394,25 @@ class ProvisioningAPI:
             except Exception as e:
                 raise web.HTTPBadRequest(reason=str(e), headers=self._headers)
 
-        if not puppet:
-            error = {"error": f"No puppet was found for {number}"}
-            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
-
         portal = await po.Portal.get_by_chat_id(
             puppet.address, receiver=user.username, create=True
         )
-        if not portal:
-            error = {"error": f"Failed finding a portal for {puppet.address}"}
-            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
+        assert portal, "Portal.get_by_chat_id with create=True can't return None"
 
         if portal.mxid:
             await portal.main_intent.invite_user(portal.mxid, user.mxid)
-            error = {
-                "error": f"You already have a PM with {number}",
-                "room_id": f"{portal.mxid}",
-            }
-            raise web.HTTPConflict(text=json.dumps(error), headers=self._headers)
-
-        room_id = await portal.create_matrix_room(user, puppet.address)
-        return web.json_response({"room_id": room_id}, headers=self._acao_headers)
+            just_created = False
+        else:
+            await portal.create_matrix_room(user, puppet.address)
+            just_created = True
+        return web.json_response(
+            {
+                "room_id": portal.mxid,
+                "just_created": just_created,
+                "chat_id": portal.chat_id.serialize(),
+            },
+            headers=self._acao_headers,
+            status=201 if just_created else 200,
+        )
 
     # endregion
