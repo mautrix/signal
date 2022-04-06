@@ -15,13 +15,14 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable
 import asyncio
 import logging
 
 from mausignald import SignaldClient
 from mausignald.types import (
     Address,
+    ErrorMessage,
     IncomingMessage,
     MessageData,
     OfferMessageType,
@@ -32,7 +33,7 @@ from mausignald.types import (
     TypingMessage,
     WebsocketConnectionStateChangeEvent,
 )
-from mautrix.types import MessageType
+from mautrix.types import EventID, MessageType, TextMessageEventContent
 from mautrix.util.logging import TraceLogger
 from mautrix.util.opt_prometheus import Counter
 
@@ -56,12 +57,15 @@ class SignalHandler(SignaldClient):
     loop: asyncio.AbstractEventLoop
     data_dir: str
     delete_unknown_accounts: bool
+    error_message_events: dict[tuple[Address, str, int], Awaitable[EventID] | None]
 
     def __init__(self, bridge: "SignalBridge") -> None:
         super().__init__(bridge.config["signal.socket_path"], loop=bridge.loop)
         self.data_dir = bridge.config["signal.data_dir"]
         self.delete_unknown_accounts = bridge.config["signal.delete_unknown_accounts_on_start"]
+        self.error_message_events = {}
         self.add_event_handler(IncomingMessage, self.on_message)
+        self.add_event_handler(ErrorMessage, self.on_error_message)
         self.add_event_handler(
             WebsocketConnectionStateChangeEvent, self.on_websocket_connection_state_change
         )
@@ -112,6 +116,55 @@ class SignalHandler(SignaldClient):
                 SIGNAL_REQUEST_COUNTER.labels(type=counter_type, result="error").inc()
                 raise
 
+        try:
+            event_id_future = self.error_message_events.pop(
+                (sender.address, user.username, evt.timestamp)
+            )
+        except KeyError:
+            pass
+        else:
+            self.log.debug(f"Got previously errored message {evt.timestamp} from {sender.address}")
+            event_id = await event_id_future if event_id_future is not None else None
+            if event_id is not None:
+                portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
+                if portal and portal.mxid:
+                    await sender.intent_for(portal).redact(portal.mxid, event_id)
+
+    async def on_error_message(self, err: ErrorMessage) -> None:
+        self.log.warning(
+            f"Error reading message from {err.data.sender}/{err.data.sender_device} "
+            f"(timestamp: {err.data.timestamp}, content hint: {err.data.content_hint}): "
+            f"{err.data.message}"
+        )
+
+        sender = await pu.Puppet.get_by_address(Address.parse(err.data.sender))
+        user = await u.User.get_by_username(err.account)
+        portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
+        if not portal or not portal.mxid:
+            return
+
+        # Add the error to the error_message_events dictionary, then wait for 10 seconds until
+        # sending an error. If a success for the timestamp comes in before the 10 seconds is up,
+        # don't send the error message.
+        error_message_event_key = (sender.address, user.username, err.data.timestamp)
+        self.error_message_events[error_message_event_key] = None
+
+        await asyncio.sleep(10)
+
+        err_text = (
+            "There was an error receiving a message. Check your Signal app for missing messages."
+        )
+        if error_message_event_key in self.error_message_events:
+            fut = self.error_message_events[error_message_event_key] = self.loop.create_future()
+            event_id = None
+            try:
+                event_id = await portal._send_message(
+                    intent=sender.intent_for(portal),
+                    content=TextMessageEventContent(body=err_text, msgtype=MessageType.NOTICE),
+                )
+            finally:
+                fut.set_result(event_id)
+
     @staticmethod
     async def on_websocket_connection_state_change(
         evt: WebsocketConnectionStateChangeEvent,
@@ -120,6 +173,19 @@ class SignalHandler(SignaldClient):
         user.on_websocket_connection_state_change(evt)
 
     async def handle_message(
+        self,
+        user: u.User,
+        sender: pu.Puppet,
+        msg: MessageData,
+        addr_override: Address | None = None,
+    ) -> None:
+        try:
+            await self._handle_message(user, sender, msg, addr_override)
+        except Exception as e:
+            await user.handle_auth_failure(e)
+            raise
+
+    async def _handle_message(
         self,
         user: u.User,
         sender: pu.Puppet,
@@ -144,6 +210,13 @@ class SignalHandler(SignaldClient):
                 )
                 return
         assert portal
+
+        # Handle the user being removed from the group.
+        if msg.group_v2 and msg.group_v2.removed:
+            if portal.mxid:
+                await portal.handle_signal_kicked(user, sender)
+            return
+
         if not portal.mxid:
             if not msg.is_message and not msg.group_v2:
                 user.log.debug(

@@ -21,6 +21,7 @@ from datetime import datetime
 from uuid import UUID
 import asyncio
 
+from mausignald.errors import AuthorizationFailedError, ResponseError
 from mausignald.types import (
     Account,
     Address,
@@ -146,10 +147,21 @@ class User(DBUser, BaseUser):
             state.state_event = BridgeStateEvent.TRANSIENT_DISCONNECT
         return [state]
 
+    async def handle_auth_failure(self, e: Exception) -> None:
+        if isinstance(e, AuthorizationFailedError):
+            await self.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+
     async def get_puppet(self) -> pu.Puppet | None:
         if not self.address:
             return None
         return await pu.Puppet.get_by_address(self.address)
+
+    async def get_portal_with(self, puppet: pu.Puppet, create: bool = True) -> po.Portal | None:
+        if not self.username:
+            return None
+        return await po.Portal.get_by_chat_id(
+            puppet.address, receiver=self.username, create=create
+        )
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
@@ -216,7 +228,12 @@ class User(DBUser, BaseUser):
                     self._latest_non_transient_disconnect_state
                     and now > self._latest_non_transient_disconnect_state
                 ):
-                    asyncio.create_task(self.push_bridge_state(BridgeStateEvent.UNKNOWN_ERROR))
+                    asyncio.create_task(
+                        self.push_bridge_state(
+                            BridgeStateEvent.UNKNOWN_ERROR,
+                            message="Failed to restore connection to Signal",
+                        )
+                    )
                 else:
                     self.log.info(
                         "New state since last TRANSIENT_DISCONNECT push. "
@@ -258,33 +275,41 @@ class User(DBUser, BaseUser):
         try:
             async with self._sync_lock:
                 await self._sync_contacts()
-        except Exception:
+        except Exception as e:
             self.log.exception("Error while syncing contacts")
+            await self.handle_auth_failure(e)
 
     async def sync_groups(self) -> None:
         try:
             async with self._sync_lock:
                 await self._sync_groups()
-        except Exception:
+        except Exception as e:
             self.log.exception("Error while syncing groups")
+            await self.handle_auth_failure(e)
 
     async def sync_contact(self, contact: Profile | Address, create_portals: bool = False) -> None:
         self.log.trace("Syncing contact %s", contact)
-        if isinstance(contact, Address):
-            address = contact
-            profile = await self.bridge.signal.get_profile(self.username, address, use_cache=True)
-            if profile and profile.name:
-                self.log.trace("Got profile for %s: %s", address, profile)
-        else:
-            address = contact.address
-            profile = contact
-        puppet = await pu.Puppet.get_by_address(address)
-        await puppet.update_info(profile)
-        if create_portals:
-            portal = await po.Portal.get_by_chat_id(
-                puppet.address, receiver=self.username, create=True
-            )
-            await portal.create_matrix_room(self, profile)
+        try:
+            if isinstance(contact, Address):
+                address = contact
+                profile = await self.bridge.signal.get_profile(
+                    self.username, address, use_cache=True
+                )
+                if profile and profile.name:
+                    self.log.trace("Got profile for %s: %s", address, profile)
+            else:
+                address = contact.address
+                profile = contact
+            puppet = await pu.Puppet.get_by_address(address)
+            await puppet.update_info(profile)
+            if create_portals:
+                portal = await po.Portal.get_by_chat_id(
+                    puppet.address, receiver=self.username, create=True
+                )
+                await portal.create_matrix_room(self, profile)
+        except Exception as e:
+            await self.handle_auth_failure(e)
+            raise
 
     async def _sync_group(self, group: Group, create_portals: bool) -> None:
         self.log.trace("Syncing group %s", group)

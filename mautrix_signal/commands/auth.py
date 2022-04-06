@@ -16,7 +16,7 @@
 from typing import Union
 import io
 
-from mausignald.errors import AuthorizationFailedException, TimeoutException, UnexpectedResponse
+from mausignald.errors import AuthorizationFailedError, TimeoutException, UnexpectedResponse
 from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import HelpSection, command_handler
 from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType
@@ -202,6 +202,6 @@ async def remove_linked_device(evt: CommandEvent) -> EventID:
     device_id = int(evt.args[0])
     try:
         await evt.bridge.signal.remove_linked_device(evt.sender.username, device_id)
-    except AuthorizationFailedException as e:
+    except AuthorizationFailedError as e:
         return await evt.reply(f"{e} Only the primary device can remove linked devices.")
     return await evt.reply("Device removed")

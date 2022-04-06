@@ -320,7 +320,7 @@ class Puppet(DBPuppet, BasePuppet):
         new_hash = hashlib.sha256(data).hexdigest()
         if self.avatar_set and new_hash == self.avatar_hash:
             return False
-        mxc = await intent.upload_media(data)
+        mxc = await intent.upload_media(data, async_upload=self.config["homeserver.async_media"])
         return new_hash, mxc
 
     async def _update_avatar(self, path: str) -> bool:
@@ -348,8 +348,15 @@ class Puppet(DBPuppet, BasePuppet):
                 self.log.exception(f"Error updating portal meta for {portal.receiver}")
 
     async def default_puppet_should_leave_room(self, room_id: RoomID) -> bool:
-        portal = await p.Portal.get_by_mxid(room_id)
-        return portal and portal.chat_id != self.uuid
+        portal: p.Portal = await p.Portal.get_by_mxid(room_id)
+        if not portal or not portal.is_direct:
+            return True
+        elif portal.chat_id.uuid and self.uuid:
+            return portal.chat_id.uuid != self.uuid
+        elif portal.chat_id.number and self.number:
+            return portal.chat_id.number != self.number
+        else:
+            return True
 
     # region Database getters
 

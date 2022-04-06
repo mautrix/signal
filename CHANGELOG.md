@@ -1,3 +1,50 @@
+# v0.2.4 (unreleased)
+
+### Added
+* Support for creating DM portals by inviting user (i.e. just making a DM the
+  normal Matrix way).
+* Signal group descriptions are now bridged into Matrix room topics.
+* Signal announcement group status is now bridged into power levels on Matrix
+  (the group will be read-only for everyone except admins).
+* Added optional parameter to `mark-trusted` command to set trust level
+  (instead of always using `TRUSTED_VERIFIED`).
+
+### Improved
+* Dropped Python 3.7 support.
+* Files bridged to Matrix now include the `size` field in the file `info`.
+* Removed redundant `msgtype` field in sticker events sent to Matrix.
+
+### Fixed
+* Logging into the bridge with double puppeting no longer removes your Signal
+  user's Matrix ghost from DM portals with other bridge users.
+* Fixed identity failure error message always saying "while sending message to
+  None" instead of specifying the problematic phone number.
+* Fixed `channel` -> `id` field in `m.bridge` events.
+
+# v0.2.3 (2022-02-17)
+
+Target signald version: [v0.17.0](https://gitlab.com/signald/signald/-/releases/0.17.0)
+
+**N.B.** This will be the last release to support Python 3.7. Future versions
+will require Python 3.8 or higher. In general, the mautrix bridges will only
+support the lowest Python version in the latest Debian or Ubuntu LTS.
+
+### Added
+* New v2 link API to provide immediate feedback after the QR code is scanned.
+
+### Improved
+* Added automatic retrying for failed Matrix->Signal reactions.
+* Commands using phone numbers will now try to resolve the UUID first
+  (especially useful for `pm` so the portal is created with the correct ghost
+  immediately)
+* Improved signald socket handling to catch weird errors and reconnect.
+
+### Fixed
+* Fixed catching errors when connecting to Signal (e.g. if the account was
+  deleted from signald's database, but not the bridge's).
+* Fixed handling message deletions from Signal.
+* Fixed race condition in incoming message deduplication.
+
 # v0.2.2 (2022-01-15)
 
 Target signald version: [v0.16.1](https://gitlab.com/signald/signald/-/releases/0.16.1)

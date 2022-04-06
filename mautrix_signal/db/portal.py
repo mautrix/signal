@@ -37,6 +37,7 @@ class Portal:
     receiver: str
     mxid: RoomID | None
     name: str | None
+    topic: str | None
     avatar_hash: str | None
     avatar_url: ContentURI | None
     name_set: bool
@@ -50,18 +51,14 @@ class Portal:
     def chat_id_str(self) -> str:
         return id_to_str(self.chat_id)
 
-    async def insert(self) -> None:
-        q = """
-        INSERT INTO portal (chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set,
-                            avatar_set, revision, encrypted, relay_user_id, expiration_time)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        """
-        await self.db.execute(
-            q,
+    @property
+    def _values(self):
+        return (
             self.chat_id_str,
             self.receiver,
             self.mxid,
             self.name,
+            self.topic,
             self.avatar_hash,
             self.avatar_url,
             self.name_set,
@@ -72,28 +69,23 @@ class Portal:
             self.expiration_time,
         )
 
+    async def insert(self) -> None:
+        q = """
+        INSERT INTO portal (
+            chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,
+            revision, encrypted, relay_user_id, expiration_time
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        """
+        await self.db.execute(q, *self._values)
+
     async def update(self) -> None:
         q = """
-        UPDATE portal SET mxid=$1, name=$2, avatar_hash=$3, avatar_url=$4, name_set=$5,
-                          avatar_set=$6, revision=$7, encrypted=$8, relay_user_id=$9,
-                          expiration_time=$10
-        WHERE chat_id=$11 AND receiver=$12
+        UPDATE portal SET mxid=$3, name=$4, topic=$5, avatar_hash=$6, avatar_url=$7, name_set=$8,
+                          avatar_set=$9, revision=$10, encrypted=$11, relay_user_id=$12,
+                          expiration_time=$13
+        WHERE chat_id=$1 AND receiver=$2
         """
-        await self.db.execute(
-            q,
-            self.mxid,
-            self.name,
-            self.avatar_hash,
-            self.avatar_url,
-            self.name_set,
-            self.avatar_set,
-            self.revision,
-            self.encrypted,
-            self.relay_user_id,
-            self.expiration_time,
-            self.chat_id_str,
-            self.receiver,
-        )
+        await self.db.execute(q, *self._values)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> Portal:
@@ -103,13 +95,14 @@ class Portal:
             chat_id = Address.parse(chat_id)
         return cls(chat_id=chat_id, **data)
 
+    _columns = (
+        "chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set, "
+        "revision, encrypted, relay_user_id, expiration_time"
+    )
+
     @classmethod
     async def get_by_mxid(cls, mxid: RoomID) -> Portal | None:
-        q = """
-        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time FROM portal
-        WHERE mxid=$1
-        """
+        q = f"SELECT {cls._columns} FROM portal WHERE mxid=$1"
         row = await cls.db.fetchrow(q, mxid)
         if not row:
             return None
@@ -117,11 +110,7 @@ class Portal:
 
     @classmethod
     async def get_by_chat_id(cls, chat_id: GroupID | Address, receiver: str = "") -> Portal | None:
-        q = """
-        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time FROM portal
-        WHERE chat_id=$1 AND receiver=$2
-        """
+        q = f"SELECT {cls._columns} FROM portal WHERE chat_id=$1 AND receiver=$2"
         row = await cls.db.fetchrow(q, id_to_str(chat_id), receiver)
         if not row:
             return None
@@ -129,30 +118,18 @@ class Portal:
 
     @classmethod
     async def find_private_chats_of(cls, receiver: str) -> list[Portal]:
-        q = """
-        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time FROM portal
-        WHERE receiver=$1
-        """
+        q = f"SELECT {cls._columns} FROM portal WHERE receiver=$1"
         rows = await cls.db.fetch(q, receiver)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def find_private_chats_with(cls, other_user: Address) -> list[Portal]:
-        q = """
-        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time FROM portal
-        WHERE chat_id=$1 AND receiver<>''
-        """
+        q = f"SELECT {cls._columns} FROM portal WHERE chat_id=$1 AND receiver<>''"
         rows = await cls.db.fetch(q, other_user.best_identifier)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
     async def all_with_room(cls) -> list[Portal]:
-        q = """
-        SELECT chat_id, receiver, mxid, name, avatar_hash, avatar_url, name_set, avatar_set,
-               revision, encrypted, relay_user_id, expiration_time FROM portal
-        WHERE mxid IS NOT NULL
-        """
+        q = f"SELECT {cls._columns} FROM portal WHERE mxid IS NOT NULL"
         rows = await cls.db.fetch(q)
         return [cls._from_row(row) for row in rows]

@@ -22,13 +22,13 @@ import logging
 
 from aiohttp import web
 
-from mausignald.errors import InternalError, TimeoutException
+from mausignald.errors import InternalError, ScanTimeoutError, TimeoutException
 from mausignald.types import Account, Address
 from mautrix.types import UserID
-from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.logging import TraceLogger
 
 from .. import user as u
+from .segment_analytics import init as init_segment, track
 
 if TYPE_CHECKING:
     from ..__main__ import SignalBridge
@@ -39,21 +39,39 @@ class ProvisioningAPI:
     app: web.Application
     bridge: "SignalBridge"
 
-    def __init__(self, bridge: "SignalBridge", shared_secret: str) -> None:
+    def __init__(
+        self, bridge: "SignalBridge", shared_secret: str, segment_key: str | None
+    ) -> None:
         self.bridge = bridge
         self.app = web.Application()
         self.shared_secret = shared_secret
-        self.app.router.add_get("/api/whoami", self.status)
-        self.app.router.add_options("/api/link", self.login_options)
-        self.app.router.add_options("/api/link/wait", self.login_options)
-        # self.app.router.add_options("/api/register", self.login_options)
-        # self.app.router.add_options("/api/register/code", self.login_options)
-        self.app.router.add_options("/api/logout", self.login_options)
-        self.app.router.add_post("/api/link", self.link)
-        self.app.router.add_post("/api/link/wait", self.link_wait)
-        # self.app.router.add_post("/api/register", self.register)
-        # self.app.router.add_post("/api/register/code", self.register_code)
-        self.app.router.add_post("/api/logout", self.logout)
+
+        if segment_key:
+            init_segment(segment_key)
+
+        # Whoami
+        self.app.router.add_get("/v1/api/whoami", self.status)
+        self.app.router.add_get("/v2/whoami", self.status)
+
+        # Logout
+        self.app.router.add_options("/v1/api/logout", self.login_options)
+        self.app.router.add_post("/v1/api/logout", self.logout)
+        self.app.router.add_options("/v2/logout", self.login_options)
+        self.app.router.add_post("/v2/logout", self.logout)
+
+        # Link API (will be deprecated soon)
+        self.app.router.add_options("/v1/api/link", self.login_options)
+        self.app.router.add_options("/v1/api/link/wait", self.login_options)
+        self.app.router.add_post("/v1/api/link", self.link)
+        self.app.router.add_post("/v1/api/link/wait", self.link_wait)
+
+        # New Login API
+        self.app.router.add_options("/v2/link/new", self.login_options)
+        self.app.router.add_options("/v2/link/wait/scan", self.login_options)
+        self.app.router.add_options("/v2/link/wait/account", self.login_options)
+        self.app.router.add_post("/v2/link/new", self.link_new)
+        self.app.router.add_post("/v2/link/wait/scan", self.link_wait_for_scan)
+        self.app.router.add_post("/v2/link/wait/account", self.link_wait_for_account)
 
     @property
     def _acao_headers(self) -> dict[str, str]:
@@ -113,10 +131,7 @@ class ProvisioningAPI:
                 )
             except Exception as e:
                 self.log.exception(f"Failed to get {user.username}'s profile for whoami")
-
-                auth_failed = "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
-                if isinstance(e, InternalError) and auth_failed in e.data.get("exceptions", []):
-                    await user.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+                await user.handle_auth_failure(e)
 
                 data["signal"] = {
                     "number": user.username,
@@ -134,6 +149,56 @@ class ProvisioningAPI:
                     "ok": True,
                 }
         return web.json_response(data, headers=self._acao_headers)
+
+    async def _shielded_link(self, user: "u.User", session_id: str, device_name: str) -> Account:
+        try:
+            self.log.debug(f"Starting finish link request for {user.mxid} / {session_id}")
+            account = await self.bridge.signal.finish_link(
+                session_id=session_id, device_name=device_name, overwrite=True
+            )
+        except TimeoutException:
+            self.log.warning(f"Timed out waiting for linking to finish (session {session_id})")
+            raise
+        except Exception:
+            self.log.exception(
+                f"Fatal error while waiting for linking to finish (session {session_id})"
+            )
+            raise
+        else:
+            await user.on_signin(account)
+            return account
+
+    async def _try_shielded_link(
+        self, user: "u.User", session_id: str, device_name: str
+    ) -> web.Response:
+        try:
+            account = await asyncio.shield(self._shielded_link(user, session_id, device_name))
+        except asyncio.CancelledError:
+            self.log.warning(
+                f"Client cancelled link wait request ({session_id}) before it finished"
+            )
+            raise
+        except TimeoutException:
+            raise web.HTTPBadRequest(
+                text='{"error": "Signal linking timed out"}', headers=self._headers
+            )
+        except ScanTimeoutError:
+            raise web.HTTPBadRequest(
+                text='{"error": "Signald websocket disconnected before linking finished"}',
+                headers=self._headers,
+            )
+        except InternalError:
+            raise web.HTTPInternalServerError(
+                text='{"error": "Fatal error in Signal linking"}', headers=self._headers
+            )
+        except Exception:
+            raise web.HTTPInternalServerError(
+                text='{"error": "Fatal error in Signal linking"}', headers=self._headers
+            )
+        else:
+            return web.json_response(account.address.serialize())
+
+    # region Old Link API
 
     async def link(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
@@ -160,24 +225,6 @@ class ProvisioningAPI:
         self.log.debug(f"Returning linking URI for {user.mxid} / {sess.session_id}")
         return web.json_response({"uri": sess.uri}, headers=self._acao_headers)
 
-    async def _shielded_link(self, user: "u.User", session_id: str, device_name: str) -> Account:
-        try:
-            self.log.debug(f"Starting finish link request for {user.mxid} / {session_id}")
-            account = await self.bridge.signal.finish_link(
-                session_id=session_id, overwrite=True, device_name=device_name
-            )
-        except TimeoutException:
-            self.log.warning(f"Timed out waiting for linking to finish (session {session_id})")
-            raise
-        except Exception:
-            self.log.exception(
-                "Fatal error while waiting for linking to finish (session {session_id})"
-            )
-            raise
-        else:
-            await user.on_signin(account)
-            return account
-
     async def link_wait(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)
         if not user.command_status or user.command_status["action"] != "Link":
@@ -186,31 +233,104 @@ class ProvisioningAPI:
             )
         session_id = user.command_status["session_id"]
         device_name = user.command_status["device_name"]
+        return await self._try_shielded_link(user, session_id, device_name)
+
+    # endregion
+
+    # region New Link API
+
+    async def _get_request_data(self, request: web.Request) -> tuple[u.User, dict]:
+        user = await self.check_token(request)
+        if await user.is_logged_in():
+            error_text = """{"error": "You're already logged in"}"""
+            raise web.HTTPConflict(text=error_text, headers=self._headers)
+
         try:
-            account = await asyncio.shield(self._shielded_link(user, session_id, device_name))
-        except asyncio.CancelledError:
-            self.log.warning(
-                f"Client cancelled link wait request ({session_id}) before it finished"
+            return user, (await request.json())
+        except json.JSONDecodeError:
+            raise web.HTTPBadRequest(text='{"error": "Malformed JSON"}', headers=self._headers)
+
+    async def link_new(self, request: web.Request) -> web.Response:
+        """
+        Starts a new link session.
+
+        Params: none
+
+        Returns a JSON object with the following fields:
+
+        * session_id: a session ID that should be used for all future link-related commands
+          (wait_for_scan and wait_for_account).
+        * uri: a URI that should be used to display the QR code.
+        """
+        user, _ = await self._get_request_data(request)
+        self.log.debug(f"Getting session ID and link URI for {user.mxid}")
+        try:
+            sess = await self.bridge.signal.start_link()
+            track(user, "$link_new_success")
+            self.log.debug(
+                f"Returning session ID and link URI for {user.mxid} / {sess.session_id}"
             )
-        except TimeoutException:
-            raise web.HTTPBadRequest(
-                text='{"error": "Signal linking timed out"}', headers=self._headers
-            )
-        except InternalError as ie:
-            if "java.io.IOException" in ie.exceptions:
-                raise web.HTTPBadRequest(
-                    text='{"error": "Signald websocket disconnected before linking finished"}',
-                    headers=self._headers,
-                )
-            raise web.HTTPInternalServerError(
-                text='{"error": "Fatal error in Signal linking"}', headers=self._headers
-            )
-        except Exception:
-            raise web.HTTPInternalServerError(
-                text='{"error": "Fatal error in Signal linking"}', headers=self._headers
-            )
+            return web.json_response(sess.serialize(), headers=self._acao_headers)
+        except Exception as e:
+            error = {"error": f"Getting a new link failed: {e}"}
+            track(user, "$link_new_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
+
+    async def link_wait_for_scan(self, request: web.Request) -> web.Response:
+        """
+        Waits for the QR code associated with the provided session ID to be scanned.
+
+        Params: a JSON object with the following field:
+
+        * session_id: a session ID that you got from a call to /link/v2/new.
+        """
+        user, request_data = await self._get_request_data(request)
+        try:
+            session_id = request_data["session_id"]
+        except KeyError:
+            error_text = '{"error": "session_id not provided"}'
+            raise web.HTTPBadRequest(text=error_text, headers=self._headers)
+
+        try:
+            await self.bridge.signal.wait_for_scan(session_id)
+            track(user, "$qrcode_scanned")
+        except Exception as e:
+            error = {"error": f"Failed waiting for scan. Error: {e}"}
+            self.log.exception(error["error"])
+            track(user, "$qrcode_scan_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
         else:
-            return web.json_response(account.address.serialize())
+            return web.json_response({}, headers=self._acao_headers)
+
+    async def link_wait_for_account(self, request: web.Request) -> web.Response:
+        """
+        Waits for the link to the user's phone to complete.
+
+        Params: a JSON object with the following fields:
+
+        * session_id: a session ID that you got from a call to /link/v2/new.
+        * device_name: the device name that will show up in Linked Devices on the user's device.
+
+        Returns: a JSON object representing the user's account.
+        """
+        user, request_data = await self._get_request_data(request)
+        try:
+            session_id = request_data["session_id"]
+            device_name = request_data.get("device_name", "Mautrix-Signal bridge")
+        except KeyError:
+            error = {"error": "session_id not provided"}
+            track(user, "$wait_for_account_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
+
+        try:
+            resp = await self._try_shielded_link(user, session_id, device_name)
+            track(user, "$wait_for_account_success")
+            return resp
+        except Exception as e:
+            error = {"error": f"Failed waiting for account. Error: {e}"}
+            self.log.exception(error["error"])
+            track(user, "$wait_for_account_failed", error)
+            raise web.HTTPBadRequest(text=json.dumps(error), headers=self._headers)
 
     async def logout(self, request: web.Request) -> web.Response:
         user = await self.check_token(request)

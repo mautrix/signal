@@ -26,10 +26,11 @@ import os.path
 import pathlib
 import time
 
-from mausignald.errors import NotConnected, ResponseError, RPCError
+from mausignald.errors import AttachmentTooLargeError, NotConnected, RPCError
 from mausignald.types import (
     AccessControlMode,
     Address,
+    AnnouncementsMode,
     Attachment,
     Contact,
     Group,
@@ -38,6 +39,7 @@ from mausignald.types import (
     GroupMemberRole,
     GroupV2,
     GroupV2ID,
+    LinkPreview,
     Mention,
     MessageData,
     Profile,
@@ -54,6 +56,7 @@ from mautrix.types import (
     AudioInfo,
     ContentURI,
     EncryptedEvent,
+    EncryptedFile,
     EventID,
     EventType,
     FileInfo,
@@ -65,13 +68,11 @@ from mautrix.types import (
     MessageType,
     PowerLevelStateEventContent,
     RoomID,
-    SingleReceiptEventContent,
     TextMessageEventContent,
     UserID,
     VideoInfo,
 )
 from mautrix.util import ffmpeg, variation_selector
-from mautrix.util.bridge_state import BridgeStateEvent
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -109,12 +110,19 @@ StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
 ChatInfo = Union[Group, GroupV2, GroupV2ID, Contact, Profile, Address]
 MAX_MATRIX_MESSAGE_SIZE = 60000
+BEEPER_LINK_PREVIEWS_KEY = "com.beeper.linkpreviews"
+BEEPER_IMAGE_ENCRYPTION_KEY = "beeper:image:encryption"
+
+
+class UnknownReactionTarget(Exception):
+    pass
 
 
 class Portal(DBPortal, BasePortal):
     by_mxid: dict[RoomID, Portal] = {}
     by_chat_id: dict[tuple[str, str], Portal] = {}
     _sticker_meta_cache: dict[str, StickerPack] = {}
+    disappearing_msg_class = DisappearingMessage
     config: Config
     matrix: m.MatrixHandler
     signal: s.SignalHandler
@@ -125,7 +133,7 @@ class Portal(DBPortal, BasePortal):
     _main_intent: IntentAPI | None
     _create_room_lock: asyncio.Lock
     _msgts_dedup: deque[tuple[Address, int]]
-    _reaction_dedup: deque[tuple[Address, int, str, Address]]
+    _reaction_dedup: deque[tuple[Address, int, str, Address, bool]]
     _reaction_lock: asyncio.Lock
     _pending_members: set[UUID] | None
     _expiration_lock: asyncio.Lock
@@ -136,6 +144,7 @@ class Portal(DBPortal, BasePortal):
         receiver: str,
         mxid: RoomID | None = None,
         name: str | None = None,
+        topic: str | None = None,
         avatar_hash: str | None = None,
         avatar_url: ContentURI | None = None,
         name_set: bool = False,
@@ -146,19 +155,21 @@ class Portal(DBPortal, BasePortal):
         expiration_time: int | None = None,
     ) -> None:
         super().__init__(
-            chat_id,
-            receiver,
-            mxid,
-            name,
-            avatar_hash,
-            avatar_url,
-            name_set,
-            avatar_set,
-            revision,
-            encrypted,
-            relay_user_id,
-            expiration_time,
+            chat_id=chat_id,
+            receiver=receiver,
+            mxid=mxid,
+            name=name,
+            topic=topic,
+            avatar_hash=avatar_hash,
+            avatar_url=avatar_url,
+            name_set=name_set,
+            avatar_set=avatar_set,
+            revision=revision,
+            encrypted=encrypted,
+            relay_user_id=relay_user_id,
+            expiration_time=expiration_time,
         )
+        BasePortal.__init__(self)
         self._create_room_lock = asyncio.Lock()
         self.log = self.log.getChild(self.chat_id_str)
         self._main_intent = None
@@ -180,6 +191,10 @@ class Portal(DBPortal, BasePortal):
     def is_direct(self) -> bool:
         return isinstance(self.chat_id, Address)
 
+    @property
+    def disappearing_enabled(self) -> bool:
+        return self.is_direct or self.config["signal.enable_disappearing_messages_in_groups"]
+
     def handle_uuid_receive(self, uuid: UUID) -> None:
         if not self.is_direct or self.chat_id.uuid:
             raise ValueError(
@@ -199,16 +214,6 @@ class Portal(DBPortal, BasePortal):
         cls.loop = bridge.loop
         BasePortal.bridge = bridge
         cls.private_chat_portal_meta = cls.config["bridge.private_chat_portal_meta"]
-
-    @classmethod
-    async def start_disappearing_message_expirations(cls):
-        await asyncio.gather(
-            *(
-                cls._expire_event(dm.room_id, dm.mxid, restart=True)
-                for dm in await DisappearingMessage.get_all_scheduled()
-                if dm.expiration_ts
-            )
-        )
 
     # region Misc
 
@@ -286,6 +291,8 @@ class Portal(DBPortal, BasePortal):
         return str(path)
 
     async def _download_matrix_media(self, message: MediaMessageEventContent) -> str:
+        if message.info and message.info.size and message.info.size > 100 * 10**6:
+            raise AttachmentTooLargeError({"filename": message.body})
         if message.file:
             data = await self.main_intent.download_media(message.file.url)
             data = decrypt_attachment(
@@ -308,25 +315,47 @@ class Portal(DBPortal, BasePortal):
             await self._handle_matrix_message(sender, message, event_id)
         except Exception as e:
             self.log.exception(f"Failed to handle Matrix message {event_id}")
+            status = (
+                MessageSendCheckpointStatus.UNSUPPORTED
+                if isinstance(e, AttachmentTooLargeError)
+                else MessageSendCheckpointStatus.PERM_FAILURE
+            )
             sender.send_remote_checkpoint(
-                MessageSendCheckpointStatus.PERM_FAILURE,
-                event_id,
-                self.mxid,
-                EventType.ROOM_MESSAGE,
-                message.msgtype,
-                error=e,
+                status, event_id, self.mxid, EventType.ROOM_MESSAGE, message.msgtype, error=e
             )
-            auth_failed = (
-                "org.whispersystems.signalservice.api.push.exceptions.AuthorizationFailedException"
-            )
-            if isinstance(e, ResponseError) and auth_failed in e.data.get("exceptions", []):
-                await sender.push_bridge_state(BridgeStateEvent.BAD_CREDENTIALS, error=str(e))
+            await sender.handle_auth_failure(e)
             await self._send_message(
                 self.main_intent,
                 TextMessageEventContent(
                     msgtype=MessageType.NOTICE, body=f"\u26a0 Your message was not bridged: {e}"
                 ),
             )
+
+    async def _beeper_link_preview_to_signal(
+        self, beeper_link_preview: dict[str, Any]
+    ) -> LinkPreview | None:
+        link_preview = LinkPreview(
+            url=beeper_link_preview["matched_url"],
+            title=beeper_link_preview.get("og:title", ""),
+            description=beeper_link_preview.get("og:description", ""),
+        )
+        if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview or "og:image" in beeper_link_preview:
+            if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview:
+                file = EncryptedFile.deserialize(beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY])
+                data = await self.main_intent.download_media(file.url)
+                data = decrypt_attachment(data, file.key.key, file.hashes.get("sha256"), file.iv)
+            else:
+                data = await self.main_intent.download_media(beeper_link_preview["og:image"])
+
+            attachment_path = self._write_outgoing_file(data)
+            link_preview.attachment = Attachment(
+                content_type=beeper_link_preview.get("og:image:type"),
+                outgoing_filename=attachment_path,
+                width=beeper_link_preview.get("og:image:width", 0),
+                height=beeper_link_preview.get("og:image:height", 0),
+                size=beeper_link_preview.get("matrix:image:size", 0),
+            )
+        return link_preview
 
     async def _handle_matrix_message(
         self, sender: u.User, message: MessageEventContent, event_id: EventID
@@ -362,8 +391,14 @@ class Portal(DBPortal, BasePortal):
         attachments: list[Attachment] | None = None
         attachment_path: str | None = None
         mentions: list[Mention] | None = None
+        link_previews: list[LinkPreview] | None = None
         if message.msgtype.is_text:
             text, mentions = await matrix_to_signal(message)
+            message_previews = message.get(BEEPER_LINK_PREVIEWS_KEY, [])
+            potential_link_previews = await asyncio.gather(
+                *(self._beeper_link_preview_to_signal(m) for m in message_previews)
+            )
+            link_previews = [p for p in potential_link_previews if p is not None]
         elif message.msgtype.is_media:
             attachment_path = await self._download_matrix_media(message)
             attachment = await self._make_attachment(message, attachment_path)
@@ -378,12 +413,15 @@ class Portal(DBPortal, BasePortal):
         try:
             retry_count = await self._signal_send_with_retries(
                 sender,
-                message,
                 event_id,
+                message_type=message.msgtype,
+                send_fn=lambda *args, **kwargs: self.signal.send(**kwargs),
+                event_type=EventType.ROOM_MESSAGE,
                 username=sender.username,
                 recipient=self.chat_id,
                 body=text,
                 mentions=mentions,
+                previews=link_previews,
                 quote=quote,
                 attachments=attachments,
                 timestamp=request_id,
@@ -421,49 +459,65 @@ class Portal(DBPortal, BasePortal):
                     pass
 
             # Handle disappearing messages
-            if self.expiration_time and (
-                self.is_direct or self.config["signal.enable_disappearing_messages_in_groups"]
-            ):
+            if self.expiration_time and self.disappearing_enabled:
                 dm = DisappearingMessage(self.mxid, event_id, self.expiration_time)
+                dm.start_timer()
                 await dm.insert()
-                await Portal._expire_event(dm.room_id, dm.mxid)
+                await self._disappear_event(dm)
 
     async def _signal_send_with_retries(
-        self, sender: u.User, message: MessageEventContent, event_id: EventID, **send_args
+        self,
+        sender: u.User,
+        event_id: EventID,
+        send_fn: Callable,
+        event_type: EventType,
+        message_type: MessageType | None = None,
+        **send_args,
     ) -> int:
         retry_count = 7
         retry_message_event_id = None
         for retry_num in range(retry_count):
             try:
-                self.log.info(f"Send attempt {retry_num}")
-                await self.signal.send(**send_args)
+                req_id = uuid4()
+                self.log.info(
+                    f"Send attempt {retry_num}. Attempting to send {event_id} with {req_id}"
+                )
+                await send_fn(sender, event_id, req_id=req_id, **send_args)
 
                 # It was successful.
                 if retry_message_event_id is not None:
                     await self.main_intent.redact(self.mxid, retry_message_event_id)
                 return retry_num
-            except NotConnected as e:
-                # Only handle NotConnected exceptions so that other exceptions actually continue to
-                # error.
+            except (NotConnected, UnknownReactionTarget) as e:
+                # Only handle NotConnected and UnknownReactionTarget exceptions so that other
+                # exceptions actually continue to error.
                 sleep_seconds = (retry_num + 1) ** 2
-                msg = f"Not connected to signald. Going to sleep for {sleep_seconds}s. Error: {e}"
+                msg = (
+                    f"Not connected to signald. Going to sleep for {sleep_seconds}s. Error: {e}"
+                    if isinstance(e, NotConnected)
+                    else f"UnknownReactionTarget: Going to sleep for {sleep_seconds}s. Error: {e}"
+                )
                 self.log.exception(msg)
                 sender.send_remote_checkpoint(
                     MessageSendCheckpointStatus.WILL_RETRY,
                     event_id,
                     self.mxid,
-                    EventType.ROOM_MESSAGE,
-                    message.msgtype,
+                    event_type,
+                    message_type=message_type,
                     error=msg,
                     retry_num=retry_num,
                 )
 
                 if retry_num > 2:
                     # User has waited > ~15 seconds, send a notice that we are retrying.
+                    user_friendly_message = (
+                        "There was an error connecting to signald."
+                        if isinstance(e, NotConnected)
+                        else "Could not find message to react to on Signal."
+                    )
                     event_content = TextMessageEventContent(
                         MessageType.NOTICE,
-                        f"There was an error connecting to signald. Waiting for {sleep_seconds} "
-                        "before retrying.",
+                        f"{user_friendly_message} Waiting for {sleep_seconds} before retrying.",
                     )
                     if retry_message_event_id is not None:
                         event_content.set_edit(retry_message_event_id)
@@ -471,10 +525,17 @@ class Portal(DBPortal, BasePortal):
                     retry_message_event_id = retry_message_event_id or new_event_id
 
                 await asyncio.sleep(sleep_seconds)
+            except Exception as e:
+                await sender.handle_auth_failure(e)
+                raise
 
         if retry_message_event_id is not None:
             await self.main_intent.redact(self.mxid, retry_message_event_id)
-        raise NotConnected(f"Connection to signald still did not work after {retry_count} retries")
+        event_type_name = {
+            EventType.ROOM_MESSAGE: "message",
+            EventType.REACTION: "reaction",
+        }.get(event_type, str(event_type))
+        raise NotConnected(f"Failed to send {event_type_name} after {retry_count} retries.")
 
     async def handle_matrix_reaction(
         self, sender: u.User, event_id: EventID, reacting_to: EventID, emoji: str
@@ -485,51 +546,72 @@ class Portal(DBPortal, BasePortal):
 
         # Signal doesn't seem to use variation selectors at all
         emoji = variation_selector.remove(emoji)
+        try:
+            retry_count = await self._signal_send_with_retries(
+                sender,
+                event_id,
+                send_fn=self._handle_matrix_reaction,
+                event_type=EventType.REACTION,
+                reacting_to=reacting_to,
+                emoji=emoji,
+            )
+        except Exception as e:
+            self.log.exception("Sending reaction failed")
+            sender.send_remote_checkpoint(
+                MessageSendCheckpointStatus.PERM_FAILURE,
+                event_id,
+                self.mxid,
+                EventType.REACTION,
+                error=e,
+            )
+            await sender.handle_auth_failure(e)
+        else:
+            sender.send_remote_checkpoint(
+                MessageSendCheckpointStatus.SUCCESS,
+                event_id,
+                self.mxid,
+                EventType.REACTION,
+                retry_num=retry_count,
+            )
+            await self._send_delivery_receipt(event_id)
 
+    async def _handle_matrix_reaction(
+        self,
+        sender: u.User,
+        event_id: EventID,
+        reacting_to: EventID,
+        emoji: str,
+        req_id: UUID | None = None,
+    ) -> None:
         message = await DBMessage.get_by_mxid(reacting_to, self.mxid)
         if not message:
             self.log.debug(f"Ignoring reaction to unknown event {reacting_to}")
-            return
+            raise UnknownReactionTarget(f"Ignoring reaction to unknown event {reacting_to}")
 
-        existing = await DBReaction.get_by_signal_id(
-            self.chat_id, self.receiver, message.sender, message.timestamp, sender.address
-        )
-        if existing and existing.emoji == emoji:
-            return
-
-        dedup_id = (message.sender, message.timestamp, emoji, sender.address)
-        self._reaction_dedup.appendleft(dedup_id)
         async with self._reaction_lock:
+            existing = await DBReaction.get_by_signal_id(
+                self.chat_id, self.receiver, message.sender, message.timestamp, sender.address
+            )
+            if existing and existing.emoji == emoji:
+                return
+
+            dedup_id = (message.sender, message.timestamp, emoji, sender.address, False)
+            self._reaction_dedup.appendleft(dedup_id)
+
             reaction = Reaction(
                 emoji=emoji,
                 remove=False,
                 target_author=message.sender,
                 target_sent_timestamp=message.timestamp,
             )
-            try:
-                await self.signal.react(
-                    username=sender.username, recipient=self.chat_id, reaction=reaction
-                )
-            except Exception as e:
-                sender.send_remote_checkpoint(
-                    MessageSendCheckpointStatus.PERM_FAILURE,
-                    event_id,
-                    self.mxid,
-                    EventType.REACTION,
-                    error=e,
-                )
-            else:
-                self.log.trace(f"{sender.mxid} reacted to {message.timestamp} with {emoji}")
-                sender.send_remote_checkpoint(
-                    MessageSendCheckpointStatus.SUCCESS,
-                    event_id,
-                    self.mxid,
-                    EventType.REACTION,
-                )
-                await self._upsert_reaction(
-                    existing, self.main_intent, event_id, sender, message, emoji
-                )
-                await self._send_delivery_receipt(event_id)
+            self.log.trace(f"{sender.mxid} reacted to {message.timestamp} with {emoji}")
+            await self.signal.react(
+                sender.username, recipient=self.chat_id, reaction=reaction, req_id=req_id
+            )
+
+            await self._upsert_reaction(
+                existing, self.main_intent, event_id, sender, message, emoji
+            )
 
     async def handle_matrix_redaction(
         self, sender: u.User, event_id: EventID, redaction_event_id: EventID
@@ -553,6 +635,7 @@ class Portal(DBPortal, BasePortal):
                     EventType.ROOM_REDACTION,
                     error=e,
                 )
+                await sender.handle_auth_failure(e)
             else:
                 self.log.trace(f"Removed {message} after Matrix redaction")
                 sender.send_remote_checkpoint(
@@ -586,6 +669,7 @@ class Portal(DBPortal, BasePortal):
                     EventType.ROOM_REDACTION,
                     error=e,
                 )
+                await sender.handle_auth_failure(e)
             else:
                 self.log.trace(f"Removed {reaction} after Matrix redaction")
                 sender.send_remote_checkpoint(
@@ -628,6 +712,7 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.send_notice(
                     self.mxid, f"\u26a0 Failed to accept invite on Signal: {e}"
                 )
+                await user.handle_auth_failure(e)
             else:
                 await self.update_info(user, resp)
 
@@ -657,8 +742,25 @@ class Portal(DBPortal, BasePortal):
         )
         try:
             await self.signal.update_group(sender.username, self.chat_id, title=name)
-        except Exception:
+        except Exception as e:
             self.log.exception("Failed to update Signal group name")
+            await user.handle_auth_failure(e)
+            self.name = None
+
+    async def handle_matrix_topic(self, user: u.User, topic: str) -> None:
+        if self.topic == topic or self.is_direct or not topic:
+            return
+        sender, is_relay = await self.get_relay_sender(user, "topic change")
+        if not sender:
+            return
+        self.topic = topic
+        self.log.debug(
+            f"{user.mxid} changed the group topic, sending to Signal through {sender.username}"
+        )
+        try:
+            await self.signal.update_group(sender.username, self.chat_id, description=topic)
+        except Exception:
+            self.log.exception("Failed to update Signal group description")
             self.name = None
 
     async def handle_matrix_avatar(self, user: u.User, url: ContentURI) -> None:
@@ -682,97 +784,15 @@ class Portal(DBPortal, BasePortal):
         try:
             await self.signal.update_group(sender.username, self.chat_id, avatar_path=path)
             self.avatar_set = True
-        except Exception:
+        except Exception as e:
             self.log.exception("Failed to update Signal group avatar")
+            await user.handle_auth_failure(e)
             self.avatar_set = False
         if self.config["signal.remove_file_after_handling"]:
             try:
                 os.remove(path)
             except FileNotFoundError:
                 pass
-
-    @classmethod
-    async def _expire_event(cls, room_id: RoomID, event_id: EventID, restart: bool = False):
-        """
-        Schedule a task to expire a an event. This should only be called once the message has been
-        read, as the timer for redaction will start immediately, and there is no (supported)
-        mechanism to stop the countdown, even after bridge restart.
-
-        If there is already an expiration event for the given ``room_id`` and ``event_id``, it will
-        not schedule a new task.
-        """
-        portal = await cls.get_by_mxid(room_id)
-        if not portal:
-            raise AttributeError(f"No portal found for {room_id}")
-
-        # Need a lock around this critical section to make sure that we know if a task has been
-        # created for this particular (room_id, event_id) combination.
-        async with portal._expiration_lock:
-            if (
-                not portal.is_direct
-                and not cls.config["signal.enable_disappearing_messages_in_groups"]
-            ):
-                portal.log.debug(
-                    "Not expiring event in group message since "
-                    "signal.enable_disappearing_messages_in_groups is not enabled."
-                )
-                await DisappearingMessage.delete(room_id, event_id)
-                return
-
-            disappearing_message = await DisappearingMessage.get(room_id, event_id)
-            if disappearing_message is None:
-                return
-            wait = disappearing_message.expiration_seconds
-            now = time.time()
-            # If there is an expiration_ts, then there's already a task going, or it's a restart.
-            # If it's a restart, then restart the countdown. This is fairly likely to occur if the
-            # disappearance timeout is weeks.
-            if disappearing_message.expiration_ts:
-                if not restart:
-                    portal.log.debug(f"Expiration task already exists for {event_id} in {room_id}")
-                    return
-                portal.log.debug(f"Resuming expiration for {event_id} in {room_id}")
-                wait = (disappearing_message.expiration_ts / 1000) - now
-            if wait < 0:
-                wait = 0
-
-            # Spawn the actual expiration task.
-            asyncio.create_task(cls._expire_event_task(portal, event_id, wait))
-
-            # Set the expiration_ts only after we have actually created the expiration task.
-            if not disappearing_message.expiration_ts:
-                await disappearing_message.set_expiration_ts(int((now + wait) * 1000))
-
-    @classmethod
-    async def _expire_event_task(cls, portal: Portal, event_id: EventID, wait: float):
-        portal.log.debug(f"Redacting {event_id} in {wait} seconds")
-        await asyncio.sleep(wait)
-
-        async with portal._expiration_lock:
-            if not await DisappearingMessage.get(portal.mxid, event_id):
-                portal.log.debug(
-                    f"{event_id} no longer in disappearing messages list, not redacting"
-                )
-                return
-
-            portal.log.debug(f"Redacting {event_id} because it was expired")
-            try:
-                await portal.main_intent.redact(portal.mxid, event_id)
-                portal.log.debug(f"Redacted {event_id} successfully")
-            except Exception as e:
-                portal.log.warning(f"Redacting expired event {event_id} failed", e)
-            finally:
-                await DisappearingMessage.delete(portal.mxid, event_id)
-
-    async def handle_read_receipt(self, event_id: EventID, data: SingleReceiptEventContent):
-        # Start the redaction timers for all the disappearing messages in the room when the user
-        # reads the room. This is the behavior of the Signal clients.
-        await asyncio.gather(
-            *(
-                Portal._expire_event(dm.room_id, dm.mxid)
-                for dm in await DisappearingMessage.get_unscheduled_for_room(self.mxid)
-            )
-        )
 
     # endregion
     # region Signal event handling
@@ -800,6 +820,48 @@ class Portal(DBPortal, BasePortal):
         except MatrixError:
             return reply_msg.mxid
 
+    async def _signal_link_preview_to_beeper(
+        self, link_preview: LinkPreview, intent: IntentAPI
+    ) -> dict[str, Any]:
+        beeper_link_preview: dict[str, Any] = {
+            "matched_url": link_preview.url,
+            "og:title": link_preview.title,
+            "og:url": link_preview.url,
+            "og:description": link_preview.description,
+        }
+
+        # Upload an image corresponding to the link preview if it exists.
+        if link_preview.attachment and link_preview.attachment.incoming_filename:
+            beeper_link_preview["og:image:type"] = link_preview.attachment.content_type
+            beeper_link_preview["og:image:height"] = link_preview.attachment.height
+            beeper_link_preview["og:image:width"] = link_preview.attachment.width
+            beeper_link_preview["matrix:image:size"] = link_preview.attachment.size
+
+            with open(link_preview.attachment.incoming_filename, "rb") as file:
+                data = file.read()
+            if self.config["signal.remove_file_after_handling"]:
+                os.remove(link_preview.attachment.incoming_filename)
+
+            upload_mime_type = link_preview.attachment.content_type
+            if self.encrypted and encrypt_attachment:
+                data, beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY] = encrypt_attachment(data)
+                upload_mime_type = "application/octet-stream"
+
+            upload_uri = await intent.upload_media(
+                data,
+                mime_type=upload_mime_type,
+                filename=link_preview.attachment.id,
+                async_upload=self.config["homeserver.async_media"],
+            )
+            if BEEPER_IMAGE_ENCRYPTION_KEY in beeper_link_preview:
+                beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY].url = upload_uri
+                beeper_link_preview[BEEPER_IMAGE_ENCRYPTION_KEY] = beeper_link_preview[
+                    BEEPER_IMAGE_ENCRYPTION_KEY
+                ].serialize()
+            else:
+                beeper_link_preview["og:image"] = upload_uri
+        return beeper_link_preview
+
     async def handle_signal_message(
         self, source: u.User, sender: p.Puppet, message: MessageData
     ) -> None:
@@ -818,6 +880,7 @@ class Portal(DBPortal, BasePortal):
                 source.username, sender.address, timestamps=[message.timestamp]
             )
             return
+        self._msgts_dedup.appendleft((sender.address, message.timestamp))
         old_message = await DBMessage.get_by_signal_id(
             sender.address, message.timestamp, self.chat_id, self.receiver
         )
@@ -832,7 +895,6 @@ class Portal(DBPortal, BasePortal):
             return
         self.log.debug(f"Started handling message {message.timestamp} by {sender.uuid}")
         self.log.trace(f"Message content: {message}")
-        self._msgts_dedup.appendleft((sender.address, message.timestamp))
         intent = sender.intent_for(self)
         await intent.set_typing(self.mxid, False)
         event_id = None
@@ -860,6 +922,7 @@ class Portal(DBPortal, BasePortal):
                 if reply_to and not message.body:
                     content.set_reply(reply_to)
                     reply_to = None
+                content.msgtype = None
                 event_id = await self._send_message(
                     intent, content, timestamp=message.timestamp, event_type=EventType.STICKER
                 )
@@ -895,6 +958,11 @@ class Portal(DBPortal, BasePortal):
 
         if message.body:
             content = await signal_to_matrix(message)
+            if message.previews:
+                content[BEEPER_LINK_PREVIEWS_KEY] = await asyncio.gather(
+                    *(self._signal_link_preview_to_beeper(p, intent) for p in message.previews)
+                )
+
             if reply_to:
                 content.set_reply(reply_to)
             event_id = await self._send_message(intent, content, timestamp=message.timestamp)
@@ -916,19 +984,18 @@ class Portal(DBPortal, BasePortal):
             await sender.update_activity_ts(message.timestamp)
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
 
-            if message.expires_in_seconds and (
-                self.is_direct or self.config["signal.enable_disappearing_messages_in_groups"]
-            ):
-                disappearing_message = DisappearingMessage(
-                    self.mxid, event_id, message.expires_in_seconds
-                )
-                await disappearing_message.insert()
+            if message.expires_in_seconds and self.disappearing_enabled:
+                await DisappearingMessage(self.mxid, event_id, message.expires_in_seconds).insert()
                 self.log.debug(
                     f"{event_id} set to be redacted {message.expires_in_seconds} seconds after "
                     "room is read"
                 )
         else:
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
+
+    async def handle_signal_kicked(self, user: u.User, sender: p.Puppet) -> None:
+        self.log.debug(f"{user.mxid} was kicked by {sender.number} from {self.mxid}")
+        await self.main_intent.kick_user(self.mxid, user.mxid, f"{sender.name} kicked you")
 
     @staticmethod
     async def _make_media_content(
@@ -952,6 +1019,7 @@ class Portal(DBPortal, BasePortal):
         else:
             msgtype = MessageType.FILE
             info = FileInfo(mimetype=attachment.content_type)
+        info.size = attachment.size or len(data)
         if not attachment.custom_filename:
             ext = mimetypes.guess_extension(info.mimetype) or ""
             attachment.custom_filename = attachment.id + ext
@@ -980,6 +1048,7 @@ class Portal(DBPortal, BasePortal):
             data = await ffmpeg.convert_bytes(
                 data, ".ogg", output_args=("-c:a", "libopus"), input_mime=attachment.content_type
             )
+            info.size = len(data)
 
         return content, data
 
@@ -1113,7 +1182,12 @@ class Portal(DBPortal, BasePortal):
             data, content.file = encrypt_attachment(data)
             upload_mime_type = "application/octet-stream"
 
-        content.url = await intent.upload_media(data, mime_type=upload_mime_type, filename=id)
+        content.url = await intent.upload_media(
+            data,
+            mime_type=upload_mime_type,
+            filename=id,
+            async_upload=self.config["homeserver.async_media"],
+        )
         if content.file:
             content.file.url = content.url
             content.url = None
@@ -1130,7 +1204,7 @@ class Portal(DBPortal, BasePortal):
         author_address = await self._resolve_address(reaction.target_author)
         target_id = reaction.target_sent_timestamp
         async with self._reaction_lock:
-            dedup_id = (author_address, target_id, reaction.emoji, sender.address)
+            dedup_id = (author_address, target_id, reaction.emoji, sender.address, reaction.remove)
             if dedup_id in self._reaction_dedup:
                 return
             self._reaction_dedup.appendleft(dedup_id)
@@ -1186,14 +1260,18 @@ class Portal(DBPortal, BasePortal):
             if not isinstance(info, (Contact, Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
             if not self.name:
-                puppet = await p.Puppet.get_by_address(self.chat_id)
+                puppet = await self.get_dm_puppet()
                 if not puppet.name:
                     await puppet.update_info(info)
                 self.name = puppet.name
             return
 
         if isinstance(info, GroupV2ID):
-            info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            try:
+                info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            except Exception as e:
+                await source.handle_auth_failure(e)
+                raise
             if not info:
                 self.log.debug(
                     f"Failed to get full group v2 info through {source.username}, "
@@ -1215,6 +1293,7 @@ class Portal(DBPortal, BasePortal):
                 )
                 return
             changed = await self._update_name(info.title, sender) or changed
+            changed = await self._update_topic(info.description, sender) or changed
         elif isinstance(info, GroupV2ID):
             return
         else:
@@ -1244,7 +1323,22 @@ class Portal(DBPortal, BasePortal):
         content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=body)
         await self._send_message(sender.intent_for(self), content)
 
-    async def update_puppet_avatar(self, new_hash: str, avatar_url: ContentURI) -> None:
+    async def get_dm_puppet(self) -> p.Puppet | None:
+        if not self.is_direct:
+            return None
+        return await p.Puppet.get_by_address(self.chat_id)
+
+    async def update_info_from_puppet(self, puppet: p.Puppet | None = None) -> None:
+        if not self.is_direct:
+            return
+        if not puppet:
+            puppet = await self.get_dm_puppet()
+        await self.update_puppet_name(puppet.name, save=False)
+        await self.update_puppet_avatar(puppet.avatar_hash, puppet.avatar_url, save=False)
+
+    async def update_puppet_avatar(
+        self, new_hash: str, avatar_url: ContentURI, save: bool = True
+    ) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:
             return
 
@@ -1258,16 +1352,17 @@ class Portal(DBPortal, BasePortal):
                 except Exception:
                     self.log.exception("Error setting avatar")
                     self.avatar_set = False
-                await self.update_bridge_info()
-                await self.update()
+                if save:
+                    await self.update_bridge_info()
+                    await self.update()
 
-    async def update_puppet_name(self, name: str) -> None:
+    async def update_puppet_name(self, name: str, save: bool = True) -> None:
         if not self.encrypted and not self.private_chat_portal_meta:
             return
 
         changed = await self._update_name(name)
 
-        if changed:
+        if changed and save:
             await self.update_bridge_info()
             await self.update()
 
@@ -1283,6 +1378,20 @@ class Portal(DBPortal, BasePortal):
                 except Exception:
                     self.log.exception("Error setting name")
                     self.name_set = False
+            return True
+        return False
+
+    async def _update_topic(self, topic: str, sender: p.Puppet | None = None) -> bool:
+        if self.topic != topic:
+            self.topic = topic
+            if self.mxid:
+                try:
+                    await self._try_with_puppet(
+                        lambda i: i.set_room_topic(self.mxid, self.topic), puppet=sender
+                    )
+                except Exception:
+                    self.log.exception("Error setting topic")
+                    self.topic = None
             return True
         return False
 
@@ -1407,7 +1516,7 @@ class Portal(DBPortal, BasePortal):
 
     @property
     def bridge_info_state_key(self) -> str:
-        return f"net.maunium.signal://signal/{self.chat_id}"
+        return f"net.maunium.signal://signal/{self.chat_id_str}"
 
     @property
     def bridge_info(self) -> dict[str, Any]:
@@ -1420,7 +1529,7 @@ class Portal(DBPortal, BasePortal):
                 "avatar_url": self.config["appservice.bot_avatar"],
             },
             "channel": {
-                "id": str(self.chat_id),
+                "id": self.chat_id_str,
                 "displayname": self.name,
                 "avatar_url": self.avatar_url,
             },
@@ -1461,7 +1570,11 @@ class Portal(DBPortal, BasePortal):
         elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
             raise ValueError(f"Unexpected type for creating direct chat portal: {type(info)}")
         if isinstance(info, Group) and not info.members:
-            groups = await self.signal.list_groups(source.username)
+            try:
+                groups = await self.signal.list_groups(source.username)
+            except Exception as e:
+                await source.handle_auth_failure(e)
+                raise
             info = next(
                 (g for g in groups if isinstance(g, Group) and g.group_id == info.group_id), info
             )
@@ -1469,7 +1582,11 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(
                 f"create_matrix_room() called with {info}, fetching full info from signald"
             )
-            info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            try:
+                info = await self.signal.get_group(source.username, info.id, info.revision or -1)
+            except Exception as e:
+                await source.handle_auth_failure(e)
+                raise
             if not info:
                 self.log.warning(f"Full info not found, canceling room creation")
                 return None
@@ -1513,6 +1630,7 @@ class Portal(DBPortal, BasePortal):
         is_initial: bool = False,
     ) -> PowerLevelStateEventContent:
         levels = levels or PowerLevelStateEventContent()
+        levels.events_default = 0
         if self.is_direct:
             levels.ban = 99
             levels.kick = 99
@@ -1526,20 +1644,24 @@ class Portal(DBPortal, BasePortal):
                     puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
                     level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
                     levels.users[puppet.intent_for(self).mxid] = level
+                announcements = info.announcements
             else:
                 ac = GroupAccessControl()
+                announcements = AnnouncementsMode.UNKNOWN
             levels.ban = 50
             levels.kick = 50
             levels.invite = 50 if ac.members == AccessControlMode.ADMINISTRATOR else 0
             levels.state_default = 50
             meta_edit_level = 50 if ac.attributes == AccessControlMode.ADMINISTRATOR else 0
+            if announcements == AnnouncementsMode.ENABLED:
+                levels.events_default = 50
+        levels.events[EventType.REACTION] = 0
         levels.events[EventType.ROOM_NAME] = meta_edit_level
         levels.events[EventType.ROOM_AVATAR] = meta_edit_level
         levels.events[EventType.ROOM_TOPIC] = meta_edit_level
         levels.events[EventType.ROOM_ENCRYPTION] = 50 if self.matrix.e2ee else 99
         levels.events[EventType.ROOM_TOMBSTONE] = 99
         levels.users_default = 0
-        levels.events_default = 0
         # Remote delete is only for your own messages
         levels.redact = 99
         if self.main_intent.mxid not in levels.users:
@@ -1608,6 +1730,7 @@ class Portal(DBPortal, BasePortal):
             creation_content["m.federate"] = False
         self.mxid = await self.main_intent.create_room(
             name=name,
+            topic=self.topic,
             is_direct=self.is_direct,
             initial_state=initial_state,
             invitees=invites,
@@ -1660,7 +1783,7 @@ class Portal(DBPortal, BasePortal):
         if self.mxid:
             self.by_mxid[self.mxid] = self
         if self.is_direct:
-            puppet = await p.Puppet.get_by_address(self.chat_id)
+            puppet = await self.get_dm_puppet()
             self._main_intent = puppet.default_mxid_intent
         elif not self.is_direct:
             self._main_intent = self.az.intent
@@ -1669,6 +1792,10 @@ class Portal(DBPortal, BasePortal):
         await DBMessage.delete_all(self.mxid)
         self.by_mxid.pop(self.mxid, None)
         self.mxid = None
+        self.name_set = False
+        self.avatar_set = False
+        self.relay_user_id = None
+        self.topic = None
         self.encrypted = False
         await self.update()
 

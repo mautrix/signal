@@ -73,24 +73,20 @@ class SignalBridge(Bridge):
         self.signal = SignalHandler(self)
         super().prepare_bridge()
         cfg = self.config["bridge.provisioning"]
-        self.provisioning_api = ProvisioningAPI(self, cfg["shared_secret"])
+        self.provisioning_api = ProvisioningAPI(self, cfg["shared_secret"], cfg["segment_key"])
         self.az.app.add_subapp(cfg["prefix"], self.provisioning_api.app)
 
     async def start(self) -> None:
         User.init_cls(self)
         self.add_startup_actions(Puppet.init_cls(self))
         Portal.init_cls(self)
+        self.add_startup_actions(Portal.restart_scheduled_disappearing())
         if self.config["bridge.resend_bridge_info"]:
             self.add_startup_actions(self.resend_bridge_info())
         self.add_startup_actions(self.signal.start())
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
         self.periodic_active_metrics_task = asyncio.create_task(self._loop_active_puppet_metric())
-
-    async def stop(self) -> None:
-        await super().stop()
-        await self.db.stop()
-        asyncio.create_task(Portal.start_disappearing_message_expirations())
 
     @staticmethod
     async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:

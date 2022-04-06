@@ -1,9 +1,11 @@
-# Copyright (c) 2020 Tulir Asokan
+# Copyright (c) 2022 Tulir Asokan
 #
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
-from typing import Any, Dict, Optional
+from __future__ import annotations
+
+from typing import Any
 
 
 class RPCError(Exception):
@@ -28,9 +30,9 @@ class NotConnected(RPCError):
 class ResponseError(RPCError):
     def __init__(
         self,
-        data: Dict[str, Any],
-        error_type: Optional[str] = None,
-        message_override: Optional[str] = None,
+        data: dict[str, Any],
+        error_type: str | None = None,
+        message_override: str | None = None,
     ) -> None:
         self.data = data
         msg = message_override or data["message"]
@@ -51,28 +53,53 @@ class CaptchaRequired(ResponseError):
     pass
 
 
-class AuthorizationFailedException(ResponseError):
+class AuthorizationFailedError(ResponseError):
+    pass
+
+
+class ScanTimeoutError(ResponseError):
     pass
 
 
 class UserAlreadyExistsError(ResponseError):
-    def __init__(self, data: Dict[str, Any]) -> None:
+    def __init__(self, data: dict[str, Any]) -> None:
         super().__init__(data, message_override="You're already logged in")
 
 
+class OwnProfileKeyDoesNotExistError(ResponseError):
+    def __init__(self, data: dict[str, Any]) -> None:
+        super().__init__(
+            data,
+            message_override=(
+                "Cannot find own profile key. Please make sure you have a Signal profile name set."
+            ),
+        )
+
+
 class RequestValidationFailure(ResponseError):
-    def __init__(self, data: Dict[str, Any]) -> None:
+    def __init__(self, data: dict[str, Any]) -> None:
         results = data["validationResults"]
         result_str = ", ".join(results) if isinstance(results, list) else str(results)
         super().__init__(data, message_override=result_str)
 
 
 class InternalError(ResponseError):
-    def __init__(self, data: Dict[str, Any]) -> None:
+    """
+    If you find yourself using this, please file an issue against signald. We want to make
+    explicit error types at the protocol for anything a client might normally expect.
+    """
+
+    def __init__(self, data: dict[str, Any]) -> None:
         exceptions = data.get("exceptions", [])
         self.exceptions = exceptions
         message = data.get("message")
         super().__init__(data, error_type=", ".join(exceptions), message_override=message)
+
+
+class AttachmentTooLargeError(ResponseError):
+    def __init__(self, data: dict[str, Any]) -> None:
+        self.filename = data.get("filename", "")
+        super().__init__(data, message_override="File is over the 100MB limit.")
 
 
 response_error_types = {
@@ -82,13 +109,16 @@ response_error_types = {
     "RequestValidationFailure": RequestValidationFailure,
     "UnknownIdentityKey": UnknownIdentityKey,
     "CaptchaRequired": CaptchaRequired,
-    "AuthorizationFailedException": AuthorizationFailedException,
     "InternalError": InternalError,
-    # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/exceptions
+    "AttachmentTooLargeError": AttachmentTooLargeError,
+    "AuthorizationFailedError": AuthorizationFailedError,
+    "ScanTimeoutError": ScanTimeoutError,
+    "OwnProfileKeyDoesNotExistError": OwnProfileKeyDoesNotExistError,
+    # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/clientprotocol/v1/exceptions
 }
 
 
-def make_response_error(data: Dict[str, Any]) -> ResponseError:
+def make_response_error(data: dict[str, Any]) -> ResponseError:
     error_data = data["error"]
     if isinstance(error_data, str):
         error_data = {"message": error_data}

@@ -27,6 +27,10 @@ class Address(SerializableAttrs):
     def best_identifier(self) -> str:
         return str(self.uuid) if self.uuid else self.number
 
+    @property
+    def number_or_uuid(self) -> str:
+        return self.number or str(self.uuid)
+
     def __eq__(self, other: "Address") -> bool:
         if not isinstance(other, Address):
             return False
@@ -96,11 +100,20 @@ class LinkSession(SerializableAttrs):
     session_id: str
 
 
-@dataclass
 class TrustLevel(SerializableEnum):
     TRUSTED_UNVERIFIED = "TRUSTED_UNVERIFIED"
     TRUSTED_VERIFIED = "TRUSTED_VERIFIED"
     UNTRUSTED = "UNTRUSTED"
+
+    @property
+    def human_str(self) -> str:
+        if self == TrustLevel.TRUSTED_VERIFIED:
+            return "trusted"
+        elif self == TrustLevel.TRUSTED_UNVERIFIED:
+            return "trusted (unverified)"
+        elif self == TrustLevel.UNTRUSTED:
+            return "untrusted"
+        return "unknown"
 
 
 @dataclass
@@ -163,6 +176,7 @@ class Group(SerializableAttrs):
 class GroupV2ID(SerializableAttrs):
     id: GroupID
     revision: Optional[int] = None
+    removed: Optional[bool] = False
 
 
 class AccessControlMode(SerializableEnum):
@@ -172,6 +186,12 @@ class AccessControlMode(SerializableEnum):
     ADMINISTRATOR = "ADMINISTRATOR"
     UNSATISFIABLE = "UNSATISFIABLE"
     UNRECOGNIZED = "UNRECOGNIZED"
+
+
+class AnnouncementsMode(SerializableEnum):
+    UNKNOWN = "UNKNOWN"
+    ENABLED = "ENABLED"
+    DISABLED = "DISABLED"
 
 
 @dataclass
@@ -198,6 +218,7 @@ class GroupMember(SerializableAttrs):
 @dataclass(kw_only=True)
 class GroupV2(GroupV2ID, SerializableAttrs):
     title: str
+    description: Optional[str] = None
     avatar: Optional[str] = None
     timer: Optional[int] = None
     master_key: Optional[str] = field(default=None, json="masterKey")
@@ -212,6 +233,7 @@ class GroupV2(GroupV2ID, SerializableAttrs):
         factory=lambda: [], json="pendingMemberDetail"
     )
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
+    announcements: AnnouncementsMode = field(default=AnnouncementsMode.UNKNOWN)
 
 
 @dataclass
@@ -275,7 +297,7 @@ class Sticker(SerializableAttrs):
 
 @dataclass
 class RemoteDelete(SerializableAttrs):
-    target_sent_timestamp: int = field(json="targetSentTimestamp")
+    target_sent_timestamp: int
 
 
 class SharedContactDetailType(SerializableEnum):
@@ -347,6 +369,14 @@ class SharedContact(SerializableAttrs):
 
 
 @dataclass
+class LinkPreview(SerializableAttrs):
+    url: str
+    title: str
+    description: str
+    attachment: Optional[Attachment] = None
+
+
+@dataclass
 class MessageData(SerializableAttrs):
     timestamp: int
 
@@ -367,6 +397,8 @@ class MessageData(SerializableAttrs):
     view_once: bool = field(default=False, json="viewOnce")
 
     remote_delete: Optional[RemoteDelete] = field(default=None, json="remoteDelete")
+
+    previews: List[LinkPreview] = field(factory=lambda: [])
 
     @property
     def is_message(self) -> bool:
@@ -529,6 +561,24 @@ class IncomingMessage(SerializableAttrs):
     receipt_message: Optional[ReceiptMessage] = None
 
 
+@dataclass(kw_only=True)
+class ErrorMessageData(SerializableAttrs):
+    sender: str
+    timestamp: int
+    message: str
+    sender_device: int
+    content_hint: int
+
+
+@dataclass(kw_only=True)
+class ErrorMessage(SerializableAttrs):
+    type: str
+    version: str
+    data: ErrorMessageData
+    error: bool
+    account: str
+
+
 class WebsocketConnectionState(SerializableEnum):
     # States from signald itself
     DISCONNECTED = "DISCONNECTED"
@@ -554,3 +604,50 @@ class WebsocketConnectionStateChangeEvent(SerializableAttrs):
     account: str
     socket: Optional[WebsocketType] = None
     exception: Optional[str] = None
+
+
+@dataclass
+class JoinGroupResponse(SerializableAttrs):
+    group_id: str = field(json="groupID")
+    pending_admin_approval: bool = field(json="pendingAdminApproval")
+    member_count: Optional[int] = field(json="memberCount", default=None)
+    revision: Optional[int] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ProofRequiredType(SerializableEnum):
+    RECAPTCHA = "RECAPTCHA"
+    PUSH_CHALLENGE = "PUSH_CHALLENGE"
+
+
+@dataclass
+class ProofRequiredError(SerializableAttrs):
+    options: List[ProofRequiredType] = field(factory=lambda: [])
+    message: Optional[str] = None
+    retry_after: Optional[int] = None
+    token: Optional[str] = None
+
+
+@dataclass
+class SendSuccessData(SerializableAttrs):
+    devices: List[int] = field(factory=lambda: [])
+    duration: Optional[int] = None
+    needs_sync: bool = field(json="needsSync", default=False)
+    unidentified: bool = field(json="unidentified", default=False)
+
+
+@dataclass
+class SendMessageResult(SerializableAttrs):
+    address: Address
+    success: Optional[SendSuccessData] = None
+    proof_required_failure: Optional[ProofRequiredError] = None
+    identity_failure: Optional[str] = field(json="identityFailure", default=None)
+    network_failure: bool = field(json="networkFailure", default=False)
+    unregistered_failure: bool = field(json="unregisteredFailure", default=False)
+
+
+@dataclass
+class SendMessageResponse(SerializableAttrs):
+    results: List[SendMessageResult]
+    timestamp: int

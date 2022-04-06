@@ -22,7 +22,7 @@ import asyncpg
 
 from mausignald.types import Address, GroupID
 from mautrix.types import EventID, RoomID
-from mautrix.util.async_db import Database
+from mautrix.util.async_db import Database, Scheme
 
 from ..util import id_to_str
 
@@ -113,7 +113,7 @@ class Message:
 
     @classmethod
     async def find_by_timestamps(cls, timestamps: list[int]) -> list[Message]:
-        if cls.db.scheme == "postgres":
+        if cls.db.scheme in (Scheme.POSTGRES, Scheme.COCKROACH):
             q = """
             SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
             WHERE timestamp=ANY($1)

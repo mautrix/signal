@@ -17,23 +17,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
 
-from attr import dataclass
 import asyncpg
 
+from mautrix.bridge import AbstractDisappearingMessage
 from mautrix.types import EventID, RoomID
 from mautrix.util.async_db import Database
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
 
-@dataclass
-class DisappearingMessage:
+class DisappearingMessage(AbstractDisappearingMessage):
     db: ClassVar[Database] = fake_db
-
-    room_id: RoomID
-    mxid: EventID
-    expiration_seconds: int
-    expiration_ts: int | None = None
 
     async def insert(self) -> None:
         q = """
@@ -41,22 +35,20 @@ class DisappearingMessage:
             VALUES ($1, $2, $3, $4)
         """
         await self.db.execute(
-            q, self.room_id, self.mxid, self.expiration_seconds, self.expiration_ts
+            q, self.room_id, self.event_id, self.expiration_seconds, self.expiration_ts
         )
 
-    async def set_expiration_ts(self, ts: int) -> None:
+    async def update(self) -> None:
         q = "UPDATE disappearing_message SET expiration_ts=$3 WHERE room_id=$1 AND mxid=$2"
-        self.expiration_ts = ts
-        await self.db.execute(q, self.room_id, self.mxid, self.expiration_ts)
+        await self.db.execute(q, self.room_id, self.event_id, self.expiration_ts)
 
-    @classmethod
-    async def delete(cls, room_id: RoomID, event_id: EventID) -> None:
+    async def delete(self) -> None:
         q = "DELETE from disappearing_message WHERE room_id=$1 AND mxid=$2"
-        await cls.db.execute(q, room_id, event_id)
+        await self.db.execute(q, self.room_id, self.event_id)
 
     @classmethod
     def _from_row(cls, row: asyncpg.Record) -> DisappearingMessage:
-        return cls(**row)
+        return cls(row["room_id"], row["mxid"], row["expiration_seconds"], row["expiration_ts"])
 
     @classmethod
     async def get(cls, room_id: RoomID, event_id: EventID) -> DisappearingMessage | None:

@@ -18,6 +18,9 @@ homeserver:
     message_send_checkpoint_endpoint: null
     # Maximum number of simultaneous HTTP connections to the homeserver.
     connection_limit: 100
+    # Whether asynchronous uploads via MSC2246 should be enabled for media.
+    # Requires a media repo that supports MSC2246.
+    async_media: false
 
 # Application service host/registration related details
 # Changing these values requires regeneration of the registration.
@@ -198,10 +201,15 @@ bridge:
         # Whether or not the provisioning API should be enabled.
         enabled: true
         # The prefix to use in the provisioning API endpoints.
-        prefix: /_matrix/provision/v1
+        prefix: /_matrix/provision
         # The shared secret to authorize users of the API.
         # Set to "generate" to generate and save a new token.
         shared_secret: generate
+        # Segment API key to enable analytics tracking for web server
+        # endpoints. Set to null to disable.
+        # Currently the only events are login start, QR code scan, and login
+        # success/failure.
+        segment_key: null
 
     # The prefix for commands. Only required in non-management rooms.
     command_prefix: "!signal"
@@ -214,7 +222,7 @@ bridge:
         # Sent when joining a management room and the user is already logged in.
         welcome_connected: "Use `help` for help."
         # Sent when joining a management room and the user is not logged in.
-        welcome_unconnected: "Use `help` for help or `register` to log in."
+        welcome_unconnected: "Use `help` for help or `link` to log in."
         # Optional extra text sent when joining a management room.
         additional_help: ""
 

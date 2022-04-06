@@ -1,5 +1,5 @@
 # mautrix-signal - A Matrix-Signal puppeting bridge
-# Copyright (C) 2020 Tulir Asokan
+# Copyright (C) 2022 Tulir Asokan
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as published by
@@ -13,12 +13,13 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional
+from __future__ import annotations
+
 import base64
 import json
 
 from mausignald.errors import UnknownIdentityKey
-from mausignald.types import Address
+from mausignald.types import Address, TrustLevel
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import EventID
 
@@ -35,7 +36,7 @@ except ImportError:
 SECTION_SIGNAL = HelpSection("Signal actions", 20, "")
 
 
-async def _get_puppet_from_cmd(evt: CommandEvent) -> Optional["pu.Puppet"]:
+async def _get_puppet_from_cmd(evt: CommandEvent) -> pu.Puppet | None:
     if len(evt.args) == 0 or not evt.args[0].startswith("+"):
         await evt.reply(
             f"**Usage:** `$cmdprefix+sp {evt.command} <phone>` "
@@ -49,7 +50,12 @@ async def _get_puppet_from_cmd(evt: CommandEvent) -> Optional["pu.Puppet"]:
             "(enter phone number in international format)"
         )
         return None
-    return await pu.Puppet.get_by_address(Address(number=phone))
+    puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=phone))
+    if not puppet.uuid and evt.sender.username:
+        uuid = await evt.bridge.signal.find_uuid(evt.sender.username, puppet.number)
+        if uuid:
+            await puppet.handle_uuid_receive(uuid)
+    return puppet
 
 
 def _format_safety_number(number: str) -> str:
@@ -93,6 +99,29 @@ async def pm(evt: CommandEvent) -> None:
         return
     await portal.create_matrix_room(evt.sender, puppet.address)
     await evt.reply(f"Created a portal room with {_pill(puppet)} and invited you to it")
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Join a Signal group with an invite link",
+    help_args="<_link_>",
+)
+async def join(evt: CommandEvent) -> EventID:
+    if len(evt.args) == 0:
+        return await evt.reply("**Usage:** `$cmdprefix+sp join <invite link>`")
+    try:
+        resp = await evt.bridge.signal.join_group(evt.sender.username, evt.args[0])
+        if resp.pending_admin_approval:
+            return await evt.reply(
+                f"Successfully requested to join {resp.title}, waiting for admin approval."
+            )
+        else:
+            return await evt.reply(f"Successfully joined {resp.title}")
+    except Exception:
+        evt.log.exception("Error trying to join group")
+        await evt.reply("Failed to join group (see logs for more details)")
 
 
 @command_handler(
@@ -170,20 +199,28 @@ async def set_profile_name(evt: CommandEvent) -> None:
     await evt.reply("Successfully updated profile name")
 
 
+_trust_levels = [x.value for x in TrustLevel]
+
+
 @command_handler(
     needs_auth=True,
     management_only=False,
     help_section=SECTION_SIGNAL,
     help_text="Mark another user's safety number as trusted",
-    help_args="<_recipient phone_> <_safety number_>",
+    help_args="<_recipient phone_> [_level_] <_safety number_>",
 )
 async def mark_trusted(evt: CommandEvent) -> EventID:
     if len(evt.args) < 2:
         return await evt.reply(
-            "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> <safety number>`"
+            "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> [level] <safety number>`"
         )
     number = evt.args[0].translate(remove_extra_chars)
-    safety_num = "".join(evt.args[1:]).replace("\n", "")
+    remaining_args = evt.args[1:]
+    trust_level = TrustLevel.TRUSTED_VERIFIED
+    if len(evt.args) > 2 and evt.args[1].upper() in _trust_levels:
+        trust_level = TrustLevel(evt.args[1])
+        remaining_args = evt.args[2:]
+    safety_num = "".join(remaining_args).replace("\n", "")
     if len(safety_num) != 60 or not safety_num.isdecimal():
         return await evt.reply("That doesn't look like a valid safety number")
     try:
@@ -191,11 +228,11 @@ async def mark_trusted(evt: CommandEvent) -> EventID:
             evt.sender.username,
             Address(number=number),
             safety_number=safety_num,
-            trust_level="TRUSTED_VERIFIED",
+            trust_level=trust_level,
         )
     except UnknownIdentityKey as e:
-        return await evt.reply(f"Failed to mark {number} as trusted: {e}")
-    return await evt.reply(f"Successfully marked {number} as trusted")
+        return await evt.reply(f"Failed to mark {number} as {trust_level.human_str}: {e}")
+    return await evt.reply(f"Successfully marked {number} as {trust_level.human_str}")
 
 
 @command_handler(
