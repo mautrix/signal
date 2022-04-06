@@ -24,7 +24,8 @@ from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import EventID
 
 from .. import portal as po, puppet as pu
-from .auth import make_qr, remove_extra_chars
+from ..util import normalize_number
+from .auth import make_qr
 from .typehint import CommandEvent
 
 try:
@@ -37,19 +38,15 @@ SECTION_SIGNAL = HelpSection("Signal actions", 20, "")
 
 
 async def _get_puppet_from_cmd(evt: CommandEvent) -> pu.Puppet | None:
-    if len(evt.args) == 0 or not evt.args[0].startswith("+"):
+    try:
+        phone = normalize_number("".join(evt.args))
+    except Exception:
         await evt.reply(
             f"**Usage:** `$cmdprefix+sp {evt.command} <phone>` "
             "(enter phone number in international format)"
         )
         return None
-    phone = "".join(evt.args).translate(remove_extra_chars)
-    if not phone[1:].isdecimal():
-        await evt.reply(
-            f"**Usage:** `$cmdprefix+sp {evt.command} <phone>` "
-            "(enter phone number in international format)"
-        )
-        return None
+
     puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=phone))
     if not puppet.uuid and evt.sender.username:
         uuid = await evt.bridge.signal.find_uuid(evt.sender.username, puppet.number)
@@ -214,7 +211,7 @@ async def mark_trusted(evt: CommandEvent) -> EventID:
         return await evt.reply(
             "**Usage:** `$cmdprefix+sp mark-trusted <recipient phone> [level] <safety number>`"
         )
-    number = evt.args[0].translate(remove_extra_chars)
+    number = normalize_number(evt.args[0])
     remaining_args = evt.args[1:]
     trust_level = TrustLevel.TRUSTED_VERIFIED
     if len(evt.args) > 2 and evt.args[1].upper() in _trust_levels:
