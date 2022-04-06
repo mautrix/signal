@@ -204,11 +204,11 @@ class Puppet:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def recently_active_count(cls, min_activity_days: int, max_activity_days: int | None) -> int:
+    async def recently_active_count(
+        cls, min_activity_days: int, max_activity_days: int | None
+    ) -> int:
         current_ms = time.time() * 1000
-        query = (
-            "SELECT COUNT(*) FROM puppet WHERE (last_activity_ts - first_activity_ts) > $1"
-        )
+        query = "SELECT COUNT(*) FROM puppet WHERE (last_activity_ts - first_activity_ts) > $1"
         args = [ONE_DAY_MS * min_activity_days]
         if max_activity_days is not None:
             query += " AND ($2 - last_activity_ts) <= $3"

@@ -88,21 +88,6 @@ class SignaldRPCClient:
                 self.log.exception("Unknown error in signald socket")
                 await asyncio.sleep(30)
 
-<<<<<<< HEAD
-            self.log.debug(f"Connection to {self.socket_path} succeeded")
-            read_loop = asyncio.create_task(self._try_read_loop())
-            self.is_connected = True
-            CONNECTED_GAUGE.set(1)
-            await self._run_rpc_handler(CONNECT_EVENT, {})
-            self._connect_future.set_result(True)
-
-            await read_loop
-            self.is_connected = False
-            CONNECTED_GAUGE.set(0)
-            await self._run_rpc_handler(DISCONNECT_EVENT, {})
-            self._connect_future = self.loop.create_future()
-            RECONNECTIONS_COUNTER.inc(1)
-=======
     async def _communicate(self) -> None:
         try:
             self.log.debug(f"Connecting to {self.socket_path}...")
@@ -114,16 +99,19 @@ class SignaldRPCClient:
             await asyncio.sleep(5)
             return
 
+        self.log.debug(f"Connection to {self.socket_path} succeeded")
         read_loop = asyncio.create_task(self._try_read_loop())
         self.is_connected = True
+        CONNECTED_GAUGE.set(1)
         asyncio.create_task(self._run_rpc_handler(CONNECT_EVENT, {}))
         self._connect_future.set_result(True)
 
         await read_loop
         self.is_connected = False
+        CONNECTED_GAUGE.set(0)
         self._connect_future = self.loop.create_future()
         await self._run_rpc_handler(DISCONNECT_EVENT, {})
->>>>>>> tulir/master
+        RECONNECTIONS_COUNTER.inc(1)
 
     async def disconnect(self) -> None:
         if self._writer is not None:

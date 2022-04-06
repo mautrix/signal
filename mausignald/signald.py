@@ -318,12 +318,7 @@ class SignaldClient(SignaldRPCClient):
             f"Successfully sent message to {successful_send_count}/{len(resp.results)} users in "
             f"{recipient} with {len(unregistered_failures)} unregistered failures"
         )
-<<<<<<< HEAD
-
-        if len(unregistered_failures) == len(results):
-=======
         if len(unregistered_failures) == len(resp.results):
->>>>>>> tulir/master
             errors.extend(unregistered_failures)
 
         if errors:

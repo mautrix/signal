@@ -193,36 +193,47 @@ class SignalBridge(Bridge):
         msg = self.config["bridge.limits.block_ends_notification"]
         if is_blocked:
             msg = self.config["bridge.limits.block_begins_notification"]
-            next_notification = self.last_blocking_notification + self.config["bridge.limits.block_notification_interval_seconds"]
+            next_notification = (
+                self.last_blocking_notification
+                + self.config["bridge.limits.block_notification_interval_seconds"]
+            )
             # We're only checking if the block is active, since the unblock notification will not be resent and we want it ASAP
             if next_notification > int(time.time()):
                 return
             self.last_blocking_notification = int(time.time())
 
-        admins = list(map(lambda entry: entry[0],
-            filter(lambda entry: entry[1] == 'admin',
-                self.config["bridge.permissions"].items()
+        admins = list(
+            map(
+                lambda entry: entry[0],
+                filter(
+                    lambda entry: entry[1] == "admin", self.config["bridge.permissions"].items()
+                ),
             )
-        ))
+        )
         if len(admins) == 0:
-            self.log.debug('No bridge admins to notify about the bridge being blocked')
+            self.log.debug("No bridge admins to notify about the bridge being blocked")
             return
 
         self.log.debug(f'Notifying bridge admins ({",".join(admins)}) about bridge being blocked')
         for admin_mxid in admins:
-            admin = await User.get_by_mxid(admin_mxid, True) # create if needed
+            admin = await User.get_by_mxid(admin_mxid, True)  # create if needed
             if admin.notice_room is None:
                 room_id = await self.az.intent.create_room(
-                    name='Signal Bridge notice room',
+                    name="Signal Bridge notice room",
                     is_direct=True,
                     invitees=[admin_mxid],
                 )
                 admin.notice_room = room_id
                 admin.update()
 
-            await self.az.intent.send_message(admin.notice_room, TextMessageEventContent(
-                # \u26a0 is a warning sign
-                msgtype=MessageType.NOTICE, body=f"\u26a0 {msg}"
-            ))
+            await self.az.intent.send_message(
+                admin.notice_room,
+                TextMessageEventContent(
+                    # \u26a0 is a warning sign
+                    msgtype=MessageType.NOTICE,
+                    body=f"\u26a0 {msg}",
+                ),
+            )
+
 
 SignalBridge().run()
