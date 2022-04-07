@@ -62,6 +62,7 @@ from mautrix.types import (
     FileInfo,
     ImageInfo,
     MediaMessageEventContent,
+    Membership,
     MessageEvent,
     MessageEventContent,
     MessageType,
@@ -1417,26 +1418,50 @@ class Portal(DBPortal, BasePortal):
         if not self.mxid or not isinstance(info, (Group, GroupV2)):
             return
 
+        member_events = await self.main_intent.get_members(self.mxid)
+        remove_users: set[UserID] = {
+            UserID(evt.state_key)
+            for evt in member_events
+            if evt.content.membership == Membership.JOIN and evt.state_key != self.az.bot_mxid
+        }
+
         pending_members = info.pending_members if isinstance(info, GroupV2) else []
         self._pending_members = {addr.uuid for addr in pending_members}
 
         for address in info.members:
             user = await u.User.get_by_address(address)
             if user:
-                await self.main_intent.invite_user(self.mxid, user.mxid)
+                remove_users.discard(user.mxid)
+                await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
 
             puppet = await p.Puppet.get_by_address(address)
             await source.sync_contact(address)
             await puppet.intent_for(self).ensure_joined(self.mxid)
+            remove_users.discard(puppet.default_mxid)
 
         for address in pending_members:
             user = await u.User.get_by_address(address)
             if user:
-                await self.main_intent.invite_user(self.mxid, user.mxid)
+                remove_users.discard(user.mxid)
+                await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
 
             puppet = await p.Puppet.get_by_address(address)
             await source.sync_contact(address)
-            await self.main_intent.invite_user(self.mxid, puppet.intent_for(self).mxid)
+            await self.main_intent.invite_user(
+                self.mxid, puppet.intent_for(self).mxid, check_cache=True
+            )
+            remove_users.discard(puppet.default_mxid)
+
+        for mxid in remove_users:
+            puppet = await p.Puppet.get_by_mxid(mxid, create=False)
+            if puppet:
+                await puppet.default_mxid_intent.leave_room(self.mxid)
+            else:
+                user = await u.User.get_by_mxid(mxid, create=False)
+                if user and await user.is_logged_in():
+                    await self.main_intent.kick_user(
+                        self.mxid, user.mxid, "You are not a member of this Signal group"
+                    )
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
         if not self.mxid:
