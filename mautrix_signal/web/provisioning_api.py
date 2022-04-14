@@ -28,7 +28,7 @@ from mausignald.errors import (
     TimeoutException,
     UnregisteredUserError,
 )
-from mausignald.types import Account, Address, Profile
+from mausignald.types import Account, Address
 from mautrix.types import UserID
 from mautrix.util.logging import TraceLogger
 
@@ -122,8 +122,13 @@ class ProvisioningAPI:
                 text='{"error": "Missing user_id query param"}', headers=self._headers
             )
 
-        if not self.bridge.signal.is_connected:
-            await self.bridge.signal.wait_for_connected()
+        try:
+            if not self.bridge.signal.is_connected:
+                await self.bridge.signal.wait_for_connected(timeout=10)
+        except asyncio.TimeoutError:
+            raise web.HTTPServiceUnavailable(
+                text=json.dumps({"error": "Cannot connect to signald"}), headers=self._headers
+            )
 
         return await u.User.get_by_mxid(UserID(user_id))
 
