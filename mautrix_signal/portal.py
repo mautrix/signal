@@ -50,7 +50,7 @@ from mausignald.types import (
     Sticker,
 )
 from mautrix.appservice import AppService, IntentAPI
-from mautrix.bridge import BasePortal, async_getter_lock
+from mautrix.bridge import BasePortal, async_getter_lock, RejectMatrixInvite
 from mautrix.errors import IntentError, MatrixError, MForbidden
 from mautrix.types import (
     AudioInfo,
@@ -721,6 +721,18 @@ class Portal(DBPortal, BasePortal):
         else:
             self.log.debug(f"{user.mxid} left portal to {self.chat_id}")
             # TODO cleanup if empty
+
+    async def handle_matrix_invite(
+        self, invited_by: u.User, puppet: p.Puppet) -> None:
+        if self.is_direct:
+            raise RejectMatrixInvite("You can't invite additional users to private chats.")
+        else:
+            try:
+                await self.signal.update_group(
+                    invited_by.uuid, self.chat_id,
+                    add_members=[puppet.uuid])
+            except RPCError as e:
+                raise RejectMatrixInvite(e.message) from e
 
     async def handle_matrix_name(self, user: u.User, name: str) -> None:
         if self.name == name or self.is_direct or not name:

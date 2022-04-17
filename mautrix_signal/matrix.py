@@ -54,6 +54,17 @@ class MatrixHandler(BaseMatrixHandler):
 
         super().__init__(bridge=bridge)
 
+    async def handle_invite(
+        self, room_id: RoomID, user_id: UserID, inviter: u.User, event_id: EventID
+    ) -> None:
+        user = await u.User.get_by_mxid(user_id, create=False)
+        if not user:
+            return
+        await user.ensure_started()
+        portal = await po.Portal.get_by_mxid(room_id)
+        if portal:
+            await portal.handle_matrix_invite(inviter, user)
+
     async def send_welcome_message(self, room_id: RoomID, inviter: u.User) -> None:
         await super().send_welcome_message(room_id, inviter)
         if not inviter.notice_room:
