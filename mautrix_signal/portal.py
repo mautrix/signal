@@ -722,15 +722,14 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"{user.mxid} left portal to {self.chat_id}")
             # TODO cleanup if empty
 
-    async def handle_matrix_invite(
-        self, invited_by: u.User, user: u.User) -> None:
+    async def handle_matrix_invite(self, invited_by: u.User, user: u.User) -> None:
         if self.is_direct:
             raise RejectMatrixInvite("You can't invite additional users to private chats.")
         else:
             try:
                 await self.signal.update_group(
-                    invited_by.username, self.chat_id,
-                    add_members=[user.address])
+                    invited_by.username, self.chat_id, add_members=[user.address]
+                )
             except RPCError as e:
                 raise RejectMatrixInvite(e.message) from e
 
