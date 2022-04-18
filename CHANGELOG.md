@@ -2,13 +2,19 @@
 
 Target signald version: [v0.18.0](https://gitlab.com/signald/signald/-/releases/0.18.0)
 
-**N.B.** Both the signald and mautrix-signal docker images have been changed to
-run as UID 1337 by default. The migration should work automatically as long as
-you update both containers at the same time.
+### Important changes
+* Both the signald and mautrix-signal docker images have been changed to run as
+  UID 1337 by default. The migration should work automatically as long as you
+  update both containers at the same time.
+* Old homeservers which don't support the new `/v3` API endpoints are no longer
+  supported. Synapse 1.48+, Dendrite 0.6.5+ and Conduit 0.4.0+ are supported.
+  Legacy `r0` API support can be temporarily re-enabled with `pip install mautrix==0.16.0`.
+  However, this option will not be available in future releases.
 
 ### Added
 * Support for creating DM portals by inviting user (i.e. just making a DM the
   normal Matrix way).
+* Leaving groups is now bridged to Signal (thanks to [@maltee1] in [#245]).
 * Signal group descriptions are now bridged into Matrix room topics.
 * Signal announcement group status is now bridged into power levels on Matrix
   (the group will be read-only for everyone except admins).
@@ -31,6 +37,8 @@ you update both containers at the same time.
 * Fixed `channel` -> `id` field in `m.bridge` events.
 
 [MSC2246]: https://github.com/matrix-org/matrix-spec-proposals/pull/2246
+[@maltee1]: https://github.com/maltee1
+[#245]: https://github.com/mautrix/signal/pull/245
 
 # v0.2.3 (2022-02-17)
 

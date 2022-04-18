@@ -4,5 +4,5 @@ commonmark>=0.8,<0.10
 aiohttp>=3,<4
 yarl>=1,<2
 attrs>=19.1
-mautrix>=0.15.4,<0.17
+mautrix>=0.16.0,<0.17
 asyncpg>=0.20,<0.26
