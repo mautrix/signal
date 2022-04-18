@@ -340,6 +340,9 @@ class SignaldClient(SignaldRPCClient):
         resp = await self.request_v1("join_group", account=username, uri=uri)
         return JoinGroupResponse.deserialize(resp)
 
+    async def leave_group(self, username: str, group_id: GroupID) -> None:
+        await self.request_v1("leave_group", account=username, groupID=group_id)
+
     async def update_group(
         self,
         username: str,

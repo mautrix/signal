@@ -720,6 +720,8 @@ class Portal(DBPortal, BasePortal):
                 await self.cleanup_and_delete()
         else:
             self.log.debug(f"{user.mxid} left portal to {self.chat_id}")
+            if self.config["bridge.bridge_matrix_leave"]:
+                await self.signal.leave_group(user.username, self.chat_id)
             # TODO cleanup if empty
 
     async def handle_matrix_name(self, user: u.User, name: str) -> None:
