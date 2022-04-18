@@ -50,7 +50,7 @@ from mausignald.types import (
     Sticker,
 )
 from mautrix.appservice import AppService, IntentAPI
-from mautrix.bridge import BasePortal, async_getter_lock, RejectMatrixInvite
+from mautrix.bridge import BasePortal, RejectMatrixInvite, async_getter_lock
 from mautrix.errors import IntentError, MatrixError, MForbidden
 from mautrix.types import (
     AudioInfo,
