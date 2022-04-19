@@ -389,6 +389,29 @@ class SignaldClient(SignaldRPCClient):
             return None
         return GroupV2.deserialize(resp)
 
+    async def create_group(
+        self,
+        username: str,
+        avatar_path: str | None = None,
+        member_role_administrator: bool = False,
+        members: list[Address] | None = None,
+        title: str | None = None,
+    ) -> GroupV2 | None:
+        create_params = {
+            key: value
+            for key, value in {
+                "avatar": avatar_path,
+                "member_role": "ADMINISTRATOR" if member_role_administrator else "DEFAULT",
+                "title": title,
+                "members": [addr.serialize() for addr in members],
+            }.items()
+            if value is not None
+        }
+        resp = await self.request_v1("create_group", account=username, **create_params)
+        if "id" not in resp:
+            return None
+        return GroupV2.deserialize(resp)
+
     async def get_profile(
         self, username: str, address: Address, use_cache: bool = False
     ) -> Profile | None:

@@ -19,7 +19,7 @@ import base64
 import json
 
 from mausignald.errors import UnknownIdentityKey
-from mausignald.types import Address, TrustLevel
+from mausignald.types import Address, GroupID, TrustLevel
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import EventID
 
@@ -27,6 +27,7 @@ from .. import portal as po, puppet as pu
 from ..util import normalize_number
 from .auth import make_qr
 from .typehint import CommandEvent
+from .util import get_initial_state, warn_missing_power
 
 try:
     import PIL as _
@@ -287,3 +288,36 @@ async def raw(evt: CommandEvent) -> None:
             await evt.reply(
                 f"Got reply `{resp_type}`:\n\n```json\n{json.dumps(resp_data, indent=2)}\n```"
             )
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text=("Create a Signal group for the current Matrix room. "),
+)
+async def create(evt: CommandEvent) -> EventID:
+    if await po.Portal.get_by_mxid(evt.room_id):
+        return await evt.reply("This is already a portal room.")
+
+    title, about, levels, encrypted = await get_initial_state(evt.az.intent, evt.room_id)
+    #    if not title:
+    #        return await evt.reply("Please set a title before creating a Telegram chat.")
+
+    portal = po.Portal(
+        chat_id=GroupID(""),
+        mxid=evt.room_id,
+        name=title,
+        topic=about,
+        encrypted=encrypted,
+        receiver="",
+    )
+
+    await warn_missing_power(levels, evt)
+
+    try:
+        await portal.create_signal_group(evt.sender)
+    except ValueError as e:
+        await portal.delete()
+        return await evt.reply(e.args[0])
+    return await evt.reply(f"Signal chat created. ID: {portal.chat_id}")

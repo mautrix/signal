@@ -1238,6 +1238,28 @@ class Portal(DBPortal, BasePortal):
             await self.main_intent.redact(message.mx_room, message.mxid)
 
     # endregion
+    # region Matrix -> Signal metadata
+
+    async def create_signal_group(self, source: u.User) -> None:
+
+        user_mxids = await self.az.intent.get_room_members(
+            self.mxid, (Membership.JOIN, Membership.INVITE)
+        )
+        user_addresses = list()
+        for mxid in user_mxids:
+            mx_user = await u.User.get_by_mxid(mxid, create=False)
+            if mx_user and mx_user.address and mx_user.username != source.username:
+                user_addresses.append(mx_user.address)
+        signal_chat = await self.signal.create_group(
+            source.username, title=self.name, members=user_addresses
+        )
+        # TODO: set avatar on create
+        self.chat_id = signal_chat.id
+        await self._postinit()
+        await self.insert()
+        await self.update_bridge_info()
+
+    # endregion
     # region Updating portal info
 
     async def update_info(
