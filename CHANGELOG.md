@@ -6,6 +6,8 @@ Target signald version: [v0.18.0](https://gitlab.com/signald/signald/-/releases/
 * Both the signald and mautrix-signal docker images have been changed to run as
   UID 1337 by default. The migration should work automatically as long as you
   update both containers at the same time.
+  * Also note that the `finn/signald` image is deprecated, you should use `signald/signald`.
+    <https://signald.org/articles/install/docker/>
 * Old homeservers which don't support the new `/v3` API endpoints are no longer
   supported. Synapse 1.48+, Dendrite 0.6.5+ and Conduit 0.4.0+ are supported.
   Legacy `r0` API support can be temporarily re-enabled with `pip install mautrix==0.16.0`.
