@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from mautrix.bridge import BaseMatrixHandler
+from mautrix.bridge import BaseMatrixHandler, RejectMatrixIntvite
 from mautrix.types import (
     Event,
     EventID,
@@ -58,11 +58,16 @@ class MatrixHandler(BaseMatrixHandler):
         self, room_id: RoomID, user_id: UserID, inviter: u.User, event_id: EventID
     ) -> None:
         user = await u.User.get_by_mxid(user_id, create=False)
-        if not user:
+        if not user or not await user.is_logged_in():
             return
         portal = await po.Portal.get_by_mxid(room_id)
-        if portal:
-            await portal.handle_matrix_invite(inviter, user)
+        if portal and not portal.is_direct():
+            try:
+                await portal.handle_matrix_invite(inviter, user)
+            except RejectMatrixIntvite as e:
+                await portal.main_intent.send_notice(
+                    portal.mxid, f"Failed to invite {user.mxid} on Signal: {e}"
+                )
 
     async def send_welcome_message(self, room_id: RoomID, inviter: u.User) -> None:
         await super().send_welcome_message(room_id, inviter)
