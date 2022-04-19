@@ -722,7 +722,7 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"{user.mxid} left portal to {self.chat_id}")
             # TODO cleanup if empty
 
-    async def handle_matrix_invite(self, invited_by: u.User, user: u.User) -> None:
+    async def handle_matrix_invite(self, invited_by: u.User, user: u.User | p.Puppet) -> None:
         if self.is_direct:
             raise RejectMatrixInvite("You can't invite additional users to private chats.")
         else:
