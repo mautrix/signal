@@ -291,6 +291,7 @@ class Portal(DBPortal, BasePortal):
         return str(path)
 
     async def _download_matrix_media(self, message: MediaMessageEventContent) -> str:
+        # Signal limits files to 100 MB
         if message.info and message.info.size and message.info.size > 100 * 10**6:
             raise AttachmentTooLargeError({"filename": message.body})
         if message.file:
@@ -934,6 +935,16 @@ class Portal(DBPortal, BasePortal):
                 and attachment.content_type == "text/x-signal-plain"
                 and attachment.size < MAX_MATRIX_MESSAGE_SIZE
             )
+
+            file_size = attachment.size or os.path.getsize(attachment.incoming_filename)
+            if file_size > self.matrix.media_config.upload_size:
+                self.log.warning(
+                    "Failed to bridge attachment %s in %s: file too large",
+                    attachment.id,
+                    message.timestamp,
+                )
+                continue
+
             content = await self._handle_signal_attachment(intent, attachment, text=as_text)
             if as_text:
                 is_first_text = False
