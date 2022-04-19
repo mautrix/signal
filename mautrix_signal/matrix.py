@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from mautrix.bridge import BaseMatrixHandler, RejectMatrixIntvite
+from mautrix.bridge import BaseMatrixHandler, RejectMatrixInvite
 from mautrix.types import (
     Event,
     EventID,
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from .__main__ import SignalBridge
 
 
-class MatrixHandler(BaseMatrixHandler):
+class MatrixHandlerin(BaseMatrixHandler):
     signal: s.SignalHandler
 
     def __init__(self, bridge: "SignalBridge") -> None:
@@ -64,7 +64,7 @@ class MatrixHandler(BaseMatrixHandler):
         if portal and not portal.is_direct():
             try:
                 await portal.handle_matrix_invite(inviter, user)
-            except RejectMatrixIntvite as e:
+            except RejectMatrixInvite as e:
                 await portal.main_intent.send_notice(
                     portal.mxid, f"Failed to invite {user.mxid} on Signal: {e}"
                 )
