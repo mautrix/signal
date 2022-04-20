@@ -20,13 +20,13 @@
   * [ ] Membership actions
     * [x] Join (accept invite)
     * [ ] Invite
-    * [ ] Leave
+    * [x] Leave
     * [ ] Kick
   * [ ] Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
   * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
-  * [ ] Message content
+  * [x] Message content
     * [x] Text
     * [x] Mentions
     * [x] Media
@@ -49,7 +49,7 @@
     * [x] Join
     * [x] Invite
     * [ ] Request join (via invite link)
-    * [ ] Kick / leave
+    * [x] Kick / leave
   * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
@@ -62,7 +62,7 @@
   * [ ] Provisioning API for logging in
     * [x] Linking as secondary device
     * [ ] Registering as primary device
-  * [ ] Private chat creation by inviting Matrix puppet of Signal user to new room
+  * [x] Private chat creation by inviting Matrix puppet of Signal user to new room
   * [x] Option to use own Matrix account for messages sent from other Signal clients
     * [x] Automatic login with shared secret
     * [x] Manual login with `login-matrix`
