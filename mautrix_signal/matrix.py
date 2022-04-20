@@ -61,7 +61,7 @@ class MatrixHandlerin(BaseMatrixHandler):
         if not user or not await user.is_logged_in():
             return
         portal = await po.Portal.get_by_mxid(room_id)
-        if portal and not portal.is_direct():
+        if portal and not portal.is_direct:
             try:
                 await portal.handle_matrix_invite(inviter, user)
             except RejectMatrixInvite as e:

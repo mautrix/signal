@@ -19,8 +19,8 @@
     * [x] Avatar
   * [ ] Membership actions
     * [x] Join (accept invite)
-    * [ ] Invite
-    * [ ] Leave
+    * [x] Invite
+    * [x] Leave
     * [ ] Kick
   * [ ] Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
