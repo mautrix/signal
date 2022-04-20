@@ -1245,13 +1245,16 @@ class Portal(DBPortal, BasePortal):
         user_mxids = await self.az.intent.get_room_members(
             self.mxid, (Membership.JOIN, Membership.INVITE)
         )
-        user_addresses = list()
+        invitee_addresses = list()
         for mxid in user_mxids:
             mx_user = await u.User.get_by_mxid(mxid, create=False)
             if mx_user and mx_user.address and mx_user.username != source.username:
-                user_addresses.append(mx_user.address)
+                invitee_addresses.append(mx_user.address)
+            puppet = await p.Puppet.get_by_mxid(mxid, create=False)
+            if puppet:
+                invitee_addresses.append(puppet.address)
         signal_chat = await self.signal.create_group(
-            source.username, title=self.name, members=user_addresses
+            source.username, title=self.name, members=invitee_addresses
         )
         # TODO: set avatar on create
         self.chat_id = signal_chat.id
