@@ -422,6 +422,11 @@ class ProvisioningAPI:
                 "room_id": portal.mxid,
                 "just_created": just_created,
                 "chat_id": portal.chat_id.serialize(),
+                "other_user": {
+                    "mxid": puppet.mxid,
+                    "displayname": puppet.name,
+                    "avatar_url": puppet.avatar_url,
+                },
             },
             headers=self._acao_headers,
             status=201 if just_created else 200,
@@ -437,6 +442,11 @@ class ProvisioningAPI:
             {
                 "room_id": portal.mxid if portal else None,
                 "chat_id": puppet.address.serialize(),
+                "other_user": {
+                    "mxid": puppet.mxid,
+                    "displayname": puppet.name,
+                    "avatar_url": puppet.avatar_url,
+                },
             },
             headers=self._acao_headers,
         )
