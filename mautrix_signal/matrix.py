@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from .__main__ import SignalBridge
 
 
-class MatrixHandlerin(BaseMatrixHandler):
+class MatrixHandler(BaseMatrixHandler):
     signal: s.SignalHandler
 
     def __init__(self, bridge: "SignalBridge") -> None:
