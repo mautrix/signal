@@ -1,18 +1,35 @@
-# v0.2.4 (unreleased)
+# v0.3.0 (2022-04-20)
+
+Target signald version: [v0.18.0](https://gitlab.com/signald/signald/-/releases/0.18.0)
+
+### Important changes
+* Both the signald and mautrix-signal docker images have been changed to run as
+  UID 1337 by default. The migration should work automatically as long as you
+  update both containers at the same time.
+  * Also note that the `finn/signald` image is deprecated, you should use `signald/signald`.
+    <https://signald.org/articles/install/docker/>
+* Old homeservers which don't support the new `/v3` API endpoints are no longer
+  supported. Synapse 1.48+, Dendrite 0.6.5+ and Conduit 0.4.0+ are supported.
+  Legacy `r0` API support can be temporarily re-enabled with `pip install mautrix==0.16.0`.
+  However, this option will not be available in future releases.
 
 ### Added
 * Support for creating DM portals by inviting user (i.e. just making a DM the
   normal Matrix way).
+* Leaving groups is now bridged to Signal (thanks to [@maltee1] in [#245]).
 * Signal group descriptions are now bridged into Matrix room topics.
 * Signal announcement group status is now bridged into power levels on Matrix
   (the group will be read-only for everyone except admins).
 * Added optional parameter to `mark-trusted` command to set trust level
   (instead of always using `TRUSTED_VERIFIED`).
+* Added option to use [MSC2246] async media uploads.
+* Added provisioning API for listing contacts and starting private chats.
 
 ### Improved
 * Dropped Python 3.7 support.
 * Files bridged to Matrix now include the `size` field in the file `info`.
 * Removed redundant `msgtype` field in sticker events sent to Matrix.
+* Users who have left the group on Signal will now be removed from Matrix too.
 
 ### Fixed
 * Logging into the bridge with double puppeting no longer removes your Signal
@@ -20,6 +37,10 @@
 * Fixed identity failure error message always saying "while sending message to
   None" instead of specifying the problematic phone number.
 * Fixed `channel` -> `id` field in `m.bridge` events.
+
+[MSC2246]: https://github.com/matrix-org/matrix-spec-proposals/pull/2246
+[@maltee1]: https://github.com/maltee1
+[#245]: https://github.com/mautrix/signal/pull/245
 
 # v0.2.3 (2022-02-17)
 

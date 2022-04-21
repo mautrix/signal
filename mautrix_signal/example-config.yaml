@@ -194,6 +194,8 @@ bridge:
     resend_bridge_info: false
     # Interval at which to resync contacts (in seconds).
     periodic_sync: 0
+    # Should leaving the room on Matrix make the user leave on Signal?
+    bridge_matrix_leave: true
 
     # Provisioning API part of the web server for automated portal creation and fetching information.
     # Used by things like mautrix-manager (https://github.com/tulir/mautrix-manager).
