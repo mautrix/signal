@@ -19,7 +19,7 @@ import io
 from mausignald.errors import AuthorizationFailedError, TimeoutException, UnexpectedResponse
 from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import HelpSection, command_handler
-from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType
+from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType, UserID
 
 from .. import puppet as pu
 from ..util import normalize_number
@@ -50,6 +50,40 @@ async def make_qr(
         msgtype=MessageType.IMAGE,
         info=ImageInfo(mimetype="image/png", size=len(qr), width=size, height=size),
     )
+
+
+@command_handler(
+    needs_auth=False,
+    management_only=True,
+    needs_admin=True,
+    help_section=SECTION_AUTH,
+    help_text="Connect to an existing account on signald",
+    help_args="[mxid] <phone number>",
+)
+async def connect_existing(evt: CommandEvent) -> EventID:
+    if len(evt.args) == 0:
+        return await evt.reply("**Usage:** `$cmdprefix+sp connect-existing [mxid] <phone number>`")
+    if evt.args[0].startswith("@"):
+        evt.sender = await evt.bridge.get_user(UserID(evt.args[0]))
+        evt.args = evt.args[1:]
+    if await evt.sender.is_logged_in():
+        return await evt.reply(
+            "You're already logged in. "
+            "If you want to relink, log out with `$cmdprefix+sp logout` first."
+        )
+    try:
+        account_id = normalize_number("".join(evt.args))
+    except Exception:
+        return await evt.reply("Please enter the phone number in international format (E.164)")
+    accounts = await evt.bridge.signal.list_accounts()
+    for account in accounts:
+        if account.account_id == account_id:
+            await evt.sender.on_signin(account)
+            return await evt.reply(
+                f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)} "
+                f"(device #{account.device_id})"
+            )
+    return await evt.reply(f"Account with ID {account_id} not found in signald")
 
 
 @command_handler(
@@ -88,7 +122,10 @@ async def link(evt: CommandEvent) -> None:
         )
     else:
         await evt.sender.on_signin(account)
-        await evt.reply(f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)}")
+        await evt.reply(
+            f"Successfully logged in as {pu.Puppet.fmt_phone(evt.sender.username)} "
+            f"(device #{account.device_id})"
+        )
     finally:
         await evt.main_intent.redact(evt.room_id, event_id)
 

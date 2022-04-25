@@ -55,6 +55,8 @@ class Account(SerializableAttrs):
     account_id: str
     device_id: int
     address: Address
+    pending: bool = False
+    pni: Optional[str] = None
 
 
 def pluralizer(val: int) -> str:
