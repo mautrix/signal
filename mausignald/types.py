@@ -395,7 +395,7 @@ class MessageData(SerializableAttrs):
 
     end_session: bool = field(default=False, json="endSession")
     expires_in_seconds: int = field(default=0, json="expiresInSeconds")
-    is_expiration_update: bool = field(default=False, json="isExpirationUpdate")
+    is_expiration_update: bool = field(default=False)
     profile_key_update: bool = field(default=False, json="profileKeyUpdate")
     view_once: bool = field(default=False, json="viewOnce")
 
