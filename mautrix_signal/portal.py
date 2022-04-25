@@ -1253,10 +1253,19 @@ class Portal(DBPortal, BasePortal):
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
                 invitee_addresses.append(puppet.address)
+        if self.avatar_url:
+            avatar_data = await self.az.intent.download_media(self.avatar_url)
+            self.avatar_hash = hashlib.sha256(avatar_data).hexdigest()
+            avatar_path = self._write_outgoing_file(avatar_data)
+            self.avatar_set = True
         signal_chat = await self.signal.create_group(
-            source.username, title=self.name, members=invitee_addresses
+            source.username, title=self.name, members=invitee_addresses, avatar_path=avatar_path
         )
-        # TODO: set avatar on create
+        if avatar_path and self.config["signal.remove_file_after_handling"]:
+            try:
+                os.remove(avatar_path)
+            except FileNotFoundError:
+                pass
         self.chat_id = signal_chat.id
         await self._postinit()
         await self.insert()

@@ -300,7 +300,9 @@ async def create(evt: CommandEvent) -> EventID:
     if await po.Portal.get_by_mxid(evt.room_id):
         return await evt.reply("This is already a portal room.")
 
-    title, about, levels, encrypted = await get_initial_state(evt.az.intent, evt.room_id)
+    title, about, levels, encrypted, avatar_url = await get_initial_state(
+        evt.az.intent, evt.room_id
+    )
     #    if not title:
     #        return await evt.reply("Please set a title before creating a Telegram chat.")
 
@@ -311,6 +313,7 @@ async def create(evt: CommandEvent) -> EventID:
         topic=about,
         encrypted=encrypted,
         receiver="",
+        avatar_url=avatar_url,
     )
 
     await warn_missing_power(levels, evt)

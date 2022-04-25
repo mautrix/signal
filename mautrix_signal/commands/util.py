@@ -23,7 +23,7 @@ from .typehint import CommandEvent
 
 async def get_initial_state(
     intent: IntentAPI, room_id: RoomID
-) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool]:
+) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool, ContentURI]:
     state = await intent.get_state(room_id)
     title: str | None = None
     about: str | None = None
@@ -41,10 +41,12 @@ async def get_initial_state(
                 title = title or event.content.canonical_alias
             elif event.type == EventType.ROOM_ENCRYPTION:
                 encrypted = True
+            elif event.type == EventType.ROOM_AVATAR:
+                avatar_url = event.content.url
         except KeyError:
             # Some state event probably has empty content
             pass
-    return title, about, levels, encrypted
+    return title, about, levels, encrypted, avatar_url
 
 
 async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
