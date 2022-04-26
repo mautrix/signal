@@ -20,14 +20,14 @@ import json
 
 from mausignald.errors import UnknownIdentityKey
 from mausignald.types import Address, GroupID, TrustLevel
+from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
-from mautrix.types import EventID
+from mautrix.types import ContentURI, EventID, EventType, PowerLevelStateEventContent, RoomID
 
 from .. import portal as po, puppet as pu
 from ..util import normalize_number
 from .auth import make_qr
 from .typehint import CommandEvent
-from .util import get_initial_state, warn_missing_power
 
 try:
     import PIL as _
@@ -324,3 +324,40 @@ async def create(evt: CommandEvent) -> EventID:
         await portal.delete()
         return await evt.reply(e.args[0])
     return await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
+
+
+async def get_initial_state(
+    intent: IntentAPI, room_id: RoomID
+) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool, ContentURI]:
+    state = await intent.get_state(room_id)
+    title: str | None = None
+    about: str | None = None
+    levels: PowerLevelStateEventContent | None = None
+    encrypted: bool = False
+    for event in state:
+        try:
+            if event.type == EventType.ROOM_NAME:
+                title = event.content.name
+            elif event.type == EventType.ROOM_TOPIC:
+                about = event.content.topic
+            elif event.type == EventType.ROOM_POWER_LEVELS:
+                levels = event.content
+            elif event.type == EventType.ROOM_CANONICAL_ALIAS:
+                title = title or event.content.canonical_alias
+            elif event.type == EventType.ROOM_ENCRYPTION:
+                encrypted = True
+            elif event.type == EventType.ROOM_AVATAR:
+                avatar_url = event.content.url
+        except KeyError:
+            # Some state event probably has empty content
+            pass
+    return title, about, levels, encrypted, avatar_url
+
+
+async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
+    if levels.get_user_level(evt.az.bot_mxid) < levels.redact:
+        await evt.reply(
+            "Warning: The bot does not have privileges to redact messages on Matrix. "
+            "Message deletions from Signal will not be bridged unless you give "
+            f"redaction permissions to [{evt.az.bot_mxid}](https://matrix.to/#/{evt.az.bot_mxid})"
+        )
