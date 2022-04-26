@@ -328,12 +328,13 @@ async def create(evt: CommandEvent) -> EventID:
 
 async def get_initial_state(
     intent: IntentAPI, room_id: RoomID
-) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool, ContentURI]:
+) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool, ContentURI | None]:
     state = await intent.get_state(room_id)
     title: str | None = None
     about: str | None = None
     levels: PowerLevelStateEventContent | None = None
     encrypted: bool = False
+    avatar_url: ContentURI | None = None
     for event in state:
         try:
             if event.type == EventType.ROOM_NAME:

@@ -1252,6 +1252,7 @@ class Portal(DBPortal, BasePortal):
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
                 invitee_addresses.append(puppet.address)
+        avatar_path: str | None = None
         if self.avatar_url:
             avatar_data = await self.az.intent.download_media(self.avatar_url)
             self.avatar_hash = hashlib.sha256(avatar_data).hexdigest()
