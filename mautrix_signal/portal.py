@@ -1241,7 +1241,6 @@ class Portal(DBPortal, BasePortal):
     # region Matrix -> Signal metadata
 
     async def create_signal_group(self, source: u.User) -> None:
-
         user_mxids = await self.az.intent.get_room_members(
             self.mxid, (Membership.JOIN, Membership.INVITE)
         )
