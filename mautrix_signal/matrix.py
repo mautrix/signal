@@ -82,9 +82,11 @@ class MatrixHandler(BaseMatrixHandler):
         portal = await po.Portal.get_by_mxid(room_id)
         if not portal:
             return
+
         user = await u.User.get_by_mxid(user_id, create=False)
         if not user:
             return
+
         await portal.handle_matrix_leave(user)
 
     async def handle_join(self, room_id: RoomID, user_id: UserID, event_id: EventID) -> None:
