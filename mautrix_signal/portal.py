@@ -1244,7 +1244,7 @@ class Portal(DBPortal, BasePortal):
         user_mxids = await self.az.intent.get_room_members(
             self.mxid, (Membership.JOIN, Membership.INVITE)
         )
-        invitee_addresses = list()
+        invitee_addresses = []
         for mxid in user_mxids:
             mx_user = await u.User.get_by_mxid(mxid, create=False)
             if mx_user and mx_user.address and mx_user.username != source.username:
