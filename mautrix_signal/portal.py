@@ -1240,7 +1240,9 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Matrix -> Signal metadata
 
-    async def create_signal_group(self, source: u.User) -> None:
+    async def create_signal_group(
+        self, source: u.User, levels: PowerLevelStateEventContent
+    ) -> None:
         user_mxids = await self.az.intent.get_room_members(
             self.mxid, (Membership.JOIN, Membership.INVITE)
         )
@@ -1252,6 +1254,12 @@ class Portal(DBPortal, BasePortal):
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
                 invitee_addresses.append(puppet.address)
+        if len(invitee_addresses) == 0:
+            raise ValueError(
+                "Not enough Signal users to create a chat. "
+                "Invite more Signal ghost users to the room"
+            )
+            return
         avatar_path: str | None = None
         if self.avatar_url:
             avatar_data = await self.az.intent.download_media(self.avatar_url)
@@ -1267,6 +1275,32 @@ class Portal(DBPortal, BasePortal):
             except FileNotFoundError:
                 pass
         self.chat_id = signal_chat.id
+        await self.signal.update_group(
+            username=source.username,
+            group_id=self.chat_id,
+            update_access_control=GroupAccessControl(
+                members=(
+                    AccessControlMode.MEMBER
+                    if levels.invite == 0
+                    else AccessControlMode.ADMINISTRATOR
+                ),
+                attributes=None,
+                link=None,
+            ),
+        )
+        await self.signal.update_group(
+            username=source.username,
+            group_id=self.chat_id,
+            update_access_control=GroupAccessControl(
+                attributes=(
+                    AccessControlMode.MEMBER
+                    if levels.state_default == 0
+                    else AccessControlMode.ADMINISTRATOR
+                ),
+                members=None,
+                link=None,
+            ),
+        )
         await self._postinit()
         await self.insert()
         await self.update_bridge_info()

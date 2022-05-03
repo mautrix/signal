@@ -319,7 +319,7 @@ async def create(evt: CommandEvent) -> EventID:
     await warn_missing_power(levels, evt)
 
     try:
-        await portal.create_signal_group(evt.sender)
+        await portal.create_signal_group(evt.sender, levels)
     except ValueError as e:
         await portal.delete()
         return await evt.reply(e.args[0])

@@ -21,6 +21,7 @@ from .types import (
     ErrorMessage,
     GetIdentitiesResponse,
     Group,
+    GroupAccessControl,
     GroupID,
     GroupV2,
     IncomingMessage,
@@ -352,6 +353,7 @@ class SignaldClient(SignaldRPCClient):
         avatar_path: str | None = None,
         add_members: list[Address] | None = None,
         remove_members: list[Address] | None = None,
+        update_access_control: GroupAccessControl | None = None,
     ) -> Group | GroupV2 | None:
         update_params = {
             key: value
@@ -364,6 +366,7 @@ class SignaldClient(SignaldRPCClient):
                 "removeMembers": (
                     [addr.serialize() for addr in remove_members] if remove_members else None
                 ),
+                "updateAccessControl": update_access_control.serialize(),
             }.items()
             if value is not None
         }
