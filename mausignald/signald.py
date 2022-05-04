@@ -406,7 +406,7 @@ class SignaldClient(SignaldRPCClient):
             "title": title,
             "members": [addr.serialize() for addr in members],
         }
-        create_params = {k: v for k, v in create_params.items() if v}
+        create_params = {k: v for k, v in create_params.items() if v is not None}
         resp = await self.request_v1("create_group", account=username, **create_params)
         if "id" not in resp:
             return None

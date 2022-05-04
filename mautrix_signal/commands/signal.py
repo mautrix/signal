@@ -303,8 +303,6 @@ async def create(evt: CommandEvent) -> EventID:
     title, about, levels, encrypted, avatar_url = await get_initial_state(
         evt.az.intent, evt.room_id
     )
-    #    if not title:
-    #        return await evt.reply("Please set a title before creating a Telegram chat.")
 
     portal = po.Portal(
         chat_id=GroupID(""),
@@ -316,7 +314,22 @@ async def create(evt: CommandEvent) -> EventID:
         avatar_url=avatar_url,
     )
 
-    await warn_missing_power(levels, evt)
+    if levels.get_user_level(evt.az.bot_mxid) < 51:
+        await evt.reply(
+            "Warning: The bot does not have privileges to demote moderators on Matrix. "
+            "Demotions from ADMINISTRATOR to DEFAULT will not be bridged unless you give "
+            f"redaction permissions to [{evt.az.bot_mxid}](https://matrix.to/#/{evt.az.bot_mxid})"
+        )
+    if levels.state_default < 50 and (
+        levels.events[EventType.ROOM_NAME] >= 50
+        or levels.events[EventType.ROOM_AVATAR] >= 50
+        or levels.events[EventType.ROOM_TOPIC] >= 50
+    ):
+        await evt.reply(
+            "Warning: Permissions for changing name, topic and avatar cannot be set separately on Signal."
+            "name, room and avatar changes will not be bridged properly, unless those permissions are"
+            "set to the same level or lower than state_default"
+        )
 
     try:
         await portal.create_signal_group(evt.sender, levels)
@@ -353,12 +366,3 @@ async def get_initial_state(
             # Some state event probably has empty content
             pass
     return title, about, levels, encrypted, avatar_url
-
-
-async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
-    if levels.get_user_level(evt.az.bot_mxid) < levels.redact:
-        await evt.reply(
-            "Warning: The bot does not have privileges to redact messages on Matrix. "
-            "Message deletions from Signal will not be bridged unless you give "
-            f"redaction permissions to [{evt.az.bot_mxid}](https://matrix.to/#/{evt.az.bot_mxid})"
-        )

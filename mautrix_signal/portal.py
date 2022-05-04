@@ -1254,12 +1254,6 @@ class Portal(DBPortal, BasePortal):
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
                 invitee_addresses.append(puppet.address)
-        if len(invitee_addresses) == 0:
-            raise ValueError(
-                "Not enough Signal users to create a chat. "
-                "Invite more Signal ghost users to the room"
-            )
-            return
         avatar_path: str | None = None
         if self.avatar_url:
             avatar_data = await self.az.intent.download_media(self.avatar_url)
