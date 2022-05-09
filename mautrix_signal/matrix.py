@@ -100,6 +100,58 @@ class MatrixHandler(BaseMatrixHandler):
 
         await portal.handle_matrix_join(user)
 
+    async def handle_kick_ban(
+        self,
+        action: str,
+        room_id: RoomID,
+        user_id: UserID,
+        sender: UserID,
+        reason: str,
+        event_id: EventID,
+    ) -> None:
+        self.log.debug(f"{user_id} was {action} from {room_id} by {sender} for {reason}")
+        portal = await po.Portal.get_by_mxid(room_id)
+        if not portal:
+            return
+
+        if user_id == self.az.bot_mxid:
+            if portal.is_direct:
+                await portal.cleanup_and_delete()
+            return
+
+        sender = await u.User.get_by_mxid(sender, create=False)
+        if not sender:
+            return
+
+        user = await pu.Puppet.get_by_mxid(user_id)
+        if not user:
+            user = await u.User.get_by_mxid(user_id, create=False)
+            if not user:
+                return
+        if action == "banned":
+            await portal.ban_matrix(user, sender)
+        elif action == "kicked":
+            await portal.kick_matrix(user, sender)
+        else:
+            await portal.unban_matrix(user, sender)
+
+    async def handle_kick(
+        self, room_id: RoomID, user_id: UserID, kicked_by: UserID, reason: str, event_id: EventID
+    ) -> None:
+
+        await self.handle_kick_ban("kicked", room_id, user_id, kicked_by, reason, event_id)
+
+    async def handle_unban(
+        self, room_id: RoomID, user_id: UserID, unbanned_by: UserID, reason: str, event_id: EventID
+    ) -> None:
+        # TODO handle unbans properly instead of handling it as a kick
+        await self.handle_kick_ban("unbanned", room_id, user_id, unbanned_by, reason, event_id)
+
+    async def handle_ban(
+        self, room_id: RoomID, user_id: UserID, banned_by: UserID, reason: str, event_id: EventID
+    ) -> None:
+        await self.handle_kick_ban("banned", room_id, user_id, banned_by, reason, event_id)
+
     @classmethod
     async def handle_reaction(
         cls, room_id: RoomID, user_id: UserID, event_id: EventID, content: ReactionEventContent

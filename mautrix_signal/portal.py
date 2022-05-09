@@ -725,6 +725,29 @@ class Portal(DBPortal, BasePortal):
                 await self.signal.leave_group(user.username, self.chat_id)
             # TODO cleanup if empty
 
+    async def kick_matrix(self, user: u.User | p.Puppet, source: u.User) -> None:
+        try:
+            await self.signal.update_group(
+                source.username, self.chat_id, remove_members=[user.address]
+            )
+        except Exception as e:
+            self.log.exception(f"Failed to kick Signal user: {e}")
+            # bridge bot should probable re-invite puppet
+
+    async def ban_matrix(self, user: u.User | p.Puppet, source: u.User) -> None:
+        try:
+            await self.signal.ban_user(source.username, self.chat_id, users=[user.address])
+        except Exception as e:
+            self.log.exception(f"Failed to ban Signal user: {e}")
+            # bridge bot should probable unban puppet
+
+    async def unban_matrix(self, user: u.User | p.Puppet, source: u.User) -> None:
+        try:
+            await self.signal.unban_user(source.username, self.chat_id, users=[user.address])
+        except Exception as e:
+            self.log.exception(f"Failed to unban Signal user: {e}")
+            # bridge bot should probable reban puppet
+
     async def handle_matrix_invite(self, invited_by: u.User, user: u.User | p.Puppet) -> None:
         if self.is_direct:
             raise RejectMatrixInvite("You can't invite additional users to private chats.")
