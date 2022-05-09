@@ -502,35 +502,62 @@ class SyncMessage(SerializableAttrs):
 
 
 class OfferMessageType(SerializableEnum):
-    AUDIO_CALL = "AUDIO_CALL"
-    VIDEO_CALL = "VIDEO_CALL"
+    AUDIO_CALL = "audio_call"
+    VIDEO_CALL = "video_call"
 
 
 @dataclass
 class OfferMessage(SerializableAttrs):
     id: int
     type: OfferMessageType
+    opaque: Optional[str] = None
+    sdp: Optional[str] = None
+
+
+@dataclass
+class AnswerMessage(SerializableAttrs):
+    id: int
+    opaque: Optional[str] = None
+    sdp: Optional[str] = None
+
+
+@dataclass
+class ICEUpdateMessage(SerializableAttrs):
+    id: int
+    opaque: Optional[str] = None
+    sdp: Optional[str] = None
+
+
+@dataclass
+class BusyMessage(SerializableAttrs):
+    id: int
 
 
 class HangupMessageType(SerializableEnum):
-    NORMAL = "NORMAL"
-    ACCEPTED = "ACCEPTED"
-    DECLINED = "DECLINED"
-    BUSY = "BUSY"
-    NEED_PERMISSION = "NEED_PERMISSION"
+    NORMAL = "normal"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    BUSY = "busy"
+    NEED_PERMISSION = "need_permission"
 
 
 @dataclass
 class HangupMessage(SerializableAttrs):
     id: int
     type: HangupMessageType
-    device_id: int = field(json="deviceId")
+    device_id: int
+    legacy: bool = False
 
 
 @dataclass
 class CallMessage(SerializableAttrs):
-    offer_message: Optional[OfferMessage] = field(default=None, json="offerMessage")
-    hangup_message: Optional[HangupMessage] = field(default=None, json="hangupMessage")
+    offer_message: Optional[OfferMessage] = None
+    hangup_message: Optional[HangupMessage] = None
+    answer_message: Optional[AnswerMessage] = None
+    busy_message: Optional[BusyMessage] = None
+    ice_update_message: Optional[List[ICEUpdateMessage]] = None
+    multi_ring: bool = False
+    destination_device_id: Optional[int] = None
 
 
 class MessageType(SerializableEnum):
