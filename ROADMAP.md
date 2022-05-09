@@ -19,7 +19,7 @@
     * [x] Avatar
   * [ ] Membership actions
     * [x] Join (accept invite)
-    * [ ] Invite
+    * [x] Invite
     * [x] Leave
     * [ ] Kick
   * [ ] Typing notifications
