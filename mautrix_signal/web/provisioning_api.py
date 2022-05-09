@@ -384,7 +384,10 @@ class ProvisioningAPI:
         )
 
     async def _resolve_identifier(self, number: str, user: u.User) -> pu.Puppet:
-        number = normalize_number(number)
+        try:
+            number = normalize_number(number)
+        except Exception as e:
+            raise web.HTTPBadRequest(text=json.dumps({"error": str(e)}), headers=self._headers)
 
         puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=number))
         assert puppet, "Puppet.get_by_address with create=True can't return None"
