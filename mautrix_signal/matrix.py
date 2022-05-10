@@ -138,13 +138,11 @@ class MatrixHandler(BaseMatrixHandler):
     async def handle_kick(
         self, room_id: RoomID, user_id: UserID, kicked_by: UserID, reason: str, event_id: EventID
     ) -> None:
-
         await self.handle_kick_ban("kicked", room_id, user_id, kicked_by, reason, event_id)
 
     async def handle_unban(
         self, room_id: RoomID, user_id: UserID, unbanned_by: UserID, reason: str, event_id: EventID
     ) -> None:
-        # TODO handle unbans properly instead of handling it as a kick
         await self.handle_kick_ban("unbanned", room_id, user_id, unbanned_by, reason, event_id)
 
     async def handle_ban(
