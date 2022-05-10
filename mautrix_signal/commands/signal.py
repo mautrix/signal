@@ -297,7 +297,7 @@ async def raw(evt: CommandEvent) -> None:
     help_text=("Create a Signal group for the current Matrix room. "),
 )
 async def create(evt: CommandEvent) -> EventID:
-    if await po.Portal.get_by_mxid(evt.room_id):
+    if evt.portal:
         return await evt.reply("This is already a portal room.")
 
     title, about, levels, encrypted, avatar_url = await get_initial_state(
