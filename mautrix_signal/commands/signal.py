@@ -313,12 +313,13 @@ async def create(evt: CommandEvent) -> EventID:
         receiver="",
         avatar_url=avatar_url,
     )
-
-    if levels.get_user_level(evt.az.bot_mxid) < 51:
+    bot_pl = levels.get_user_level(evt.az.bot_mxid)
+    if bot_pl < 51 or bot_pl < levels.events[EventType.ROOM_POWER_LEVELS]:
         await evt.reply(
-            "Warning: The bot does not have privileges to demote moderators on Matrix. "
-            "Demotions from ADMINISTRATOR to DEFAULT will not be bridged unless you give "
-            f"redaction permissions to [{evt.az.bot_mxid}](https://matrix.to/#/{evt.az.bot_mxid})"
+            "Warning: The bot does not have sufficient privileges to change power levels on Matrix. "
+            "Power level changes will not be bridged properly unless you give power level 51 or higher"
+            f"to [{evt.az.bot_mxid}](https://matrix.to/#/{evt.az.bot_mxid}) and ensure it has sufficient"
+            "power level to change power levels"
         )
     if levels.state_default < 50 and (
         levels.events[EventType.ROOM_NAME] >= 50
@@ -331,12 +332,8 @@ async def create(evt: CommandEvent) -> EventID:
             "set to the same level or lower than state_default"
         )
 
-    try:
-        await portal.create_signal_group(evt.sender, levels)
-    except ValueError as e:
-        await portal.delete()
-        return await evt.reply(e.args[0])
-    return await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
+    await portal.create_signal_group(evt.sender, levels)
+    await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
 
 
 async def get_initial_state(

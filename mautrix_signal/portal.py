@@ -1263,6 +1263,8 @@ class Portal(DBPortal, BasePortal):
         signal_chat = await self.signal.create_group(
             source.username, title=self.name, members=invitee_addresses, avatar_path=avatar_path
         )
+        await self._postinit()
+        await self.insert()
         if avatar_path and self.config["signal.remove_file_after_handling"]:
             try:
                 os.remove(avatar_path)
@@ -1295,8 +1297,6 @@ class Portal(DBPortal, BasePortal):
                 link=None,
             ),
         )
-        await self._postinit()
-        await self.insert()
         await self.update_bridge_info()
 
     # endregion
