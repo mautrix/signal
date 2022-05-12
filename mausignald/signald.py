@@ -326,8 +326,9 @@ class SignaldClient(SignaldRPCClient):
     async def remove_linked_device(self, username: str, device_id: int) -> None:
         await self.request_v1("remove_linked_device", account=username, deviceId=device_id)
 
-    async def list_contacts(self, username: str) -> list[Profile]:
-        resp = await self.request_v1("list_contacts", account=username)
+    async def list_contacts(self, username: str, use_cache: bool = False) -> list[Profile]:
+        kwargs = {"async": use_cache}
+        resp = await self.request_v1("list_contacts", account=username, **kwargs)
         return [Profile.deserialize(contact) for contact in resp["profiles"]]
 
     async def list_groups(self, username: str) -> list[Group | GroupV2]:

@@ -370,7 +370,7 @@ class ProvisioningAPI:
 
     async def list_contacts(self, request: web.Request) -> web.Response:
         user = await self.check_token_and_logged_in(request)
-        contacts = await self.bridge.signal.list_contacts(user.username)
+        contacts = await self.bridge.signal.list_contacts(user.username, use_cache=True)
         return web.json_response(
             {
                 c.address.number: {
