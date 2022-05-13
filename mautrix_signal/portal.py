@@ -1263,6 +1263,7 @@ class Portal(DBPortal, BasePortal):
         signal_chat = await self.signal.create_group(
             source.username, title=self.name, members=invitee_addresses, avatar_path=avatar_path
         )
+        self.chat_id = signal_chat.id
         await self._postinit()
         await self.insert()
         if avatar_path and self.config["signal.remove_file_after_handling"]:
@@ -1270,7 +1271,6 @@ class Portal(DBPortal, BasePortal):
                 os.remove(avatar_path)
             except FileNotFoundError:
                 pass
-        self.chat_id = signal_chat.id
         await self.signal.update_group(
             username=source.username,
             group_id=self.chat_id,
