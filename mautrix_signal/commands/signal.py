@@ -290,11 +290,30 @@ async def raw(evt: CommandEvent) -> None:
             )
 
 
+missing_power_warning = (
+    "Warning: The bridge bot ([{bot_mxid}](https://matrix.to/#/{bot_mxid})) does not have "
+    "sufficient privileges to change power levels on Matrix. Power level changes will not be "
+    "bridged."
+)
+
+low_power_warning = (
+    "Warning: The bridge bot ([{bot_mxid}](https://matrix.to/#/{bot_mxid})) has a power level "
+    "below or equal to 50. Bridged moderator rights are currently hardcoded to PL 50, so the "
+    "bridge bot must have a higher level to properly bridge them."
+)
+
+meta_power_warning = (
+    "Warning: Permissions for changing name, topic and avatar cannot be set separately on Signal. "
+    "Changes to those may not be bridged properly, unless the permissions are set to the same "
+    "level or lower than state_default."
+)
+
+
 @command_handler(
     needs_auth=True,
     management_only=False,
     help_section=SECTION_SIGNAL,
-    help_text=("Create a Signal group for the current Matrix room. "),
+    help_text="Create a Signal group for the current Matrix room.",
 )
 async def create(evt: CommandEvent) -> EventID:
     if evt.portal:
@@ -314,23 +333,16 @@ async def create(evt: CommandEvent) -> EventID:
         avatar_url=avatar_url,
     )
     bot_pl = levels.get_user_level(evt.az.bot_mxid)
-    if bot_pl < 51 or bot_pl < levels.events[EventType.ROOM_POWER_LEVELS]:
-        await evt.reply(
-            "Warning: The bot does not have sufficient privileges to change power levels on Matrix. "
-            "Power level changes will not be bridged properly unless you give power level 51 or higher"
-            f"to [{evt.az.bot_mxid}](https://matrix.to/#/{evt.az.bot_mxid}) and ensure it has sufficient"
-            "power level to change power levels"
-        )
+    if bot_pl < levels.get_event_level(EventType.ROOM_POWER_LEVELS):
+        await evt.reply(missing_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    elif bot_pl <= 50:
+        await evt.reply(low_power_warning.format(bot_mxid=evt.az.bot_mxid))
     if levels.state_default < 50 and (
         levels.events[EventType.ROOM_NAME] >= 50
         or levels.events[EventType.ROOM_AVATAR] >= 50
         or levels.events[EventType.ROOM_TOPIC] >= 50
     ):
-        await evt.reply(
-            "Warning: Permissions for changing name, topic and avatar cannot be set separately on Signal."
-            "name, room and avatar changes will not be bridged properly, unless those permissions are"
-            "set to the same level or lower than state_default"
-        )
+        await evt.reply(meta_power_warning)
 
     await portal.create_signal_group(evt.sender, levels)
     await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
