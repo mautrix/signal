@@ -1260,6 +1260,73 @@ class Portal(DBPortal, BasePortal):
             await self.main_intent.redact(message.mx_room, message.mxid)
 
     # endregion
+    # region Matrix -> Signal metadata
+
+    async def create_signal_group(
+        self, source: u.User, levels: PowerLevelStateEventContent
+    ) -> None:
+        user_mxids = await self.az.intent.get_room_members(
+            self.mxid, (Membership.JOIN, Membership.INVITE)
+        )
+        invitee_addresses = []
+        for mxid in user_mxids:
+            mx_user = await u.User.get_by_mxid(mxid, create=False)
+            if mx_user and mx_user.address and mx_user.username != source.username:
+                invitee_addresses.append(mx_user.address)
+            puppet = await p.Puppet.get_by_mxid(mxid, create=False)
+            if puppet:
+                invitee_addresses.append(puppet.address)
+        avatar_path: str | None = None
+        if self.avatar_url:
+            avatar_data = await self.az.intent.download_media(self.avatar_url)
+            self.avatar_hash = hashlib.sha256(avatar_data).hexdigest()
+            avatar_path = self._write_outgoing_file(avatar_data)
+        signal_chat = await self.signal.create_group(
+            source.username, title=self.name, members=invitee_addresses, avatar_path=avatar_path
+        )
+        self.name_set = bool(self.name and signal_chat.title)
+        self.avatar_set = bool(self.avatar_url and self.avatar_hash and signal_chat.avatar)
+        self.chat_id = signal_chat.id
+        await self._postinit()
+        await self.insert()
+        if avatar_path and self.config["signal.remove_file_after_handling"]:
+            try:
+                os.remove(avatar_path)
+            except FileNotFoundError:
+                pass
+        if self.topic:
+            await self.signal.update_group(source.username, self.chat_id, description=self.topic)
+        await self.signal.update_group(
+            username=source.username,
+            group_id=self.chat_id,
+            update_access_control=GroupAccessControl(
+                members=(
+                    AccessControlMode.MEMBER
+                    if levels.invite == 0
+                    else AccessControlMode.ADMINISTRATOR
+                ),
+                attributes=None,
+                link=None,
+            ),
+        )
+        update_meta = await self.signal.update_group(
+            username=source.username,
+            group_id=self.chat_id,
+            update_access_control=GroupAccessControl(
+                attributes=(
+                    AccessControlMode.MEMBER
+                    if levels.state_default == 0
+                    else AccessControlMode.ADMINISTRATOR
+                ),
+                members=None,
+                link=None,
+            ),
+        )
+        self.revision = update_meta.revision
+        await self.update()
+        await self.update_bridge_info()
+
+    # endregion
     # region Updating portal info
 
     async def update_info(

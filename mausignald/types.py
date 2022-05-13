@@ -198,9 +198,9 @@ class AnnouncementsMode(SerializableEnum):
 
 @dataclass
 class GroupAccessControl(SerializableAttrs):
-    attributes: AccessControlMode = AccessControlMode.UNKNOWN
-    link: AccessControlMode = AccessControlMode.UNKNOWN
-    members: AccessControlMode = AccessControlMode.UNKNOWN
+    attributes: Optional[AccessControlMode] = AccessControlMode.UNKNOWN
+    link: Optional[AccessControlMode] = AccessControlMode.UNKNOWN
+    members: Optional[AccessControlMode] = AccessControlMode.UNKNOWN
 
 
 class GroupMemberRole(SerializableEnum):

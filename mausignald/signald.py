@@ -21,6 +21,7 @@ from .types import (
     ErrorMessage,
     GetIdentitiesResponse,
     Group,
+    GroupAccessControl,
     GroupID,
     GroupV2,
     IncomingMessage,
@@ -353,6 +354,7 @@ class SignaldClient(SignaldRPCClient):
         avatar_path: str | None = None,
         add_members: list[Address] | None = None,
         remove_members: list[Address] | None = None,
+        update_access_control: GroupAccessControl | None = None,
     ) -> Group | GroupV2 | None:
         update_params = {
             key: value
@@ -364,6 +366,9 @@ class SignaldClient(SignaldRPCClient):
                 "addMembers": [addr.serialize() for addr in add_members] if add_members else None,
                 "removeMembers": (
                     [addr.serialize() for addr in remove_members] if remove_members else None
+                ),
+                "updateAccessControl": (
+                    update_access_control.serialize() if update_access_control else None
                 ),
             }.items()
             if value is not None
@@ -386,6 +391,26 @@ class SignaldClient(SignaldRPCClient):
         resp = await self.request_v1(
             "get_group", account=username, groupID=group_id, revision=revision
         )
+        if "id" not in resp:
+            return None
+        return GroupV2.deserialize(resp)
+
+    async def create_group(
+        self,
+        username: str,
+        avatar_path: str | None = None,
+        member_role_administrator: bool = False,
+        members: list[Address] | None = None,
+        title: str | None = None,
+    ) -> GroupV2 | None:
+        create_params = {
+            "avatar": avatar_path,
+            "member_role": "ADMINISTRATOR" if member_role_administrator else "DEFAULT",
+            "title": title,
+            "members": [addr.serialize() for addr in members],
+        }
+        create_params = {k: v for k, v in create_params.items() if v is not None}
+        resp = await self.request_v1("create_group", account=username, **create_params)
         if "id" not in resp:
             return None
         return GroupV2.deserialize(resp)

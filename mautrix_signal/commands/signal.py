@@ -19,9 +19,10 @@ import base64
 import json
 
 from mausignald.errors import UnknownIdentityKey
-from mausignald.types import Address, TrustLevel
+from mausignald.types import Address, GroupID, TrustLevel
+from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
-from mautrix.types import EventID
+from mautrix.types import ContentURI, EventID, EventType, PowerLevelStateEventContent, RoomID
 
 from .. import portal as po, puppet as pu
 from ..util import normalize_number
@@ -287,3 +288,90 @@ async def raw(evt: CommandEvent) -> None:
             await evt.reply(
                 f"Got reply `{resp_type}`:\n\n```json\n{json.dumps(resp_data, indent=2)}\n```"
             )
+
+
+missing_power_warning = (
+    "Warning: The bridge bot ([{bot_mxid}](https://matrix.to/#/{bot_mxid})) does not have "
+    "sufficient privileges to change power levels on Matrix. Power level changes will not be "
+    "bridged."
+)
+
+low_power_warning = (
+    "Warning: The bridge bot ([{bot_mxid}](https://matrix.to/#/{bot_mxid})) has a power level "
+    "below or equal to 50. Bridged moderator rights are currently hardcoded to PL 50, so the "
+    "bridge bot must have a higher level to properly bridge them."
+)
+
+meta_power_warning = (
+    "Warning: Permissions for changing name, topic and avatar cannot be set separately on Signal. "
+    "Changes to those may not be bridged properly, unless the permissions are set to the same "
+    "level or lower than state_default."
+)
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Create a Signal group for the current Matrix room.",
+)
+async def create(evt: CommandEvent) -> EventID:
+    if evt.portal:
+        return await evt.reply("This is already a portal room.")
+
+    title, about, levels, encrypted, avatar_url = await get_initial_state(
+        evt.az.intent, evt.room_id
+    )
+
+    portal = po.Portal(
+        chat_id=GroupID(""),
+        mxid=evt.room_id,
+        name=title,
+        topic=about or "",
+        encrypted=encrypted,
+        receiver="",
+        avatar_url=avatar_url,
+    )
+    bot_pl = levels.get_user_level(evt.az.bot_mxid)
+    if bot_pl < levels.get_event_level(EventType.ROOM_POWER_LEVELS):
+        await evt.reply(missing_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    elif bot_pl <= 50:
+        await evt.reply(low_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    if levels.state_default < 50 and (
+        levels.events[EventType.ROOM_NAME] >= 50
+        or levels.events[EventType.ROOM_AVATAR] >= 50
+        or levels.events[EventType.ROOM_TOPIC] >= 50
+    ):
+        await evt.reply(meta_power_warning)
+
+    await portal.create_signal_group(evt.sender, levels)
+    await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
+
+
+async def get_initial_state(
+    intent: IntentAPI, room_id: RoomID
+) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool, ContentURI | None]:
+    state = await intent.get_state(room_id)
+    title: str | None = None
+    about: str | None = None
+    levels: PowerLevelStateEventContent | None = None
+    encrypted: bool = False
+    avatar_url: ContentURI | None = None
+    for event in state:
+        try:
+            if event.type == EventType.ROOM_NAME:
+                title = event.content.name
+            elif event.type == EventType.ROOM_TOPIC:
+                about = event.content.topic
+            elif event.type == EventType.ROOM_POWER_LEVELS:
+                levels = event.content
+            elif event.type == EventType.ROOM_CANONICAL_ALIAS:
+                title = title or event.content.canonical_alias
+            elif event.type == EventType.ROOM_ENCRYPTION:
+                encrypted = True
+            elif event.type == EventType.ROOM_AVATAR:
+                avatar_url = event.content.url
+        except KeyError:
+            # Some state event probably has empty content
+            pass
+    return title, about, levels, encrypted, avatar_url
