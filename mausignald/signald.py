@@ -366,7 +366,9 @@ class SignaldClient(SignaldRPCClient):
                 "removeMembers": (
                     [addr.serialize() for addr in remove_members] if remove_members else None
                 ),
-                "updateAccessControl": update_access_control.serialize(),
+                "updateAccessControl": (
+                    update_access_control.serialize() if update_access_control else None
+                ),
             }.items()
             if value is not None
         }

@@ -1259,10 +1259,11 @@ class Portal(DBPortal, BasePortal):
             avatar_data = await self.az.intent.download_media(self.avatar_url)
             self.avatar_hash = hashlib.sha256(avatar_data).hexdigest()
             avatar_path = self._write_outgoing_file(avatar_data)
-            self.avatar_set = True
         signal_chat = await self.signal.create_group(
             source.username, title=self.name, members=invitee_addresses, avatar_path=avatar_path
         )
+        self.name_set = bool(self.name and signal_chat.title)
+        self.avatar_set = bool(self.avatar_url and self.avatar_hash and signal_chat.avatar)
         self.chat_id = signal_chat.id
         await self._postinit()
         await self.insert()
@@ -1271,6 +1272,8 @@ class Portal(DBPortal, BasePortal):
                 os.remove(avatar_path)
             except FileNotFoundError:
                 pass
+        if self.topic:
+            await self.signal.update_group(source.username, self.chat_id, description=self.topic)
         await self.signal.update_group(
             username=source.username,
             group_id=self.chat_id,
@@ -1284,7 +1287,7 @@ class Portal(DBPortal, BasePortal):
                 link=None,
             ),
         )
-        await self.signal.update_group(
+        update_meta = await self.signal.update_group(
             username=source.username,
             group_id=self.chat_id,
             update_access_control=GroupAccessControl(
@@ -1297,6 +1300,8 @@ class Portal(DBPortal, BasePortal):
                 link=None,
             ),
         )
+        self.revision = update_meta.revision
+        await self.update()
         await self.update_bridge_info()
 
     # endregion

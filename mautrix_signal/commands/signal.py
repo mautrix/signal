@@ -327,7 +327,7 @@ async def create(evt: CommandEvent) -> EventID:
         chat_id=GroupID(""),
         mxid=evt.room_id,
         name=title,
-        topic=about,
+        topic=about or "",
         encrypted=encrypted,
         receiver="",
         avatar_url=avatar_url,
