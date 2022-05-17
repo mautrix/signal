@@ -355,6 +355,7 @@ class SignaldClient(SignaldRPCClient):
         add_members: list[Address] | None = None,
         remove_members: list[Address] | None = None,
         update_access_control: GroupAccessControl | None = None,
+        update_role: GroupMember | None = None,
     ) -> Group | GroupV2 | None:
         update_params = {
             key: value
@@ -370,6 +371,7 @@ class SignaldClient(SignaldRPCClient):
                 "updateAccessControl": (
                     update_access_control.serialize() if update_access_control else None
                 ),
+                "updateRole": (update_role.serialize() if update_role else None),
             }.items()
             if value is not None
         }

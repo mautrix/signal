@@ -36,6 +36,7 @@ from mausignald.types import (
     Group,
     GroupAccessControl,
     GroupID,
+    GroupMember,
     GroupMemberRole,
     GroupV2,
     GroupV2ID,
@@ -735,6 +736,20 @@ class Portal(DBPortal, BasePortal):
             )
         except RPCError as e:
             raise RejectMatrixInvite(e.message) from e
+        power_levels = await self.main_intent.get_power_levels(self.mxid)
+        invitee_pl = power_levels.get_user_level(user.mxid)
+        if invitee_pl >= 50:
+            group_member = GroupMember(uuid=user.uuid, role=GroupMemberRole.ADMINISTRATOR)
+            try:
+                update_meta = await self.signal.update_group(
+                    invited_by.username, self.chat_id, update_role=group_member
+                )
+                self.revision = update_meta.revision
+            except Exception as e:
+                self.log.exception(f"Failed to update Signal member role: {e}")
+                await self._update_power_levels(
+                    await self.signal.get_group(invited_by.username, self.chat_id)
+                )
 
     async def handle_matrix_name(self, user: u.User, name: str) -> None:
         if self.name == name or self.is_direct or not name:
@@ -799,6 +814,95 @@ class Portal(DBPortal, BasePortal):
                 os.remove(path)
             except FileNotFoundError:
                 pass
+
+    async def handle_matrix_power_level(
+        self,
+        sender: u.User,
+        levels: PowerLevelStateEventContent,
+        prev_content=None,
+    ) -> None:
+        old_users = prev_content.users if prev_content else None
+        new_users = levels.users
+        changes = {}
+        if not old_users:
+            changes = new_users
+        else:
+            for user, level in new_users.items():
+                if (
+                    user
+                    and user != self.main_intent.mxid
+                    and (user not in old_users or level != old_users[user])
+                ):
+                    changes[user] = level
+            for user, level in old_users.items():
+                if user and user != self.main_intent.mxid and user not in new_users:
+                    changes[user] = levels.users_default
+        if changes:
+            for user, level in changes.items():
+                address = p.Puppet.get_id_from_mxid(user)
+                if not address:
+                    mx_user = await u.User.get_by_mxid(user, create=False)
+                    if not mx_user or not mx_user.is_logged_in:
+                        continue
+                    address = mx_user.address
+                if not address or not address.uuid:
+                    continue
+                signal_role = (
+                    GroupMemberRole.DEFAULT if level < 50 else GroupMemberRole.ADMINISTRATOR
+                )
+                group_member = GroupMember(uuid=address.uuid, role=signal_role)
+                try:
+                    update_meta = await self.signal.update_group(
+                        sender.username, self.chat_id, update_role=group_member
+                    )
+                    self.revision = update_meta.revision
+                except Exception as e:
+                    self.log.exception(f"Failed to update Signal member role: {e}")
+                    await self._update_power_levels(
+                        await self.signal.get_group(sender.username, self.chat_id)
+                    )
+        if not prev_content or levels.invite != prev_content.invite:
+            try:
+                update_meta = await self.signal.update_group(
+                    username=sender.username,
+                    group_id=self.chat_id,
+                    update_access_control=GroupAccessControl(
+                        members=(
+                            AccessControlMode.MEMBER
+                            if levels.invite == 0
+                            else AccessControlMode.ADMINISTRATOR
+                        ),
+                        attributes=None,
+                        link=None,
+                    ),
+                )
+                self.revision = update_meta.revision
+            except Exception as e:
+                self.log.exception(f"Failed to update Signal GroupAccessControl: {e}")
+                await self._update_power_levels(
+                    await self.signal.get_group(sender.username, self.chat_id)
+                )
+        if not prev_content or levels.state_default != prev_content.state_default:
+            try:
+                update_meta = await self.signal.update_group(
+                    username=sender.username,
+                    group_id=self.chat_id,
+                    update_access_control=GroupAccessControl(
+                        attributes=(
+                            AccessControlMode.MEMBER
+                            if levels.state_default == 0
+                            else AccessControlMode.ADMINISTRATOR
+                        ),
+                        members=None,
+                        link=None,
+                    ),
+                )
+                self.revision = update_meta.revision
+            except Exception as e:
+                self.log.exception(f"Failed to update Signal GroupAccessControl: {e}")
+                await self._update_power_levels(
+                    await self.signal.get_group(sender.username, self.chat_id)
+                )
 
     # endregion
     # region Signal event handling
@@ -1296,33 +1400,7 @@ class Portal(DBPortal, BasePortal):
                 pass
         if self.topic:
             await self.signal.update_group(source.username, self.chat_id, description=self.topic)
-        await self.signal.update_group(
-            username=source.username,
-            group_id=self.chat_id,
-            update_access_control=GroupAccessControl(
-                members=(
-                    AccessControlMode.MEMBER
-                    if levels.invite == 0
-                    else AccessControlMode.ADMINISTRATOR
-                ),
-                attributes=None,
-                link=None,
-            ),
-        )
-        update_meta = await self.signal.update_group(
-            username=source.username,
-            group_id=self.chat_id,
-            update_access_control=GroupAccessControl(
-                attributes=(
-                    AccessControlMode.MEMBER
-                    if levels.state_default == 0
-                    else AccessControlMode.ADMINISTRATOR
-                ),
-                members=None,
-                link=None,
-            ),
-        )
-        self.revision = update_meta.revision
+        await self.handle_matrix_power_level(source, levels)
         await self.update()
         await self.update_bridge_info()
 
