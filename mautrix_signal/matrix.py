@@ -126,7 +126,7 @@ class MatrixHandler(BaseMatrixHandler):
         user = await pu.Puppet.get_by_mxid(user_id)
         if not user:
             user = await u.User.get_by_mxid(user_id, create=False)
-            if not user:
+            if not user or not await user.is_logged_in():
                 return
         if action == "banned":
             await portal.ban_matrix(user, sender)
