@@ -236,6 +236,7 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     )
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
     announcements: AnnouncementsMode = field(default=AnnouncementsMode.UNKNOWN)
+    banned_members: Optional[str] = None
 
 
 @dataclass

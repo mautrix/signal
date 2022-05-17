@@ -748,14 +748,15 @@ class Portal(DBPortal, BasePortal):
         except Exception as e:
             self.log.exception(f"Failed to ban Signal user: {e}")
             info = await self.signal.get_group(source.username, self.chat_id)
-            if user.address not in info.banned_members:
-                await self.main_intent.unban_user(self.mxid, user.mxid)
+            if not info.banned_members or user.address not in info.banned_members:
+                await self.main_intent.unban_user(
+                    self.mxid, user.mxid, reason=f"Failed to ban Signal user: {e}"
+                )
             if user.address in info.members:
                 await self.main_intent.invite_user(
                     self.mxid,
                     user.mxid,
                     check_cache=True,
-                    reason=f"Failed to ban Signal user: {e}",
                 )
                 await user.intent_for(self).ensure_joined(self.mxid)
 
@@ -765,7 +766,7 @@ class Portal(DBPortal, BasePortal):
         except Exception as e:
             self.log.exception(f"Failed to unban Signal user: {e}")
             info = await self.signal.get_group(source.username, self.chat_id)
-            if user.address in info.banned_members:
+            if info.banned_members and user.address in info.banned_members:
                 await self.main_intent.ban_user(
                     self.mxid, user.mxid, reason=f"Failed to unban Signal user: {e}"
                 )
