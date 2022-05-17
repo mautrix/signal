@@ -732,18 +732,24 @@ class Portal(DBPortal, BasePortal):
             )
         except Exception as e:
             self.log.exception(f"Failed to kick Signal user: {e}")
-            await self.main_intent.invite_user(
-                self.mxid, user.mxid, check_cache=True, reason=f"Failed to kick Signal user: {e}"
-            )
-            await user.intent_for(self).ensure_joined(self.mxid)
+            info = await self.signal.get_group(source.username, self.chat_id)
+            if user.address in info.members:
+                await self.main_intent.invite_user(
+                    self.mxid,
+                    user.mxid,
+                    check_cache=True,
+                    reason=f"Failed to kick Signal user: {e}",
+                )
+                await user.intent_for(self).ensure_joined(self.mxid)
 
     async def ban_matrix(self, user: u.User | p.Puppet, source: u.User) -> None:
         try:
             await self.signal.ban_user(source.username, self.chat_id, users=[user.address])
         except Exception as e:
             self.log.exception(f"Failed to ban Signal user: {e}")
-            await self.main_intent.unban_user(self.mxid, user.mxid)
             info = await self.signal.get_group(source.username, self.chat_id)
+            if user.address not in info.banned_members:
+                await self.main_intent.unban_user(self.mxid, user.mxid)
             if user.address in info.members:
                 await self.main_intent.invite_user(
                     self.mxid,
@@ -758,9 +764,11 @@ class Portal(DBPortal, BasePortal):
             await self.signal.unban_user(source.username, self.chat_id, users=[user.address])
         except Exception as e:
             self.log.exception(f"Failed to unban Signal user: {e}")
-            await self.main_intent.ban_user(
-                self.mxid, user.mxid, reason=f"Failed to unban Signal user: {e}"
-            )
+            info = await self.signal.get_group(source.username, self.chat_id)
+            if user.address in info.banned_members:
+                await self.main_intent.ban_user(
+                    self.mxid, user.mxid, reason=f"Failed to unban Signal user: {e}"
+                )
 
     async def handle_matrix_invite(self, invited_by: u.User, user: u.User | p.Puppet) -> None:
         if self.is_direct:
