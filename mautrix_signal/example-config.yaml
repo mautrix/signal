@@ -158,8 +158,9 @@ bridge:
     # Whether or not created rooms should have federation enabled.
     # If false, created portal rooms will never be federated.
     federate_rooms: true
-    # End-to-bridge encryption support options. You must install the e2be optional dependency for
-    # this to work. See https://docs.mau.fi/bridges/general/end-to-bridge-encryption.html
+    # End-to-bridge encryption support options.
+    #
+    # See https://docs.mau.fi/bridges/general/end-to-bridge-encryption.html for more info.
     encryption:
         # Allow encryption, work in group chat rooms with e2ee enabled
         allow: false
