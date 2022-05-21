@@ -28,8 +28,8 @@ from mausignald.errors import (
     TimeoutException,
     UnregisteredUserError,
 )
-from mausignald.types import Account, Address
-from mautrix.types import UserID
+from mausignald.types import Account, Address, Profile
+from mautrix.types import JSON, UserID
 from mautrix.util.logging import TraceLogger
 
 from .. import portal as po, puppet as pu, user as u
@@ -371,12 +371,20 @@ class ProvisioningAPI:
     async def list_contacts(self, request: web.Request) -> web.Response:
         user = await self.check_token_and_logged_in(request)
         contacts = await self.bridge.signal.list_contacts(user.username, use_cache=True)
+
+        async def transform(profile: Profile) -> JSON:
+            assert profile.address
+            puppet = await pu.Puppet.get_by_address(profile.address, False)
+            avatar_url = puppet.avatar_url if puppet else None
+            return {
+                "name": profile.name,
+                "avatar_url": avatar_url,
+                "address": profile.address.serialize(),
+            }
+
         return web.json_response(
             {
-                c.address.number: {
-                    "name": c.name,
-                    "address": c.address.serialize(),
-                }
+                c.address.number: await transform(c)
                 for c in contacts
                 if c.address and c.address.number
             },
