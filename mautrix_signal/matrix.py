@@ -120,11 +120,11 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         sender = await u.User.get_by_mxid(sender, create=False)
+        if not await sender.is_logged_in() and portal.has_relay:
+            sender = portal.relay_user_id
         if not sender:
             return
 
-        if not await sender.is_logged_in() and portal.has_relay:
-            sender = portal.relay_user_id
         user = await pu.Puppet.get_by_mxid(user_id)
         if not user:
             user = await u.User.get_by_mxid(user_id, create=False)
