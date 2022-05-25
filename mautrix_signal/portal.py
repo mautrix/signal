@@ -1679,6 +1679,7 @@ class Portal(DBPortal, BasePortal):
         is_initial: bool = False,
     ) -> PowerLevelStateEventContent:
         levels = levels or PowerLevelStateEventContent()
+        bot_pl = levels.get_user_level(self.az.bot_mxid)
         levels.events_default = 0
         if self.is_direct:
             levels.ban = 99
@@ -1691,8 +1692,20 @@ class Portal(DBPortal, BasePortal):
                 ac = info.access_control
                 for detail in info.member_detail + info.pending_member_detail:
                     puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
-                    level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
-                    levels.users[puppet.intent_for(self).mxid] = level
+                    puppet_mxid = puppet.intent_for(self).mxid
+                    current_level = levels.get_user_level(puppet_mxid)
+                    if bot_pl > current_level and bot_pl >= 50:
+                        level = current_level
+                        if await u.User.get_by_address(Address(uuid=detail.uuid)):
+                            if current_level >= 50 and detail.role == GroupMemberRole.DEFAULT:
+                                level = 0
+                            elif (
+                                current_level < 50 and detail.role == GroupMemberRole.ADMINISTRATOR
+                            ):
+                                level = 50
+                        else:
+                            level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
+                        levels.users[puppet_mxid] = level
                 announcements = info.announcements
             else:
                 ac = GroupAccessControl()
