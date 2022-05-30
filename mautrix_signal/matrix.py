@@ -196,14 +196,11 @@ class MatrixHandler(BaseMatrixHandler):
         ):
             return
 
+        user = await u.User.get_by_mxid(evt.sender)
+        if not user:
+            return
         portal = await po.Portal.get_by_mxid(evt.room_id)
         if not portal:
-            return
-
-        user = await u.User.get_by_mxid(evt.sender)
-        if not await user.is_logged_in() and portal.has_relay:
-            user = portal.relay_user_id
-        if not user:
             return
 
         if evt.type == EventType.ROOM_NAME:

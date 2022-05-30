@@ -824,6 +824,10 @@ class Portal(DBPortal, BasePortal):
         old_users = prev_content.users if prev_content else None
         new_users = levels.users
         changes = {}
+        sender, is_relay = await self.get_relay_sender(sender, "power level change")
+        if not sender:
+            return
+
         if not old_users:
             changes = new_users
         else:
@@ -861,6 +865,7 @@ class Portal(DBPortal, BasePortal):
                     await self._update_power_levels(
                         await self.signal.get_group(sender.username, self.chat_id)
                     )
+                    return
         if not prev_content or levels.invite != prev_content.invite:
             try:
                 update_meta = await self.signal.update_group(
@@ -882,6 +887,7 @@ class Portal(DBPortal, BasePortal):
                 await self._update_power_levels(
                     await self.signal.get_group(sender.username, self.chat_id)
                 )
+                return
         if not prev_content or levels.state_default != prev_content.state_default:
             try:
                 update_meta = await self.signal.update_group(
