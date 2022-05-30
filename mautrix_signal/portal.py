@@ -878,7 +878,7 @@ class Portal(DBPortal, BasePortal):
                 )
                 self.revision = update_meta.revision
             except Exception as e:
-                self.log.exception(f"Failed to update Signal GroupAccessControl: {e}")
+                self.log.exception(f"Failed to update Signal member add permission: {e}")
                 await self._update_power_levels(
                     await self.signal.get_group(sender.username, self.chat_id)
                 )
