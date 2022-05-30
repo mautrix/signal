@@ -1696,7 +1696,7 @@ class Portal(DBPortal, BasePortal):
                     current_level = levels.get_user_level(puppet_mxid)
                     if bot_pl > current_level and bot_pl >= 50:
                         level = current_level
-                        if await u.User.get_by_address(Address(uuid=detail.uuid)):
+                        if puppet.is_real_user:
                             if current_level >= 50 and detail.role == GroupMemberRole.DEFAULT:
                                 level = 0
                             elif (
