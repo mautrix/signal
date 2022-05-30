@@ -819,7 +819,7 @@ class Portal(DBPortal, BasePortal):
         self,
         sender: u.User,
         levels: PowerLevelStateEventContent,
-        prev_content=None,
+        prev_content: PowerLevelStateEventContent | None = None,
     ) -> None:
         old_users = prev_content.users if prev_content else None
         new_users = levels.users
