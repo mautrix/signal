@@ -773,7 +773,7 @@ class Portal(DBPortal, BasePortal):
                 invited_by.username, self.chat_id, add_members=[user.address]
             )
         except RPCError as e:
-            raise RejectMatrixInvite(e.message) from e
+            raise RejectMatrixInvite(str(e)) from e
 
     async def handle_matrix_name(self, user: u.User, name: str) -> None:
         if self.name == name or self.is_direct or not name:
