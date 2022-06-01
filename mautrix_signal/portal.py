@@ -916,7 +916,6 @@ class Portal(DBPortal, BasePortal):
 
             if content:
                 if message.sticker.attachment.blurhash:
-                    content.info["blurhash"] = message.sticker.attachment.blurhash
                     content.info["xyz.amorgan.blurhash"] = message.sticker.attachment.blurhash
                 await self._add_sticker_meta(message.sticker, content)
                 if reply_to and not message.body:
@@ -1039,7 +1038,6 @@ class Portal(DBPortal, BasePortal):
             else:
                 attachment.custom_filename += mimetypes.guess_extension(info.mimetype) or ""
         if attachment.blurhash:
-            info["blurhash"] = attachment.blurhash
             info["xyz.amorgan.blurhash"] = attachment.blurhash
         content = MediaMessageEventContent(
             msgtype=msgtype, info=info, body=attachment.custom_filename
