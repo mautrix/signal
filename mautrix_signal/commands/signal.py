@@ -18,7 +18,7 @@ from __future__ import annotations
 import base64
 import json
 
-from mausignald.errors import UnknownIdentityKey
+from mausignald.errors import UnknownIdentityKey, UnregisteredUserError
 from mausignald.types import Address, GroupID, TrustLevel
 from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
@@ -50,7 +50,12 @@ async def _get_puppet_from_cmd(evt: CommandEvent) -> pu.Puppet | None:
 
     puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=phone))
     if not puppet.uuid and evt.sender.username:
-        uuid = await evt.bridge.signal.find_uuid(evt.sender.username, puppet.number)
+        try:
+            uuid = await evt.bridge.signal.find_uuid(evt.sender.username, puppet.number)
+        except UnregisteredUserError:
+            await evt.reply("User not registered")
+            return None
+
         if uuid:
             await puppet.handle_uuid_receive(uuid)
     return puppet
