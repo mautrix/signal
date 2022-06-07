@@ -488,7 +488,7 @@ class Portal(DBPortal, BasePortal):
             dm = DisappearingMessage(self.mxid, event_id, self.expiration_time)
             dm.start_timer()
             await dm.insert()
-            await self._disappear_event(dm)
+            asyncio.create_task(self._disappear_event(dm))
 
         sender.send_remote_checkpoint(
             MessageSendCheckpointStatus.SUCCESS,
