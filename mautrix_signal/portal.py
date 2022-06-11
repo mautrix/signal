@@ -26,7 +26,12 @@ import os.path
 import pathlib
 import time
 
-from mausignald.errors import AttachmentTooLargeError, NotConnected, RPCError
+from mausignald.errors import (
+    AttachmentTooLargeError,
+    NotConnected,
+    ProfileUnavailableError,
+    RPCError,
+)
 from mausignald.types import (
     AccessControlMode,
     Address,
@@ -1649,7 +1654,10 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
 
             puppet = await p.Puppet.get_by_address(address)
-            await source.sync_contact(address)
+            try:
+                await source.sync_contact(address)
+            except ProfileUnavailableError:
+                self.log.debug(f"Profile of puppet with {address} is unavailable")
             await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
 
@@ -1660,7 +1668,10 @@ class Portal(DBPortal, BasePortal):
                 await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
 
             puppet = await p.Puppet.get_by_address(address)
-            await source.sync_contact(address)
+            try:
+                await source.sync_contact(address)
+            except ProfileUnavailableError:
+                self.log.debug(f"Profile of puppet with {address} is unavailable")
             await self.main_intent.invite_user(
                 self.mxid, puppet.intent_for(self).mxid, check_cache=True
             )
