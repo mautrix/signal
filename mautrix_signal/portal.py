@@ -1500,7 +1500,7 @@ class Portal(DBPortal, BasePortal):
         changed = await self._update_avatar(info, sender) or changed
         await self._update_participants(source, info)
         try:
-            await self._update_power_levels(info)
+            await self._update_power_levels(info, sender)
         except Exception:
             self.log.warning("Error updating power levels", exc_info=True)
         if changed:
@@ -1677,11 +1677,16 @@ class Portal(DBPortal, BasePortal):
                         self.mxid, user.mxid, "You are not a member of this Signal group"
                     )
 
-    async def _update_power_levels(self, info: ChatInfo) -> None:
+    async def _update_power_levels(self, info: ChatInfo, sender: p.Puppet | None = None) -> None:
         if not self.mxid:
             return
 
         power_levels = await self.main_intent.get_power_levels(self.mxid)
+        if sender:
+            power_levels = await self._get_power_levels(
+                power_levels, info=info, is_initial=False, sender=sender
+            )
+            await sender.intent_for(self).set_power_levels(self.mxid, power_levels)
         power_levels = await self._get_power_levels(power_levels, info=info, is_initial=False)
         await self.main_intent.set_power_levels(self.mxid, power_levels)
 
@@ -1800,9 +1805,11 @@ class Portal(DBPortal, BasePortal):
         levels: PowerLevelStateEventContent | None = None,
         info: ChatInfo | None = None,
         is_initial: bool = False,
+        sender: p.Puppet | None = None,
     ) -> PowerLevelStateEventContent:
         levels = levels or PowerLevelStateEventContent()
-        bot_pl = levels.get_user_level(self.az.bot_mxid)
+        sender_mxid = sender.mxid if sender else self.az.bot_mxid
+        sender_pl = levels.get_user_level(sender_mxid)
         levels.events_default = 0
         if self.is_direct:
             levels.ban = 99
@@ -1817,7 +1824,7 @@ class Portal(DBPortal, BasePortal):
                     puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
                     puppet_mxid = puppet.intent_for(self).mxid
                     current_level = levels.get_user_level(puppet_mxid)
-                    if bot_pl > current_level and bot_pl >= 50:
+                    if sender_pl > current_level and sender_pl >= 50:
                         level = current_level
                         if puppet.is_real_user:
                             if current_level >= 50 and detail.role == GroupMemberRole.DEFAULT:
@@ -1849,8 +1856,8 @@ class Portal(DBPortal, BasePortal):
         levels.users_default = 0
         # Remote delete is only for your own messages
         levels.redact = 99
-        if self.main_intent.mxid not in levels.users:
-            levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
+        if is_initial:
+            levels.users[self.main_intent.mxid] = 9001
         return levels
 
     async def _create_matrix_room(self, source: u.User, info: ChatInfo) -> RoomID | None:
