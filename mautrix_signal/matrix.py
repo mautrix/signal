@@ -120,7 +120,7 @@ class MatrixHandler(BaseMatrixHandler):
             return
 
         sender = await u.User.get_by_mxid(sender)
-        sender, is_relay = await self.get_relay_sender(sender, "kick/ban")
+        sender, is_relay = await portal.get_relay_sender(sender, "kick/ban")
         if not sender:
             return
 
