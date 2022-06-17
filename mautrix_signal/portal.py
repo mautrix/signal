@@ -1705,7 +1705,7 @@ class Portal(DBPortal, BasePortal):
         if sender:
             try:
                 await sender.intent_for(self).kick_user(self.mxid, user.mxid)
-            except:
+            except (MForbidden, IntentError):
                 await self.main_intent.kick_user(self.mxid, user.mxid, f"kicked by {sender.name}")
         else:
             await self.main_intent.kick_user(
