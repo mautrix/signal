@@ -26,7 +26,12 @@ import os.path
 import pathlib
 import time
 
-from mausignald.errors import AttachmentTooLargeError, NotConnected, RPCError
+from mausignald.errors import (
+    AttachmentTooLargeError,
+    NotConnected,
+    ProfileUnavailableError,
+    RPCError,
+)
 from mausignald.types import (
     AccessControlMode,
     Address,
@@ -488,7 +493,7 @@ class Portal(DBPortal, BasePortal):
             dm = DisappearingMessage(self.mxid, event_id, self.expiration_time)
             dm.start_timer()
             await dm.insert()
-            await self._disappear_event(dm)
+            asyncio.create_task(self._disappear_event(dm))
 
         sender.send_remote_checkpoint(
             MessageSendCheckpointStatus.SUCCESS,
@@ -1653,7 +1658,10 @@ class Portal(DBPortal, BasePortal):
                 )
 
             puppet = await p.Puppet.get_by_address(address)
-            await source.sync_contact(address)
+            try:
+                await source.sync_contact(address)
+            except ProfileUnavailableError:
+                self.log.debug(f"Profile of puppet with {address} is unavailable")
             await self._try_with_puppet(
                 lambda i: i.invite_user(self.mxid, puppet.intent_for(self).mxid, check_cache=True),
                 puppet=sender,
@@ -1670,7 +1678,10 @@ class Portal(DBPortal, BasePortal):
                 )
 
             puppet = await p.Puppet.get_by_address(address)
-            await source.sync_contact(address)
+            try:
+                await source.sync_contact(address)
+            except ProfileUnavailableError:
+                self.log.debug(f"Profile of puppet with {address} is unavailable")
             await self._try_with_puppet(
                 lambda i: i.invite_user(self.mxid, puppet.intent_for(self).mxid, check_cache=True),
                 puppet=sender,
