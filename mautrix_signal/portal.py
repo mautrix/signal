@@ -748,7 +748,11 @@ class Portal(DBPortal, BasePortal):
         except Exception as e:
             self.log.exception(f"Failed to ban Signal user: {e}")
             info = await self.signal.get_group(source.username, self.chat_id)
-            if not info.banned_members or user.address not in info.banned_members:
+            is_banned = False
+            if info.banned_members:
+                for member in info.banned_members:
+                    is_banned = user.address.uuid == member.uuid or is_banned
+            if not is_banned:
                 await self.main_intent.unban_user(
                     self.mxid, user.mxid, reason=f"Failed to ban Signal user: {e}"
                 )
@@ -766,10 +770,13 @@ class Portal(DBPortal, BasePortal):
         except Exception as e:
             self.log.exception(f"Failed to unban Signal user: {e}")
             info = await self.signal.get_group(source.username, self.chat_id)
-            if info.banned_members and user.address in info.banned_members:
-                await self.main_intent.ban_user(
-                    self.mxid, user.mxid, reason=f"Failed to unban Signal user: {e}"
-                )
+            if info.banned_members:
+                for member in info.banned_members:
+                    if member.uuid == user.address.uuid:
+                        await self.main_intent.ban_user(
+                            self.mxid, user.mxid, reason=f"Failed to unban Signal user: {e}"
+                        )
+                        return
 
     async def handle_matrix_invite(self, invited_by: u.User, user: u.User | p.Puppet) -> None:
         if self.is_direct:
