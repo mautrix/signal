@@ -1683,12 +1683,22 @@ class Portal(DBPortal, BasePortal):
 
         power_levels = await self.main_intent.get_power_levels(self.mxid)
         if sender:
-            power_levels = await self._get_power_levels(
-                power_levels, info=info, is_initial=False, sender=sender
+            power_levels_puppet = await self._get_power_levels(
+                PowerLevelStateEventContent.deserialize(power_levels.serialize()),
+                info=info,
+                is_initial=False,
+                sender=sender,
             )
-            await sender.intent_for(self).set_power_levels(self.mxid, power_levels)
-        power_levels = await self._get_power_levels(power_levels, info=info, is_initial=False)
-        await self.main_intent.set_power_levels(self.mxid, power_levels)
+            if power_levels_puppet != power_levels:
+                await sender.intent_for(self).set_power_levels(self.mxid, power_levels_puppet)
+                power_levels = power_levels_puppet
+        power_levels_bot = await self._get_power_levels(
+            PowerLevelStateEventContent.deserialize(power_levels.serialize()),
+            info=info,
+            is_initial=False,
+        )
+        if power_levels_bot != power_levels:
+            await self.main_intent.set_power_levels(self.mxid, power_levels_bot)
 
     # endregion
     # region Bridge info state event
