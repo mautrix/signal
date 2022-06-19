@@ -217,6 +217,12 @@ class GroupMember(SerializableAttrs):
     role: GroupMemberRole = GroupMemberRole.UNKNOWN
 
 
+@dataclass
+class BannedGroupMember(SerializableAttrs):
+    uuid: UUID
+    timestamp: int
+
+
 @dataclass(kw_only=True)
 class GroupV2(GroupV2ID, SerializableAttrs):
     title: str
@@ -236,6 +242,7 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     )
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
     announcements: AnnouncementsMode = field(default=AnnouncementsMode.UNKNOWN)
+    banned_members: Optional[List[BannedGroupMember]] = None
 
 
 @dataclass

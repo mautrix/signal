@@ -345,6 +345,28 @@ class SignaldClient(SignaldRPCClient):
     async def leave_group(self, username: str, group_id: GroupID) -> None:
         await self.request_v1("leave_group", account=username, groupID=group_id)
 
+    async def ban_user(
+        self, username: str, group_id: GroupID, users: list[Address]
+    ) -> Group | GroupV2:
+        serialized_users = [user.serialize() for user in (users or [])]
+        resp = await self.request_v1(
+            "ban_user", account=username, group_id=group_id, users=serialized_users
+        )
+        legacy = [Group.deserialize(group) for group in resp.get("legacyGroups", [])]
+        v2 = [GroupV2.deserialize(group) for group in resp.get("groups", [])]
+        return legacy + v2
+
+    async def unban_user(
+        self, username: str, group_id: GroupID, users: list[Address]
+    ) -> Group | GroupV2:
+        serialized_users = [user.serialize() for user in (users or [])]
+        resp = await self.request_v1(
+            "unban_user", account=username, group_id=group_id, users=serialized_users
+        )
+        legacy = [Group.deserialize(group) for group in resp.get("legacyGroups", [])]
+        v2 = [GroupV2.deserialize(group) for group in resp.get("groups", [])]
+        return legacy + v2
+
     async def update_group(
         self,
         username: str,

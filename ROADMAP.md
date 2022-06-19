@@ -17,11 +17,11 @@
   * [x] Group info changes
     * [x] Name
     * [x] Avatar
-  * [ ] Membership actions
+  * [x] Membership actions
     * [x] Join (accept invite)
     * [x] Invite
     * [x] Leave
-    * [ ] Kick
+    * [x] Kick/Ban/Unban
   * [ ] Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
   * [x] Delivery receipts (sent after message is bridged)
