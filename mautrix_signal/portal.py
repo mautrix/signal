@@ -1158,7 +1158,7 @@ class Portal(DBPortal, BasePortal):
 
     async def handle_signal_kicked(self, user: u.User, sender: p.Puppet) -> None:
         self.log.debug(f"{user.mxid} was kicked by {sender.number} from {self.mxid}")
-        await self.main_intent.kick_user(self.mxid, user.mxid, f"{sender.name} kicked you")
+        await self._kick_with_puppet(user, sender)
 
     @staticmethod
     async def _make_media_content(
@@ -1503,7 +1503,7 @@ class Portal(DBPortal, BasePortal):
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
         changed = await self._update_avatar(info, sender) or changed
-        await self._update_participants(source, info)
+        await self._update_participants(source, info, sender)
         try:
             await self._update_power_levels(info)
         except Exception:
@@ -1633,7 +1633,9 @@ class Portal(DBPortal, BasePortal):
             self.avatar_set = False
         return True
 
-    async def _update_participants(self, source: u.User, info: ChatInfo) -> None:
+    async def _update_participants(
+        self, source: u.User, info: ChatInfo, sender: p.Puppet | None = None
+    ) -> None:
         if not self.mxid or not isinstance(info, (Group, GroupV2)):
             return
 
@@ -1651,13 +1653,19 @@ class Portal(DBPortal, BasePortal):
             user = await u.User.get_by_address(address)
             if user:
                 remove_users.discard(user.mxid)
-                await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
+                await self._try_with_puppet(
+                    lambda i: i.invite_user(self.mxid, user.mxid, check_cache=True), puppet=sender
+                )
 
             puppet = await p.Puppet.get_by_address(address)
             try:
                 await source.sync_contact(address)
             except ProfileUnavailableError:
                 self.log.debug(f"Profile of puppet with {address} is unavailable")
+            await self._try_with_puppet(
+                lambda i: i.invite_user(self.mxid, puppet.intent_for(self).mxid, check_cache=True),
+                puppet=sender,
+            )
             await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
 
@@ -1665,28 +1673,44 @@ class Portal(DBPortal, BasePortal):
             user = await u.User.get_by_address(address)
             if user:
                 remove_users.discard(user.mxid)
-                await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
+                await self._try_with_puppet(
+                    lambda i: i.invite_user(self.mxid, user.mxid, check_cache=True), puppet=sender
+                )
 
             puppet = await p.Puppet.get_by_address(address)
             try:
                 await source.sync_contact(address)
             except ProfileUnavailableError:
                 self.log.debug(f"Profile of puppet with {address} is unavailable")
-            await self.main_intent.invite_user(
-                self.mxid, puppet.intent_for(self).mxid, check_cache=True
+            await self._try_with_puppet(
+                lambda i: i.invite_user(self.mxid, puppet.intent_for(self).mxid, check_cache=True),
+                puppet=sender,
             )
             remove_users.discard(puppet.default_mxid)
 
         for mxid in remove_users:
+            user = await u.User.get_by_mxid(mxid, create=False)
+            if user and await user.is_logged_in():
+                await self._kick_with_puppet(user, sender)
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
-                await puppet.default_mxid_intent.leave_room(self.mxid)
-            else:
-                user = await u.User.get_by_mxid(mxid, create=False)
-                if user and await user.is_logged_in():
-                    await self.main_intent.kick_user(
-                        self.mxid, user.mxid, "You are not a member of this Signal group"
-                    )
+                if puppet == sender:
+                    await puppet.intent_for(self).leave_room(self.mxid)
+                else:
+                    await self._kick_with_puppet(puppet, sender)
+
+    async def _kick_with_puppet(
+        self, user: p.Puppet | u.User, sender: p.Puppet | None = None
+    ) -> None:
+        if sender:
+            try:
+                await sender.intent_for(self).kick_user(self.mxid, user.mxid)
+            except (MForbidden, IntentError):
+                await self.main_intent.kick_user(self.mxid, user.mxid, f"kicked by {sender.name}")
+        else:
+            await self.main_intent.kick_user(
+                self.mxid, user.mxid, "Not a member of this Signal group"
+            )
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
         if not self.mxid:
