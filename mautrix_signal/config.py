@@ -78,11 +78,6 @@ class Config(BaseBridgeConfig):
         else:
             copy("bridge.login_shared_secret_map")
         copy("bridge.federate_rooms")
-        copy("bridge.encryption.allow")
-        copy("bridge.encryption.default")
-        copy("bridge.encryption.key_sharing.allow")
-        copy("bridge.encryption.key_sharing.require_cross_signing")
-        copy("bridge.encryption.key_sharing.require_verification")
         copy("bridge.private_chat_portal_meta")
         copy("bridge.delivery_receipts")
         copy("bridge.delivery_error_reports")
