@@ -1067,7 +1067,7 @@ class Portal(DBPortal, BasePortal):
             self.log.exception(f"Failed to update Signal link access control: {e}")
             await self._update_join_rules(
                 await self.signal.get_group(sender.username, self.chat_id)
-                )
+            )
 
     async def matrix_accept_knock(self, sender: u.User, user: p.Puppet | u.User) -> None:
         try:
@@ -1077,7 +1077,9 @@ class Portal(DBPortal, BasePortal):
             if isinstance(user, p.Puppet):
                 await user.intent_for(self).ensure_joined(self.mxid)
         except RPCError as e:
-            raise RejectMatrixInvite(str(e)) from e
+            info = await self.signal.get_group(sender.username, self.chat_id)
+            if user.address in info.requesting_members:
+                raise RejectMatrixInvite(str(e)) from e
         power_levels = await self.main_intent.get_power_levels(self.mxid)
         invitee_pl = power_levels.get_user_level(user.mxid)
         if invitee_pl >= 50:
@@ -1099,11 +1101,13 @@ class Portal(DBPortal, BasePortal):
                 sender.username, self.chat_id, members=[user.address]
             )
         except RPCError as e:
-            await user.intent_for(self).knock(
-                self.mxid,
-                reason=f"refusing membership failed: {e}",
-                servers=[self.config["homeserver.domain"]],
-            )
+            info = await self.signal.get_group(sender.username, self.chat_id)
+            if user.address in info.requesting_members:
+                await user.intent_for(self).knock(
+                    self.mxid,
+                    reason=f"refusing membership failed: {e}",
+                    servers=[self.config["homeserver.domain"]],
+                )
 
     # endregion
     # region Signal event handling
