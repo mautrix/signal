@@ -1,3 +1,42 @@
+# v0.4.0 (unreleased)
+
+Target signald version: [v0.20.0](https://gitlab.com/signald/signald/-/releases/0.20.0)
+
+### Added
+* Added provisioning API for checking if a phone number is registered on Signal
+* Added admin command for linking to an existing account in signald.
+* Added Matrix -> Signal bridging for invites, kicks, bans and unbans
+  (thanks to [@maltee1] in [#246] and [#257]).
+* Added command to create Signal group for existing Matrix room
+  (thanks to [@maltee1] in [#250]).
+* Added Matrix -> Signal power level change bridging
+  (thanks to [@maltee1] in [#260] and [#263]).
+
+### Improved
+* Improved/fixed handling of disappearing message timer changes
+* Updated contact list provisioning API to not block if signald needs to update
+  profiles.
+* Trying to start a direct chat with a non-existent phone number will now reply
+  with a proper error message instead of throwing an exception
+  (thanks to [@maltee1] in [#265]).
+* Syncing chat members will no longer be interrupted if one of the member
+  profiles is unavailable (thanks to [@maltee1] in [#270]).
+* Member moderation actions from Signal are now bridged to Matrix with the
+  correct ghost user if possible instead of always using the bridge bot
+  (thanks to [@maltee1] in [#273]).
+
+### Fixed
+* Call start notices work again
+
+[#246]: https://github.com/mautrix/signal/pull/246
+[#250]: https://github.com/mautrix/signal/pull/250
+[#257]: https://github.com/mautrix/signal/pull/257
+[#260]: https://github.com/mautrix/signal/pull/260
+[#263]: https://github.com/mautrix/signal/pull/263
+[#265]: https://github.com/mautrix/signal/pull/265
+[#270]: https://github.com/mautrix/signal/pull/270
+[#273]: https://github.com/mautrix/signal/pull/273
+
 # v0.3.0 (2022-04-20)
 
 Target signald version: [v0.18.0](https://gitlab.com/signald/signald/-/releases/0.18.0)
