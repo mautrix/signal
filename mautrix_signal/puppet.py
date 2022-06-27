@@ -234,17 +234,25 @@ class Puppet(DBPuppet, BasePuppet):
             await self.handle_uuid_receive(address.uuid)
         if address.number and not self.number:
             await self.handle_number_receive(address.number)
+        self.log.debug("Updating info for %s", address)
 
         contact_names = self.config["bridge.contact_list_names"]
-        if isinstance(info, Profile) and contact_names != "prefer" and info.profile_name:
-            name = info.profile_name
-        elif isinstance(info, (Contact, Profile)) and contact_names != "disallow":
-            name = info.name
-            if not name and isinstance(info, Profile) and info.profile_name:
-                # Contact list name is preferred, but was not found, fall back to profile
+        name = None
+        if isinstance(info, Profile):
+            if info.profile_name:
+                self.log.debug(
+                    "Found profile name on profile for %s: '%s'", address, info.profile_name
+                )
                 name = info.profile_name
-        else:
-            name = None
+            if contact_names == "prefer" or (contact_names == "allow" and not name):
+                # Try and overwrite the name with the contact name if that's the preference, or we
+                # didn't get a profile name.
+                self.log.debug("Found contact name on profile for %s: '%s'", address, info.name)
+                name = info.name or name
+        elif isinstance(info, Contact) and contact_names != "disallow":
+            self.log.debug("Found contact name on contact for %s: '%s'", address, info.name)
+            name = info.name
+        self.log.debug("Using name '%s' for %s", name, address)
 
         async with self._update_info_lock:
             update = False
