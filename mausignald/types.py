@@ -616,6 +616,19 @@ class ErrorMessage(SerializableAttrs):
     account: str
 
 
+@dataclass(kw_only=True)
+class StorageChangeData(SerializableAttrs):
+    version: int
+
+
+@dataclass(kw_only=True)
+class StorageChange(SerializableAttrs):
+    type: str
+    version: str
+    data: StorageChangeData
+    account: str
+
+
 class WebsocketConnectionState(SerializableEnum):
     # States from signald itself
     DISCONNECTED = "DISCONNECTED"

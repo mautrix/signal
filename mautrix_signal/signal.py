@@ -29,6 +29,7 @@ from mausignald.types import (
     OwnReadReceipt,
     ReceiptMessage,
     ReceiptType,
+    StorageChange,
     TypingAction,
     TypingMessage,
     WebsocketConnectionStateChangeEvent,
@@ -60,6 +61,7 @@ class SignalHandler(SignaldClient):
         self.error_message_events = {}
         self.add_event_handler(IncomingMessage, self.on_message)
         self.add_event_handler(ErrorMessage, self.on_error_message)
+        self.add_event_handler(StorageChange, self.on_storage_change)
         self.add_event_handler(
             WebsocketConnectionStateChangeEvent, self.on_websocket_connection_state_change
         )
@@ -142,6 +144,11 @@ class SignalHandler(SignaldClient):
                 )
             finally:
                 fut.set_result(event_id)
+
+    async def on_storage_change(self, storage_change: StorageChange) -> None:
+        self.log.info("Handling StorageChange %s", str(storage_change))
+        if user := await u.User.get_by_username(storage_change.account):
+            await user.sync()
 
     @staticmethod
     async def on_websocket_connection_state_change(
