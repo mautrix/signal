@@ -49,7 +49,7 @@ class UnknownIdentityKey(ResponseError):
     pass
 
 
-class CaptchaRequired(ResponseError):
+class CaptchaRequiredError(ResponseError):
     pass
 
 
@@ -116,7 +116,7 @@ response_error_types = {
     "UserAlreadyExists": UserAlreadyExistsError,
     "RequestValidationFailure": RequestValidationFailure,
     "UnknownIdentityKey": UnknownIdentityKey,
-    "CaptchaRequired": CaptchaRequired,
+    "CaptchaRequiredError": CaptchaRequiredError,
     "InternalError": InternalError,
     "AttachmentTooLargeError": AttachmentTooLargeError,
     "AuthorizationFailedError": AuthorizationFailedError,
