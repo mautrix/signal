@@ -23,7 +23,7 @@ import os.path
 
 from yarl import URL
 
-from mausignald.types import Address, Contact, Profile
+from mausignald.types import Address, Profile
 from mautrix.appservice import IntentAPI
 from mautrix.bridge import BasePuppet, async_getter_lock
 from mautrix.errors import MForbidden
@@ -70,6 +70,7 @@ class Puppet(DBPuppet, BasePuppet):
         uuid: UUID | None,
         number: str | None,
         name: str | None = None,
+        name_quality: int = 0,
         avatar_url: ContentURI | None = None,
         avatar_hash: str | None = None,
         name_set: bool = False,
@@ -85,6 +86,7 @@ class Puppet(DBPuppet, BasePuppet):
             uuid=uuid,
             number=number,
             name=name,
+            name_quality=name_quality,
             avatar_url=avatar_url,
             avatar_hash=avatar_hash,
             name_set=name_set,
@@ -228,39 +230,22 @@ class Puppet(DBPuppet, BasePuppet):
         except Exception:
             self.log.warning("Failed to migrate power levels", exc_info=True)
 
-    async def update_info(self, info: Profile | Contact | Address) -> None:
-        address = info.address if isinstance(info, (Contact, Profile)) else info
+    async def update_info(self, info: Profile | Address, source: u.User) -> None:
+        address = info.address if isinstance(info, Profile) else info
         if address.uuid and not self.uuid:
             await self.handle_uuid_receive(address.uuid)
         if address.number and not self.number:
             await self.handle_number_receive(address.number)
-        self.log.debug("Updating info for %s", address)
-
-        contact_names = self.config["bridge.contact_list_names"]
-        name = None
-        if isinstance(info, Profile):
-            if info.profile_name:
-                self.log.debug(
-                    "Found profile name on profile for %s: '%s'", address, info.profile_name
-                )
-                name = info.profile_name
-            if contact_names == "prefer" or (contact_names == "allow" and not name):
-                # Try and overwrite the name with the contact name if that's the preference, or we
-                # didn't get a profile name.
-                self.log.debug("Found contact name on profile for %s: '%s'", address, info.name)
-                name = info.name or name
-        elif isinstance(info, Contact) and contact_names != "disallow":
-            self.log.debug("Found contact name on contact for %s: '%s'", address, info.name)
-            name = info.name
-        self.log.debug("Using name '%s' for %s", name, address)
+        self.log.debug("Updating info with %s (source: %s)", info, source.mxid)
 
         async with self._update_info_lock:
             update = False
-            if name is not None or self.name is None:
-                update = await self._update_name(name) or update
+            if isinstance(info, Profile) or self.name is None:
+                update = await self._update_name(info) or update
             if isinstance(info, Profile):
                 update = await self._update_avatar(info.avatar) or update
-            elif contact_names != "disallow" and self.number:
+            elif self.config["bridge.contact_list_names"] != "disallow" and self.number:
+                # Try to use a contact list avatar
                 update = await self._update_avatar(f"contact-{self.number}") or update
             if update:
                 await self.update()
@@ -275,8 +260,26 @@ class Puppet(DBPuppet, BasePuppet):
         return phonenumbers.format_number(parsed, fmt)
 
     @classmethod
-    def _get_displayname(cls, address: Address, name: str | None) -> str:
-        names = name.split("\x00") if name else []
+    def _get_displayname(cls, info: Profile | Address) -> tuple[str, int]:
+        quality = 10
+        if isinstance(info, Profile):
+            address = info.address
+            name = None
+            contact_names = cls.config["bridge.contact_list_names"]
+            if info.profile_name:
+                name = info.profile_name
+                quality = 90 if contact_names == "prefer" else 100
+            if info.name:
+                if contact_names == "prefer":
+                    quality = 100
+                    name = info.name
+                elif contact_names == "allow" and not name:
+                    quality = 50
+                    name = info.name
+            names = name.split("\x00") if name else []
+        else:
+            address = info
+            names = []
         data = {
             "first_name": names[0] if len(names) > 0 else "",
             "last_name": names[-1] if len(names) > 1 else "",
@@ -291,18 +294,34 @@ class Puppet(DBPuppet, BasePuppet):
                 data["displayname"] = value
                 break
 
-        return cls.config["bridge.displayname_template"].format(**data)
+        return cls.config["bridge.displayname_template"].format(**data), quality
 
-    async def _update_name(self, name: str | None) -> bool:
-        name = self._get_displayname(self.address, name)
-        if name != self.name or not self.name_set:
+    async def _update_name(self, info: Profile | Address) -> bool:
+        name, quality = self._get_displayname(info)
+        if quality >= self.name_quality and (name != self.name or not self.name_set):
+            self.log.debug(
+                "Updating name from '%s' to '%s' (quality: %d)", self.name, name, quality
+            )
             self.name = name
+            self.name_quality = quality
             try:
                 await self.default_mxid_intent.set_displayname(self.name)
                 self.name_set = True
             except Exception:
                 self.log.exception("Error setting displayname")
                 self.name_set = False
+            return True
+        elif name != self.name or not self.name_set:
+            self.log.debug(
+                "Not updating name from '%s' to '%s', new quality (%d) is lower than old (%d)",
+                self.name,
+                name,
+                quality,
+                self.name_quality,
+            )
+        elif self.name_quality == 0:
+            # Name matches, but quality is not stored in database - store it now
+            self.name_quality = quality
             return True
         return False
 

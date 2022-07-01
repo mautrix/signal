@@ -21,7 +21,7 @@ from datetime import datetime
 from uuid import UUID
 import asyncio
 
-from mausignald.errors import AuthorizationFailedError, ResponseError
+from mausignald.errors import AuthorizationFailedError
 from mausignald.types import (
     Account,
     Address,
@@ -301,7 +301,7 @@ class User(DBUser, BaseUser):
                 address = contact.address
                 profile = contact
             puppet = await pu.Puppet.get_by_address(address)
-            await puppet.update_info(profile)
+            await puppet.update_info(profile, self)
             if create_portals:
                 portal = await po.Portal.get_by_chat_id(
                     puppet.address, receiver=self.username, create=True

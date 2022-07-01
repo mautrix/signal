@@ -37,7 +37,6 @@ from mausignald.types import (
     Address,
     AnnouncementsMode,
     Attachment,
-    Contact,
     Group,
     GroupAccessControl,
     GroupID,
@@ -118,7 +117,7 @@ except ImportError:
 
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
-ChatInfo = Union[Group, GroupV2, GroupV2ID, Contact, Profile, Address]
+ChatInfo = Union[Group, GroupV2, GroupV2ID, Profile, Address]
 MAX_MATRIX_MESSAGE_SIZE = 60000
 BEEPER_LINK_PREVIEWS_KEY = "com.beeper.linkpreviews"
 BEEPER_IMAGE_ENCRYPTION_KEY = "beeper:image:encryption"
@@ -1514,12 +1513,12 @@ class Portal(DBPortal, BasePortal):
         self, source: u.User, info: ChatInfo, sender: p.Puppet | None = None
     ) -> None:
         if self.is_direct:
-            if not isinstance(info, (Contact, Profile, Address)):
+            if not isinstance(info, (Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
             if not self.name:
                 puppet = await self.get_dm_puppet()
                 if not puppet.name:
-                    await puppet.update_info(info)
+                    await puppet.update_info(info, source)
                 self.name = puppet.name
             return
 
@@ -1819,7 +1818,7 @@ class Portal(DBPortal, BasePortal):
     async def update_matrix_room(self, source: u.User, info: ChatInfo) -> None:
         if not self.is_direct and not isinstance(info, (Group, GroupV2, GroupV2ID)):
             raise ValueError(f"Unexpected type for updating group portal: {type(info)}")
-        elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
+        elif self.is_direct and not isinstance(info, (Profile, Address)):
             raise ValueError(f"Unexpected type for updating direct chat portal: {type(info)}")
         try:
             await self._update_matrix_room(source, info)
@@ -1829,7 +1828,7 @@ class Portal(DBPortal, BasePortal):
     async def create_matrix_room(self, source: u.User, info: ChatInfo) -> RoomID | None:
         if not self.is_direct and not isinstance(info, (Group, GroupV2, GroupV2ID)):
             raise ValueError(f"Unexpected type for creating group portal: {type(info)}")
-        elif self.is_direct and not isinstance(info, (Contact, Profile, Address)):
+        elif self.is_direct and not isinstance(info, (Profile, Address)):
             raise ValueError(f"Unexpected type for creating direct chat portal: {type(info)}")
         if isinstance(info, Group) and not info.members:
             try:

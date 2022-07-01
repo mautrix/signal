@@ -133,32 +133,30 @@ class GetIdentitiesResponse(SerializableAttrs):
 
 
 @dataclass
-class Contact(SerializableAttrs):
-    address: Address
-    name: Optional[str] = None
-    color: Optional[str] = None
-    profile_key: Optional[str] = field(default=None, json="profileKey")
-    message_expiration_time: int = field(default=0, json="messageExpirationTime")
-
-
-@dataclass
 class Capabilities(SerializableAttrs):
     gv2: bool = False
     storage: bool = False
     gv1_migration: bool = field(default=False, json="gv1-migration")
+    announcement_group: bool = False
+    change_number: bool = False
+    sender_key: bool = False
+    stories: bool = False
 
 
 @dataclass
 class Profile(SerializableAttrs):
+    address: Optional[Address] = None
     name: str = ""
     profile_name: str = ""
+    about: str = ""
     avatar: str = ""
-    identity_key: str = ""
-    unidentified_access: str = ""
-    unrestricted_unidentified_access: bool = False
-    address: Optional[Address] = None
-    expiration_time: int = 0
+    color: str = ""
+    emoji: str = ""
+    inbox_position: Optional[int] = None
+    mobilecoin_address: Optional[str] = None
+    expiration_time: Optional[int] = None
     capabilities: Optional[Capabilities] = None
+    # visible_badge_ids: List[str]
 
 
 @dataclass
