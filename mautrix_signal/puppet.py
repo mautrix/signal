@@ -269,13 +269,13 @@ class Puppet(DBPuppet, BasePuppet):
             if info.profile_name:
                 name = info.profile_name
                 quality = 90 if contact_names == "prefer" else 100
-            if info.name:
+            if info.contact_name:
                 if contact_names == "prefer":
                     quality = 100
-                    name = info.name
+                    name = info.contact_name
                 elif contact_names == "allow" and not name:
                     quality = 50
-                    name = info.name
+                    name = info.contact_name
             names = name.split("\x00") if name else []
         else:
             address = info

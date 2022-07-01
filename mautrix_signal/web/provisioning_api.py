@@ -378,6 +378,8 @@ class ProvisioningAPI:
             avatar_url = puppet.avatar_url if puppet else None
             return {
                 "name": profile.name,
+                "contact_name": profile.contact_name,
+                "profile_name": profile.profile_name,
                 "avatar_url": avatar_url,
                 "address": profile.address.serialize(),
             }
