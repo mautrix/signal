@@ -147,6 +147,7 @@ class Capabilities(SerializableAttrs):
 class Profile(SerializableAttrs):
     address: Optional[Address] = None
     name: str = ""
+    contact_name: str = ""
     profile_name: str = ""
     about: str = ""
     avatar: str = ""
