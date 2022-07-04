@@ -16,7 +16,12 @@
 from typing import Union
 import io
 
-from mausignald.errors import AuthorizationFailedError, TimeoutException, UnexpectedResponse
+from mausignald.errors import (
+    AuthorizationFailedError,
+    CaptchaRequiredError,
+    TimeoutException,
+    UnexpectedResponse,
+)
 from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import HelpSection, command_handler
 from mautrix.types import EventID, ImageInfo, MediaMessageEventContent, MessageType, UserID
@@ -169,6 +174,33 @@ async def register(evt: CommandEvent) -> None:
     except Exception:
         await evt.reply("Please enter the phone number in international format (E.164)")
         return
+    try:
+        username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
+        evt.sender.command_status = {
+            "action": "Register",
+            "room_id": evt.room_id,
+            "next": enter_register_code,
+            "username": username,
+        }
+        await evt.reply("Register SMS requested, please enter the code here.")
+    except CaptchaRequiredError:
+        await evt.reply(
+            "Captcha required. Please follow the instructions at https://signald.org/articles/captcha/ "
+            "to obtain a captcha token and paste it here."
+        )
+        evt.sender.command_status = {
+            "action": "Register",
+            "room_id": evt.room_id,
+            "next": enter_captcha_token,
+            "voice": voice,
+            "phone": phone,
+        }
+
+
+async def enter_captcha_token(evt: CommandEvent) -> None:
+    captcha = evt.args[0]
+    phone = evt.command_status["phone"]
+    voice = evt.command_status["voice"]
     username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
     evt.sender.command_status = {
         "action": "Register",
