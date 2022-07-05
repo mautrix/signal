@@ -199,8 +199,8 @@ async def register(evt: CommandEvent) -> None:
 
 async def enter_captcha_token(evt: CommandEvent) -> None:
     captcha = evt.args[0]
-    phone = evt.command_status["phone"]
-    voice = evt.command_status["voice"]
+    phone = evt.sender.command_status["phone"]
+    voice = evt.sender.command_status["voice"]
     username = await evt.bridge.signal.register(phone, voice=voice, captcha=captcha)
     evt.sender.command_status = {
         "action": "Register",
