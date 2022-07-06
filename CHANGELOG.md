@@ -1,6 +1,6 @@
 # v0.4.0 (unreleased)
 
-Target signald version: [v0.20.0](https://gitlab.com/signald/signald/-/releases/0.20.0)
+Target signald version: [v0.21.0](https://gitlab.com/signald/signald/-/releases/0.21.0)
 
 ### Added
 * Added provisioning API for checking if a phone number is registered on Signal
@@ -11,9 +11,20 @@ Target signald version: [v0.20.0](https://gitlab.com/signald/signald/-/releases/
   (thanks to [@maltee1] in [#250]).
 * Added Matrix -> Signal power level change bridging
   (thanks to [@maltee1] in [#260] and [#263]).
+* Added options to make encryption more secure.
+  * The `encryption` -> `verification_levels` config options can be used to
+    make the bridge require encrypted messages to come from cross-signed
+    devices, with trust-on-first-use validation of the cross-signing master
+    key.
+  * The `encryption` -> `require` option can be used to make the bridge ignore
+    any unencrypted messages.
+  * Key rotation settings can be configured with the `encryption` -> `rotation`
+    config.
 
 ### Improved
-* Improved/fixed handling of disappearing message timer changes
+* Improved/fixed handling of disappearing message timer changes.
+* Improved handling profile/contact names and prevented them from being
+  downgraded (switching from profile name to contact name or phone number).
 * Updated contact list provisioning API to not block if signald needs to update
   profiles.
 * Trying to start a direct chat with a non-existent phone number will now reply
@@ -24,6 +35,8 @@ Target signald version: [v0.20.0](https://gitlab.com/signald/signald/-/releases/
 * Member moderation actions from Signal are now bridged to Matrix with the
   correct ghost user if possible instead of always using the bridge bot
   (thanks to [@maltee1] in [#273]).
+* Added proper captcha error handling when registering
+  (thanks to [@maltee1] in [#280]).
 
 ### Fixed
 * Call start notices work again
@@ -36,6 +49,7 @@ Target signald version: [v0.20.0](https://gitlab.com/signald/signald/-/releases/
 [#265]: https://github.com/mautrix/signal/pull/265
 [#270]: https://github.com/mautrix/signal/pull/270
 [#273]: https://github.com/mautrix/signal/pull/273
+[#280]: https://github.com/mautrix/signal/pull/280
 
 # v0.3.0 (2022-04-20)
 
