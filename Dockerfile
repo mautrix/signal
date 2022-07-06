@@ -1,10 +1,9 @@
-FROM alpine:3.15
+FROM docker.io/alpine:3.16
 
 ARG TARGETARCH=amd64
 
 RUN apk add --no-cache \
       python3 py3-pip py3-setuptools py3-wheel \
-      py3-virtualenv \
       py3-pillow \
       py3-aiohttp \
       py3-magic \
@@ -12,7 +11,7 @@ RUN apk add --no-cache \
       py3-commonmark \
       py3-qrcode \
       py3-phonenumbers \
-      py3-prometheus-client \
+      #py3-prometheus-client \
       # Other dependencies
       ffmpeg \
       py3-cryptography \
@@ -38,13 +37,13 @@ COPY requirements.txt /opt/mautrix-signal/requirements.txt
 COPY optional-requirements.txt /opt/mautrix-signal/optional-requirements.txt
 WORKDIR /opt/mautrix-signal
 RUN apk add --virtual .build-deps python3-dev libffi-dev build-base \
- && pip3 install -r requirements.txt -r optional-requirements.txt \
+ && pip3 install --no-cache-dir -r requirements.txt -r optional-requirements.txt \
  && apk del .build-deps
 
 COPY . /opt/mautrix-signal
-RUN apk add git && pip3 install .[all] && apk del git \
+RUN apk add git && pip3 install --no-cache-dir .[all] && apk del git \
   # This doesn't make the image smaller, but it's needed so that the `version` command works properly
-  && cp mautrix_signal/example-config.yaml . && rm -rf mautrix_signal
+  && cp mautrix_signal/example-config.yaml . && rm -rf mautrix_signal .git build
 
 VOLUME /data
 ENV UID=1337 GID=1337
