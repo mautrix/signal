@@ -118,7 +118,7 @@ except ImportError:
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
 ChatInfo = Union[Group, GroupV2, GroupV2ID, Profile, Address]
-MAX_MATRIX_MESSAGE_SIZE = 60000
+MAX_MATRIX_MESSAGE_SIZE = 30000
 BEEPER_LINK_PREVIEWS_KEY = "com.beeper.linkpreviews"
 BEEPER_IMAGE_ENCRYPTION_KEY = "beeper:image:encryption"
 
