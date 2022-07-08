@@ -168,7 +168,7 @@ bridge:
         # This will cause the bridge bot to be in private chats for the encryption to work properly.
         default: false
         # Require encryption, drop any unencrypted messages.
-        require: true
+        require: false
         # Enable key sharing? If enabled, key requests for rooms where users are in will be fulfilled.
         # You must use a client that supports requesting keys from other users to use this feature.
         allow_key_sharing: false
