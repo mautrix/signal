@@ -164,7 +164,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     async def handle_number_receive(self, number: str) -> None:
         async with self._uuid_lock:
-            if self.number:
+            if self.number == number:
                 return
             self.number = number
             self.by_number[self.number] = self
@@ -231,15 +231,15 @@ class Puppet(DBPuppet, BasePuppet):
             self.log.warning("Failed to migrate power levels", exc_info=True)
 
     async def update_info(self, info: Profile | Address, source: u.User) -> None:
+        update = False
         address = info.address if isinstance(info, Profile) else info
         if address.uuid and not self.uuid:
             await self.handle_uuid_receive(address.uuid)
-        if address.number and not self.number:
+        if address.number and address.number != self.number:
             await self.handle_number_receive(address.number)
+            update = True
         self.log.debug("Updating info with %s (source: %s)", info, source.mxid)
-
         async with self._update_info_lock:
-            update = False
             if isinstance(info, Profile) or self.name is None:
                 update = await self._update_name(info) or update
             if isinstance(info, Profile):
@@ -367,6 +367,8 @@ class Puppet(DBPuppet, BasePuppet):
             try:
                 await portal.update_puppet_name(self.name)
                 await portal.update_puppet_avatar(self.avatar_hash, self.avatar_url)
+                if self.number:
+                    await portal.update_puppet_number(self.fmt_phone(self.number))
             except Exception:
                 self.log.exception(f"Error updating portal meta for {portal.receiver}")
 
