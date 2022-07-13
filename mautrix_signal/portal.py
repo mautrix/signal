@@ -71,6 +71,7 @@ from mautrix.types import (
     Membership,
     MessageEvent,
     MessageEventContent,
+    MessageStatus,
     MessageStatusReason,
     MessageType,
     PowerLevelStateEventContent,
@@ -357,19 +358,21 @@ class Portal(DBPortal, BasePortal):
                 rel_type=RelationType.REFERENCE,
                 event_id=event_id,
             ),
-            success=err is None,
         )
         if err:
             status.reason = MessageStatusReason.GENERIC_ERROR
             status.error = str(err)
-            status.is_certain = True
-            status.can_retry = True
             if isinstance(err, AttachmentTooLargeError):
                 status.reason = MessageStatusReason.UNSUPPORTED
-                status.can_retry = False
+                status.status = MessageStatus.FAIL
+                status.message = "too large file (maximum is 100MB)"
             elif isinstance(err, UnknownReactionTarget):
-                status.can_retry = False
-
+                status.status = MessageStatus.FAIL
+            else:
+                status.status = MessageStatus.RETRIABLE
+        else:
+            status.status = MessageStatus.SUCCESS
+        status.fill_legacy_booleans()
         await intent.send_message_event(
             room_id=self.mxid,
             event_type=EventType.BEEPER_MESSAGE_STATUS,

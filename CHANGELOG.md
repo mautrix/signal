@@ -2,6 +2,10 @@
 
 Target signald version: [v0.21.0](https://gitlab.com/signald/signald/-/releases/0.21.0)
 
+**N.B.** This release requires a homeserver with Matrix v1.1 support, which
+bumps up the minimum homeserver versions to Synapse 1.54 and Dendrite 0.8.7.
+Minimum Conduit version remains at 0.4.0.
+
 ### Added
 * Added provisioning API for checking if a phone number is registered on Signal
 * Added admin command for linking to an existing account in signald.
