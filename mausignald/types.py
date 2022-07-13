@@ -197,9 +197,9 @@ class AnnouncementsMode(SerializableEnum):
 
 @dataclass
 class GroupAccessControl(SerializableAttrs):
-    attributes: Optional[AccessControlMode] = AccessControlMode.UNKNOWN
-    link: Optional[AccessControlMode] = AccessControlMode.UNKNOWN
-    members: Optional[AccessControlMode] = AccessControlMode.UNKNOWN
+    attributes: Optional[AccessControlMode] = None
+    link: Optional[AccessControlMode] = None
+    members: Optional[AccessControlMode] = None
 
 
 class GroupMemberRole(SerializableEnum):
@@ -222,9 +222,34 @@ class BannedGroupMember(SerializableAttrs):
     timestamp: int
 
 
+@dataclass
+class GroupChange(SerializableAttrs):
+    revision: int
+    editor: Address
+    delete_members: Optional[List[Address]] = None
+    delete_pending_members: Optional[List[Address]] = None
+    delete_requesting_members: Optional[List[Address]] = None
+    modified_profile_keys: Optional[List[GroupMember]] = None
+    modify_member_roles: Optional[List[GroupMember]] = None
+    new_access_control: Optional[GroupAccessControl] = None
+    new_avatar: bool = False
+    new_banned_members: Optional[List[GroupMember]] = None
+    new_description: Optional[str] = None
+    new_invite_link_password: bool = False
+    new_is_announcement_group: Optional[AnnouncementsMode] = None
+    new_members: Optional[List[GroupMember]] = None
+    new_pending_members: Optional[List[GroupMember]] = None
+    new_requesting_members: Optional[List[GroupMember]] = None
+    new_timer: Optional[int] = None
+    new_title: Optional[str] = None
+    new_unbanned_members: Optional[List[GroupMember]] = None
+    promote_pending_members: Optional[List[GroupMember]] = None
+    promote_requesting_members: Optional[List[GroupMember]] = None
+
+
 @dataclass(kw_only=True)
 class GroupV2(GroupV2ID, SerializableAttrs):
-    title: str
+    title: str = None
     description: Optional[str] = None
     avatar: Optional[str] = None
     timer: Optional[int] = None
@@ -233,7 +258,7 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     access_control: GroupAccessControl = field(
         factory=lambda: GroupAccessControl(), json="accessControl"
     )
-    members: List[Address]
+    members: List[Address] = None
     member_detail: List[GroupMember] = field(factory=lambda: [], json="memberDetail")
     pending_members: List[Address] = field(factory=lambda: [], json="pendingMembers")
     pending_member_detail: List[GroupMember] = field(
@@ -242,6 +267,7 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
     announcements: AnnouncementsMode = field(default=AnnouncementsMode.UNKNOWN)
     banned_members: Optional[List[BannedGroupMember]] = None
+    group_change: Optional[GroupChange] = None
 
 
 @dataclass
@@ -397,7 +423,7 @@ class MessageData(SerializableAttrs):
     contacts: List[SharedContact] = field(factory=lambda: [])
 
     group: Optional[Group] = None
-    group_v2: Optional[GroupV2ID] = field(default=None, json="groupV2")
+    group_v2: Optional[GroupV2] = field(default=None, json="groupV2")
 
     end_session: bool = field(default=False, json="endSession")
     expires_in_seconds: int = field(default=0, json="expiresInSeconds")

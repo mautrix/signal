@@ -68,6 +68,7 @@ class Config(BaseBridgeConfig):
         copy("bridge.autocreate_group_portal")
         copy("bridge.autocreate_contact_portal")
         copy("bridge.sync_with_custom_puppets")
+        copy("bridge.public_portals")
         copy("bridge.sync_direct_chat_list")
         copy("bridge.double_puppet_server_map")
         copy("bridge.double_puppet_allow_discovery")
