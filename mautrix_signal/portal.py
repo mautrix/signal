@@ -2042,25 +2042,32 @@ class Portal(DBPortal, BasePortal):
         if not self.mxid:
             return
         link_access = info.access_control.link
+        old_join_rule = await self._get_join_rule()
         if link_access == AccessControlMode.ANY:
-            join_rule = JoinRule.PUBLIC
+            if self.config["bridge.public_portals"]:
+                join_rule = JoinRule.PUBLIC
+            elif old_join_rule and old_join_rule == JoinRule.PUBLIC:
+                return
         elif link_access == AccessControlMode.ADMINISTRATOR:
-            state = await self.main_intent.get_state(self.mxid)
-            for event in state:
-                try:
-                    if event.type == EventType.ROOM_JOIN_RULES:
-                        if (
-                            event.content.join_rule == JoinRule.KNOCK
-                            or event.content.join_rule == JoinRule.RESTRICTED
-                        ):
-                            return
-                        else:
-                            join_rule = JoinRule.KNOCK
-                except KeyError:
-                    pass
+            if old_join_rule and (
+                old_join_rule == JoinRule.KNOCK or old_join_rule == JoinRule.RESTRICTED
+            ):
+                return
+            else:
+                join_rule = JoinRule.KNOCK
         else:
             join_rule = JoinRule.INVITE
         await self.main_intent.set_join_rule(self.mxid, join_rule)
+
+    async def _get_join_rule(self) -> JoinRule:
+        state = await self.main_intent.get_state(self.mxid)
+        for event in state:
+            try:
+                if event.type == EventType.ROOM_JOIN_RULES:
+                    return event.content.join_rule
+            except KeyError:
+                pass
+        return None
 
     # endregion
     # region Bridge info state event
