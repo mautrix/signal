@@ -136,7 +136,7 @@ bridge:
     autocreate_contact_portal: false
     # Whether or not to make portals of Signal groups in which joining via invite link does
     # not need to be approved by an administrator publicly joinable on Matrix.
-    public_portals: true
+    public_portals: false
     # Whether or not to use /sync to get read receipts and typing notifications
     # when double puppeting is enabled
     sync_with_custom_puppets: true
