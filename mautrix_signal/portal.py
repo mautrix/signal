@@ -844,14 +844,23 @@ class Portal(DBPortal, BasePortal):
                         )
                         return
 
-    async def handle_matrix_invite(self, invited_by: u.User, user: u.User | p.Puppet) -> None:
+    async def handle_matrix_invite(
+        self, invited_by: u.User, user: u.User | p.Puppet
+    ) -> GroupV2 | None:
         if self.is_direct:
             raise RejectMatrixInvite("You can't invite additional users to private chats.")
-
+        invited_by, is_relay = await self.get_relay_sender(invited_by, "invite")
+        if is_relay:
+            if not self.config["bridge.relay.invite"]:
+                raise RejectMatrixInvite("Relaying invites is not enabled on this bridge")
+            if not invited_by:
+                raise RejectMatrixInvite("There is no relay in this room")
+        update_meta = None
         try:
-            await self.signal.update_group(
+            update_meta = await self.signal.update_group(
                 invited_by.username, self.chat_id, add_members=[user.address]
             )
+            self.revision = update_meta.revision
         except RPCError as e:
             raise RejectMatrixInvite(str(e)) from e
         if user.mxid == self.config["bridge.relay.relaybot"] != "@relaybot:example.com":
@@ -870,6 +879,7 @@ class Portal(DBPortal, BasePortal):
                 await self._update_power_levels(
                     await self.signal.get_group(invited_by.username, self.chat_id)
                 )
+        return update_meta
 
     async def _handle_relaybot_invited(self, user: u.User) -> None:
         if not self.config["bridge.relay.enabled"]:

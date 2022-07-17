@@ -307,6 +307,8 @@ bridge:
         # and double puppeting working to auto-accept invites. When this user is invited to a room
         # it will automatically be set as the relay user. May be overridden with `set-relay` or `unset-relay`
         relaybot: '@relaybot:example.com'
+        # Whether or not invites from non-logged-in users should be relayed
+        invite: true
 
     # Format for generating URLs from location messages for sending to Signal
     # Google Maps: 'https://www.google.com/maps/place/{lat},{long}'
