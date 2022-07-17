@@ -173,13 +173,6 @@ class Group(SerializableAttrs):
     avatar_id: int = field(default=0, json="avatarId")
 
 
-@dataclass(kw_only=True)
-class GroupV2ID(SerializableAttrs):
-    id: GroupID
-    revision: Optional[int] = None
-    removed: Optional[bool] = False
-
-
 class AccessControlMode(SerializableEnum):
     UNKNOWN = "UNKNOWN"
     ANY = "ANY"
@@ -248,6 +241,14 @@ class GroupChange(SerializableAttrs):
 
 
 @dataclass(kw_only=True)
+class GroupV2ID(SerializableAttrs):
+    id: GroupID
+    revision: Optional[int] = None
+    removed: Optional[bool] = False
+    group_change: Optional[GroupChange] = None
+
+
+@dataclass(kw_only=True)
 class GroupV2(GroupV2ID, SerializableAttrs):
     title: str = None
     description: Optional[str] = None
@@ -267,7 +268,6 @@ class GroupV2(GroupV2ID, SerializableAttrs):
     requesting_members: List[Address] = field(factory=lambda: [], json="requestingMembers")
     announcements: AnnouncementsMode = field(default=AnnouncementsMode.UNKNOWN)
     banned_members: Optional[List[BannedGroupMember]] = None
-    group_change: Optional[GroupChange] = None
 
 
 @dataclass
@@ -423,7 +423,7 @@ class MessageData(SerializableAttrs):
     contacts: List[SharedContact] = field(factory=lambda: [])
 
     group: Optional[Group] = None
-    group_v2: Optional[GroupV2] = field(default=None, json="groupV2")
+    group_v2: Optional[GroupV2ID] = field(default=None, json="groupV2")
 
     end_session: bool = field(default=False, json="endSession")
     expires_in_seconds: int = field(default=0, json="expiresInSeconds")

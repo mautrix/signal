@@ -1234,70 +1234,86 @@ class Portal(DBPortal, BasePortal):
                 + (group_change.delete_pending_members or [])
                 + (group_change.delete_requesting_members or [])
             ):
-                user = await p.Puppet.get_by_address(address)
-                if not user:
-                    continue
-                if user == editor:
-                    await editor_intent.leave_room(self.mxid)
-                else:
-                    try:
-                        await editor_intent.kick_user(self.mxid, user.mxid)
-                    except MForbidden:
+                users = [
+                    await p.Puppet.get_by_address(address),
+                    await u.User.get_by_address(address),
+                ]
+                for user in users:
+                    if not user:
+                        continue
+                    if user == editor:
+                        await editor_intent.leave_room(self.mxid)
+                    else:
                         try:
-                            await self.main_intent.kick_user(
-                                self.mxid, user.mxid, reason=f"removed by {editor.name}"
-                            )
-                        except MForbidden as e:
+                            await editor_intent.kick_user(self.mxid, user.mxid)
+                        except MForbidden:
+                            try:
+                                await self.main_intent.kick_user(
+                                    self.mxid, user.mxid, reason=f"removed by {editor.name}"
+                                )
+                            except MForbidden as e:
+                                self.log.debug(f"Could not remove {user.mxid}: {e}")
+                        except MBadState as e:
                             self.log.debug(f"Could not remove {user.mxid}: {e}")
-                    except MBadState as e:
-                        self.log.debug(f"Could not remove {user.mxid}: {e}")
         if group_change.modify_member_roles:
             levels = await editor.intent_for(self).get_power_levels(self.mxid)
             for group_member in group_change.modify_member_roles:
-                user = await p.Puppet.get_by_address(Address(uuid=group_member.uuid))
-                if not user:
-                    continue
-                if group_member.role == GroupMemberRole.ADMINISTRATOR:
-                    new_pl = 50
-                else:
-                    new_pl = 0
-                levels.users[user.mxid] = new_pl
+                users = [
+                    await p.Puppet.get_by_address(Address(uuid=group_member.uuid)),
+                    await u.User.get_by_uuid(group_member.uuid),
+                ]
+                for user in users:
+                    if not user:
+                        continue
+                    if group_member.role == GroupMemberRole.ADMINISTRATOR:
+                        new_pl = 50
+                    else:
+                        new_pl = 0
+                    levels.users[user.mxid] = new_pl
             await self._try_with_puppet(
                 lambda i: i.set_power_levels(self.mxid, levels), puppet=editor
             )
 
         if group_change.new_banned_members:
             for banned_member in group_change.new_banned_members:
-                user = await p.Puppet.get_by_address(Address(uuid=banned_member.uuid))
-                if not user:
-                    continue
-                try:
-                    await editor_intent.ban_user(self.mxid, user.mxid)
-                except MForbidden:
+                users = [
+                    await p.Puppet.get_by_address(Address(uuid=banned_member.uuid)),
+                    await u.User.get_by_uuid(banned_member.uuid),
+                ]
+                for user in users:
+                    if not user:
+                        continue
                     try:
-                        await self.main_intent.ban_user(
-                            self.mxid, user.mxid, reason=f"banned by {editor.name}"
-                        )
-                    except MForbidden as e:
+                        await editor_intent.ban_user(self.mxid, user.mxid)
+                    except MForbidden:
+                        try:
+                            await self.main_intent.ban_user(
+                                self.mxid, user.mxid, reason=f"banned by {editor.name}"
+                            )
+                        except MForbidden as e:
+                            self.log.debug(f"Could not ban {user.mxid}: {e}")
+                    except MBadState as e:
                         self.log.debug(f"Could not ban {user.mxid}: {e}")
-                except MBadState as e:
-                    self.log.debug(f"Could not ban {user.mxid}: {e}")
         if group_change.new_unbanned_members:
             for banned_member in group_change.new_unbanned_members:
-                user = await p.Puppet.get_by_address(Address(uuid=banned_member.uuid))
-                if not user:
-                    continue
-                try:
-                    await editor_intent.unban_user(self.mxid, user.mxid)
-                except MForbidden:
+                users = [
+                    await p.Puppet.get_by_address(Address(uuid=banned_member.uuid)),
+                    await u.User.get_by_uuid(banned_member.uuid),
+                ]
+                for user in users:
+                    if not user:
+                        continue
                     try:
-                        await self.main_intent.unban_user(
-                            self.mxid, user.mxid, reason=f"unbanned by {editor.name}"
-                        )
-                    except MForbidden as e:
+                        await editor_intent.unban_user(self.mxid, user.mxid)
+                    except MForbidden:
+                        try:
+                            await self.main_intent.unban_user(
+                                self.mxid, user.mxid, reason=f"unbanned by {editor.name}"
+                            )
+                        except MForbidden as e:
+                            self.log.debug(f"Could not unban {user.mxid}: {e}")
+                    except MBadState as e:
                         self.log.debug(f"Could not unban {user.mxid}: {e}")
-                except MBadState as e:
-                    self.log.debug(f"Could not unban {user.mxid}: {e}")
         if (
             group_change.new_members
             or group_change.new_pending_members
@@ -1309,69 +1325,66 @@ class Portal(DBPortal, BasePortal):
                 + (group_change.new_pending_members or [])
                 + (group_change.promote_requesting_members or [])
             ):
-                user = await p.Puppet.get_by_address(Address(uuid=group_member.uuid))
-                if not user:
-                    continue
+                puppet = await p.Puppet.get_by_address(Address(uuid=group_member.uuid))
                 try:
                     await source.sync_contact(Address(uuid=group_member.uuid))
                 except ProfileUnavailableError:
                     self.log.debug(
                         f"Profile of puppet with uuid {group_member.uuid} is unavailable"
                     )
-                if user.mxid in banned_users:
-                    await self._try_with_puppet(
-                        lambda i: i.unban_user(self.mxid, user.mxid), puppet=editor
-                    )
-                try:
-                    await editor_intent.invite_user(self.mxid, user.mxid, check_cache=True)
-                except (MForbidden, IntentError):
-                    try:
-                        await self.main_intent.invite_user(
-                            self.mxid,
-                            user.mxid,
-                            reason=f"invited by {editor.name}",
-                            check_cache=True,
+                users = [puppet, await u.User.get_by_uuid(group_member.uuid)]
+                for user in users:
+                    if not user:
+                        continue
+                    if user.mxid in banned_users:
+                        await self._try_with_puppet(
+                            lambda i: i.unban_user(self.mxid, user.mxid), puppet=editor
                         )
-                    except (MForbidden, IntentError) as e:
-                        self.log.debug(f"{editor.name} could not invite {user.mxid}: {e}")
-                except MBadState as e:
-                    self.log.debug(f"{editor.name} could not invite {user.mxid}: {e}")
-                if (
-                    group_member
-                    in (group_change.new_members or [])
-                    + (group_change.promote_requesting_members or [])
-                    and not user.is_real_user()
-                ):
                     try:
-                        await user.intent_for(self).ensure_joined(self.mxid)
-                    except IntentError as e:
-                        self.log.debug(f"{user.name} could not join group: {e}")
+                        await editor_intent.invite_user(self.mxid, user.mxid, check_cache=True)
+                    except (MForbidden, IntentError):
+                        try:
+                            await self.main_intent.invite_user(
+                                self.mxid,
+                                user.mxid,
+                                reason=f"invited by {editor.name}",
+                                check_cache=True,
+                            )
+                        except (MForbidden, IntentError) as e:
+                            self.log.debug(f"{editor.name} could not invite {user.mxid}: {e}")
+                    except MBadState as e:
+                        self.log.debug(f"{editor.name} could not invite {user.mxid}: {e}")
+                    if group_member in (group_change.new_members or []) + (
+                        group_change.promote_requesting_members or []
+                    ) and isinstance(user, p.Puppet):
+                        try:
+                            await user.intent_for(self).ensure_joined(self.mxid)
+                        except IntentError as e:
+                            self.log.debug(f"{user.name} could not join group: {e}")
         if group_change.promote_pending_members:
             for member in group_change.promote_pending_members:
-                user = await p.Puppet.get_by_address(Address(uuid=member.uuid))
-                if not user:
-                    continue
                 try:
                     await source.sync_contact(Address(uuid=group_member.uuid))
                 except ProfileUnavailableError:
                     self.log.debug(
                         f"Profile of puppet with uuid {group_member.uuid} is unavailable"
                     )
+                user = await p.Puppet.get_by_address(address)
+                if not user:
+                    continue
                 try:
-                    user.intent_for(self).ensure_joined(self.mxid)
+                    await user.intent_for(self).ensure_joined(self.mxid)
                 except IntentError as e:
                     self.log.debug(f"{user.name} could not join group: {e}")
         if group_change.new_requesting_members:
             for member in group_change.new_requesting_members:
-                user = await p.Puppet.get_by_address(Address(uuid=member.uuid))
-                if not user:
-                    continue
                 try:
                     await source.sync_contact(Address(uuid=group_member.uuid))
                 except ProfileUnavailableError:
                     self.log.debug(
                         f"Profile of puppet with uuid {group_member.uuid} is unavailable"
                     )
+                user = await p.Puppet.get_by_address(Address(uuid=member.uuid))
                 try:
                     await user.intent_for(self).knock(self.mxid, reason="via invite link")
                 except (MForbidden, MBadState) as e:
@@ -1724,9 +1737,7 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Updating portal info
 
-    async def update_info(
-        self, source: u.User, info: ChatInfo, sender: p.Puppet | None = None
-    ) -> None:
+    async def update_info(self, source: u.User, info: ChatInfo) -> None:
         if self.is_direct:
             if not isinstance(info, (Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
@@ -1737,7 +1748,7 @@ class Portal(DBPortal, BasePortal):
                 self.name = puppet.name
             return
 
-        if not info.title:
+        if isinstance(info, GroupV2ID):
             try:
                 info = await self.signal.get_group(source.username, info.id, info.revision or -1)
             except Exception as e:
@@ -1752,7 +1763,7 @@ class Portal(DBPortal, BasePortal):
 
         changed = False
         if isinstance(info, Group):
-            changed = await self._update_name(info.name, sender) or changed
+            changed = await self._update_name(info.name) or changed
         elif isinstance(info, GroupV2):
             if self.revision < info.revision:
                 self.revision = info.revision
@@ -1763,14 +1774,14 @@ class Portal(DBPortal, BasePortal):
                     f"({info.revision} < {self.revision}), ignoring..."
                 )
                 return
-            changed = await self._update_name(info.title, sender) or changed
-            changed = await self._update_topic(info.description, sender) or changed
+            changed = await self._update_name(info.title) or changed
+            changed = await self._update_topic(info.description) or changed
         elif isinstance(info, GroupV2ID):
             return
         else:
             raise ValueError(f"Unexpected type for group update_info: {type(info)}")
-        changed = await self._update_avatar(info, sender) or changed
-        await self._update_participants(source, info, sender)
+        changed = await self._update_avatar(info) or changed
+        await self._update_participants(source, info)
         try:
             await self._update_power_levels(info)
         except Exception:
@@ -1900,9 +1911,7 @@ class Portal(DBPortal, BasePortal):
             self.avatar_set = False
         return True
 
-    async def _update_participants(
-        self, source: u.User, info: ChatInfo, sender: p.Puppet | None = None
-    ) -> None:
+    async def _update_participants(self, source: u.User, info: ChatInfo) -> None:
         if not self.mxid or not isinstance(info, (Group, GroupV2)):
             return
 
@@ -1916,55 +1925,49 @@ class Portal(DBPortal, BasePortal):
         pending_members = info.pending_members if isinstance(info, GroupV2) else []
         self._pending_members = {addr.uuid for addr in pending_members}
 
-        for address in info.members:
+        for address in info.members + pending_members:
             user = await u.User.get_by_address(address)
             if user:
                 remove_users.discard(user.mxid)
-                await self._try_with_puppet(
-                    lambda i: i.invite_user(self.mxid, user.mxid, check_cache=True), puppet=sender
-                )
+                try:
+                    await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
+                except (MForbidden, IntentError, MBadState) as e:
+                    self.log.debug(f"could not invite {user.mxid}: {e}")
 
             puppet = await p.Puppet.get_by_address(address)
             try:
                 await source.sync_contact(address)
             except ProfileUnavailableError:
                 self.log.debug(f"Profile of puppet with {address} is unavailable")
-            await self._try_with_puppet(
-                lambda i: i.invite_user(self.mxid, puppet.intent_for(self).mxid, check_cache=True),
-                puppet=sender,
-            )
-            await puppet.intent_for(self).ensure_joined(self.mxid)
-            remove_users.discard(puppet.default_mxid)
-
-        for address in pending_members:
-            user = await u.User.get_by_address(address)
-            if user:
-                remove_users.discard(user.mxid)
-                await self._try_with_puppet(
-                    lambda i: i.invite_user(self.mxid, user.mxid, check_cache=True), puppet=sender
-                )
-
-            puppet = await p.Puppet.get_by_address(address)
             try:
-                await source.sync_contact(address)
-            except ProfileUnavailableError:
-                self.log.debug(f"Profile of puppet with {address} is unavailable")
-            await self._try_with_puppet(
-                lambda i: i.invite_user(self.mxid, puppet.intent_for(self).mxid, check_cache=True),
-                puppet=sender,
-            )
+                await self.main_intent.invite_user(
+                    self.mxid, puppet.intent_for(self).mxid, check_cache=True
+                )
+            except (MForbidden, IntentError, MBadState) as e:
+                self.log.debug(f"could not invite {user.mxid}: {e}")
+            if not address.uuid in self._pending_members:
+                await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
 
         for mxid in remove_users:
             user = await u.User.get_by_mxid(mxid, create=False)
             if user and await user.is_logged_in():
-                await self._kick_with_puppet(user, sender)
+                try:
+                    await self.main_intent.kick_user(
+                        self.mxid, user.mxid, reason="not a member of this Signal group"
+                    )
+                except (MForbidden, MBadState) as e:
+                    self.log.debug(f"could not kick {user.mxid}: {e}")
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
-                if puppet == sender:
-                    await puppet.intent_for(self).leave_room(self.mxid)
-                else:
-                    await self._kick_with_puppet(puppet, sender)
+                try:
+                    await self.main_intent.kick_user(
+                        self.mxid,
+                        puppet.intent_for(self).mxid,
+                        reason="not a member of this Signal group",
+                    )
+                except (MForbidden, MBadState) as e:
+                    self.log.debug(f"could not kick {user.mxid}: {e}")
 
     async def _kick_with_puppet(
         self, user: p.Puppet | u.User, sender: p.Puppet | None = None
