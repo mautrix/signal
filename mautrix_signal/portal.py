@@ -1244,17 +1244,7 @@ class Portal(DBPortal, BasePortal):
                     if user == editor:
                         await editor_intent.leave_room(self.mxid)
                     else:
-                        try:
-                            await editor_intent.kick_user(self.mxid, user.mxid)
-                        except MForbidden:
-                            try:
-                                await self.main_intent.kick_user(
-                                    self.mxid, user.mxid, reason=f"removed by {editor.name}"
-                                )
-                            except MForbidden as e:
-                                self.log.debug(f"Could not remove {user.mxid}: {e}")
-                        except MBadState as e:
-                            self.log.debug(f"Could not remove {user.mxid}: {e}")
+                        await self._kick_with_puppet(user, editor)
         if group_change.modify_member_roles:
             levels = await editor.intent_for(self).get_power_levels(self.mxid)
             for group_member in group_change.modify_member_roles:
@@ -1969,18 +1959,18 @@ class Portal(DBPortal, BasePortal):
                 except (MForbidden, MBadState) as e:
                     self.log.debug(f"could not kick {user.mxid}: {e}")
 
-    async def _kick_with_puppet(
-        self, user: p.Puppet | u.User, sender: p.Puppet | None = None
-    ) -> None:
-        if sender:
+    async def _kick_with_puppet(self, user: p.Puppet | u.User, sender: p.Puppet) -> None:
+        try:
+            await sender.intent_for(self).kick_user(self.mxid, user.mxid)
+        except MForbidden:
             try:
-                await sender.intent_for(self).kick_user(self.mxid, user.mxid)
-            except (MForbidden, IntentError):
-                await self.main_intent.kick_user(self.mxid, user.mxid, f"kicked by {sender.name}")
-        else:
-            await self.main_intent.kick_user(
-                self.mxid, user.mxid, "Not a member of this Signal group"
-            )
+                await self.main_intent.kick_user(
+                    self.mxid, user.mxid, reason=f"removed by {sender.name}"
+                )
+            except MForbidden as e:
+                self.log.debug(f"Could not remove {user.mxid}: {e}")
+        except MBadState as e:
+            self.log.debug(f"Could not remove {user.mxid}: {e}")
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
         if not self.mxid:
