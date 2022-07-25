@@ -67,6 +67,7 @@ from mautrix.types import (
     EventType,
     FileInfo,
     ImageInfo,
+    LocationMessageEventContent,
     MediaMessageEventContent,
     Membership,
     MessageEvent,
@@ -453,6 +454,12 @@ class Portal(DBPortal, BasePortal):
             attachments = [attachment]
             text = message.body if is_relay else None
             self.log.trace("Formed outgoing attachment %s", attachment)
+        elif message.msgtype == MessageType.LOCATION:
+            url = self._matrix_location_to_link(message)
+            body = message.body.replace(message.geo_uri, "")
+            sep = "\n" if len(body) > 0 else ""
+            if url:
+                text = body + sep + url
         else:
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
             return
@@ -559,6 +566,23 @@ class Portal(DBPortal, BasePortal):
             EventType.REACTION: "reaction",
         }.get(event_type, str(event_type))
         raise last_error_type(f"Failed to send {event_type_name} after {retry_count} retries.")
+
+    def _matrix_location_to_link(
+        self,
+        content: LocationMessageEventContent,
+    ) -> str:
+        try:
+            lat, long = content.geo_uri[len("geo:") :].split(";")[0].split(",")
+        except (KeyError, ValueError):
+            self.log.exception("Failed to parse location")
+            return None
+        try:
+            float(lat)
+            float(long)
+        except Exception:
+            self.log.debug("Error: Invalid location " + content.geo_uri)
+            return None
+        return self.config["bridge.location_format"].replace("$lat", lat).replace("$long", long)
 
     async def handle_matrix_reaction(
         self, sender: u.User, event_id: EventID, reacting_to: EventID, emoji: str

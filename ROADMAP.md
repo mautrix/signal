@@ -10,7 +10,7 @@
       * [x] Audio files
       * [x] Files
       * [x] Gifs
-      * [ ] Locations
+      * [x] Locations
       * [ ] Stickers
   * [x] Message reactions
   * [x] Message redactions

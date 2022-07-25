@@ -297,6 +297,11 @@ bridge:
             m.video: '$sender_displayname sent a video'
             m.location: '$sender_displayname sent a location'
 
+    # Format for generting URLs from location messages for sending to Signal
+    # Google Maps: 'https://www.google.com/maps/place/$lat,$long'
+    # OpenStreepMap: 'https://www.openstreetmap.org/?mlat=$lat&mlon=$long'
+    location_format: 'https://www.google.com/maps/place/$lat,$long'
+
 # Python logging configuration.
 #
 # See section 16.7.2 of the Python documentation for more info:
