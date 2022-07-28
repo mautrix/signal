@@ -25,7 +25,7 @@ from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import ContentURI, EventID, EventType, PowerLevelStateEventContent, RoomID
 
 from .. import portal as po, puppet as pu
-from ..util import normalize_number
+from ..util import normalize_number, id_to_str
 from .auth import make_qr
 from .typehint import CommandEvent
 
@@ -351,6 +351,67 @@ async def create(evt: CommandEvent) -> EventID:
 
     await portal.create_signal_group(evt.sender, levels)
     await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Get the current Signal group ID.",
+)
+async def get_id(evt: CommandEvent) -> EventID:
+    if evt.portal:
+        return await evt.reply(f"ID: {evt.portal.chat_id}")
+    await evt.reply("This is not a portal room.")
+    
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Bridge the current Matrix room to the Signal chat with the given ID",
+    help_args="<id>",
+)
+async def bridge(evt: CommandEvent) -> EventID:
+    if evt.portal:
+        return await evt.reply("This is already a portal room.")
+    chat_id = GroupID(evt.args[0])
+    title, about, levels, encrypted, avatar_url = await get_initial_state(
+        evt.az.intent, evt.room_id
+    )
+    portal = await po.Portal.get_by_chat_id(
+        chat_id, create=True
+    )
+    if portal.mxid:
+        await evt.reply(
+            f"You already have a chat with the groupID {id_to_str(chat_id)}: "
+            f"[{portal.mxid}](https://matrix.to/#/{portal.mxid})"
+        )
+        await portal.main_intent.invite_user(portal.mxid, evt.sender.mxid)
+        return
+    
+    portal = po.Portal(
+        chat_id=chat_id,
+        mxid=evt.room_id,
+        name=title,
+        topic=about or "",
+        encrypted=encrypted,
+        receiver="",
+        avatar_url=avatar_url,
+    )
+    bot_pl = levels.get_user_level(evt.az.bot_mxid)
+    if bot_pl < levels.get_event_level(EventType.ROOM_POWER_LEVELS):
+        await evt.reply(missing_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    elif bot_pl <= 50:
+        await evt.reply(low_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    if levels.state_default < 50 and (
+        levels.events[EventType.ROOM_NAME] >= 50
+        or levels.events[EventType.ROOM_AVATAR] >= 50
+        or levels.events[EventType.ROOM_TOPIC] >= 50
+    ):
+        await evt.reply(meta_power_warning)
+
+    await portal.bridge_signal_group(evt.sender, levels)
+    await evt.reply(f"Signal chat bridged. ID: {portal.chat_id}")
 
 
 async def get_initial_state(

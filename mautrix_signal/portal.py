@@ -1509,6 +1509,15 @@ class Portal(DBPortal, BasePortal):
         await self.update()
         await self.update_bridge_info()
 
+    async def bridge_signal_group(
+        self, source: u.User, levels: PowerLevelStateEventContent
+    ) -> None:
+        await self._postinit()
+        await self.insert()
+        await self.handle_matrix_power_level(source, levels)
+        await self.update()
+        await self.update_bridge_info()
+
     # endregion
     # region Updating portal info
 
