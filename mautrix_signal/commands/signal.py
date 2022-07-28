@@ -361,7 +361,7 @@ async def create(evt: CommandEvent) -> EventID:
 )
 async def get_id(evt: CommandEvent) -> EventID:
     if evt.portal:
-        await evt.reply(f"This room is bridged to Telegram chat ID `{evt.portal.chat_id}`.")
+        await evt.reply(f"This room is bridged to Signal chat ID `{evt.portal.chat_id}`.")
     await evt.reply("This is not a portal room.")
     
 
@@ -375,7 +375,7 @@ async def get_id(evt: CommandEvent) -> EventID:
 async def bridge(evt: CommandEvent) -> EventID:
     if len(evt.args) == 0:
         return await evt.reply(
-            "**Usage:** `$cmdprefix+sp bridge <Telegram chat ID> [Matrix room ID]`"
+            "**Usage:** `$cmdprefix+sp bridge <Signal chat ID> [Matrix room ID]`"
         )
     if evt.portal:
         return await evt.reply("This is already a portal room.")
