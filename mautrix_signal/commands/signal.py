@@ -25,7 +25,7 @@ from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import ContentURI, EventID, EventType, PowerLevelStateEventContent, RoomID
 
 from .. import portal as po, puppet as pu
-from ..util import normalize_number, id_to_str
+from ..util import normalize_number
 from .auth import make_qr
 from .typehint import CommandEvent
 
@@ -353,14 +353,15 @@ async def create(evt: CommandEvent) -> EventID:
     await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
 
 @command_handler(
+    name="id",
     needs_auth=True,
     management_only=False,
     help_section=SECTION_SIGNAL,
-    help_text="Get the current Signal group ID.",
+    help_text="Get the ID of the Signal chat where this room is bridged.",
 )
 async def get_id(evt: CommandEvent) -> EventID:
     if evt.portal:
-        return await evt.reply(f"ID: {evt.portal.chat_id}")
+        await evt.reply(f"This room is bridged to Telegram chat ID `{evt.portal.chat_id}`.")
     await evt.reply("This is not a portal room.")
     
 
@@ -368,27 +369,39 @@ async def get_id(evt: CommandEvent) -> EventID:
     needs_auth=True,
     management_only=False,
     help_section=SECTION_SIGNAL,
-    help_text="Bridge the current Matrix room to the Signal chat with the given ID",
+    help_text="Bridge the current Matrix room to the Signal chat with the given ID.",
     help_args="<id>",
 )
 async def bridge(evt: CommandEvent) -> EventID:
+    if len(evt.args) == 0:
+        return await evt.reply(
+            "**Usage:** `$cmdprefix+sp bridge <Telegram chat ID> [Matrix room ID]`"
+        )
     if evt.portal:
         return await evt.reply("This is already a portal room.")
-    chat_id = GroupID(evt.args[0])
-    title, about, levels, encrypted, avatar_url = await get_initial_state(
-        evt.az.intent, evt.room_id
-    )
+    chat_id = None
+    try: 
+        chat_id= GroupID(evt.args[0])
+    except ValueError:
+        pass
+    if not chat_id:
+        return await evt.reply(
+            "That doesn't seem like a Signal chat ID.\n\n"
+            "Bridging private chats to existing rooms is not allowed."
+        )
     portal = await po.Portal.get_by_chat_id(
         chat_id, create=True
     )
+    title, about, levels, encrypted, avatar_url = await get_initial_state(
+        evt.az.intent, evt.room_id
+    )
     if portal.mxid:
         await evt.reply(
-            f"You already have a chat with the groupID {id_to_str(chat_id)}: "
-            f"[{portal.mxid}](https://matrix.to/#/{portal.mxid})"
+            "That Signal chat already has a portal at "
+            f"[{portal.alias or portal.mxid}](https://matrix.to/#/{portal.mxid}). "
         )
         await portal.main_intent.invite_user(portal.mxid, evt.sender.mxid)
         return
-    
     portal = po.Portal(
         chat_id=chat_id,
         mxid=evt.room_id,
@@ -411,7 +424,7 @@ async def bridge(evt: CommandEvent) -> EventID:
         await evt.reply(meta_power_warning)
 
     await portal.bridge_signal_group(evt.sender, levels)
-    await evt.reply(f"Signal chat bridged. ID: {portal.chat_id}")
+    await evt.reply(f"Signal chat bridged.")
 
 
 async def get_initial_state(
