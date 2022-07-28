@@ -424,7 +424,7 @@ async def bridge(evt: CommandEvent) -> EventID:
         await evt.reply(meta_power_warning)
 
     await portal.bridge_signal_group(evt.sender, levels)
-    await evt.reply(f"Signal chat bridged.")
+    await evt.reply("Bridging complete. Portal synchronization should begin momentarily.")
 
 
 async def get_initial_state(
