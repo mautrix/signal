@@ -69,7 +69,6 @@ from mautrix.types import (
     FileInfo,
     ImageInfo,
     JoinRule,
-    LocationMessageEventContent,
     MediaMessageEventContent,
     Membership,
     MessageEvent,
@@ -1037,6 +1036,32 @@ class Portal(DBPortal, BasePortal):
                     await self.signal.get_group(sender.username, self.chat_id)
                 )
 
+    async def handle_matrix_join_rules(self, sender: u.User, join_rule: JoinRule) -> None:
+        if join_rule == JoinRule.PUBLIC:
+            link_access = AccessControlMode.ANY
+        elif join_rule == JoinRule.INVITE:
+            link_access = AccessControlMode.UNSATISFIABLE
+        else:
+            link_access = AccessControlMode.ADMINISTRATOR
+        sender, is_relay = await self.get_relay_sender(sender, "join_rule change")
+        if not sender:
+            return
+
+        try:
+            update_meta = await self.signal.update_group(
+                sender.username,
+                self.chat_id,
+                update_access_control=GroupAccessControl(
+                    attributes=None, members=None, link=link_access
+                ),
+            )
+            self.revision = update_meta.revision
+        except Exception as e:
+            self.log.exception(f"Failed to update Signal link access control: {e}")
+            await self._update_join_rules(
+                await self.signal.get_group(sender.username, self.chat_id)
+            )
+
     # endregion
     # region Signal event handling
 
@@ -1715,7 +1740,7 @@ class Portal(DBPortal, BasePortal):
     # region Matrix -> Signal metadata
 
     async def create_signal_group(
-        self, source: u.User, levels: PowerLevelStateEventContent
+        self, source: u.User, levels: PowerLevelStateEventContent, join_rule: JoinRule
     ) -> None:
         user_mxids = await self.az.intent.get_room_members(
             self.mxid, (Membership.JOIN, Membership.INVITE)
@@ -1749,6 +1774,7 @@ class Portal(DBPortal, BasePortal):
         if self.topic:
             await self.signal.update_group(source.username, self.chat_id, description=self.topic)
         await self.handle_matrix_power_level(source, levels)
+        await self.handle_matrix_join_rules(source, join_rule)
         await self.update()
         await self.update_bridge_info()
 
@@ -1804,6 +1830,10 @@ class Portal(DBPortal, BasePortal):
             await self._update_power_levels(info)
         except Exception:
             self.log.warning("Error updating power levels", exc_info=True)
+        try:
+            await self._update_join_rules(info)
+        except:
+            self.log.warning("Error updating join rules", exc_info=True)
         if changed:
             await self.update_bridge_info()
             await self.update()
@@ -2007,6 +2037,30 @@ class Portal(DBPortal, BasePortal):
         power_levels = await self.main_intent.get_power_levels(self.mxid)
         power_levels = await self._get_power_levels(power_levels, info=info, is_initial=False)
         await self.main_intent.set_power_levels(self.mxid, power_levels)
+
+    async def _update_join_rules(self, info: ChatInfo) -> None:
+        if not self.mxid:
+            return
+        link_access = info.access_control.link
+        if link_access == AccessControlMode.ANY:
+            join_rule = JoinRule.PUBLIC
+        elif link_access == AccessControlMode.ADMINISTRATOR:
+            state = await self.main_intent.get_state(self.mxid)
+            for event in state:
+                try:
+                    if event.type == EventType.ROOM_JOIN_RULES:
+                        if (
+                            event.content.join_rule == JoinRule.KNOCK
+                            or event.content.join_rule == JoinRule.RESTRICTED
+                        ):
+                            return
+                        else:
+                            join_rule = JoinRule.KNOCK
+                except KeyError:
+                    pass
+        else:
+            join_rule = JoinRule.INVITE
+        await self.main_intent.set_join_rule(self.mxid, join_rule)
 
     # endregion
     # region Bridge info state event

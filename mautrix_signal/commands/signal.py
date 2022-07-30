@@ -22,7 +22,14 @@ from mausignald.errors import UnknownIdentityKey, UnregisteredUserError
 from mausignald.types import Address, GroupID, TrustLevel
 from mautrix.appservice import IntentAPI
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
-from mautrix.types import ContentURI, EventID, EventType, PowerLevelStateEventContent, RoomID
+from mautrix.types import (
+    ContentURI,
+    EventID,
+    EventType,
+    JoinRule,
+    PowerLevelStateEventContent,
+    RoomID,
+)
 
 from .. import portal as po, puppet as pu
 from ..util import normalize_number
@@ -324,7 +331,7 @@ async def create(evt: CommandEvent) -> EventID:
     if evt.portal:
         return await evt.reply("This is already a portal room.")
 
-    title, about, levels, encrypted, avatar_url = await get_initial_state(
+    title, about, levels, encrypted, avatar_url, join_rule = await get_initial_state(
         evt.az.intent, evt.room_id
     )
 
@@ -349,19 +356,27 @@ async def create(evt: CommandEvent) -> EventID:
     ):
         await evt.reply(meta_power_warning)
 
-    await portal.create_signal_group(evt.sender, levels)
+    await portal.create_signal_group(evt.sender, levels, join_rule)
     await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
 
 
 async def get_initial_state(
     intent: IntentAPI, room_id: RoomID
-) -> tuple[str | None, str | None, PowerLevelStateEventContent | None, bool, ContentURI | None]:
+) -> tuple[
+    str | None,
+    str | None,
+    PowerLevelStateEventContent | None,
+    bool,
+    ContentURI | None,
+    JoinRule | None,
+]:
     state = await intent.get_state(room_id)
     title: str | None = None
     about: str | None = None
     levels: PowerLevelStateEventContent | None = None
     encrypted: bool = False
     avatar_url: ContentURI | None = None
+    join_rule: JoinRule | None = None
     for event in state:
         try:
             if event.type == EventType.ROOM_NAME:
@@ -376,6 +391,8 @@ async def get_initial_state(
                 encrypted = True
             elif event.type == EventType.ROOM_AVATAR:
                 avatar_url = event.content.url
+            elif event.type == EventType.ROOM_JOIN_RULES:
+                join_rule = event.content.join_rule
         except KeyError:
             # Some state event probably has empty content
             pass
