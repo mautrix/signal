@@ -1067,6 +1067,42 @@ class Portal(DBPortal, BasePortal):
             self.log.exception(f"Failed to update Signal link access control: {e}")
             await self._update_join_rules(
                 await self.signal.get_group(sender.username, self.chat_id)
+                )
+
+    async def matrix_accept_knock(self, sender: u.User, user: p.Puppet | u.User) -> None:
+        try:
+            await self.signal.approve_membership(
+                sender.username, self.chat_id, members=[user.address]
+            )
+            if isinstance(user, p.Puppet):
+                await user.intent_for(self).ensure_joined(self.mxid)
+        except RPCError as e:
+            raise RejectMatrixInvite(str(e)) from e
+        power_levels = await self.main_intent.get_power_levels(self.mxid)
+        invitee_pl = power_levels.get_user_level(user.mxid)
+        if invitee_pl >= 50:
+            group_member = GroupMember(uuid=user.uuid, role=GroupMemberRole.ADMINISTRATOR)
+            try:
+                update_meta = await self.signal.update_group(
+                    sender.username, self.chat_id, update_role=group_member
+                )
+                self.revision = update_meta.revision
+            except Exception as e:
+                self.log.exception(f"Failed to update Signal member role: {e}")
+                await self._update_power_levels(
+                    await self.signal.get_group(sender.username, self.chat_id)
+                )
+
+    async def matrix_reject_knock(self, sender: u.User, user: p.Puppet | u.User) -> None:
+        try:
+            await self.signal.refuse_membership(
+                sender.username, self.chat_id, members=[user.address]
+            )
+        except RPCError as e:
+            await user.intent_for(self).knock(
+                self.mxid,
+                reason=f"refusing membership failed: {e}",
+                servers=[self.config["homeserver.domain"]],
             )
 
     # endregion
@@ -2020,11 +2056,60 @@ class Portal(DBPortal, BasePortal):
         remove_users: set[UserID] = {
             UserID(evt.state_key)
             for evt in member_events
-            if evt.content.membership == Membership.JOIN and evt.state_key != self.az.bot_mxid
+            if (
+                evt.content.membership == Membership.JOIN
+                or evt.content.membership == Membership.INVITE
+                or evt.content.membership == Membership.KNOCK
+            )
+            and evt.state_key != self.az.bot_mxid
+        }
+        unban_users: set[UserID] = {
+            UserID(evt.state_key)
+            for evt in member_events
+            if evt.content.membership == Membership.BAN and evt.state_key != self.az.bot_mxid
         }
 
         pending_members = info.pending_members if isinstance(info, GroupV2) else []
+        requesting_members = info.requesting_members if isinstance(info, GroupV2) else []
+        banned_members = info.banned_members if isinstance(info, GroupV2) else []
         self._pending_members = {addr.uuid for addr in pending_members}
+
+        for member in banned_members:
+            user = await u.User.get_by_uuid(member.uuid)
+            if user:
+                unban_users.discard(user.mxid)
+                remove_users.discard(user.mxid)
+                try:
+                    await self.main_intent.ban_user(
+                        self.mxid, user.mxid, reason="Banned on Signal"
+                    )
+                except (MForbidden, MBadState) as e:
+                    self.log.debug(f"could not ban {user.mxid}: {e}")
+            puppet = await p.Puppet.get_by_address(Address(uuid=member.uuid))
+            unban_users.discard(puppet.mxid)
+            remove_users.discard(puppet.mxid)
+            try:
+                await self.main_intent.ban_user(self.mxid, puppet.mxid, reason="Banned on Signal")
+            except (MForbidden, MBadState) as e:
+                self.log.debug(f"could not ban {puppet.mxid}: {e}")
+
+        for mxid in unban_users:
+            user = await u.User.get_by_mxid(mxid, create=False)
+            if user and await user.is_logged_in():
+                try:
+                    await self.main_intent.unban_user(
+                        self.mxid, user.mxid, reason="Unbanned on Signal"
+                    )
+                except (MForbidden, MBadState) as e:
+                    self.log.debug(f"could not unban {user.mxid}: {e}")
+            puppet = await p.Puppet.get_by_mxid(mxid, create=False)
+            if puppet:
+                try:
+                    await self.main_intent.unban_user(
+                        self.mxid, puppet.mxid, reason="Unbanned on Signal"
+                    )
+                except (MForbidden, MBadState) as e:
+                    self.log.debug(f"could not unban {puppet.mxid}: {e}")
 
         for address in info.members + pending_members:
             user = await u.User.get_by_address(address)
@@ -2052,6 +2137,19 @@ class Portal(DBPortal, BasePortal):
             if address.uuid not in self._pending_members:
                 await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
+
+        for address in requesting_members:
+            puppet = await p.Puppet.get_by_address(address)
+            if puppet:
+                remove_users.discard(puppet.mxid)
+                try:
+                    await puppet.intent_for(self).knock_room(
+                        self.mxid,
+                        reason="via invite link",
+                        servers=[self.config["homeserver.domain"]],
+                    )
+                except (MForbidden, IntentError) as e:
+                    self.log.debug(f"failed to bridge knock: {e}")
 
         for mxid in remove_users:
             user = await u.User.get_by_mxid(mxid, create=False)
