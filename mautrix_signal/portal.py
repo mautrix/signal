@@ -1245,21 +1245,25 @@ class Portal(DBPortal, BasePortal):
                         await editor_intent.leave_room(self.mxid)
                     else:
                         await self._kick_with_puppet(user, editor)
+
         if group_change.modify_member_roles:
             levels = await editor.intent_for(self).get_power_levels(self.mxid)
             for group_member in group_change.modify_member_roles:
                 users = [
-                    await p.Puppet.get_by_address(Address(uuid=group_member.uuid)),
+                    await p.Puppet.get_by_address(group_member.address),
                     await u.User.get_by_uuid(group_member.uuid),
                 ]
                 for user in users:
                     if not user:
                         continue
-                    if group_member.role == GroupMemberRole.ADMINISTRATOR:
-                        new_pl = 50
-                    else:
-                        new_pl = 0
-                    levels.users[user.mxid] = new_pl
+                    if (
+                        group_member.role == GroupMemberRole.ADMINISTRATOR
+                        and levels.users.get(user.mxid, 0) < 50
+                    ):
+                        levels.users[user.mxid] = 50
+                        levels.users = {k: v for k, v in sorted(list(levels.users.items()))}
+                    elif levels.users.get(user.mxid, 0) >= 50:
+                        levels.users.pop(user.mxid, 0)
             await self._try_with_puppet(
                 lambda i: i.set_power_levels(self.mxid, levels), puppet=editor
             )
@@ -1267,7 +1271,7 @@ class Portal(DBPortal, BasePortal):
         if group_change.new_banned_members:
             for banned_member in group_change.new_banned_members:
                 users = [
-                    await p.Puppet.get_by_address(Address(uuid=banned_member.uuid)),
+                    await p.Puppet.get_by_address(banned_member.address),
                     await u.User.get_by_uuid(banned_member.uuid),
                 ]
                 for user in users:
@@ -1284,10 +1288,11 @@ class Portal(DBPortal, BasePortal):
                             self.log.debug(f"Could not ban {user.mxid}: {e}")
                     except MBadState as e:
                         self.log.debug(f"Could not ban {user.mxid}: {e}")
+
         if group_change.new_unbanned_members:
             for banned_member in group_change.new_unbanned_members:
                 users = [
-                    await p.Puppet.get_by_address(Address(uuid=banned_member.uuid)),
+                    await p.Puppet.get_by_address(banned_member.address),
                     await u.User.get_by_uuid(banned_member.uuid),
                 ]
                 for user in users:
@@ -1304,6 +1309,7 @@ class Portal(DBPortal, BasePortal):
                             self.log.debug(f"Could not unban {user.mxid}: {e}")
                     except MBadState as e:
                         self.log.debug(f"Could not unban {user.mxid}: {e}")
+
         if (
             group_change.new_members
             or group_change.new_pending_members
@@ -1315,13 +1321,8 @@ class Portal(DBPortal, BasePortal):
                 + (group_change.new_pending_members or [])
                 + (group_change.promote_requesting_members or [])
             ):
-                puppet = await p.Puppet.get_by_address(Address(uuid=group_member.uuid))
-                try:
-                    await source.sync_contact(Address(uuid=group_member.uuid))
-                except ProfileUnavailableError:
-                    self.log.debug(
-                        f"Profile of puppet with uuid {group_member.uuid} is unavailable"
-                    )
+                puppet = await p.Puppet.get_by_address(group_member.address)
+                await source.sync_contact(group_member.address)
                 users = [puppet, await u.User.get_by_uuid(group_member.uuid)]
                 for user in users:
                     if not user:
@@ -1351,34 +1352,32 @@ class Portal(DBPortal, BasePortal):
                             await user.intent_for(self).ensure_joined(self.mxid)
                         except IntentError as e:
                             self.log.debug(f"{user.name} could not join group: {e}")
+
         if group_change.promote_pending_members:
-            for member in group_change.promote_pending_members:
-                try:
-                    await source.sync_contact(Address(uuid=group_member.uuid))
-                except ProfileUnavailableError:
-                    self.log.debug(
-                        f"Profile of puppet with uuid {group_member.uuid} is unavailable"
-                    )
-                user = await p.Puppet.get_by_address(address)
+            for group_member in group_change.promote_pending_members:
+                await source.sync_contact(group_member.address)
+                user = await p.Puppet.get_by_address(group_member.address)
                 if not user:
                     continue
                 try:
                     await user.intent_for(self).ensure_joined(self.mxid)
                 except IntentError as e:
                     self.log.debug(f"{user.name} could not join group: {e}")
+
         if group_change.new_requesting_members:
-            for member in group_change.new_requesting_members:
+            for group_member in group_change.new_requesting_members:
                 try:
-                    await source.sync_contact(Address(uuid=group_member.uuid))
+                    await source.sync_contact(group_member.address)
                 except ProfileUnavailableError:
                     self.log.debug(
                         f"Profile of puppet with uuid {group_member.uuid} is unavailable"
                     )
-                user = await p.Puppet.get_by_address(Address(uuid=member.uuid))
+                user = await p.Puppet.get_by_address(group_member.address)
                 try:
-                    await user.intent_for(self).knock(self.mxid, reason="via invite link")
+                    await user.intent_for(self).knock_room(self.mxid, reason="via invite link")
                 except (MForbidden, MBadState) as e:
                     self.log.debug(f"{user.name} failed knock: {e}")
+
         if group_change.new_access_control:
             ac = group_change.new_access_control
             if ac.attributes or ac.members:
@@ -1402,6 +1401,7 @@ class Portal(DBPortal, BasePortal):
                 await self._try_with_puppet(
                     lambda i: i.set_join_rule(self.mxid, join_rule), puppet=editor
                 )
+
         if group_change.new_is_announcement_group:
             levels = await editor.intent_for(self).get_power_levels(self.mxid)
             if group_change.new_is_announcement_group == AnnouncementsMode.ENABLED:
@@ -1411,6 +1411,7 @@ class Portal(DBPortal, BasePortal):
             await self._try_with_puppet(
                 lambda i: i.set_power_levels(self.mxid, levels), puppet=editor
             )
+
         changed = False
         if group_change.new_description:
             changed = await self._update_topic(group_change.new_description, editor)
@@ -1426,6 +1427,7 @@ class Portal(DBPortal, BasePortal):
                 )
                 or changed
             )
+
         if changed:
             await self.update_bridge_info()
             await self.update()
@@ -2123,7 +2125,10 @@ class Portal(DBPortal, BasePortal):
                                 level = 50
                         else:
                             level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
-                        levels.users[puppet_mxid] = level
+                        if level == 0:
+                            levels.users.pop(puppet_mxid, None)
+                        else:
+                            levels.users[puppet_mxid] = level
                 announcements = info.announcements
             else:
                 ac = GroupAccessControl()
@@ -2146,6 +2151,7 @@ class Portal(DBPortal, BasePortal):
         levels.redact = 99
         if self.main_intent.mxid not in levels.users:
             levels.users[self.main_intent.mxid] = 9001 if is_initial else 100
+        levels.users = {k: v for k, v in sorted(list(levels.users.items()))}
         return levels
 
     async def _create_matrix_room(self, source: u.User, info: ChatInfo) -> RoomID | None:

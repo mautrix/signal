@@ -208,6 +208,10 @@ class GroupMember(SerializableAttrs):
     joined_revision: int = 0
     role: GroupMemberRole = GroupMemberRole.UNKNOWN
 
+    @property
+    def address(self) -> Address:
+        return Address(uuid=self.uuid)
+
 
 @dataclass
 class BannedGroupMember(SerializableAttrs):

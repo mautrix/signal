@@ -21,7 +21,7 @@ from datetime import datetime
 from uuid import UUID
 import asyncio
 
-from mausignald.errors import AuthorizationFailedError
+from mausignald.errors import AuthorizationFailedError, ProfileUnavailableError
 from mausignald.types import (
     Account,
     Address,
@@ -287,26 +287,32 @@ class User(DBUser, BaseUser):
             self.log.exception("Error while syncing groups")
             await self.handle_auth_failure(e)
 
-    async def sync_contact(self, contact: Profile | Address, create_portals: bool = False) -> None:
+    async def sync_contact(
+        self, contact: Profile | Address, create_portals: bool = False, use_cache: bool = True
+    ) -> None:
         self.log.trace("Syncing contact %s", contact)
         try:
             if isinstance(contact, Address):
                 address = contact
-                profile = await self.bridge.signal.get_profile(
-                    self.username, address, use_cache=True
-                )
+                try:
+                    profile = await self.bridge.signal.get_profile(
+                        self.username, address, use_cache=use_cache
+                    )
+                except ProfileUnavailableError:
+                    self.log.debug(f"Profile of {address} was not available when syncing")
+                    profile = None
                 if profile and profile.name:
                     self.log.trace("Got profile for %s: %s", address, profile)
             else:
                 address = contact.address
                 profile = contact
             puppet = await pu.Puppet.get_by_address(address)
-            await puppet.update_info(profile, self)
+            await puppet.update_info(profile or address, self)
             if create_portals:
                 portal = await po.Portal.get_by_chat_id(
                     puppet.address, receiver=self.username, create=True
                 )
-                await portal.create_matrix_room(self, profile)
+                await portal.create_matrix_room(self, profile or address)
         except Exception as e:
             await self.handle_auth_failure(e)
             raise
