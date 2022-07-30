@@ -217,9 +217,16 @@ class SignalHandler(SignaldClient):
                     f"Failed to create room for incoming message {msg.timestamp}, dropping message"
                 )
                 return
+        elif (
+            msg.group_v2
+            and msg.group_v2.group_change
+            and msg.group_v2.revision == portal.revision + 1
+        ):
+            self.log.debug(f"Got GroupChange for {msg.group_v2.id}, updating info")
+            await portal.handle_signal_group_change(msg.group_v2.group_change, user)
         elif msg.group_v2 and msg.group_v2.revision > portal.revision:
             self.log.debug(f"Got new revision of {msg.group_v2.id}, updating info")
-            await portal.update_info(user, msg.group_v2, sender)
+            await portal.update_info(user, msg.group_v2)
         if msg.expires_in_seconds is not None and (msg.is_message or msg.is_expiration_update):
             await portal.update_expires_in_seconds(sender, msg.expires_in_seconds)
         if msg.reaction:
