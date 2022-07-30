@@ -18,6 +18,9 @@ from __future__ import annotations
 import base64
 import json
 
+from typing import Awaitable
+import asyncio
+
 from mausignald.errors import UnknownIdentityKey, UnregisteredUserError
 from mausignald.types import Address, GroupID, TrustLevel
 from mautrix.appservice import IntentAPI
@@ -25,7 +28,7 @@ from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import ContentURI, EventID, EventType, PowerLevelStateEventContent, RoomID
 
 from .. import portal as po, puppet as pu
-from ..util import normalize_number
+from ..util import normalize_number, user_has_power_level
 from .auth import make_qr
 from .typehint import CommandEvent
 
@@ -100,6 +103,8 @@ async def pm(evt: CommandEvent) -> None:
         )
         await portal.main_intent.invite_user(portal.mxid, evt.sender.mxid)
         return
+
+        
     await portal.create_matrix_room(evt.sender, puppet.address)
     await evt.reply(f"Created a portal room with {_pill(puppet)} and invited you to it")
 
@@ -337,17 +342,7 @@ async def create(evt: CommandEvent) -> EventID:
         receiver="",
         avatar_url=avatar_url,
     )
-    bot_pl = levels.get_user_level(evt.az.bot_mxid)
-    if bot_pl < levels.get_event_level(EventType.ROOM_POWER_LEVELS):
-        await evt.reply(missing_power_warning.format(bot_mxid=evt.az.bot_mxid))
-    elif bot_pl <= 50:
-        await evt.reply(low_power_warning.format(bot_mxid=evt.az.bot_mxid))
-    if levels.state_default < 50 and (
-        levels.events[EventType.ROOM_NAME] >= 50
-        or levels.events[EventType.ROOM_AVATAR] >= 50
-        or levels.events[EventType.ROOM_TOPIC] >= 50
-    ):
-        await evt.reply(meta_power_warning)
+    await warn_missing_power(levels, evt)
 
     await portal.create_signal_group(evt.sender, levels)
     await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
@@ -361,7 +356,7 @@ async def create(evt: CommandEvent) -> EventID:
 )
 async def get_id(evt: CommandEvent) -> EventID:
     if evt.portal:
-        await evt.reply(f"This room is bridged to Signal chat ID `{evt.portal.chat_id}`.")
+        return await evt.reply(f"This room is bridged to Signal chat ID `{evt.portal.chat_id}`.")
     await evt.reply("This is not a portal room.")
     
 
@@ -370,18 +365,25 @@ async def get_id(evt: CommandEvent) -> EventID:
     management_only=False,
     help_section=SECTION_SIGNAL,
     help_text="Bridge the current Matrix room to the Signal chat with the given ID.",
-    help_args="<id>",
+    help_args="<Signal chat ID> [Matrix room ID]",
 )
 async def bridge(evt: CommandEvent) -> EventID:
     if len(evt.args) == 0:
         return await evt.reply(
             "**Usage:** `$cmdprefix+sp bridge <Signal chat ID> [Matrix room ID]`"
         )
-    if evt.portal:
-        return await evt.reply("This is already a portal room.")
+    room_id = RoomID(evt.args[1]) if len(evt.args) > 1 else evt.room_id
+    that_this = "This" if room_id == evt.room_id else "That"
+
+    portal = await po.Portal.get_by_mxid(room_id)
+    if portal:
+        return await evt.reply(f"{that_this} room is already a portal room.")
+
+    if not await user_has_power_level(room_id, evt.az.intent, evt.sender, "bridge"):
+        return await evt.reply(f"You do not have the permissions to bridge {that_this} room.")
     chat_id = None
     try: 
-        chat_id= GroupID(evt.args[0])
+        chat_id = GroupID(evt.args[0])
     except ValueError:
         pass
     if not chat_id:
@@ -389,43 +391,143 @@ async def bridge(evt: CommandEvent) -> EventID:
             "That doesn't seem like a Signal chat ID.\n\n"
             "Bridging private chats to existing rooms is not allowed."
         )
-    portal = await po.Portal.get_by_chat_id(
-        chat_id, create=True
+
+    portal = await po.Portal.get_by_chat_id(chat_id)
+    if portal.mxid:
+        has_portal_message = (
+            "That Signal chat already has a portal at "
+            f"[{portal.mxid}](https://matrix.to/#/{portal.mxid}). "
+        )
+        if not await user_has_power_level(portal.mxid, evt.az.intent, evt.sender, "unbridge"):
+            return await evt.reply(
+                f"{has_portal_message}"
+                "Additionally, you do not have the permissions to unbridge that room."
+            )
+        evt.sender.command_status = {
+            "next": confirm_bridge,
+            "action": "Room bridging",
+            "mxid": portal.mxid,
+            "bridge_to_mxid": room_id,
+            "chat_id": portal.chat_id,
+        }
+        return await evt.reply(
+            f"{has_portal_message}"
+            "However, you have the permissions to unbridge that room.\n\n"
+            "To delete that portal completely and continue bridging, use "
+            "`$cmdprefix+sp delete-and-continue`. To unbridge the portal "
+            "without kicking Matrix users, use `$cmdprefix+sp unbridge-and-"
+            "continue`. To cancel, use `$cmdprefix+sp cancel`"
+        )
+    evt.sender.command_status = {
+        "next": confirm_bridge,
+        "action": "Room bridging",
+        "bridge_to_mxid": room_id,
+        "chat_id": portal.chat_id,
+    }
+    return await evt.reply(
+        "That Signal chat has no existing portal. To confirm bridging the "
+        "chat to this room, use `$cmdprefix+sp continue`"
     )
-    title, about, levels, encrypted, avatar_url = await get_initial_state(
+
+
+async def cleanup_old_portal_while_bridging(
+    evt: CommandEvent, portal: po.Portal
+) -> tuple[bool, Awaitable[None] | None]:
+    if not portal.mxid:
+        await evt.reply(
+            "The portal seems to have lost its Matrix room between you"
+            "calling `$cmdprefix+sp bridge` and this command.\n\n"
+            "Continuing without touching previous Matrix room..."
+        )
+        return True, None
+    elif evt.args[0] == "delete-and-continue":
+        return True, portal.cleanup_portal("Portal deleted (moving to another room)", delete=False)
+    elif evt.args[0] == "unbridge-and-continue":
+        return True, portal.cleanup_portal(
+            "Room unbridged (portal moving to another room)", puppets_only=True, delete=False
+        )
+    else:
+        await evt.reply(
+            "The chat you were trying to bridge already has a Matrix portal room.\n\n"
+            "Please use `$cmdprefix+sp delete-and-continue` or `$cmdprefix+sp unbridge-and-"
+            "continue` to either delete or unbridge the existing room (respectively) and "
+            "continue with the bridging.\n\n"
+            "If you changed your mind, use `$cmdprefix+sp cancel` to cancel."
+        )
+        return False, None
+
+
+async def confirm_bridge(evt: CommandEvent) -> EventID | None:
+    status = evt.sender.command_status
+    try:
+        portal = await po.Portal.get_by_chat_id(status["chat_id"])
+        bridge_to_mxid = status["bridge_to_mxid"]
+    except KeyError:
+        evt.sender.command_status = None
+        return await evt.reply(
+            "Fatal error: chat_id missing from command_status. "
+            "This shouldn't happen unless you're messing with the command handler code."
+        )
+
+    is_logged_in = await evt.sender.is_logged_in()
+
+    if "mxid" in status:
+        ok, coro = await cleanup_old_portal_while_bridging(evt, portal)
+        if not ok:
+            return None
+        elif coro:
+            asyncio.create_task(coro)
+            await evt.reply("Cleaning up previous portal room...")
+    elif portal.mxid:
+        evt.sender.command_status = None
+        return await evt.reply(
+            "The portal seems to have created a Matrix room between you "
+            "calling `$cmdprefix+sp bridge` and this command.\n\n"
+            "Please start over by calling the bridge command again."
+        )
+    elif evt.args[0] != "continue":
+        return await evt.reply(
+            "Please use `$cmdprefix+sp continue` to confirm the bridging or "
+            "`$cmdprefix+sp cancel` to cancel."
+        )
+    evt.sender.command_status = None
+    async with portal._create_room_lock:
+        await _locked_confirm_bridge(
+            evt, portal=portal, room_id=bridge_to_mxid, is_logged_in=is_logged_in
+        )
+
+async def _locked_confirm_bridge(
+    evt: CommandEvent, portal: po.Portal, room_id: RoomID, is_logged_in: bool
+) -> EventID | None:
+    try:
+        group = await evt.bridge.signal.get_group(
+            evt.sender.username, portal.chat_id, portal.revision
+        )
+    except Exception:
+        evt.log.exception("Failed to get_group(%s) for manual bridging.", portal.chat_id)
+        if is_logged_in:
+            return await evt.reply(
+                "Failed to get info of signal chat. You are logged in, are you in that chat?"
+            )
+        else:
+            return await evt.reply(
+                "Failed to get info of signal chat. "
+                "You're not logged in, this should not happen."
+            )
+
+    portal.mxid = room_id
+    portal.by_mxid[portal.mxid] = portal
+    (portal.title, portal.about, levels, portal.encrypted, portal.photo_id) = await get_initial_state(
         evt.az.intent, evt.room_id
     )
-    if portal.mxid:
-        await evt.reply(
-            "That Signal chat already has a portal at "
-            f"[{portal.alias or portal.mxid}](https://matrix.to/#/{portal.mxid}). "
-        )
-        await portal.main_intent.invite_user(portal.mxid, evt.sender.mxid)
-        return
-    portal = po.Portal(
-        chat_id=chat_id,
-        mxid=evt.room_id,
-        name=title,
-        topic=about or "",
-        encrypted=encrypted,
-        receiver="",
-        avatar_url=avatar_url,
-    )
-    bot_pl = levels.get_user_level(evt.az.bot_mxid)
-    if bot_pl < levels.get_event_level(EventType.ROOM_POWER_LEVELS):
-        await evt.reply(missing_power_warning.format(bot_mxid=evt.az.bot_mxid))
-    elif bot_pl <= 50:
-        await evt.reply(low_power_warning.format(bot_mxid=evt.az.bot_mxid))
-    if levels.state_default < 50 and (
-        levels.events[EventType.ROOM_NAME] >= 50
-        or levels.events[EventType.ROOM_AVATAR] >= 50
-        or levels.events[EventType.ROOM_TOPIC] >= 50
-    ):
-        await evt.reply(meta_power_warning)
+    await portal.save()
+    await portal.update_bridge_info()
 
-    await portal.bridge_signal_group(evt.sender, levels)
-    await evt.reply("Bridging complete. Portal synchronization should begin momentarily.")
+    asyncio.create_task(portal.update_matrix_room(evt.sender, group))
 
+    await warn_missing_power(levels, evt)
+
+    return await evt.reply("Bridging complete. Portal synchronization should begin momentarily.")
 
 async def get_initial_state(
     intent: IntentAPI, room_id: RoomID
@@ -454,3 +556,16 @@ async def get_initial_state(
             # Some state event probably has empty content
             pass
     return title, about, levels, encrypted, avatar_url
+
+async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
+    bot_pl = levels.get_user_level(evt.az.bot_mxid)
+    if bot_pl < levels.get_event_level(EventType.ROOM_POWER_LEVELS):
+        await evt.reply(missing_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    elif bot_pl <= 50:
+        await evt.reply(low_power_warning.format(bot_mxid=evt.az.bot_mxid))
+    if levels.state_default < 50 and (
+        levels.events[EventType.ROOM_NAME] >= 50
+        or levels.events[EventType.ROOM_AVATAR] >= 50
+        or levels.events[EventType.ROOM_TOPIC] >= 50
+    ):
+        await evt.reply(meta_power_warning)
