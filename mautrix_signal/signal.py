@@ -178,7 +178,7 @@ class SignalHandler(SignaldClient):
         addr_override: Address | None = None,
     ) -> None:
         if msg.profile_key_update:
-            self.log.debug("Ignoring profile key update")
+            asyncio.create_task(user.sync_contact(sender.address, use_cache=False))
             return
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
