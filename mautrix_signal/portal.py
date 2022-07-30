@@ -457,11 +457,30 @@ class Portal(DBPortal, BasePortal):
             text = message.body if is_relay else None
             self.log.trace("Formed outgoing attachment %s", attachment)
         elif message.msgtype == MessageType.LOCATION:
-            url = self._matrix_location_to_link(message)
-            body = message.body.replace(message.geo_uri, "")
-            sep = "\n" if len(body) > 0 else ""
-            if url:
-                text = body + sep + url
+            try:
+                lat, long = message.geo_uri[len("geo:") :].split(";")[0].split(",")
+                text = self.config["bridge.location_format"].format(
+                    lat=float(lat), long=float(long)
+                )
+            except (ValueError, KeyError, IndexError) as e:
+                orig_sender.send_remote_checkpoint(
+                    status=MessageSendCheckpointStatus.PERM_FAILURE,
+                    event_id=event_id,
+                    room_id=self.mxid,
+                    event_type=EventType.ROOM_MESSAGE,
+                    message_type=message.msgtype,
+                    error=str(e),
+                )
+                self.log.warning(f"Malformed geo URI in {event_id}: {e}")
+                return
+            extev = message.get("org.matrix.msc3488.location", None)
+            # TODO support relay mode with extensible event location descriptions
+            if extev and not is_relay:
+                body = extev.get("description")
+            else:
+                body = message.body
+            if body:
+                text = f"{body}\n{text}"
         else:
             self.log.debug(f"Unknown msgtype {message.msgtype} in Matrix message {event_id}")
             return
@@ -568,23 +587,6 @@ class Portal(DBPortal, BasePortal):
             EventType.REACTION: "reaction",
         }.get(event_type, str(event_type))
         raise last_error_type(f"Failed to send {event_type_name} after {retry_count} retries.")
-
-    def _matrix_location_to_link(
-        self,
-        content: LocationMessageEventContent,
-    ) -> str:
-        try:
-            lat, long = content.geo_uri[len("geo:") :].split(";")[0].split(",")
-        except (KeyError, ValueError):
-            self.log.exception("Failed to parse location")
-            return None
-        try:
-            float(lat)
-            float(long)
-        except Exception:
-            self.log.debug("Error: Invalid location " + content.geo_uri)
-            return None
-        return self.config["bridge.location_format"].replace("$lat", lat).replace("$long", long)
 
     async def handle_matrix_reaction(
         self, sender: u.User, event_id: EventID, reacting_to: EventID, emoji: str
