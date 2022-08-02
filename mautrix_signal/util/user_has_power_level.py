@@ -21,6 +21,7 @@ from mautrix.types import EventType, RoomID
 
 from .. import user as u
 
+
 async def user_has_power_level(
     room_id: RoomID, intent: IntentAPI, sender: u.User, event: str
 ) -> bool:

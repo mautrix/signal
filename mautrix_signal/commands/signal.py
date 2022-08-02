@@ -15,11 +15,10 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-import base64
-import json
-
 from typing import Awaitable
 import asyncio
+import base64
+import json
 
 from mausignald.errors import UnknownIdentityKey, UnregisteredUserError
 from mausignald.types import Address, GroupID, TrustLevel
@@ -104,7 +103,6 @@ async def pm(evt: CommandEvent) -> None:
         await portal.main_intent.invite_user(portal.mxid, evt.sender.mxid)
         return
 
-        
     await portal.create_matrix_room(evt.sender, puppet.address)
     await evt.reply(f"Created a portal room with {_pill(puppet)} and invited you to it")
 
@@ -347,6 +345,7 @@ async def create(evt: CommandEvent) -> EventID:
     await portal.create_signal_group(evt.sender, levels)
     await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
 
+
 @command_handler(
     name="id",
     needs_auth=True,
@@ -358,7 +357,7 @@ async def get_id(evt: CommandEvent) -> EventID:
     if evt.portal:
         return await evt.reply(f"This room is bridged to Signal chat ID `{evt.portal.chat_id}`.")
     await evt.reply("This is not a portal room.")
-    
+
 
 @command_handler(
     needs_auth=True,
@@ -382,7 +381,7 @@ async def bridge(evt: CommandEvent) -> EventID:
     if not await user_has_power_level(room_id, evt.az.intent, evt.sender, "bridge"):
         return await evt.reply(f"You do not have the permissions to bridge {that_this} room.")
     chat_id = None
-    try: 
+    try:
         chat_id = GroupID(evt.args[0])
     except ValueError:
         pass
@@ -496,6 +495,7 @@ async def confirm_bridge(evt: CommandEvent) -> EventID | None:
             evt, portal=portal, room_id=bridge_to_mxid, is_logged_in=is_logged_in
         )
 
+
 async def _locked_confirm_bridge(
     evt: CommandEvent, portal: po.Portal, room_id: RoomID, is_logged_in: bool
 ) -> EventID | None:
@@ -517,9 +517,13 @@ async def _locked_confirm_bridge(
 
     portal.mxid = room_id
     portal.by_mxid[portal.mxid] = portal
-    (portal.title, portal.about, levels, portal.encrypted, portal.photo_id) = await get_initial_state(
-        evt.az.intent, evt.room_id
-    )
+    (
+        portal.title,
+        portal.about,
+        levels,
+        portal.encrypted,
+        portal.photo_id,
+    ) = await get_initial_state(evt.az.intent, evt.room_id)
     await portal.save()
     await portal.update_bridge_info()
 
@@ -528,6 +532,7 @@ async def _locked_confirm_bridge(
     await warn_missing_power(levels, evt)
 
     return await evt.reply("Bridging complete. Portal synchronization should begin momentarily.")
+
 
 async def get_initial_state(
     intent: IntentAPI, room_id: RoomID
@@ -556,6 +561,7 @@ async def get_initial_state(
             # Some state event probably has empty content
             pass
     return title, about, levels, encrypted, avatar_url
+
 
 async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
     bot_pl = levels.get_user_level(evt.az.bot_mxid)
