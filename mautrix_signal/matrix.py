@@ -194,8 +194,11 @@ class MatrixHandler(BaseMatrixHandler):
         event_id: EventID,
         data: SingleReceiptEventContent,
     ) -> None:
-        message = await DBMessage.get_by_mxid(event_id, portal.mxid)
+        message = await DBMessage.get_by_mxid(
+            event_id, portal.mxid
+        ) or await DBMessage.get_first_before(portal.mxid, data.ts)
         if not message:
+            user.log.warning("Skipping sending read receipt for event ID: %s", event_id)
             return
 
         user.log.trace(f"Sending read receipt for {message.timestamp} to {message.sender}")

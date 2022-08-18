@@ -138,3 +138,16 @@ class Message:
         if not row:
             return None
         return cls._from_row(row)
+
+    @classmethod
+    async def get_first_before(cls, mx_room: RoomID, timestamp: int) -> Message | None:
+        q = """
+        SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+        WHERE mx_room=$1 AND timestamp <= $2
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+        row = await cls.db.fetchrow(q, mx_room, timestamp)
+        if not row:
+            return None
+        return cls._from_row(row)
