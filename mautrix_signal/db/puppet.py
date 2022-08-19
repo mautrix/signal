@@ -24,7 +24,7 @@ import asyncpg
 
 from mausignald.types import Address
 from mautrix.types import ContentURI, SyncToken, UserID
-from mautrix.util.async_db import Database
+from mautrix.util.async_db import Connection, Database
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -96,9 +96,7 @@ class Puppet:
             await self._update_number_to_uuid(conn, number, str(self.uuid))
 
     @staticmethod
-    async def _update_number_to_uuid(
-        conn: asyncpg.Connection, old_number: str, new_uuid: str
-    ) -> None:
+    async def _update_number_to_uuid(conn: Connection, old_number: str, new_uuid: str) -> None:
         try:
             async with conn.transaction():
                 await conn.execute(

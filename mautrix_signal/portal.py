@@ -1768,11 +1768,16 @@ class Portal(DBPortal, BasePortal):
         if self.is_direct:
             if not isinstance(info, (Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
-            if not self.name:
+            if not self.name or not self.topic:
                 puppet = await self.get_dm_puppet()
                 if not puppet.name:
                     await puppet.update_info(info, source)
                 self.name = puppet.name
+                if puppet.number and not self.topic:
+                    self.topic = puppet.fmt_phone(puppet.number)
+                    if self.mxid:
+                        # This is only for automatically updating the topic in existing portals
+                        await self.update_puppet_number(self.topic)
             return
 
         if isinstance(info, GroupV2ID):
@@ -1844,6 +1849,17 @@ class Portal(DBPortal, BasePortal):
             puppet = await self.get_dm_puppet()
         await self.update_puppet_name(puppet.name, save=False)
         await self.update_puppet_avatar(puppet.avatar_hash, puppet.avatar_url, save=False)
+        if puppet.number:
+            await self.update_puppet_number(puppet.fmt_phone(puppet.number), save=False)
+
+    async def update_puppet_number(self, number: str, save: bool = True) -> None:
+        if not self.encrypted and not self.private_chat_portal_meta:
+            return
+
+        changed = await self._update_topic(number)
+        if changed and save:
+            await self.update_bridge_info()
+            await self.update()
 
     async def update_puppet_avatar(
         self, new_hash: str, avatar_url: ContentURI, save: bool = True
