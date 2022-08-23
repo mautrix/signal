@@ -247,6 +247,7 @@ class MatrixHandler(BaseMatrixHandler):
             EventType.ROOM_TOPIC,
             EventType.ROOM_AVATAR,
             EventType.ROOM_POWER_LEVELS,
+            EventType.ROOM_JOIN_RULES,
         ):
             return
 
@@ -265,6 +266,8 @@ class MatrixHandler(BaseMatrixHandler):
             await portal.handle_matrix_topic(user, evt.content.topic)
         elif evt.type == EventType.ROOM_POWER_LEVELS:
             await portal.handle_matrix_power_level(user, evt.content, evt.unsigned.prev_content)
+        elif evt.type == EventType.ROOM_JOIN_RULES:
+            await portal.handle_matrix_join_rules(user, evt.content.join_rule)
 
     async def allow_message(self, user: u.User) -> bool:
         return user.relay_whitelisted
