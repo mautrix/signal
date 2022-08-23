@@ -1445,8 +1445,10 @@ class Portal(DBPortal, BasePortal):
                 )
             if ac.link:
                 join_rule = JoinRule.INVITE
-                if ac.link == AccessControlMode.ANY and self.config["bridge.public_portals"]:
-                    join_rule = JoinRule.PUBLIC
+                if ac.link == AccessControlMode.ANY:
+                    join_rule = (
+                        JoinRule.PUBLIC if self.config["bridge.public_portals"] else JoinRule.KNOCK
+                    )
                 elif ac.link == AccessControlMode.ADMINISTRATOR:
                     join_rule = JoinRule.KNOCK
                 await self._try_with_puppet(
@@ -2069,30 +2071,19 @@ class Portal(DBPortal, BasePortal):
         link_access = info.access_control.link
         old_join_rule = await self._get_join_rule()
         if link_access == AccessControlMode.ANY:
-            if self.config["bridge.public_portals"]:
-                join_rule = JoinRule.PUBLIC
-            elif old_join_rule and old_join_rule == JoinRule.PUBLIC:
-                return
+            join_rule = JoinRule.PUBLIC if self.config["bridge.public_portals"] else JoinRule.KNOCK
         elif link_access == AccessControlMode.ADMINISTRATOR:
-            if old_join_rule and (
-                old_join_rule == JoinRule.KNOCK or old_join_rule == JoinRule.RESTRICTED
-            ):
-                return
-            else:
-                join_rule = JoinRule.KNOCK
+            join_rule = JoinRule.KNOCK
         else:
             join_rule = JoinRule.INVITE
-        await self.main_intent.set_join_rule(self.mxid, join_rule)
+        if join_rule == JoinRule.KNOCK and old_join_rule == JoinRule.RESTRICTED:
+            return
+        if old_join_rule != join_rule:
+            await self.main_intent.set_join_rule(self.mxid, join_rule)
 
-    async def _get_join_rule(self) -> JoinRule:
-        state = await self.main_intent.get_state(self.mxid)
-        for event in state:
-            try:
-                if event.type == EventType.ROOM_JOIN_RULES:
-                    return event.content.join_rule
-            except KeyError:
-                pass
-        return None
+    async def _get_join_rule(self) -> JoinRule | None:
+        evt = await self.main_intent.get_state_event(self.mxid, EventType.ROOM_JOIN_RULES)
+        return evt.join_rule if evt else None
 
     # endregion
     # region Bridge info state event
