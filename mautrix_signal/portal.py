@@ -862,6 +862,19 @@ class Portal(DBPortal, BasePortal):
             )
         except RPCError as e:
             raise RejectMatrixInvite(str(e)) from e
+        if user.mxid == self.config["bridge.relay.relaybot"] != "@relaybot:example.com":
+            if not self.config["bridge.relay.enabled"]:
+                await self.main_intent.send_notice(
+                    self.mxid, "Relay mode is not enabled in this instance of the bridge."
+                )
+            else:
+                await self.set_relay_user(user)
+                await self.main_intent.send_notice(
+                    self.mxid,
+                    "Messages from non-logged-in users in this room will now be bridged "
+                    "through the relaybot's Signal account.",
+                )
+
         power_levels = await self.main_intent.get_power_levels(self.mxid)
         invitee_pl = power_levels.get_user_level(user.mxid)
         if invitee_pl >= 50:

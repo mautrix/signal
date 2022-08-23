@@ -299,6 +299,10 @@ bridge:
             m.audio: '$sender_displayname sent an audio file'
             m.video: '$sender_displayname sent a video'
             m.location: '$sender_displayname sent a location'
+        # Specify a dedicated relay account. Must be a regular matrix account logged into this bridge
+        # and double puppeting working to auto-accept invites. When this user is invited to a room
+        # it will automatically be set as the relay user. May be overridden with `set-relay` or `unset-relay`
+        relaybot: '@relaybot:example.com'
 
     # Format for generting URLs from location messages for sending to Signal
     # Google Maps: 'https://www.google.com/maps/place/{lat},{long}'
