@@ -598,6 +598,7 @@ class CallMessage(SerializableAttrs):
 
 class MessageType(SerializableEnum):
     CIPHERTEXT = "CIPHERTEXT"
+    PLAINTEXT_CONTENT = "PLAINTEXT_CONTENT"
     UNIDENTIFIED_SENDER = "UNIDENTIFIED_SENDER"
     RECEIPT = "RECEIPT"
     PREKEY_BUNDLE = "PREKEY_BUNDLE"
