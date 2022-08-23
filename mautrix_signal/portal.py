@@ -1444,16 +1444,11 @@ class Portal(DBPortal, BasePortal):
                     lambda i: i.set_power_levels(self.mxid, levels), puppet=editor
                 )
             if ac.link:
-                join_rule = JoinRule.INVITE
-                if ac.link == AccessControlMode.ANY:
-                    join_rule = (
-                        JoinRule.PUBLIC if self.config["bridge.public_portals"] else JoinRule.KNOCK
+                new_join_rule = await self._get_new_join_rule(ac.link)
+                if new_join_rule:
+                    await self._try_with_puppet(
+                        lambda i: i.set_join_rule(self.mxid, new_join_rule), puppet=editor
                     )
-                elif ac.link == AccessControlMode.ADMINISTRATOR:
-                    join_rule = JoinRule.KNOCK
-                await self._try_with_puppet(
-                    lambda i: i.set_join_rule(self.mxid, join_rule), puppet=editor
-                )
 
         if group_change.new_is_announcement_group:
             levels = await editor.intent_for(self).get_power_levels(self.mxid)
@@ -2065,21 +2060,36 @@ class Portal(DBPortal, BasePortal):
         power_levels = await self._get_power_levels(power_levels, info=info, is_initial=False)
         await self.main_intent.set_power_levels(self.mxid, power_levels)
 
+    async def _get_new_join_rule(self, link_access: AccessControlMode) -> JoinRule | None:
+        if not self.mxid:
+            return None
+        old_join_rule = await self._get_join_rule()
+        if link_access == AccessControlMode.ANY:
+            # Default to invite since chat that don't require admin approval don't allow knocks
+            join_rule = (
+                JoinRule.PUBLIC if self.config["bridge.public_portals"] else JoinRule.INVITE
+            )
+            allowed_join_rules = (JoinRule.PUBLIC, JoinRule.INVITE)
+        elif link_access == AccessControlMode.ADMINISTRATOR:
+            join_rule = JoinRule.KNOCK
+            # TODO remove getattr once mautrix-python is updated
+            allowed_join_rules = (
+                JoinRule.KNOCK,
+                getattr(JoinRule, "KNOCK_RESTRICTED", "knock_restricted"),
+            )
+        else:
+            join_rule = JoinRule.INVITE
+            allowed_join_rules = (JoinRule.INVITE,)
+        if old_join_rule in allowed_join_rules:
+            return None
+        return join_rule
+
     async def _update_join_rules(self, info: ChatInfo) -> None:
         if not self.mxid:
             return
-        link_access = info.access_control.link
-        old_join_rule = await self._get_join_rule()
-        if link_access == AccessControlMode.ANY:
-            join_rule = JoinRule.PUBLIC if self.config["bridge.public_portals"] else JoinRule.KNOCK
-        elif link_access == AccessControlMode.ADMINISTRATOR:
-            join_rule = JoinRule.KNOCK
-        else:
-            join_rule = JoinRule.INVITE
-        if join_rule == JoinRule.KNOCK and old_join_rule == JoinRule.RESTRICTED:
-            return
-        if old_join_rule != join_rule:
-            await self.main_intent.set_join_rule(self.mxid, join_rule)
+        new_join_rule = await self._get_new_join_rule(info.access_control.link)
+        if new_join_rule:
+            await self.main_intent.set_join_rule(self.mxid, new_join_rule)
 
     async def _get_join_rule(self) -> JoinRule | None:
         evt = await self.main_intent.get_state_event(self.mxid, EventType.ROOM_JOIN_RULES)
