@@ -863,7 +863,7 @@ class Portal(DBPortal, BasePortal):
             )
         except RPCError as e:
             raise RejectMatrixInvite(str(e)) from e
-        if user.mxid == self.config["bridge.relay.relaybot"]:
+        if user.mxid == self.config["bridge.relay.relaybot"] != "@relaybot:example.com":
             if not self.config["bridge.relay.enabled"]:
                 await self.main_intent.send_notice(
                     self.mxid, "Relay mode is not enabled in this instance of the bridge."
