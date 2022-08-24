@@ -1805,6 +1805,7 @@ class Portal(DBPortal, BasePortal):
         await self.update_bridge_info()
         if relaybot:
             await self._handle_relaybot_invited(relaybot)
+        await self.main_intent.send_notice(self.mxid, f"Signal group created. ID: {self.chat_id}")
 
     async def bridge_signal_group(
         self, source: u.User, levels: PowerLevelStateEventContent

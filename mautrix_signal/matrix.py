@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from mausignald.types import Address
+from mausignald.types import Address, GroupID
 from mautrix.bridge import BaseMatrixHandler, RejectMatrixInvite
 from mautrix.types import (
     Event,
@@ -37,6 +37,7 @@ from mautrix.types import (
 )
 
 from . import portal as po, puppet as pu, signal as s, user as u
+from .commands.util import get_initial_state
 from .db import Message as DBMessage
 
 if TYPE_CHECKING:
@@ -54,6 +55,56 @@ class MatrixHandler(BaseMatrixHandler):
         self.signal = bridge.signal
 
         super().__init__(bridge=bridge)
+
+    async def handle_puppet_group_invite(
+        self,
+        room_id: RoomID,
+        puppet: pu.Puppet,
+        invited_by: u.User,
+        evt: StateEvent,
+        members: list[UserID],
+    ) -> None:
+        double_puppet = await pu.Puppet.get_by_custom_mxid(invited_by.mxid)
+        if (
+            not double_puppet
+            or self.az.bot_mxid in members
+            or not self.config["bridge.create_group_on_invite"]
+        ):
+            if self.az.bot_mxid not in members:
+                await puppet.default_mxid_intent.leave_room(
+                    room_id,
+                    reason="This ghost does not join multi-user rooms without the bridge bot.",
+                )
+            else:
+                await puppet.default_mxid_intent.send_notice(
+                    room_id,
+                    "This ghost will remain inactive "
+                    "until a Signal Group is created for this room.",
+                )
+            return
+
+        await double_puppet.intent.invite_user(room_id, self.az.bot_mxid)
+
+        title, about, levels, encrypted, avatar_url, join_rule = await get_initial_state(
+            double_puppet.intent, room_id
+        )
+
+        portal = po.Portal(
+            chat_id=GroupID(""),
+            mxid=evt.room_id,
+            name=title,
+            topic=about or "",
+            encrypted=encrypted,
+            receiver="",
+            avatar_url=avatar_url,
+        )
+        await portal.az.intent.ensure_joined(room_id)
+        invited_by_level = levels.get_user_level(invited_by.mxid)
+        if invited_by_level > levels.get_user_level(self.az.bot_mxid):
+            levels.users[self.az.bot_mxid] = 100 if invited_by_level >= 100 else invited_by_level
+            await double_puppet.intent.set_power_levels(room_id, levels)
+
+        await portal.create_signal_group(invited_by, levels, join_rule)
 
     async def handle_invite(
         self, room_id: RoomID, user_id: UserID, inviter: u.User, event_id: EventID

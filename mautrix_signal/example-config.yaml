@@ -234,6 +234,9 @@ bridge:
     periodic_sync: 0
     # Should leaving the room on Matrix make the user leave on Signal?
     bridge_matrix_leave: true
+    # Should the bridge auto-create a group chat on Signal when a ghost is invited to a room?
+    # Requires the user to have sufficient power level and double puppeting enabled.
+    create_group_on_invite: true
 
     # Provisioning API part of the web server for automated portal creation and fetching information.
     # Used by things like mautrix-manager (https://github.com/tulir/mautrix-manager).
