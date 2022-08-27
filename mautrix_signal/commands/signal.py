@@ -567,7 +567,7 @@ async def get_initial_state(
         except KeyError:
             # Some state event probably has empty content
             pass
-    return title, about, levels, encrypted, avatar_url
+    return title, about, levels, encrypted, avatar_url, join_rule
 
 
 async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
