@@ -97,6 +97,7 @@ async def connect_existing(evt: CommandEvent) -> EventID:
     help_section=SECTION_AUTH,
     help_text="Link the bridge as a secondary device",
     help_args="[device name]",
+    aliases=["login"],
 )
 async def link(evt: CommandEvent) -> None:
     if qrcode is None:
