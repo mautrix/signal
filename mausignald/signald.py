@@ -133,7 +133,7 @@ class SignaldClient(SignaldRPCClient):
     async def unsubscribe(self, username: str) -> bool:
         try:
             await self.request_v1("unsubscribe", account=username)
-            self._subscriptions.remove(username)
+            self._subscriptions.discard(username)
             return True
         except RPCError as e:
             self.log.debug("Failed to unsubscribe from %s: %s", username, e)
