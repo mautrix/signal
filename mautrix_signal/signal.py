@@ -34,7 +34,7 @@ from mausignald.types import (
     TypingMessage,
     WebsocketConnectionStateChangeEvent,
 )
-from mautrix.types import EventID, MessageType, TextMessageEventContent
+from mautrix.types import EventID, Format, MessageType, TextMessageEventContent
 from mautrix.util.logging import TraceLogger
 
 from . import portal as po, puppet as pu, user as u
@@ -277,7 +277,12 @@ class SignalHandler(SignaldClient):
             portal.log.debug(f"Unhandled call message. Likely an ICE message. {msg.call_message}")
             return
 
-        await sender.intent_for(portal).send_text(portal.mxid, html=msg_html, msgtype=msg_type)
+        await portal._send_message(
+            intent=sender.intent_for(portal),
+            content=TextMessageEventContent(
+                format=Format.HTML, formatted_body=msg_html, msgtype=msg_type
+            ),
+        )
 
     @staticmethod
     async def handle_own_receipts(sender: pu.Puppet, receipts: list[OwnReadReceipt]) -> None:
