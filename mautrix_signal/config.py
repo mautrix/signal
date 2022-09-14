@@ -43,8 +43,6 @@ class Config(BaseBridgeConfig):
         super().do_update(helper)
         copy, copy_dict, base = helper
 
-        copy("homeserver.asmux")
-
         copy("signal.socket_path")
         copy("signal.outgoing_attachment_dir")
         copy("signal.avatar_dir")
