@@ -201,14 +201,9 @@ class ProvisioningAPI:
                 f"Client cancelled link wait request ({session_id}) before it finished"
             )
             raise
-        except TimeoutException:
+        except (TimeoutException, ScanTimeoutError):
             raise web.HTTPBadRequest(
                 text='{"error": "Signal linking timed out"}', headers=self._headers
-            )
-        except ScanTimeoutError:
-            raise web.HTTPBadRequest(
-                text='{"error": "Signald websocket disconnected before linking finished"}',
-                headers=self._headers,
             )
         except InternalError:
             raise web.HTTPInternalServerError(

@@ -19,6 +19,7 @@ import io
 from mausignald.errors import (
     AuthorizationFailedError,
     CaptchaRequiredError,
+    ScanTimeoutError,
     TimeoutException,
     UnexpectedResponse,
 )
@@ -119,7 +120,7 @@ async def link(evt: CommandEvent) -> None:
         account = await evt.bridge.signal.finish_link(
             session_id=sess.session_id, overwrite=True, device_name=device_name
         )
-    except TimeoutException:
+    except (TimeoutException, ScanTimeoutError):
         await evt.reply("Linking timed out, please try again.")
     except Exception:
         evt.log.exception("Fatal error while waiting for linking to finish")
