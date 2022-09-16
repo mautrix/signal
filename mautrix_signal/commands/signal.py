@@ -32,6 +32,7 @@ from mautrix.types import (
     PowerLevelStateEventContent,
     RoomID,
 )
+from mautrix.util.format_duration import format_duration
 
 from .. import portal as po, puppet as pu
 from ..util import normalize_number, user_has_power_level
@@ -155,6 +156,55 @@ async def invite_link(evt: CommandEvent) -> EventID:
         await evt.reply("Invite link not available")
     else:
         await evt.reply(group.invite_link)
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Tells when disappearing messages are going to be deleted.",
+)
+async def get_timer(evt: CommandEvent) -> EventID:
+    if not evt.is_portal:
+        return await evt.reply("This is not a portal room.")
+
+    if not evt.portal.expiration_time:
+        return await evt.reply("Disappearing messages are not set for this chat.")
+
+    await evt.reply(
+        f"Disappearing messages get deleted after `{format_duration(evt.portal.expiration_time)}`."
+    )
+
+
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Set a new timer for disappearing messages. To turn it off use 0.",
+    help_args="[_seconds_]",
+)
+async def set_timer(evt: CommandEvent) -> EventID:
+    if not evt.is_portal:
+        return await evt.reply("This is not a portal room.")
+
+    timer = int(evt.args[0])
+    old_timer = evt.portal.expiration_time if evt.portal.expiration_time else 0
+    if timer == old_timer:
+        return await evt.reply("Timer did not change.")
+
+    await evt.bridge.signal.set_expiration(
+        username=evt.sender.username,
+        chat_id=evt.portal.chat_id,
+        expiration=timer,
+    )
+
+    await evt.portal.update_expires_in_seconds(
+        sender=None,
+        expires_in_seconds=timer,
+    )
+
+    time_str = "Off" if timer == 0 else format_duration(timer)
+    await evt.reply(f"Disappearing messages timer is now set to {time_str}.")
 
 
 @command_handler(

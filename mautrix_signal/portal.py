@@ -1862,7 +1862,11 @@ class Portal(DBPortal, BasePortal):
             await self.update_bridge_info()
             await self.update()
 
-    async def update_expires_in_seconds(self, sender: p.Puppet, expires_in_seconds: int) -> None:
+    async def update_expires_in_seconds(
+        self,
+        sender: p.Puppet | None,
+        expires_in_seconds: int,
+    ) -> None:
         if expires_in_seconds == 0:
             expires_in_seconds = None
         if self.expiration_time == expires_in_seconds:
@@ -1872,6 +1876,8 @@ class Portal(DBPortal, BasePortal):
         self.expiration_time = expires_in_seconds
         await self.update()
 
+        if sender is None:
+            return
         time_str = "Off" if expires_in_seconds is None else format_duration(expires_in_seconds)
         body = f"Set the disappearing message timer to {time_str}"
         content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=body)

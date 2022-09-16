@@ -510,3 +510,25 @@ class SignaldClient(SignaldRPCClient):
             "resolve_address", partial=Address(number=number).serialize(), account=username
         )
         return Address.deserialize(resp).uuid
+
+    async def set_expiration(
+        self,
+        username: str,
+        expiration: int,
+        chat_id: Address | GroupID,
+    ) -> SendMessageResponse:
+        if isinstance(chat_id, Address):
+            resp = await self.request_v1(
+                "set_expiration",
+                account=username,
+                address=chat_id.serialize(),
+                expiration=expiration,
+            )
+        else:
+            resp = await self.request_v1(
+                "set_expiration",
+                account=username,
+                expiration=expiration,
+                group=chat_id,
+            )
+        return SendMessageResponse.deserialize(resp)
