@@ -1764,7 +1764,7 @@ class Portal(DBPortal, BasePortal):
             mx_user = await u.User.get_by_mxid(mxid, create=False)
             if mx_user and mx_user.address and mx_user.username != source.username:
                 invitee_addresses.append(mx_user.address)
-                if mxid == relaybot_mxid and relaybot_mxid != "@relaybot:example.com":
+                if mxid == relaybot_mxid != "@relaybot:example.com":
                     relaybot = mx_user
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
