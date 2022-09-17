@@ -863,18 +863,7 @@ class Portal(DBPortal, BasePortal):
         except RPCError as e:
             raise RejectMatrixInvite(str(e)) from e
         if user.mxid == self.config["bridge.relay.relaybot"] != "@relaybot:example.com":
-            if not self.config["bridge.relay.enabled"]:
-                await self.main_intent.send_notice(
-                    self.mxid, "Relay mode is not enabled in this instance of the bridge."
-                )
-            else:
-                await self.set_relay_user(user)
-                await self.main_intent.send_notice(
-                    self.mxid,
-                    "Messages from non-logged-in users in this room will now be bridged "
-                    "through the relaybot's Signal account.",
-                )
-
+            await self._handle_relaybot_invited(user)
         power_levels = await self.main_intent.get_power_levels(self.mxid)
         invitee_pl = power_levels.get_user_level(user.mxid)
         if invitee_pl >= 50:
@@ -889,6 +878,19 @@ class Portal(DBPortal, BasePortal):
                 await self._update_power_levels(
                     await self.signal.get_group(invited_by.username, self.chat_id)
                 )
+
+    async def _handle_relaybot_invited(self, user: u.User) -> None:
+        if not self.config["bridge.relay.enabled"]:
+            await self.main_intent.send_notice(
+                self.mxid, "Relay mode is not enabled in this instance of the bridge."
+            )
+        else:
+            await self.set_relay_user(user)
+            await self.main_intent.send_notice(
+                self.mxid,
+                "Messages from non-logged-in users in this room will now be bridged "
+                "through the relaybot's Signal account.",
+            )
 
     async def handle_matrix_name(self, user: u.User, name: str) -> None:
         if self.name == name or self.is_direct or not name:
@@ -1756,10 +1758,14 @@ class Portal(DBPortal, BasePortal):
             self.mxid, (Membership.JOIN, Membership.INVITE)
         )
         invitee_addresses = []
+        relaybot_mxid = self.config["bridge.relay.relaybot"]
+        relaybot = None
         for mxid in user_mxids:
             mx_user = await u.User.get_by_mxid(mxid, create=False)
             if mx_user and mx_user.address and mx_user.username != source.username:
                 invitee_addresses.append(mx_user.address)
+                if mxid == relaybot_mxid != "@relaybot:example.com":
+                    relaybot = mx_user
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
                 invitee_addresses.append(puppet.address)
@@ -1787,6 +1793,8 @@ class Portal(DBPortal, BasePortal):
         await self.handle_matrix_join_rules(source, join_rule)
         await self.update()
         await self.update_bridge_info()
+        if relaybot:
+            await self._handle_relaybot_invited(relaybot)
 
     async def bridge_signal_group(
         self, source: u.User, levels: PowerLevelStateEventContent
