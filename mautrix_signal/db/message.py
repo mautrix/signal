@@ -16,15 +16,16 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
+from uuid import UUID
 
 from attr import dataclass
 import asyncpg
 
-from mausignald.types import Address, GroupID
+from mausignald.types import GroupID
 from mautrix.types import EventID, RoomID
 from mautrix.util.async_db import Database, Scheme
 
-from ..util import id_to_str
+from .util import ensure_uuid
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -35,9 +36,9 @@ class Message:
 
     mxid: EventID
     mx_room: RoomID
-    sender: Address
+    sender: UUID
     timestamp: int
-    signal_chat_id: GroupID | Address
+    signal_chat_id: GroupID | UUID
     signal_receiver: str
 
     async def insert(self) -> None:
@@ -49,9 +50,9 @@ class Message:
             q,
             self.mxid,
             self.mx_room,
-            self.sender.best_identifier,
+            self.sender,
             self.timestamp,
-            id_to_str(self.signal_chat_id),
+            self.signal_chat_id,
             self.signal_receiver,
         )
 
@@ -62,9 +63,9 @@ class Message:
         """
         await self.db.execute(
             q,
-            self.sender.best_identifier,
+            self.sender,
             self.timestamp,
-            id_to_str(self.signal_chat_id),
+            self.signal_chat_id,
             self.signal_receiver,
         )
 
@@ -73,12 +74,14 @@ class Message:
         await cls.db.execute("DELETE FROM message WHERE mx_room=$1", room_id)
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> Message:
+    def _from_row(cls, row: asyncpg.Record | None) -> Message | None:
+        if row is None:
+            return None
         data = {**row}
         chat_id = data.pop("signal_chat_id")
         if data["signal_receiver"]:
-            chat_id = Address.parse(chat_id)
-        sender = Address.parse(data.pop("sender"))
+            chat_id = ensure_uuid(chat_id)
+        sender = ensure_uuid(data.pop("sender"))
         return cls(signal_chat_id=chat_id, sender=sender, **data)
 
     @classmethod
@@ -87,29 +90,23 @@ class Message:
         SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
         WHERE mxid=$1 AND mx_room=$2
         """
-        row = await cls.db.fetchrow(q, mxid, mx_room)
-        if not row:
-            return None
-        return cls._from_row(row)
+        return cls._from_row(await cls.db.fetchrow(q, mxid, mx_room))
 
     @classmethod
     async def get_by_signal_id(
         cls,
-        sender: Address,
+        sender: UUID,
         timestamp: int,
-        signal_chat_id: GroupID | Address,
+        signal_chat_id: GroupID | UUID,
         signal_receiver: str = "",
     ) -> Message | None:
         q = """
         SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
         WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
         """
-        row = await cls.db.fetchrow(
-            q, sender.best_identifier, timestamp, id_to_str(signal_chat_id), signal_receiver
+        return cls._from_row(
+            await cls.db.fetchrow(q, sender, timestamp, signal_chat_id, signal_receiver)
         )
-        if not row:
-            return None
-        return cls._from_row(row)
 
     @classmethod
     async def find_by_timestamps(cls, timestamps: list[int]) -> list[Message]:
@@ -129,15 +126,12 @@ class Message:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def find_by_sender_timestamp(cls, sender: Address, timestamp: int) -> Message | None:
+    async def find_by_sender_timestamp(cls, sender: UUID, timestamp: int) -> Message | None:
         q = """
         SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
         WHERE sender=$1 AND timestamp=$2
         """
-        row = await cls.db.fetchrow(q, sender.best_identifier, timestamp)
-        if not row:
-            return None
-        return cls._from_row(row)
+        return cls._from_row(await cls.db.fetchrow(q, sender, timestamp))
 
     @classmethod
     async def get_first_before(cls, mx_room: RoomID, timestamp: int) -> Message | None:
@@ -147,7 +141,4 @@ class Message:
         ORDER BY timestamp DESC
         LIMIT 1
         """
-        row = await cls.db.fetchrow(q, mx_room, timestamp)
-        if not row:
-            return None
-        return cls._from_row(row)
+        return cls._from_row(await cls.db.fetchrow(q, mx_room, timestamp))

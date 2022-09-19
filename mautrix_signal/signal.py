@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Awaitable
+from uuid import UUID
 import asyncio
 import logging
 
@@ -67,7 +68,10 @@ class SignalHandler(SignaldClient):
         )
 
     async def on_message(self, evt: IncomingMessage) -> None:
-        sender = await pu.Puppet.get_by_address(evt.source)
+        sender = await pu.Puppet.get_by_address(evt.source, resolve_via=evt.account)
+        if not sender:
+            self.log.warning(f"Didn't find puppet for incoming message {evt.source}")
+            return
         user = await u.User.get_by_username(evt.account)
         # TODO add lots of logging
 
@@ -117,7 +121,11 @@ class SignalHandler(SignaldClient):
             f"{err.data.message}"
         )
 
-        sender = await pu.Puppet.get_by_address(Address.parse(err.data.sender))
+        sender = await pu.Puppet.get_by_address(
+            Address.parse(err.data.sender), resolve_via=err.account
+        )
+        if not sender:
+            return
         user = await u.User.get_by_username(err.account)
         portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
         if not portal or not portal.mxid:

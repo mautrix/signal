@@ -16,15 +16,16 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
+from uuid import UUID
 
 from attr import dataclass
 import asyncpg
 
-from mausignald.types import Address, GroupID
+from mausignald.types import GroupID
 from mautrix.types import EventID, RoomID
 from mautrix.util.async_db import Database
 
-from ..util import id_to_str
+from .util import ensure_uuid
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -35,11 +36,11 @@ class Reaction:
 
     mxid: EventID
     mx_room: RoomID
-    signal_chat_id: GroupID | Address
+    signal_chat_id: GroupID | UUID
     signal_receiver: str
-    msg_author: Address
+    msg_author: UUID
     msg_timestamp: int
-    author: Address
+    author: UUID
     emoji: str
 
     async def insert(self) -> None:
@@ -52,11 +53,11 @@ class Reaction:
             q,
             self.mxid,
             self.mx_room,
-            id_to_str(self.signal_chat_id),
+            self.signal_chat_id,
             self.signal_receiver,
-            self.msg_author.best_identifier,
+            self.msg_author,
             self.msg_timestamp,
-            self.author.best_identifier,
+            self.author,
             self.emoji,
         )
 
@@ -68,11 +69,11 @@ class Reaction:
             mxid,
             mx_room,
             emoji,
-            id_to_str(self.signal_chat_id),
+            self.signal_chat_id,
             self.signal_receiver,
-            self.msg_author.best_identifier,
+            self.msg_author,
             self.msg_timestamp,
-            self.author.best_identifier,
+            self.author,
         )
 
     async def delete(self) -> None:
@@ -82,21 +83,23 @@ class Reaction:
         )
         await self.db.execute(
             q,
-            id_to_str(self.signal_chat_id),
+            self.signal_chat_id,
             self.signal_receiver,
-            self.msg_author.best_identifier,
+            self.msg_author,
             self.msg_timestamp,
-            self.author.best_identifier,
+            self.author,
         )
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> Reaction:
+    def _from_row(cls, row: asyncpg.Record | None) -> Reaction | None:
+        if row is None:
+            return None
         data = {**row}
         chat_id = data.pop("signal_chat_id")
         if data["signal_receiver"]:
-            chat_id = Address.parse(chat_id)
-        msg_author = Address.parse(data.pop("msg_author"))
-        author = Address.parse(data.pop("author"))
+            chat_id = ensure_uuid(chat_id)
+        msg_author = ensure_uuid(data.pop("msg_author"))
+        author = ensure_uuid(data.pop("author"))
         return cls(signal_chat_id=chat_id, msg_author=msg_author, author=author, **data)
 
     @classmethod
@@ -106,19 +109,16 @@ class Reaction:
             "       msg_author, msg_timestamp, author, emoji "
             "FROM reaction WHERE mxid=$1 AND mx_room=$2"
         )
-        row = await cls.db.fetchrow(q, mxid, mx_room)
-        if not row:
-            return None
-        return cls._from_row(row)
+        return cls._from_row(await cls.db.fetchrow(q, mxid, mx_room))
 
     @classmethod
     async def get_by_signal_id(
         cls,
-        chat_id: GroupID | Address,
+        chat_id: GroupID | UUID,
         receiver: str,
-        msg_author: Address,
+        msg_author: UUID,
         msg_timestamp: int,
-        author: Address,
+        author: UUID,
     ) -> Reaction | None:
         q = (
             "SELECT mxid, mx_room, signal_chat_id, signal_receiver,"
@@ -126,14 +126,13 @@ class Reaction:
             "FROM reaction WHERE signal_chat_id=$1 AND signal_receiver=$2"
             "                    AND msg_author=$3 AND msg_timestamp=$4 AND author=$5"
         )
-        row = await cls.db.fetchrow(
-            q,
-            id_to_str(chat_id),
-            receiver,
-            msg_author.best_identifier,
-            msg_timestamp,
-            author.best_identifier,
+        return cls._from_row(
+            await cls.db.fetchrow(
+                q,
+                chat_id,
+                receiver,
+                msg_author,
+                msg_timestamp,
+                author,
+            )
         )
-        if not row:
-            return None
-        return cls._from_row(row)

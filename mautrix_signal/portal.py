@@ -97,7 +97,6 @@ from .db import (
     Reaction as DBReaction,
 )
 from .formatter import matrix_to_signal, signal_to_matrix
-from .util import id_to_str
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -144,15 +143,15 @@ class Portal(DBPortal, BasePortal):
 
     _main_intent: IntentAPI | None
     _create_room_lock: asyncio.Lock
-    _msgts_dedup: deque[tuple[Address, int]]
-    _reaction_dedup: deque[tuple[Address, int, str, Address, bool]]
+    _msgts_dedup: deque[tuple[UUID, int]]
+    _reaction_dedup: deque[tuple[UUID, int, str, UUID, bool]]
     _reaction_lock: asyncio.Lock
     _pending_members: set[UUID] | None
     _expiration_lock: asyncio.Lock
 
     def __init__(
         self,
-        chat_id: GroupID | Address,
+        chat_id: GroupID | UUID,
         receiver: str,
         mxid: RoomID | None = None,
         name: str | None = None,
@@ -201,21 +200,11 @@ class Portal(DBPortal, BasePortal):
 
     @property
     def is_direct(self) -> bool:
-        return isinstance(self.chat_id, Address)
+        return isinstance(self.chat_id, UUID)
 
     @property
     def disappearing_enabled(self) -> bool:
         return self.is_direct or self.config["signal.enable_disappearing_messages_in_groups"]
-
-    def handle_uuid_receive(self, uuid: UUID) -> None:
-        if not self.is_direct or self.chat_id.uuid:
-            raise ValueError(
-                "handle_uuid_receive can only be used for private chat portals with a phone "
-                "number chat_id"
-            )
-        del self.by_chat_id[(self.chat_id_str, self.receiver)]
-        self.chat_id = Address(uuid=uuid)
-        self.by_chat_id[(self.chat_id_str, self.receiver)] = self
 
     @classmethod
     def init_cls(cls, bridge: "SignalBridge") -> None:
@@ -265,7 +254,7 @@ class Portal(DBPortal, BasePortal):
                 signal_receiver=self.receiver,
                 msg_author=message.sender,
                 msg_timestamp=message.timestamp,
-                author=sender.address,
+                author=sender.uuid,
             ).insert()
 
     # endregion
@@ -426,14 +415,14 @@ class Portal(DBPortal, BasePortal):
             await self.apply_relay_message_format(orig_sender, message)
 
         request_id = int(time.time() * 1000)
-        self._msgts_dedup.appendleft((sender.address, request_id))
+        self._msgts_dedup.appendleft((sender.uuid, request_id))
 
         quote = None
         if message.get_reply_to():
             reply = await DBMessage.get_by_mxid(message.get_reply_to(), self.mxid)
             # TODO include actual text? either store in db or fetch event from homeserver
             if reply is not None:
-                quote = Quote(id=reply.timestamp, author=reply.sender, text="")
+                quote = Quote(id=reply.timestamp, author=Address(uuid=reply.sender), text="")
                 # TODO only send this when it's actually a reply to an attachment?
                 #      Neither Signal Android nor iOS seem to care though, so this works too
                 quote.attachments = [QuotedAttachment("", "")]
@@ -445,8 +434,11 @@ class Portal(DBPortal, BasePortal):
         if message.msgtype.is_text:
             text, mentions = await matrix_to_signal(message)
             message_previews = message.get(BEEPER_LINK_PREVIEWS_KEY, [])
-            potential_link_previews = await asyncio.gather(
-                *(self._beeper_link_preview_to_signal(m) for m in message_previews)
+            potential_link_previews = cast(
+                list[LinkPreview | None],
+                await asyncio.gather(
+                    *(self._beeper_link_preview_to_signal(m) for m in message_previews)
+                ),
             )
             link_previews = [p for p in potential_link_previews if p is not None]
         elif message.msgtype.is_media:
@@ -504,7 +496,7 @@ class Portal(DBPortal, BasePortal):
         msg = DBMessage(
             mxid=event_id,
             mx_room=self.mxid,
-            sender=sender.address,
+            sender=sender.uuid,
             timestamp=request_id,
             signal_chat_id=self.chat_id,
             signal_receiver=self.receiver,
@@ -643,18 +635,18 @@ class Portal(DBPortal, BasePortal):
 
         async with self._reaction_lock:
             existing = await DBReaction.get_by_signal_id(
-                self.chat_id, self.receiver, message.sender, message.timestamp, sender.address
+                self.chat_id, self.receiver, message.sender, message.timestamp, sender.uuid
             )
             if existing and existing.emoji == emoji:
                 return
 
-            dedup_id = (message.sender, message.timestamp, emoji, sender.address, False)
+            dedup_id = (message.sender, message.timestamp, emoji, sender.uuid, False)
             self._reaction_dedup.appendleft(dedup_id)
 
             reaction = Reaction(
                 emoji=emoji,
                 remove=False,
-                target_author=message.sender,
+                target_author=Address(uuid=message.sender),
                 target_sent_timestamp=message.timestamp,
             )
             self.log.trace(f"{sender.mxid} reacted to {message.timestamp} with {emoji}")
@@ -713,7 +705,7 @@ class Portal(DBPortal, BasePortal):
                 remove_reaction = Reaction(
                     emoji=reaction.emoji,
                     remove=True,
-                    target_author=reaction.msg_author,
+                    target_author=Address(uuid=reaction.msg_author),
                     target_sent_timestamp=reaction.msg_timestamp,
                 )
                 await self.signal.react(
@@ -825,7 +817,7 @@ class Portal(DBPortal, BasePortal):
             is_banned = False
             if info.banned_members:
                 for member in info.banned_members:
-                    is_banned = user.address.uuid == member.uuid or is_banned
+                    is_banned = user.uuid == member.uuid or is_banned
             if not is_banned:
                 await self.main_intent.unban_user(
                     self.mxid, user.mxid, reason=f"Failed to ban Signal user: {e}"
@@ -846,7 +838,7 @@ class Portal(DBPortal, BasePortal):
             info = await self.signal.get_group(source.username, self.chat_id)
             if info.banned_members:
                 for member in info.banned_members:
-                    if member.uuid == user.address.uuid:
+                    if member.uuid == user.uuid:
                         await self.main_intent.ban_user(
                             self.mxid, user.mxid, reason=f"Failed to unban Signal user: {e}"
                         )
@@ -984,18 +976,18 @@ class Portal(DBPortal, BasePortal):
                     changes[user] = levels.users_default
         if changes:
             for user, level in changes.items():
-                address = p.Puppet.get_id_from_mxid(user)
-                if not address:
+                uuid = p.Puppet.get_id_from_mxid(user)
+                if not uuid:
                     mx_user = await u.User.get_by_mxid(user, create=False)
                     if not mx_user or not mx_user.is_logged_in:
                         continue
-                    address = mx_user.address
-                if not address or not address.uuid:
+                    uuid = mx_user.uuid
+                if not uuid:
                     continue
                 signal_role = (
                     GroupMemberRole.DEFAULT if level < 50 else GroupMemberRole.ADMINISTRATOR
                 )
-                group_member = GroupMember(uuid=address.uuid, role=signal_role)
+                group_member = GroupMember(uuid=uuid, role=signal_role)
                 try:
                     update_meta = await self.signal.update_group(
                         sender.username, self.chat_id, update_role=group_member
@@ -1080,18 +1072,15 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Signal event handling
 
-    @staticmethod
-    async def _resolve_address(address: Address) -> Address:
-        puppet = await p.Puppet.get_by_address(address, create=False)
-        return puppet.address
-
     async def _find_quote_event_id(self, quote: Quote | None) -> MessageEvent | EventID | None:
         if not quote:
             return None
 
-        author_address = await self._resolve_address(quote.author)
+        puppet = await p.Puppet.get_by_address(quote.author, create=False)
+        if not puppet:
+            return None
         reply_msg = await DBMessage.get_by_signal_id(
-            author_address, quote.id, self.chat_id, self.receiver
+            puppet.uuid, quote.id, self.chat_id, self.receiver
         )
         if not reply_msg:
             return None
@@ -1148,7 +1137,7 @@ class Portal(DBPortal, BasePortal):
     async def handle_signal_message(
         self, source: u.User, sender: p.Puppet, message: MessageData
     ) -> None:
-        if (sender.address, message.timestamp) in self._msgts_dedup:
+        if (sender.uuid, message.timestamp) in self._msgts_dedup:
             self.log.debug(
                 f"Ignoring message {message.timestamp} by {sender.uuid} as it was already handled "
                 "(message.timestamp in dedup queue)"
@@ -1157,9 +1146,9 @@ class Portal(DBPortal, BasePortal):
                 source.username, sender.address, timestamps=[message.timestamp]
             )
             return
-        self._msgts_dedup.appendleft((sender.address, message.timestamp))
+        self._msgts_dedup.appendleft((sender.uuid, message.timestamp))
         old_message = await DBMessage.get_by_signal_id(
-            sender.address, message.timestamp, self.chat_id, self.receiver
+            sender.uuid, message.timestamp, self.chat_id, self.receiver
         )
         if old_message is not None:
             self.log.debug(
@@ -1258,7 +1247,7 @@ class Portal(DBPortal, BasePortal):
             msg = DBMessage(
                 mxid=event_id,
                 mx_room=self.mxid,
-                sender=sender.address,
+                sender=sender.uuid,
                 timestamp=message.timestamp,
                 signal_chat_id=self.chat_id,
                 signal_receiver=self.receiver,
@@ -1289,6 +1278,9 @@ class Portal(DBPortal, BasePortal):
         else:
             return
         editor = await p.Puppet.get_by_address(group_change.editor)
+        if not editor:
+            self.log.warning(f"Didn't get puppet for group change editor {group_change.editor}")
+            return
         editor_intent = editor.intent_for(self)
         if (
             group_change.delete_members
@@ -1316,7 +1308,7 @@ class Portal(DBPortal, BasePortal):
             levels = await editor.intent_for(self).get_power_levels(self.mxid)
             for group_member in group_change.modify_member_roles:
                 users = [
-                    await p.Puppet.get_by_address(group_member.address),
+                    await p.Puppet.get_by_uuid(group_member.uuid),
                     await u.User.get_by_uuid(group_member.uuid),
                 ]
                 for user in users:
@@ -1337,7 +1329,7 @@ class Portal(DBPortal, BasePortal):
         if group_change.new_banned_members:
             for banned_member in group_change.new_banned_members:
                 users = [
-                    await p.Puppet.get_by_address(banned_member.address),
+                    await p.Puppet.get_by_uuid(banned_member.uuid),
                     await u.User.get_by_uuid(banned_member.uuid),
                 ]
                 for user in users:
@@ -1358,7 +1350,7 @@ class Portal(DBPortal, BasePortal):
         if group_change.new_unbanned_members:
             for banned_member in group_change.new_unbanned_members:
                 users = [
-                    await p.Puppet.get_by_address(banned_member.address),
+                    await p.Puppet.get_by_uuid(banned_member.uuid),
                     await u.User.get_by_uuid(banned_member.uuid),
                 ]
                 for user in users:
@@ -1387,7 +1379,7 @@ class Portal(DBPortal, BasePortal):
                 + (group_change.new_pending_members or [])
                 + (group_change.promote_requesting_members or [])
             ):
-                puppet = await p.Puppet.get_by_address(group_member.address)
+                puppet = await p.Puppet.get_by_uuid(group_member.uuid)
                 await source.sync_contact(group_member.address)
                 users = [puppet, await u.User.get_by_uuid(group_member.uuid)]
                 for user in users:
@@ -1422,7 +1414,7 @@ class Portal(DBPortal, BasePortal):
         if group_change.promote_pending_members:
             for group_member in group_change.promote_pending_members:
                 await source.sync_contact(group_member.address)
-                user = await p.Puppet.get_by_address(group_member.address)
+                user = await p.Puppet.get_by_uuid(group_member.uuid)
                 if not user:
                     continue
                 try:
@@ -1438,7 +1430,7 @@ class Portal(DBPortal, BasePortal):
                     self.log.debug(
                         f"Profile of puppet with uuid {group_member.uuid} is unavailable"
                     )
-                user = await p.Puppet.get_by_address(group_member.address)
+                user = await p.Puppet.get_by_uuid(group_member.uuid)
                 try:
                     await user.intent_for(self).knock_room(self.mxid, reason="via invite link")
                 except (MForbidden, MBadState) as e:
@@ -1699,16 +1691,24 @@ class Portal(DBPortal, BasePortal):
     async def handle_signal_reaction(
         self, sender: p.Puppet, reaction: Reaction, timestamp: int
     ) -> None:
-        author_address = await self._resolve_address(reaction.target_author)
+        author_puppet = await p.Puppet.get_by_address(reaction.target_author, create=False)
+        if not author_puppet:
+            return None
         target_id = reaction.target_sent_timestamp
         async with self._reaction_lock:
-            dedup_id = (author_address, target_id, reaction.emoji, sender.address, reaction.remove)
+            dedup_id = (
+                author_puppet.uuid,
+                target_id,
+                reaction.emoji,
+                sender.uuid,
+                reaction.remove,
+            )
             if dedup_id in self._reaction_dedup:
                 return
             self._reaction_dedup.appendleft(dedup_id)
 
         existing = await DBReaction.get_by_signal_id(
-            self.chat_id, self.receiver, author_address, target_id, sender.address
+            self.chat_id, self.receiver, author_puppet.uuid, target_id, sender.uuid
         )
 
         if reaction.remove:
@@ -1724,7 +1724,7 @@ class Portal(DBPortal, BasePortal):
             return
 
         message = await DBMessage.get_by_signal_id(
-            author_address, target_id, self.chat_id, self.receiver
+            author_puppet.uuid, target_id, self.chat_id, self.receiver
         )
         if not message:
             self.log.debug(f"Ignoring reaction to unknown message {target_id}")
@@ -1733,12 +1733,12 @@ class Portal(DBPortal, BasePortal):
         intent = sender.intent_for(self)
         matrix_emoji = variation_selector.add(reaction.emoji)
         mxid = await intent.react(message.mx_room, message.mxid, matrix_emoji, timestamp=timestamp)
-        self.log.debug(f"{sender.address} reacted to {message.mxid} -> {mxid}")
+        self.log.debug(f"{sender.uuid} reacted to {message.mxid} -> {mxid}")
         await self._upsert_reaction(existing, intent, mxid, sender, message, reaction.emoji)
 
     async def handle_signal_delete(self, sender: p.Puppet, message_ts: int) -> None:
         message = await DBMessage.get_by_signal_id(
-            sender.address, message_ts, self.chat_id, self.receiver
+            sender.uuid, message_ts, self.chat_id, self.receiver
         )
         if not message:
             return
@@ -1888,7 +1888,7 @@ class Portal(DBPortal, BasePortal):
     async def get_dm_puppet(self) -> p.Puppet | None:
         if not self.is_direct:
             return None
-        return await p.Puppet.get_by_address(self.chat_id)
+        return await p.Puppet.get_by_uuid(self.chat_id)
 
     async def update_info_from_puppet(self, puppet: p.Puppet | None = None) -> None:
         if not self.is_direct:
@@ -2023,9 +2023,12 @@ class Portal(DBPortal, BasePortal):
                 try:
                     await self.main_intent.invite_user(self.mxid, user.mxid, check_cache=True)
                 except (MForbidden, IntentError, MBadState) as e:
-                    self.log.debug(f"could not invite {user.mxid}: {e}")
+                    self.log.debug(f"Failed to invite {user.mxid}: {e}")
 
             puppet = await p.Puppet.get_by_address(address)
+            if not puppet:
+                self.log.warning(f"Didn't find puppet for member {address}")
+                continue
             try:
                 await source.sync_contact(address)
             except ProfileUnavailableError:
@@ -2036,7 +2039,7 @@ class Portal(DBPortal, BasePortal):
                 )
             except (MForbidden, IntentError, MBadState) as e:
                 self.log.debug(f"could not invite {user.mxid}: {e}")
-            if not address.uuid in self._pending_members:
+            if address.uuid not in self._pending_members:
                 await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
 
@@ -2245,7 +2248,7 @@ class Portal(DBPortal, BasePortal):
             if isinstance(info, GroupV2):
                 ac = info.access_control
                 for detail in info.member_detail + info.pending_member_detail:
-                    puppet = await p.Puppet.get_by_address(Address(uuid=detail.uuid))
+                    puppet = await p.Puppet.get_by_uuid(detail.uuid)
                     puppet_mxid = puppet.intent_for(self).mxid
                     current_level = levels.get_user_level(puppet_mxid)
                     if bot_pl > current_level and bot_pl >= 50:
@@ -2324,7 +2327,7 @@ class Portal(DBPortal, BasePortal):
             )
             if self.is_direct:
                 invites.append(self.az.bot_mxid)
-        if self.is_direct and source.address == self.chat_id:
+        if self.is_direct and source.uuid == self.chat_id:
             name = self.name = "Signal Note to Self"
         elif self.encrypted or self.private_chat_portal_meta or not self.is_direct:
             name = self.name
@@ -2416,7 +2419,7 @@ class Portal(DBPortal, BasePortal):
         return cls._db_to_portals(super().all_with_room())
 
     @classmethod
-    def find_private_chats_with(cls, other_user: Address) -> AsyncGenerator[Portal, None]:
+    def find_private_chats_with(cls, other_user: UUID) -> AsyncGenerator[Portal, None]:
         return cls._db_to_portals(super().find_private_chats_with(other_user))
 
     @classmethod
@@ -2431,7 +2434,7 @@ class Portal(DBPortal, BasePortal):
 
     @classmethod
     @async_getter_lock
-    async def get_by_mxid(cls, mxid: RoomID) -> Portal | None:
+    async def get_by_mxid(cls, mxid: RoomID, /) -> Portal | None:
         try:
             return cls.by_mxid[mxid]
         except KeyError:
@@ -2445,28 +2448,19 @@ class Portal(DBPortal, BasePortal):
         return None
 
     @classmethod
+    @async_getter_lock
     async def get_by_chat_id(
-        cls, chat_id: GroupID | Address, *, receiver: str = "", create: bool = False
+        cls, chat_id: GroupID | UUID, receiver: str = "", /, *, create: bool
     ) -> Portal | None:
         if isinstance(chat_id, str):
             receiver = ""
-        elif not isinstance(chat_id, Address):
+        elif not isinstance(chat_id, UUID):
             raise ValueError(f"Invalid chat ID type {type(chat_id)}")
         elif not receiver:
             raise ValueError("Direct chats must have a receiver")
-        best_id = id_to_str(chat_id)
-        portal = await cls._get_by_chat_id(best_id, receiver, create=create, chat_id=chat_id)
-        if portal:
-            portal.log.debug(f"get_by_chat_id({chat_id}, {receiver}) -> {hex(id(portal))}")
-        return portal
 
-    @classmethod
-    @async_getter_lock
-    async def _get_by_chat_id(
-        cls, best_id: str, receiver: str, *, create: bool, chat_id: GroupID | Address
-    ) -> Portal | None:
         try:
-            return cls.by_chat_id[(best_id, receiver)]
+            return cls.by_chat_id[(str(chat_id), receiver)]
         except KeyError:
             pass
 

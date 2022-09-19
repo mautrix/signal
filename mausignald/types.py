@@ -16,8 +16,8 @@ GroupID = NewType("GroupID", str)
 
 @dataclass(frozen=True, eq=False)
 class Address(SerializableAttrs):
-    number: Optional[str] = None
     uuid: Optional[UUID] = None
+    number: Optional[str] = None
 
     @property
     def is_valid(self) -> bool:

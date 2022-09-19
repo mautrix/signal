@@ -369,7 +369,7 @@ class ProvisioningAPI:
 
         async def transform(profile: Profile) -> JSON:
             assert profile.address
-            puppet = await pu.Puppet.get_by_address(profile.address, False)
+            puppet = await pu.Puppet.get_by_address(profile.address, create=False)
             avatar_url = puppet.avatar_url if puppet else None
             return {
                 "name": profile.name,
@@ -394,20 +394,22 @@ class ProvisioningAPI:
         except Exception as e:
             raise web.HTTPBadRequest(text=json.dumps({"error": str(e)}), headers=self._headers)
 
-        puppet: pu.Puppet = await pu.Puppet.get_by_address(Address(number=number))
-        assert puppet, "Puppet.get_by_address with create=True can't return None"
-        if not puppet.uuid:
-            try:
-                uuid = await self.bridge.signal.find_uuid(user.username, puppet.number)
-                if uuid:
-                    await puppet.handle_uuid_receive(uuid)
-            except UnregisteredUserError:
-                error = {"error": f"The phone number {number} is not a registered Signal account"}
-                raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
-            except Exception:
-                self.log.exception(f"Unknown error fetching UUID for {puppet.number}")
-                error = {"error": "Unknown error while fetching UUID"}
-                raise web.HTTPInternalServerError(text=json.dumps(error), headers=self._headers)
+        try:
+            puppet: pu.Puppet = await pu.Puppet.get_by_number(number, raise_resolve=True)
+        except UnregisteredUserError:
+            error = {"error": f"The phone number {number} is not a registered Signal account"}
+            raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
+        except Exception:
+            self.log.exception(f"Unknown error fetching UUID for {puppet.number}")
+            error = {"error": "Unknown error while fetching UUID"}
+            raise web.HTTPInternalServerError(text=json.dumps(error), headers=self._headers)
+        if not puppet:
+            error = {
+                "error": (
+                    f"The phone number {number} doesn't seem to be a registered Signal account"
+                )
+            }
+            raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
         return puppet
 
     async def start_pm(self, request: web.Request) -> web.Response:

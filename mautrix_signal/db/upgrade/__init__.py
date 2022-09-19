@@ -13,4 +13,5 @@ from . import (
     v08_disappearing_messages,
     v09_group_topic,
     v10_puppet_name_quality,
+    v11_drop_number_support,
 )

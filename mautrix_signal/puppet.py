@@ -23,6 +23,7 @@ import os.path
 
 from yarl import URL
 
+from mausignald.errors import UnregisteredUserError
 from mausignald.types import Address, Profile
 from mautrix.appservice import IntentAPI
 from mautrix.bridge import BasePuppet, async_getter_lock
@@ -37,7 +38,7 @@ from mautrix.types import (
 )
 from mautrix.util.simple_template import SimpleTemplate
 
-from . import portal as p, user as u
+from . import portal as p, signal, user as u
 from .config import Config
 from .db import Puppet as DBPuppet
 
@@ -58,6 +59,7 @@ class Puppet(DBPuppet, BasePuppet):
     mxid_template: SimpleTemplate[str]
 
     config: Config
+    signal: signal.SignalHandler
 
     default_mxid_intent: IntentAPI
     default_mxid: UserID
@@ -67,7 +69,7 @@ class Puppet(DBPuppet, BasePuppet):
 
     def __init__(
         self,
-        uuid: UUID | None,
+        uuid: UUID,
         number: str | None,
         name: str | None = None,
         name_quality: int = 0,
@@ -75,13 +77,14 @@ class Puppet(DBPuppet, BasePuppet):
         avatar_hash: str | None = None,
         name_set: bool = False,
         avatar_set: bool = False,
-        uuid_registered: bool = False,
-        number_registered: bool = False,
+        is_registered: bool = False,
         custom_mxid: UserID | None = None,
         access_token: str | None = None,
         next_batch: SyncToken | None = None,
         base_url: URL | None = None,
     ) -> None:
+        assert uuid, "UUID must be set for ghosts"
+        assert isinstance(uuid, UUID)
         super().__init__(
             uuid=uuid,
             number=number,
@@ -91,8 +94,7 @@ class Puppet(DBPuppet, BasePuppet):
             avatar_hash=avatar_hash,
             name_set=name_set,
             avatar_set=avatar_set,
-            uuid_registered=uuid_registered,
-            number_registered=number_registered,
+            is_registered=is_registered,
             custom_mxid=custom_mxid,
             access_token=access_token,
             next_batch=next_batch,
@@ -100,7 +102,7 @@ class Puppet(DBPuppet, BasePuppet):
         )
         self.log = self.log.getChild(str(uuid) if uuid else number)
 
-        self.default_mxid = self.get_mxid_from_id(self.address)
+        self.default_mxid = self.get_mxid_from_id(self.uuid)
         self.default_mxid_intent = self.az.intent.user(self.default_mxid)
         self.intent = self._fresh_intent()
 
@@ -111,6 +113,7 @@ class Puppet(DBPuppet, BasePuppet):
     def init_cls(cls, bridge: "SignalBridge") -> AsyncIterable[Awaitable[None]]:
         cls.config = bridge.config
         cls.loop = bridge.loop
+        cls.signal = bridge.signal
         cls.mx = bridge.matrix
         cls.az = bridge.az
         cls.hs_domain = cls.config["homeserver.domain"]
@@ -141,26 +144,8 @@ class Puppet(DBPuppet, BasePuppet):
         return self.intent
 
     @property
-    def is_registered(self) -> bool:
-        return self.uuid_registered if self.uuid is not None else self.number_registered
-
-    @is_registered.setter
-    def is_registered(self, value: bool) -> None:
-        if self.uuid is not None:
-            self.uuid_registered = value
-        else:
-            self.number_registered = value
-
-    @property
     def address(self) -> Address:
         return Address(uuid=self.uuid, number=self.number)
-
-    async def handle_uuid_receive(self, uuid: UUID) -> None:
-        async with self._uuid_lock:
-            if self.uuid:
-                # Received UUID was handled while this call was waiting
-                return
-            await self._handle_uuid_receive(uuid)
 
     async def handle_number_receive(self, number: str) -> None:
         async with self._uuid_lock:
@@ -171,36 +156,6 @@ class Puppet(DBPuppet, BasePuppet):
             self.number = number
             self.by_number[self.number] = self
             await self._set_number(number)
-            async for portal in p.Portal.find_private_chats_with(Address(number=number)):
-                self.log.trace(f"Updating chat_id of private chat portal {portal.receiver}")
-                portal.handle_uuid_receive(self.uuid)
-            prev_mxid = self.get_mxid_from_id(Address(number=number))
-            if await self.az.state_store.is_registered(prev_mxid):
-                prev_intent = self.az.intent.user(prev_mxid)
-                await self._migrate_memberships(prev_intent, self.default_mxid_intent)
-
-    async def _handle_uuid_receive(self, uuid: UUID) -> None:
-        self.log.debug(f"Found UUID for user: {uuid}")
-        user = await u.User.get_by_username(self.number)
-        if user and not user.uuid:
-            user.uuid = self.uuid
-            user.by_uuid[user.uuid] = user
-            await user.update()
-        self.uuid = uuid
-        self.by_uuid[self.uuid] = self
-        await self._set_uuid(uuid)
-        async for portal in p.Portal.find_private_chats_with(Address(number=self.number)):
-            self.log.trace(f"Updating chat_id of private chat portal {portal.receiver}")
-            portal.handle_uuid_receive(self.uuid)
-        prev_intent = self.default_mxid_intent
-        self.default_mxid = self.get_mxid_from_id(self.address)
-        self.default_mxid_intent = self.az.intent.user(self.default_mxid)
-        self.intent = self._fresh_intent()
-        await self.default_mxid_intent.ensure_registered()
-        if self.name:
-            await self.default_mxid_intent.set_displayname(self.name)
-        self.log = Puppet.log.getChild(str(uuid))
-        await self._migrate_memberships(prev_intent, self.default_mxid_intent)
 
     async def _migrate_memberships(self, prev_intent: IntentAPI, new_intent: IntentAPI) -> None:
         self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {new_intent.mxid}")
@@ -235,8 +190,6 @@ class Puppet(DBPuppet, BasePuppet):
     async def update_info(self, info: Profile | Address, source: u.User) -> None:
         update = False
         address = info.address if isinstance(info, Profile) else info
-        if address.uuid and not self.uuid:
-            await self.handle_uuid_receive(address.uuid)
         if address.number and address.number != self.number:
             await self.handle_number_receive(address.number)
             update = True
@@ -362,7 +315,7 @@ class Puppet(DBPuppet, BasePuppet):
         return True
 
     async def _update_portal_meta(self) -> None:
-        async for portal in p.Portal.find_private_chats_with(self.address):
+        async for portal in p.Portal.find_private_chats_with(self.uuid):
             if portal.receiver == self.number:
                 # This is a note to self chat, don't change the name
                 continue
@@ -376,20 +329,13 @@ class Puppet(DBPuppet, BasePuppet):
 
     async def default_puppet_should_leave_room(self, room_id: RoomID) -> bool:
         portal: p.Portal = await p.Portal.get_by_mxid(room_id)
-        if not portal or not portal.is_direct:
-            return True
-        elif portal.chat_id.uuid and self.uuid:
-            return portal.chat_id.uuid != self.uuid
-        elif portal.chat_id.number and self.number:
-            return portal.chat_id.number != self.number
-        else:
-            return True
+        # Leave all portals except the notes to self room
+        return not (portal and portal.is_direct and portal.chat_id.uuid == self.uuid)
 
     # region Database getters
 
     def _add_to_cache(self) -> None:
-        if self.uuid:
-            self.by_uuid[self.uuid] = self
+        self.by_uuid[self.uuid] = self
         if self.number:
             self.by_number[self.number] = self
         if self.custom_mxid:
@@ -400,10 +346,10 @@ class Puppet(DBPuppet, BasePuppet):
 
     @classmethod
     async def get_by_mxid(cls, mxid: UserID, create: bool = True) -> Puppet | None:
-        address = cls.get_id_from_mxid(mxid)
-        if not address:
+        uuid = cls.get_id_from_mxid(mxid)
+        if not uuid:
             return None
-        return await cls.get_by_address(address, create)
+        return await cls.get_by_uuid(uuid, create=create)
 
     @classmethod
     @async_getter_lock
@@ -421,59 +367,90 @@ class Puppet(DBPuppet, BasePuppet):
         return None
 
     @classmethod
-    def get_id_from_mxid(cls, mxid: UserID) -> Address | None:
+    def get_id_from_mxid(cls, mxid: UserID) -> UUID | None:
         identifier = cls.mxid_template.parse(mxid)
         if not identifier:
             return None
-        if identifier.startswith("phone_"):
-            return Address(number="+" + identifier[len("phone_") :])
-        else:
-            try:
-                return Address(uuid=UUID(identifier.upper()))
-            except ValueError:
-                return None
+        try:
+            return UUID(identifier.upper())
+        except ValueError:
+            return None
 
     @classmethod
-    def get_mxid_from_id(cls, address: Address) -> UserID:
-        if address.uuid:
-            identifier = str(address.uuid).lower()
-        elif address.number:
-            identifier = f"phone_{address.number.lstrip('+')}"
-        else:
-            raise ValueError("Empty address")
-        return UserID(cls.mxid_template.format_full(identifier))
+    def get_mxid_from_id(cls, uuid: UUID) -> UserID:
+        return UserID(cls.mxid_template.format_full(str(uuid).lower()))
 
     @classmethod
     @async_getter_lock
-    async def get_by_address(cls, address: Address, create: bool = True) -> Puppet | None:
-        puppet = await cls._get_by_address(address, create)
-        if puppet and address.uuid and not puppet.uuid:
-            # We found a UUID for this user, store it ASAP
-            await puppet.handle_uuid_receive(address.uuid)
-        return puppet
+    async def get_by_number(
+        cls, number: str, /, *, resolve_via: str | None = None, raise_resolve: bool = False
+    ) -> Puppet | None:
+        try:
+            return cls.by_number[number]
+        except KeyError:
+            pass
+
+        puppet = cast(cls, await super().get_by_number(number))
+        if puppet is not None:
+            puppet._add_to_cache()
+            return puppet
+
+        if resolve_via:
+            cls.log.debug(
+                f"Couldn't find puppet with number {number}, resolving UUID via {resolve_via}"
+            )
+            try:
+                uuid = await cls.signal.find_uuid(resolve_via, number)
+            except UnregisteredUserError:
+                if raise_resolve:
+                    raise
+                cls.log.debug(f"Resolving {number} via {resolve_via} threw UnregisteredUserError")
+                return None
+            except Exception:
+                if raise_resolve:
+                    raise
+                cls.log.exception(f"Failed to resolve {number} via {resolve_via}")
+                return None
+            if uuid:
+                cls.log.debug(f"Found {uuid} for {number} after resolving via {resolve_via}")
+                return await cls.get_by_uuid(uuid, number=number)
+            else:
+                cls.log.debug(f"Didn't find UUID for {number} via {resolve_via}")
+
+        return None
 
     @classmethod
-    async def _get_by_address(cls, address: Address, create: bool = True) -> Puppet | None:
-        if not address.is_valid:
-            raise ValueError("Empty address")
-        if address.uuid:
-            try:
-                return cls.by_uuid[address.uuid]
-            except KeyError:
-                pass
-        if address.number:
-            try:
-                return cls.by_number[address.number]
-            except KeyError:
-                pass
+    async def get_by_address(
+        cls,
+        address: Address,
+        create: bool = True,
+        resolve_via: str | None = None,
+        raise_resolve: bool = False,
+    ) -> Puppet | None:
+        if not address.uuid:
+            return await cls.get_by_number(
+                address.number, resolve_via=resolve_via, raise_resolve=raise_resolve
+            )
+        else:
+            return await cls.get_by_uuid(address.uuid, create=create, number=address.number)
 
-        puppet = cast(cls, await super().get_by_address(address))
+    @classmethod
+    @async_getter_lock
+    async def get_by_uuid(
+        cls, uuid: UUID, /, *, create: bool = True, number: str | None = None
+    ) -> Puppet | None:
+        try:
+            return cls.by_uuid[uuid]
+        except KeyError:
+            pass
+
+        puppet = cast(cls, await super().get_by_uuid(uuid))
         if puppet is not None:
             puppet._add_to_cache()
             return puppet
 
         if create:
-            puppet = cls(address.uuid, address.number)
+            puppet = cls(uuid, number)
             await puppet.insert()
             puppet._add_to_cache()
             return puppet
@@ -488,10 +465,7 @@ class Puppet(DBPuppet, BasePuppet):
             try:
                 yield cls.by_uuid[puppet.uuid]
             except KeyError:
-                try:
-                    yield cls.by_number[puppet.number]
-                except KeyError:
-                    puppet._add_to_cache()
-                    yield puppet
+                puppet._add_to_cache()
+                yield puppet
 
     # endregion

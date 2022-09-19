@@ -18,7 +18,7 @@ from mautrix.util.async_db import Connection
 from . import upgrade_table
 
 
-@upgrade_table.register(description="Initial revision", upgrades_to=10)
+@upgrade_table.register(description="Initial revision", upgrades_to=11)
 async def upgrade_latest(conn: Connection) -> None:
     await conn.execute(
         """CREATE TABLE portal (
@@ -49,7 +49,7 @@ async def upgrade_latest(conn: Connection) -> None:
     )
     await conn.execute(
         """CREATE TABLE puppet (
-            uuid         UUID UNIQUE,
+            uuid         UUID PRIMARY KEY,
             number       TEXT UNIQUE,
             name         TEXT,
             name_quality INTEGER NOT NULL DEFAULT 0,
@@ -58,8 +58,7 @@ async def upgrade_latest(conn: Connection) -> None:
             name_set     BOOLEAN NOT NULL DEFAULT false,
             avatar_set   BOOLEAN NOT NULL DEFAULT false,
 
-            uuid_registered   BOOLEAN NOT NULL DEFAULT false,
-            number_registered BOOLEAN NOT NULL DEFAULT false,
+            is_registered BOOLEAN NOT NULL DEFAULT false,
 
             custom_mxid  TEXT,
             access_token TEXT,
@@ -82,14 +81,14 @@ async def upgrade_latest(conn: Connection) -> None:
         """CREATE TABLE message (
             mxid    TEXT NOT NULL,
             mx_room TEXT NOT NULL,
-            sender          TEXT,
+            sender          UUID,
             timestamp       BIGINT,
             signal_chat_id  TEXT,
             signal_receiver TEXT,
 
             PRIMARY KEY (sender, timestamp, signal_chat_id, signal_receiver),
-            FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver)
-                ON UPDATE CASCADE ON DELETE CASCADE,
+            FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver) ON DELETE CASCADE,
+            FOREIGN KEY (sender) REFERENCES puppet(uuid) ON DELETE CASCADE,
             UNIQUE (mxid, mx_room)
         )"""
     )
@@ -100,16 +99,18 @@ async def upgrade_latest(conn: Connection) -> None:
 
             signal_chat_id  TEXT   NOT NULL,
             signal_receiver TEXT   NOT NULL,
-            msg_author      TEXT   NOT NULL,
+            msg_author      UUID   NOT NULL,
             msg_timestamp   BIGINT NOT NULL,
-            author          TEXT   NOT NULL,
+            author          UUID   NOT NULL,
 
             emoji TEXT NOT NULL,
 
             PRIMARY KEY (signal_chat_id, signal_receiver, msg_author, msg_timestamp, author),
-            FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
-                REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
-                ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT reaction_message_fkey
+                FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
+                    REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
+                    ON DELETE CASCADE,
+            FOREIGN KEY (author) REFERENCES puppet(uuid) ON DELETE CASCADE,
             UNIQUE (mxid, mx_room)
         )"""
     )

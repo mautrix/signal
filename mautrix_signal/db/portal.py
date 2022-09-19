@@ -16,15 +16,16 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, ClassVar
+from uuid import UUID
 
 from attr import dataclass
 import asyncpg
 
-from mausignald.types import Address, GroupID
+from mausignald.types import GroupID
 from mautrix.types import ContentURI, RoomID, UserID
 from mautrix.util.async_db import Database
 
-from ..util import id_to_str
+from .util import ensure_uuid
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -33,7 +34,7 @@ fake_db = Database.create("") if TYPE_CHECKING else None
 class Portal:
     db: ClassVar[Database] = fake_db
 
-    chat_id: GroupID | Address
+    chat_id: GroupID | UUID
     receiver: str
     mxid: RoomID | None
     name: str | None
@@ -49,12 +50,12 @@ class Portal:
 
     @property
     def chat_id_str(self) -> str:
-        return id_to_str(self.chat_id)
+        return str(self.chat_id)
 
     @property
     def _values(self):
         return (
-            self.chat_id_str,
+            self.chat_id,
             self.receiver,
             self.mxid,
             self.name,
@@ -88,11 +89,13 @@ class Portal:
         await self.db.execute(q, *self._values)
 
     @classmethod
-    def _from_row(cls, row: asyncpg.Record) -> Portal:
+    def _from_row(cls, row: asyncpg.Record | None) -> Portal | None:
+        if row is None:
+            return None
         data = {**row}
         chat_id = data.pop("chat_id")
         if data["receiver"]:
-            chat_id = Address.parse(chat_id)
+            chat_id = ensure_uuid(chat_id)
         return cls(chat_id=chat_id, **data)
 
     _columns = (
@@ -103,18 +106,12 @@ class Portal:
     @classmethod
     async def get_by_mxid(cls, mxid: RoomID) -> Portal | None:
         q = f"SELECT {cls._columns} FROM portal WHERE mxid=$1"
-        row = await cls.db.fetchrow(q, mxid)
-        if not row:
-            return None
-        return cls._from_row(row)
+        return cls._from_row(await cls.db.fetchrow(q, mxid))
 
     @classmethod
-    async def get_by_chat_id(cls, chat_id: GroupID | Address, receiver: str = "") -> Portal | None:
+    async def get_by_chat_id(cls, chat_id: GroupID | UUID, receiver: str = "") -> Portal | None:
         q = f"SELECT {cls._columns} FROM portal WHERE chat_id=$1 AND receiver=$2"
-        row = await cls.db.fetchrow(q, id_to_str(chat_id), receiver)
-        if not row:
-            return None
-        return cls._from_row(row)
+        return cls._from_row(await cls.db.fetchrow(q, chat_id, receiver))
 
     @classmethod
     async def find_private_chats_of(cls, receiver: str) -> list[Portal]:
@@ -123,9 +120,9 @@ class Portal:
         return [cls._from_row(row) for row in rows]
 
     @classmethod
-    async def find_private_chats_with(cls, other_user: Address) -> list[Portal]:
+    async def find_private_chats_with(cls, other_user: UUID) -> list[Portal]:
         q = f"SELECT {cls._columns} FROM portal WHERE chat_id=$1 AND receiver<>''"
-        rows = await cls.db.fetch(q, other_user.best_identifier)
+        rows = await cls.db.fetch(q, other_user)
         return [cls._from_row(row) for row in rows]
 
     @classmethod
