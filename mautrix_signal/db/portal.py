@@ -49,10 +49,6 @@ class Portal:
     expiration_time: int | None
 
     @property
-    def chat_id_str(self) -> str:
-        return str(self.chat_id)
-
-    @property
     def _values(self):
         return (
             str(self.chat_id),

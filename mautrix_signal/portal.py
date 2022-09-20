@@ -182,7 +182,7 @@ class Portal(DBPortal, BasePortal):
         )
         BasePortal.__init__(self)
         self._create_room_lock = asyncio.Lock()
-        self.log = self.log.getChild(self.chat_id_str)
+        self.log = self.log.getChild(str(self.chat_id))
         self._main_intent = None
         self._msgts_dedup = deque(maxlen=100)
         self._reaction_dedup = deque(maxlen=100)
@@ -2124,7 +2124,7 @@ class Portal(DBPortal, BasePortal):
 
     @property
     def bridge_info_state_key(self) -> str:
-        return f"net.maunium.signal://signal/{self.chat_id_str}"
+        return f"net.maunium.signal://signal/{self.chat_id!s}"
 
     @property
     def bridge_info(self) -> dict[str, Any]:
@@ -2137,7 +2137,7 @@ class Portal(DBPortal, BasePortal):
                 "avatar_url": self.config["appservice.bot_avatar"],
             },
             "channel": {
-                "id": self.chat_id_str,
+                "id": str(self.chat_id),
                 "displayname": self.name,
                 "avatar_url": self.avatar_url,
             },
@@ -2391,7 +2391,7 @@ class Portal(DBPortal, BasePortal):
     # region Database getters
 
     async def _postinit(self) -> None:
-        self.by_chat_id[(self.chat_id_str, self.receiver)] = self
+        self.by_chat_id[(str(self.chat_id), self.receiver)] = self
         if self.mxid:
             self.by_mxid[self.mxid] = self
         if self.is_direct:
@@ -2427,7 +2427,7 @@ class Portal(DBPortal, BasePortal):
         portals = await query
         for index, portal in enumerate(portals):
             try:
-                yield cls.by_chat_id[(portal.chat_id_str, portal.receiver)]
+                yield cls.by_chat_id[(str(portal.chat_id), portal.receiver)]
             except KeyError:
                 await portal._postinit()
                 yield portal
