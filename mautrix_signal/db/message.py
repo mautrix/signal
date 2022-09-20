@@ -105,7 +105,7 @@ class Message:
         WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
         """
         return cls._from_row(
-            await cls.db.fetchrow(q, sender, timestamp, signal_chat_id, signal_receiver)
+            await cls.db.fetchrow(q, sender, timestamp, str(signal_chat_id), signal_receiver)
         )
 
     @classmethod

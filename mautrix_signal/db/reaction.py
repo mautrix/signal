@@ -129,7 +129,7 @@ class Reaction:
         return cls._from_row(
             await cls.db.fetchrow(
                 q,
-                chat_id,
+                str(chat_id),
                 receiver,
                 msg_author,
                 msg_timestamp,
