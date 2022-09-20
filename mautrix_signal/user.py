@@ -264,6 +264,7 @@ class User(DBUser, BaseUser):
         await self.sync_puppet()
         await self.sync_contacts()
         await self.sync_groups()
+        self.log.debug("Sync complete")
 
     async def sync_puppet(self) -> None:
         try:

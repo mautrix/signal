@@ -350,6 +350,9 @@ class SignalHandler(SignaldClient):
             # TODO report errors to user?
             known_usernames.add(user.username)
             if await self.subscribe(user.username):
+                self.log.info(
+                    f"Successfully subscribed {user.username}, running sync in background"
+                )
                 asyncio.create_task(user.sync())
         if self.delete_unknown_accounts:
             self.log.debug("Checking for unknown accounts to delete")
