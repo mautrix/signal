@@ -23,7 +23,7 @@ from yarl import URL
 import asyncpg
 
 from mautrix.types import ContentURI, SyncToken, UserID
-from mautrix.util.async_db import Database
+from mautrix.util.async_db import Connection, Database
 
 fake_db = Database.create("") if TYPE_CHECKING else None
 
@@ -69,6 +69,13 @@ class Puppet:
             self._base_url_str,
         )
 
+    async def _delete_existing_number(self, conn: Connection) -> None:
+        if not self.number:
+            return
+        await conn.execute(
+            "UPDATE puppet SET number=null WHERE number=$1 AND uuid<>$2", self.number, self.uuid
+        )
+
     async def insert(self) -> None:
         q = """
         INSERT INTO puppet (uuid, number, name, name_quality, avatar_hash, avatar_url,
@@ -76,14 +83,14 @@ class Puppet:
                             custom_mxid, access_token, next_batch, base_url)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         """
-        await self.db.execute(q, *self._values)
-
-    async def _set_number(self, number: str) -> None:
         async with self.db.acquire() as conn, conn.transaction():
-            await conn.execute(
-                "UPDATE puppet SET number=null WHERE number=$1 AND uuid<>$2", number, self.uuid
-            )
-            await conn.execute("UPDATE puppet SET number=$1 WHERE uuid=$2", number, self.uuid)
+            await self._delete_existing_number(conn)
+            await self.db.execute(q, *self._values)
+
+    async def _update_number(self) -> None:
+        async with self.db.acquire() as conn, conn.transaction():
+            await self._delete_existing_number(conn)
+            await conn.execute("UPDATE puppet SET number=$1 WHERE uuid=$2", self.number, self.uuid)
 
     async def update(self) -> None:
         q = """

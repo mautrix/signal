@@ -154,8 +154,8 @@ class Puppet(DBPuppet, BasePuppet):
             if self.number:
                 self.by_number.pop(self.number, None)
             self.number = number
-            self.by_number[self.number] = self
-            await self._set_number(number)
+            self._add_number_to_cache()
+            await self._update_number()
 
     async def _migrate_memberships(self, prev_intent: IntentAPI, new_intent: IntentAPI) -> None:
         self.log.debug(f"Migrating memberships {prev_intent.mxid} -> {new_intent.mxid}")
@@ -334,10 +334,19 @@ class Puppet(DBPuppet, BasePuppet):
 
     # region Database getters
 
+    def _add_number_to_cache(self) -> None:
+        if self.number:
+            try:
+                existing = self.by_number[self.number]
+                if existing and existing.uuid != self.uuid and existing != self:
+                    existing.number = None
+            except KeyError:
+                pass
+            self.by_number[self.number] = self
+
     def _add_to_cache(self) -> None:
         self.by_uuid[self.uuid] = self
-        if self.number:
-            self.by_number[self.number] = self
+        self._add_number_to_cache()
         if self.custom_mxid:
             self.by_custom_mxid[self.custom_mxid] = self
 
