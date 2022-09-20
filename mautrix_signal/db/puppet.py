@@ -85,7 +85,7 @@ class Puppet:
         """
         async with self.db.acquire() as conn, conn.transaction():
             await self._delete_existing_number(conn)
-            await self.db.execute(q, *self._values)
+            await conn.execute(q, *self._values)
 
     async def _update_number(self) -> None:
         async with self.db.acquire() as conn, conn.transaction():
