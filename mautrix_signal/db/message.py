@@ -52,7 +52,7 @@ class Message:
             self.mx_room,
             self.sender,
             self.timestamp,
-            self.signal_chat_id,
+            str(self.signal_chat_id),
             self.signal_receiver,
         )
 
@@ -65,7 +65,7 @@ class Message:
             q,
             self.sender,
             self.timestamp,
-            self.signal_chat_id,
+            str(self.signal_chat_id),
             self.signal_receiver,
         )
 

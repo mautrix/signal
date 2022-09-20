@@ -53,7 +53,7 @@ class Reaction:
             q,
             self.mxid,
             self.mx_room,
-            self.signal_chat_id,
+            str(self.signal_chat_id),
             self.signal_receiver,
             self.msg_author,
             self.msg_timestamp,
@@ -69,7 +69,7 @@ class Reaction:
             mxid,
             mx_room,
             emoji,
-            self.signal_chat_id,
+            str(self.signal_chat_id),
             self.signal_receiver,
             self.msg_author,
             self.msg_timestamp,
@@ -83,7 +83,7 @@ class Reaction:
         )
         await self.db.execute(
             q,
-            self.signal_chat_id,
+            str(self.signal_chat_id),
             self.signal_receiver,
             self.msg_author,
             self.msg_timestamp,

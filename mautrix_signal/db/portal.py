@@ -55,7 +55,7 @@ class Portal:
     @property
     def _values(self):
         return (
-            self.chat_id,
+            str(self.chat_id),
             self.receiver,
             self.mxid,
             self.name,
