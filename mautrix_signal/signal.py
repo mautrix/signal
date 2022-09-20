@@ -87,6 +87,11 @@ class SignalHandler(SignaldClient):
             if evt.sync_message.read_messages:
                 await self.handle_own_receipts(sender, evt.sync_message.read_messages)
             if evt.sync_message.sent:
+                if not evt.sync_message.sent.destination.uuid:
+                    self.log.warning(
+                        "Got sent message without destination UUID "
+                        f"{evt.sync_message.sent.destination}"
+                    )
                 await self.handle_message(
                     user,
                     sender,
@@ -193,8 +198,17 @@ class SignalHandler(SignaldClient):
         elif msg.group:
             portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
+            if addr_override and not addr_override.uuid:
+                target = await pu.Puppet.get_by_address(addr_override, resolve_via=user.username)
+                if not target:
+                    self.log.warning(
+                        f"Didn't find puppet for recipient of incoming message {addr_override}"
+                    )
+                    return
             portal = await po.Portal.get_by_chat_id(
-                addr_override or sender.uuid, receiver=user.username, create=True
+                addr_override.uuid if addr_override else sender.uuid,
+                receiver=user.username,
+                create=True,
             )
             if addr_override and not sender.is_real_user:
                 portal.log.debug(
