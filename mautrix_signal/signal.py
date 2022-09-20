@@ -87,7 +87,10 @@ class SignalHandler(SignaldClient):
             if evt.sync_message.read_messages:
                 await self.handle_own_receipts(sender, evt.sync_message.read_messages)
             if evt.sync_message.sent:
-                if not evt.sync_message.sent.destination.uuid:
+                if (
+                    evt.sync_message.sent.destination
+                    and not evt.sync_message.sent.destination.uuid
+                ):
                     self.log.warning(
                         "Got sent message without destination UUID "
                         f"{evt.sync_message.sent.destination}"
