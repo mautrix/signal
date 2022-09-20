@@ -434,8 +434,8 @@ class Portal(DBPortal, BasePortal):
         if message.msgtype.is_text:
             text, mentions = await matrix_to_signal(message)
             message_previews = message.get(BEEPER_LINK_PREVIEWS_KEY, [])
-            potential_link_previews = cast(
-                list[LinkPreview | None],
+            potential_link_previews: list[LinkPreview | None] = cast(
+                list,
                 await asyncio.gather(
                     *(self._beeper_link_preview_to_signal(m) for m in message_previews)
                 ),
