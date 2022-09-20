@@ -2450,7 +2450,7 @@ class Portal(DBPortal, BasePortal):
     @classmethod
     @async_getter_lock
     async def get_by_chat_id(
-        cls, chat_id: GroupID | UUID, receiver: str = "", /, *, create: bool
+        cls, chat_id: GroupID | UUID, /, *, receiver: str = "", create: bool = False
     ) -> Portal | None:
         if isinstance(chat_id, str):
             receiver = ""

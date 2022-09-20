@@ -330,7 +330,7 @@ class Puppet(DBPuppet, BasePuppet):
     async def default_puppet_should_leave_room(self, room_id: RoomID) -> bool:
         portal: p.Portal = await p.Portal.get_by_mxid(room_id)
         # Leave all portals except the notes to self room
-        return not (portal and portal.is_direct and portal.chat_id.uuid == self.uuid)
+        return not (portal and portal.is_direct and portal.chat_id == self.uuid)
 
     # region Database getters
 

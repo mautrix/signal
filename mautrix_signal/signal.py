@@ -53,7 +53,7 @@ class SignalHandler(SignaldClient):
     loop: asyncio.AbstractEventLoop
     data_dir: str
     delete_unknown_accounts: bool
-    error_message_events: dict[tuple[Address, str, int], Awaitable[EventID] | None]
+    error_message_events: dict[tuple[UUID, str, int], Awaitable[EventID] | None]
 
     def __init__(self, bridge: "SignalBridge") -> None:
         super().__init__(bridge.config["signal.socket_path"], loop=bridge.loop)
@@ -102,7 +102,7 @@ class SignalHandler(SignaldClient):
 
         try:
             event_id_future = self.error_message_events.pop(
-                (sender.address, user.username, evt.timestamp)
+                (sender.uuid, user.username, evt.timestamp)
             )
         except KeyError:
             pass
@@ -110,7 +110,7 @@ class SignalHandler(SignaldClient):
             self.log.debug(f"Got previously errored message {evt.timestamp} from {sender.address}")
             event_id = await event_id_future if event_id_future is not None else None
             if event_id is not None:
-                portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
+                portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username)
                 if portal and portal.mxid:
                     await sender.intent_for(portal).redact(portal.mxid, event_id)
 
@@ -127,14 +127,14 @@ class SignalHandler(SignaldClient):
         if not sender:
             return
         user = await u.User.get_by_username(err.account)
-        portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
+        portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username)
         if not portal or not portal.mxid:
             return
 
         # Add the error to the error_message_events dictionary, then wait for 10 seconds until
         # sending an error. If a success for the timestamp comes in before the 10 seconds is up,
         # don't send the error message.
-        error_message_event_key = (sender.address, user.username, err.data.timestamp)
+        error_message_event_key = (sender.uuid, user.username, err.data.timestamp)
         self.error_message_events[error_message_event_key] = None
 
         await asyncio.sleep(10)
@@ -194,7 +194,7 @@ class SignalHandler(SignaldClient):
             portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
             portal = await po.Portal.get_by_chat_id(
-                addr_override or sender.address, receiver=user.username, create=True
+                addr_override or sender.uuid, receiver=user.username, create=True
             )
             if addr_override and not sender.is_real_user:
                 portal.log.debug(
@@ -255,9 +255,7 @@ class SignalHandler(SignaldClient):
     @staticmethod
     async def handle_call_message(user: u.User, sender: pu.Puppet, msg: IncomingMessage) -> None:
         assert msg.call_message
-        portal = await po.Portal.get_by_chat_id(
-            sender.address, receiver=user.username, create=True
-        )
+        portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username, create=True)
         if not portal.mxid:
             # FIXME
             # await portal.create_matrix_room(
@@ -298,7 +296,7 @@ class SignalHandler(SignaldClient):
             puppet = await pu.Puppet.get_by_address(receipt.sender, create=False)
             if not puppet:
                 continue
-            message = await DBMessage.find_by_sender_timestamp(puppet.address, receipt.timestamp)
+            message = await DBMessage.find_by_sender_timestamp(puppet.uuid, receipt.timestamp)
             if not message:
                 continue
             portal = await po.Portal.get_by_mxid(message.mx_room)
@@ -311,7 +309,7 @@ class SignalHandler(SignaldClient):
         if typing.group_id:
             portal = await po.Portal.get_by_chat_id(typing.group_id)
         else:
-            portal = await po.Portal.get_by_chat_id(sender.address, receiver=user.username)
+            portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username)
         if not portal or not portal.mxid:
             return
         is_typing = typing.action == TypingAction.STARTED

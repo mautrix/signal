@@ -150,7 +150,7 @@ class ProvisioningAPI:
         if await user.is_logged_in():
             try:
                 profile = await self.bridge.signal.get_profile(
-                    username=user.username, address=Address(number=user.username)
+                    username=user.username, address=user.address
                 )
             except Exception as e:
                 self.log.exception(f"Failed to get {user.username}'s profile for whoami")
@@ -416,9 +416,7 @@ class ProvisioningAPI:
         user = await self.check_token_and_logged_in(request)
         puppet = await self._resolve_identifier(request.match_info["number"], user)
 
-        portal = await po.Portal.get_by_chat_id(
-            puppet.address, receiver=user.username, create=True
-        )
+        portal = await po.Portal.get_by_chat_id(puppet.uuid, receiver=user.username, create=True)
         assert portal, "Portal.get_by_chat_id with create=True can't return None"
 
         if portal.mxid:
@@ -445,9 +443,7 @@ class ProvisioningAPI:
     async def resolve_identifier(self, request: web.Request) -> web.Response:
         user = await self.check_token_and_logged_in(request)
         puppet = await self._resolve_identifier(request.match_info["number"], user)
-        portal = await po.Portal.get_by_chat_id(
-            puppet.address, receiver=user.username, create=False
-        )
+        portal = await po.Portal.get_by_chat_id(puppet.uuid, receiver=user.username, create=False)
         return web.json_response(
             {
                 "room_id": portal.mxid if portal else None,

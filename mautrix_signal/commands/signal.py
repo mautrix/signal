@@ -105,9 +105,7 @@ async def pm(evt: CommandEvent) -> None:
     puppet = await _get_puppet_from_cmd(evt)
     if not puppet:
         return
-    portal = await po.Portal.get_by_chat_id(
-        puppet.address, receiver=evt.sender.username, create=True
-    )
+    portal = await po.Portal.get_by_chat_id(puppet.uuid, receiver=evt.sender.username, create=True)
     if portal.mxid:
         await evt.reply(
             f"You already have a private chat with {puppet.name}: "
@@ -178,7 +176,7 @@ async def safety_number(evt: CommandEvent) -> None:
             return
         evt.args = evt.args[1:]
     if len(evt.args) == 0 and evt.portal and evt.portal.is_direct:
-        puppet = await pu.Puppet.get_by_uuid(evt.portal.chat_id.uuid)
+        puppet = await evt.portal.get_dm_puppet()
     else:
         puppet = await _get_puppet_from_cmd(evt)
     if not puppet:

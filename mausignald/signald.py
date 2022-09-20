@@ -180,8 +180,10 @@ class SignaldClient(SignaldRPCClient):
 
     @staticmethod
     def _recipient_to_args(
-        recipient: Address | GroupID, simple_name: bool = False
+        recipient: UUID | Address | GroupID, simple_name: bool = False
     ) -> dict[str, Any]:
+        if isinstance(recipient, UUID):
+            recipient = Address(uuid=recipient)
         if isinstance(recipient, Address):
             recipient = recipient.serialize()
             field_name = "address" if simple_name else "recipientAddress"
@@ -192,7 +194,7 @@ class SignaldClient(SignaldRPCClient):
     async def react(
         self,
         username: str,
-        recipient: Address | GroupID,
+        recipient: UUID | Address | GroupID,
         reaction: Reaction,
         req_id: UUID | None = None,
     ) -> None:
@@ -205,7 +207,7 @@ class SignaldClient(SignaldRPCClient):
         )
 
     async def remote_delete(
-        self, username: str, recipient: Address | GroupID, timestamp: int
+        self, username: str, recipient: UUID | Address | GroupID, timestamp: int
     ) -> None:
         await self.request_v1(
             "remote_delete",
@@ -217,7 +219,7 @@ class SignaldClient(SignaldRPCClient):
     async def send_raw(
         self,
         username: str,
-        recipient: Address | GroupID,
+        recipient: UUID | Address | GroupID,
         body: str,
         quote: Quote | None = None,
         attachments: list[Attachment] | None = None,
@@ -247,7 +249,7 @@ class SignaldClient(SignaldRPCClient):
     async def send(
         self,
         username: str,
-        recipient: Address | GroupID,
+        recipient: UUID | Address | GroupID,
         body: str,
         quote: Quote | None = None,
         attachments: list[Attachment] | None = None,

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from mausignald.types import Address
 from mautrix.bridge import BaseMatrixHandler, RejectMatrixInvite
 from mautrix.types import (
     Event,
@@ -205,7 +206,7 @@ class MatrixHandler(BaseMatrixHandler):
         try:
             await self.signal.send_receipt(
                 user.username,
-                message.sender,
+                Address(uuid=message.sender),
                 timestamps=[message.timestamp],
                 when=data.ts,
                 read=True,
