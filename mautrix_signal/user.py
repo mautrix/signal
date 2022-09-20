@@ -174,14 +174,18 @@ class User(DBUser, BaseUser):
         self, evt: WebsocketConnectionStateChangeEvent
     ) -> None:
         if evt.state == WebsocketConnectionState.CONNECTED:
-            self.log.info("Connected to Signal")
+            self.log.info(f"Connected to Signal (ws: {evt.socket})")
             self._track_metric(METRIC_CONNECTED, True)
             self._track_metric(METRIC_LOGGED_IN, True)
             self._connected = True
         else:
-            self.log.warning(
-                f"New websocket state from signald: {evt.state}. Error: {evt.exception}"
-            )
+            if evt.exception:
+                self.log.error(
+                    f"New {evt.socket} websocket state from signald {evt.state} "
+                    f"with error {evt.exception}"
+                )
+            else:
+                self.log.warning(f"New {evt.socket} websocket state from signald {evt.state}")
             self._track_metric(METRIC_CONNECTED, False)
             self._connected = False
 
@@ -202,7 +206,7 @@ class User(DBUser, BaseUser):
             WebsocketConnectionState.FAILED: BridgeStateEvent.TRANSIENT_DISCONNECT,
         }.get(evt.state)
         if bridge_state is None:
-            self.log.info(f"Websocket state {evt.state} seen. Will not report new Bridge State")
+            self.log.info(f"Websocket state {evt.state} seen, not reporting new bridge state")
             return
 
         now = datetime.now()
@@ -234,8 +238,8 @@ class User(DBUser, BaseUser):
                     )
                 else:
                     self.log.info(
-                        "New state since last TRANSIENT_DISCONNECT push. "
-                        "Not transitioning to UNKNOWN_ERROR."
+                        "New state since last TRANSIENT_DISCONNECT push, "
+                        "not transitioning to UNKNOWN_ERROR."
                     )
 
             asyncio.create_task(wait_report_transient_disconnect())

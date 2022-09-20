@@ -360,6 +360,8 @@ class SignalHandler(SignaldClient):
                 if account.account_id not in known_usernames:
                     self.log.warning(f"Unknown account ID {account.account_id}, deleting...")
                     await self.delete_account(account.account_id)
+            else:
+                self.log.debug("No unknown accounts found")
 
     async def stop(self) -> None:
         await self.disconnect()
