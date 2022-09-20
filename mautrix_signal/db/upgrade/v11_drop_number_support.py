@@ -34,9 +34,13 @@ async def upgrade_v11(conn: Connection, scheme: Scheme) -> None:
         )
         await conn.execute("ALTER TABLE puppet DROP COLUMN number_registered")
         await conn.execute("ALTER TABLE puppet RENAME COLUMN uuid_registered TO is_registered")
-        await conn.execute(
-            "ALTER TABLE reaction DROP CONSTRAINT reaction_msg_author_msg_timestamp_signal_chat_id_signal_re_fkey"
-        )
+        for c_row in await conn.fetch(
+            "SELECT constraint_name FROM information_schema.table_constraints tc "
+            "WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_name='reaction'"
+        ):
+            constraint_name = c_row["constraint_name"]
+            if constraint_name.startswith("reaction_msg_author_"):
+                await conn.execute(f"ALTER TABLE reaction DROP CONSTRAINT {constraint_name}")
         await conn.execute("ALTER TABLE message ALTER COLUMN sender TYPE UUID USING sender::uuid")
         await conn.execute(
             "ALTER TABLE reaction ALTER COLUMN msg_author TYPE UUID USING msg_author::uuid"
