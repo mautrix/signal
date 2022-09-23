@@ -23,6 +23,24 @@ async def upgrade_v11(conn: Connection, scheme: Scheme) -> None:
     await conn.execute("DELETE FROM portal WHERE chat_id LIKE '+%'")
     await conn.execute("DELETE FROM message WHERE sender LIKE '+%'")
     await conn.execute("DELETE FROM reaction WHERE author LIKE '+%'")
+    await conn.execute(
+        """
+        DELETE FROM message WHERE sender IN (
+            SELECT DISTINCT(message.sender) FROM message
+            LEFT JOIN puppet ON message.sender=puppet.uuid::text
+            WHERE puppet.uuid IS NULL
+        )
+        """
+    )
+    await conn.execute(
+        """
+        DELETE FROM reaction WHERE author IN (
+            SELECT DISTINCT(reaction.author) FROM reaction
+            LEFT JOIN puppet ON reaction.author=puppet.uuid::text
+            WHERE puppet.uuid IS NULL
+        )
+        """
+    )
     await conn.execute("DELETE FROM puppet WHERE uuid IS NULL")
     if scheme in (Scheme.POSTGRES, Scheme.COCKROACH):
         await conn.execute(
