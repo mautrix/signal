@@ -290,16 +290,18 @@ class SignalHandler(SignaldClient):
 
         msg_prefix_html = f'<a href="https://matrix.to/#/{sender.mxid}">{sender.name}</a>'
         msg_prefix_text = f"{sender.name}"
-        msg = ""
+        msg_suffix = ""
         if msg.call_message.offer_message:
             call_type = {
                 OfferMessageType.AUDIO_CALL: "voice call",
                 OfferMessageType.VIDEO_CALL: "video call",
             }.get(msg.call_message.offer_message.type, "call")
-            msg = f" started a {call_type} on Signal. Use the native app to answer the call."
+            msg_suffix = (
+                f" started a {call_type} on Signal. Use the native app to answer the call."
+            )
             msg_type = MessageType.TEXT
         elif msg.call_message.hangup_message:
-            msg = " ended a call on Signal."
+            msg_suffix = " ended a call on Signal."
             msg_type = MessageType.NOTICE
         else:
             portal.log.debug(f"Unhandled call message. Likely an ICE message. {msg.call_message}")
@@ -309,8 +311,8 @@ class SignalHandler(SignaldClient):
             intent=sender.intent_for(portal),
             content=TextMessageEventContent(
                 format=Format.HTML,
-                formatted_body=msg_prefix_html + msg,
-                body=msg_prefix_text + msg,
+                formatted_body=msg_prefix_html + msg_suffix,
+                body=msg_prefix_text + msg_suffix,
                 msgtype=msg_type,
             ),
         )
