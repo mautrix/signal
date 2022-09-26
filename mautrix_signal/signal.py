@@ -129,6 +129,9 @@ class SignalHandler(SignaldClient):
             f"{err.data.message}"
         )
 
+        if err.data.content_hint == 2:
+            return
+
         sender = await pu.Puppet.get_by_address(
             Address.parse(err.data.sender), resolve_via=err.account
         )
