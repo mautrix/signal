@@ -1260,11 +1260,21 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Handled Signal message {message.timestamp} -> {event_id}")
 
             if message.expires_in_seconds and self.disappearing_enabled:
-                await DisappearingMessage(self.mxid, event_id, message.expires_in_seconds).insert()
-                self.log.debug(
-                    f"{event_id} set to be redacted {message.expires_in_seconds} seconds after "
-                    "room is read"
-                )
+                dm = DisappearingMessage(self.mxid, event_id, message.expires_in_seconds)
+                # Start the timer immediately for own messages
+                if sender.uuid == source.uuid:
+                    dm.start_timer()
+                    await dm.insert()
+                    asyncio.create_task(self._disappear_event(dm))
+                    self.log.debug(
+                        f"{event_id} set to be redacted in {message.expires_in_seconds} seconds"
+                    )
+                else:
+                    await dm.insert()
+                    self.log.debug(
+                        f"{event_id} set to be redacted {message.expires_in_seconds} seconds"
+                        " after room is read"
+                    )
         else:
             self.log.debug(f"Didn't get event ID for {message.timestamp}")
 
