@@ -139,7 +139,7 @@ class Puppet(DBPuppet, BasePuppet):
         return (puppet.try_start() async for puppet in cls.all_with_custom_mxid())
 
     def intent_for(self, portal: p.Portal) -> IntentAPI:
-        if portal.chat_id == self.address:
+        if portal.chat_id == self.uuid:
             return self.default_mxid_intent
         return self.intent
 
