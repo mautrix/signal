@@ -400,7 +400,7 @@ class ProvisioningAPI:
             error = {"error": f"The phone number {number} is not a registered Signal account"}
             raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
         except Exception:
-            self.log.exception(f"Unknown error fetching UUID for {puppet.number}")
+            self.log.exception(f"Unknown error fetching UUID for {number}")
             error = {"error": "Unknown error while fetching UUID"}
             raise web.HTTPInternalServerError(text=json.dumps(error), headers=self._headers)
         if not puppet:
@@ -429,7 +429,7 @@ class ProvisioningAPI:
             {
                 "room_id": portal.mxid,
                 "just_created": just_created,
-                "chat_id": portal.chat_id.serialize(),
+                "chat_id": puppet.address.serialize(),
                 "other_user": {
                     "mxid": puppet.mxid,
                     "displayname": puppet.name,
