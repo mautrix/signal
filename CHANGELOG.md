@@ -1,3 +1,17 @@
+# v0.4.1 (unreleased)
+
+Target signald version: [v0.22.2](https://gitlab.com/signald/signald/-/tags/0.22.2)
+
+* Dropped support for phone numbers as Signal user identifiers.
+* Dropped support for v1 groups.
+* Fixed call notices not having a plaintext `body` field.
+* "Implicit" messages from Signal (things like read receipts) that fail to
+  decrypt will no longer send a notice to the Matrix room.
+* The docker image now has an option to bypass the startup script by setting
+  the `MAUTRIX_DIRECT_STARTUP` environment variable. Additionally, it will
+  refuse to run as a non-root user if that variable is not set (and print an
+  error message suggesting to either set the variable or use a custom command).
+
 # v0.4.0 (2022-09-17)
 
 Target signald version: [v0.21.1](https://gitlab.com/signald/signald/-/releases/0.21.1)
