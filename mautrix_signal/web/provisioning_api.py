@@ -395,7 +395,9 @@ class ProvisioningAPI:
             raise web.HTTPBadRequest(text=json.dumps({"error": str(e)}), headers=self._headers)
 
         try:
-            puppet: pu.Puppet = await pu.Puppet.get_by_number(number, raise_resolve=True)
+            puppet: pu.Puppet = await pu.Puppet.get_by_number(
+                number, resolve_via=user.username, raise_resolve=True
+            )
         except UnregisteredUserError:
             error = {"error": f"The phone number {number} is not a registered Signal account"}
             raise web.HTTPNotFound(text=json.dumps(error), headers=self._headers)
