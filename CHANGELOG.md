@@ -1,9 +1,10 @@
 # v0.4.1 (unreleased)
 
-Target signald version: [v0.22.2](https://gitlab.com/signald/signald/-/tags/0.22.2)
+Target signald version: [v0.23.0](https://gitlab.com/signald/signald/-/releases/0.23.0)
 
 * Dropped support for phone numbers as Signal user identifiers.
 * Dropped support for v1 groups.
+* Promoted SQLite support to non-experimental level.
 * Fixed call notices not having a plaintext `body` field.
 * "Implicit" messages from Signal (things like read receipts) that fail to
   decrypt will no longer send a notice to the Matrix room.
