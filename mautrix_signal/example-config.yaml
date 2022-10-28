@@ -308,9 +308,9 @@ bridge:
         # it will automatically be set as the relay user. May be overridden with `set-relay` or `unset-relay`
         relaybot: '@relaybot:example.com'
 
-    # Format for generting URLs from location messages for sending to Signal
+    # Format for generating URLs from location messages for sending to Signal
     # Google Maps: 'https://www.google.com/maps/place/{lat},{long}'
-    # OpenStreepMap: 'https://www.openstreetmap.org/?mlat={lat}&mlon={long}'
+    # OpenStreetMap: 'https://www.openstreetmap.org/?mlat={lat}&mlon={long}'
     location_format: 'https://www.google.com/maps/place/{lat},{long}'
 
 # Python logging configuration.
