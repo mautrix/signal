@@ -23,20 +23,21 @@ async def upgrade_v11(conn: Connection, scheme: Scheme) -> None:
     await conn.execute("DELETE FROM portal WHERE chat_id LIKE '+%'")
     await conn.execute("DELETE FROM message WHERE sender LIKE '+%'")
     await conn.execute("DELETE FROM reaction WHERE author LIKE '+%'")
+    puppet_uuid_as_text = "puppet.uuid" if scheme == Scheme.SQLITE else "puppet.uuid::text"
     await conn.execute(
-        """
+        f"""
         DELETE FROM message WHERE sender IN (
             SELECT DISTINCT(message.sender) FROM message
-            LEFT JOIN puppet ON message.sender=puppet.uuid::text
+            LEFT JOIN puppet ON message.sender={puppet_uuid_as_text}
             WHERE puppet.uuid IS NULL
         )
         """
     )
     await conn.execute(
-        """
+        f"""
         DELETE FROM reaction WHERE author IN (
             SELECT DISTINCT(reaction.author) FROM reaction
-            LEFT JOIN puppet ON reaction.author=puppet.uuid::text
+            LEFT JOIN puppet ON reaction.author={puppet_uuid_as_text}
             WHERE puppet.uuid IS NULL
         )
         """
