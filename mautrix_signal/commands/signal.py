@@ -63,7 +63,7 @@ async def _get_puppet_from_cmd(evt: CommandEvent) -> pu.Puppet | None:
             await evt.reply("UUID of user not known")
             return None
         try:
-            uuid = await evt.bridge.signal.find_uuid(evt.sender.username, puppet.number)
+            uuid = await evt.bridge.signal.find_uuid(evt.sender.username, phone)
         except UnregisteredUserError:
             await evt.reply("User not registered")
             return None
