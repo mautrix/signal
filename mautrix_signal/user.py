@@ -296,7 +296,7 @@ class User(DBUser, BaseUser):
     async def sync_contact(
         self, contact: Profile | Address, create_portals: bool = False, use_cache: bool = True
     ) -> None:
-        self.log.trace("Syncing contact %s", contact)
+        self.log.debug("Syncing contact %s", contact)
         try:
             if isinstance(contact, Address):
                 address = contact
@@ -316,11 +316,10 @@ class User(DBUser, BaseUser):
             if not puppet:
                 self.log.debug(f"Didn't find puppet for {address} while syncing contact")
                 return
-            await puppet.update_info(profile or address, self)
-            if create_portals:
-                portal = await po.Portal.get_by_chat_id(
-                    puppet.uuid, receiver=self.username, create=True
-                )
+            portal = await po.Portal.get_by_chat_id(
+                puppet.uuid, receiver=self.username, create=create_portals
+            )
+            if portal:
                 await portal.create_matrix_room(self, profile or address)
         except Exception as e:
             await self.handle_auth_failure(e)
