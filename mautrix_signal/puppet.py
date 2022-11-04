@@ -204,7 +204,7 @@ class Puppet(DBPuppet, BasePuppet):
                 update = await self._update_avatar(f"contact-{self.number}") or update
             if update:
                 await self.update()
-                asyncio.create_task(self._update_portal_meta())
+                asyncio.create_task(self._try_update_portal_meta())
 
     @staticmethod
     def fmt_phone(number: str) -> str:
@@ -313,6 +313,12 @@ class Puppet(DBPuppet, BasePuppet):
             self.log.exception("Error setting avatar")
             self.avatar_set = False
         return True
+
+    async def _try_update_portal_meta(self) -> None:
+        try:
+            await self._update_portal_meta()
+        except Exception:
+            self.log.exception("Error updating portal meta")
 
     async def _update_portal_meta(self) -> None:
         async for portal in p.Portal.find_private_chats_with(self.uuid):
