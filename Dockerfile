@@ -22,6 +22,7 @@ RUN apk add --no-cache \
       py3-h11 \
       ca-certificates \
       su-exec \
+      netcat-openbsd \
       # encryption
       py3-olm \
       py3-cffi \
