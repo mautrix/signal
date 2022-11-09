@@ -510,6 +510,36 @@ async def confirm_bridge(evt: CommandEvent) -> EventID | None:
         )
 
 
+@command_handler(
+    needs_auth=True,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Submit a captcha challenge for the last occuring token",
+    help_args="<captcha token>",
+)
+async def submit_challenge(evt: CommandEvent) -> None:
+    if len(evt.args == 0):
+        await evt.reply("**Usage:** `$cmdprefix+sp captcha-challenge <captcha-token>`")
+        return
+    challenge_token = evt.sender.challenge_token
+    captcha_token = evt.args[0]
+    if not challenge_token:
+        return await evt.reply(
+            "No open challenge found. If the bridge was restarted, try"
+            "triggering another ProofRequiredError"
+        )
+    evt.log.debug(f"submitting challenge for token {challenge_token}")
+    try:
+        await evt.bridge.signal.submit_challenge(
+            evt.sender.username, captcha_token=evt.args[0], challenge=challenge_token
+        )
+    except Exception as e:
+        await evt.reply(f"failed to submit captcha challenge: {e}")
+        return
+    await evt.reply("Captcha challenge submitted successfully")
+    return
+
+
 async def _locked_confirm_bridge(
     evt: CommandEvent, portal: po.Portal, room_id: RoomID, is_logged_in: bool
 ) -> EventID | None:

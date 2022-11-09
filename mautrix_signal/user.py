@@ -77,6 +77,8 @@ class User(DBUser, BaseUser):
     _websocket_connection_state: BridgeStateEvent | None
     _latest_non_transient_bridge_state: datetime | None
 
+    challenge_token: str | None
+
     def __init__(
         self,
         mxid: UserID,

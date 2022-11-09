@@ -31,6 +31,7 @@ from mausignald.errors import (
     GroupPatchNotAcceptedError,
     NotConnected,
     ProfileUnavailableError,
+    ProofRequiredError,
     RPCError,
 )
 from mausignald.types import (
@@ -328,6 +329,8 @@ class Portal(DBPortal, BasePortal):
                 status, event_id, self.mxid, EventType.ROOM_MESSAGE, message.msgtype, error=e
             )
             await sender.handle_auth_failure(e)
+            if isinstance(e, ProofRequiredError):
+                sender.challenge_token = e.token
             await self._send_error_notice("message", e)
             background_task.create(self._send_message_status(event_id, e))
 

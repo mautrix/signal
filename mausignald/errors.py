@@ -118,6 +118,19 @@ class GroupPatchNotAcceptedError(ResponseError):
     pass
 
 
+class ProofRequiredError(ResponseError):
+    def __init__(self, data: dict[str, Any]) -> None:
+        self.options = data.get("options")
+        self.retry_after = data.get("retry_after")
+        self.token = data.get("token")
+        message = (
+            f"You have been rate-limited by Signal. Try again in {self.retry_after} "
+            "seconds or complete a captcha challenge using the `submit-challenge` command. "
+            "A captcha may be obtained at https://signalcaptchas.org/challenge/generate.html"
+        )
+        super().__init__(data, message_override=message)
+
+
 response_error_types = {
     "invalid_request": RequestValidationFailure,
     "TimeoutException": TimeoutException,
@@ -134,6 +147,7 @@ response_error_types = {
     "ProfileUnavailableError": ProfileUnavailableError,
     "NoSuchAccountError": NoSuchAccountError,
     "GroupPatchNotAcceptedError": GroupPatchNotAcceptedError,
+    "ProofRequiredError": ProofRequiredError,
     # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/clientprotocol/v1/exceptions
 }
 

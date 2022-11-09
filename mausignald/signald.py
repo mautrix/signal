@@ -548,3 +548,10 @@ class SignaldClient(SignaldRPCClient):
             "resolve_address", partial=Address(number=number).serialize(), account=username
         )
         return Address.deserialize(resp).uuid
+
+    async def submit_challenge(
+        self, username: str, captcha_token: str | None, challenge: str | None
+    ) -> None:
+        await self.request_v1(
+            "submit_challenge", account=username, captcha_token=captcha_token, challenge=challenge
+        )
