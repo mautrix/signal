@@ -27,7 +27,7 @@ async def upgrade_v11(conn: Connection, scheme: Scheme) -> None:
         """
         DELETE FROM message WHERE sender IN (
             SELECT DISTINCT(message.sender) FROM message
-            LEFT JOIN puppet ON message.sender=puppet.uuid::text
+            LEFT JOIN puppet ON message.sender=CAST(puppet.uuid AS TEXT)
             WHERE puppet.uuid IS NULL
         )
         """
@@ -36,7 +36,7 @@ async def upgrade_v11(conn: Connection, scheme: Scheme) -> None:
         """
         DELETE FROM reaction WHERE author IN (
             SELECT DISTINCT(reaction.author) FROM reaction
-            LEFT JOIN puppet ON reaction.author=puppet.uuid::text
+            LEFT JOIN puppet ON reaction.author=CAST(puppet.uuid AS TEXT)
             WHERE puppet.uuid IS NULL
         )
         """
