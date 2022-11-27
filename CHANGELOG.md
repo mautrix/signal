@@ -1,3 +1,13 @@
+# v0.4.2 (unreleased)
+
+Target signald version: [v0.23.0](https://gitlab.com/signald/signald/-/releases/0.23.0)
+
+* Fixed database schema upgrade for users who used SQLite before it was
+  stabilized in v0.4.1.
+* Fixed error in commands that use phone numbers (like `!signal pm`).
+* Fixed updating private chat portal metadata when Signal user info changes.
+* Updated Docker image to Alpine 3.17.
+
 # v0.4.1 (2022-10-28)
 
 Target signald version: [v0.23.0](https://gitlab.com/signald/signald/-/releases/0.23.0)
