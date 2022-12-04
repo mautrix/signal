@@ -1,9 +1,10 @@
 # Homeserver details
 homeserver:
     # The address that this appservice can use to connect to the homeserver.
-    address: https://example.com
+    address: https://synapse.example.com
     # The domain of the homeserver (for MXIDs, etc).
-    domain: example.com
+    # This should be the exact same value as `server_name` in homeserver.yaml
+    domain: synapse.example.com
     # Whether or not to verify the SSL certificate of the homeserver.
     # Only applies if address starts with https://
     verify_ssl: true
