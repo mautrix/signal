@@ -424,10 +424,10 @@ class SignaldClient(SignaldRPCClient):
     async def create_group(
         self,
         username: str,
+        title: str,
         avatar_path: str | None = None,
         member_role_administrator: bool = False,
         members: list[Address] | None = None,
-        title: str | None = None,
     ) -> GroupV2 | None:
         create_params = {
             "avatar": avatar_path,

@@ -342,6 +342,9 @@ async def create(evt: CommandEvent) -> EventID:
         evt.az.intent, evt.room_id
     )
 
+    if not title:
+        return await evt.reply("Please set a room name before creating a Signal group.")
+
     portal = po.Portal(
         chat_id=GroupID(""),
         mxid=evt.room_id,
