@@ -160,19 +160,6 @@ class Profile(SerializableAttrs):
     # visible_badge_ids: List[str]
 
 
-@dataclass
-class Group(SerializableAttrs):
-    group_id: GroupID = field(json="groupId")
-    name: str = "Unknown group"
-
-    # Sometimes "UPDATE"
-    type: Optional[str] = None
-
-    # Not always present
-    members: List[Address] = field(factory=lambda: [])
-    avatar_id: int = field(default=0, json="avatarId")
-
-
 class AccessControlMode(SerializableEnum):
     UNKNOWN = "UNKNOWN"
     ANY = "ANY"
@@ -426,7 +413,6 @@ class MessageData(SerializableAttrs):
     mentions: List[Mention] = field(factory=lambda: [])
     contacts: List[SharedContact] = field(factory=lambda: [])
 
-    group: Optional[Group] = None
     group_v2: Optional[GroupV2ID] = field(default=None, json="groupV2")
 
     end_session: bool = field(default=False, json="endSession")

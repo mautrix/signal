@@ -25,7 +25,6 @@ from mausignald.errors import AuthorizationFailedError, ProfileUnavailableError
 from mausignald.types import (
     Account,
     Address,
-    Group,
     GroupV2,
     Profile,
     WebsocketConnectionState,

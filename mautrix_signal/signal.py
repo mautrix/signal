@@ -201,8 +201,6 @@ class SignalHandler(SignaldClient):
             return
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
-        elif msg.group:
-            portal = await po.Portal.get_by_chat_id(msg.group.group_id, create=True)
         else:
             if addr_override and not addr_override.uuid:
                 target = await pu.Puppet.get_by_address(addr_override, resolve_via=user.username)
@@ -237,9 +235,7 @@ class SignalHandler(SignaldClient):
                     " probably not bridgeable as there's no portal yet"
                 )
                 return
-            await portal.create_matrix_room(
-                user, msg.group_v2 or msg.group or addr_override or sender.address
-            )
+            await portal.create_matrix_room(user, msg.group_v2 or addr_override or sender.address)
             if not portal.mxid:
                 user.log.warning(
                     f"Failed to create room for incoming message {msg.timestamp}, dropping message"
@@ -267,8 +263,6 @@ class SignalHandler(SignaldClient):
             await portal.handle_signal_reaction(sender, msg.reaction, msg.timestamp)
         if msg.is_message:
             await portal.handle_signal_message(user, sender, msg)
-        if msg.group and msg.group.type == "UPDATE":
-            await portal.update_info(user, msg.group)
         if msg.remote_delete:
             await portal.handle_signal_delete(sender, msg.remote_delete.target_sent_timestamp)
 
