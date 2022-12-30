@@ -45,11 +45,12 @@
     * [ ] Real time
       * [x] Groups
       * [ ] Users
-  * [ ] Membership actions
+  * [x] Membership actions
     * [x] Join
     * [x] Invite
-    * [ ] Request join (via invite link)
-    * [x] Kick / leave
+    * [x] Request join (via invite link, requires a client that supports knocks)
+    * [x] Leave
+    * [x] Kick/Ban/Unban
   * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts

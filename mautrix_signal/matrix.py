@@ -152,6 +152,44 @@ class MatrixHandler(BaseMatrixHandler):
     ) -> None:
         await self.handle_kick_ban("banned", room_id, user_id, banned_by, reason, event_id)
 
+    async def handle_accept_knock(
+        self, room_id: RoomID, user_id: UserID, sender: UserID, reason: str, event_id: EventID
+    ) -> None:
+        self.log.debug(f"the knock of {user_id} on room {room_id} was accepted: {reason}")
+        portal = await po.Portal.get_by_mxid(room_id)
+        if not portal:
+            return
+        sender = await u.User.get_by_mxid(sender)
+        sender, is_relay = await portal.get_relay_sender(sender, "accept knock")
+        if not sender:
+            return
+
+        user = await pu.Puppet.get_by_mxid(user_id)
+        if not user:
+            user = await u.User.get_by_mxid(user_id, create=False)
+            if not user or not await user.is_logged_in():
+                return
+        await portal.matrix_accept_knock(sender, user)
+
+    async def handle_reject_knock(
+        self, room_id: RoomID, user_id: UserID, sender: UserID, reason: str, event_id: EventID
+    ) -> None:
+        self.log.debug(f"the knock of {user_id} on room {room_id} was rejected: {reason}")
+        portal = await po.Portal.get_by_mxid(room_id)
+        if not portal:
+            return
+        sender = await u.User.get_by_mxid(sender)
+        sender, is_relay = await portal.get_relay_sender(sender, "accept knock")
+        if not sender:
+            return
+
+        user = await pu.Puppet.get_by_mxid(user_id)
+        if not user:
+            user = await u.User.get_by_mxid(user_id, create=False)
+            if not user or not await user.is_logged_in():
+                return
+        await portal.matrix_reject_knock(sender, user)
+
     @classmethod
     async def handle_reaction(
         cls, room_id: RoomID, user_id: UserID, event_id: EventID, content: ReactionEventContent

@@ -369,6 +369,28 @@ class SignaldClient(SignaldRPCClient):
         )
         return GroupV2.deserialize(resp)
 
+    async def approve_membership(
+        self, username: str, group_id: GroupID, members: list[Address]
+    ) -> GroupV2:
+        serialized_members = [member.serialize() for member in (members or [])]
+        resp = await self.request_v1(
+            "approve_membership", account=username, groupID=group_id, members=serialized_members
+        )
+        return GroupV2.deserialize(resp)
+
+    async def refuse_membership(
+        self, username: str, group_id: GroupID, members: list[Address], also_ban: bool = False
+    ) -> GroupV2:
+        serialized_members = [member.serialize() for member in (members or [])]
+        resp = await self.request_v1(
+            "refuse_membership",
+            account=username,
+            group_id=group_id,
+            members=serialized_members,
+            also_ban=also_ban,
+        )
+        return GroupV2.deserialize(resp)
+
     async def update_group(
         self,
         username: str,
