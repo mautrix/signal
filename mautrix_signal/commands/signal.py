@@ -599,14 +599,13 @@ async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEv
     help_text="Invite a Signal user by phone number",
     help_args="<_phone_>",
 )
-async def invite(evt: CommandEvent) -> EventID:
+async def invite(evt: CommandEvent) -> EventID | None:
     if not evt.is_portal:
         return await evt.reply("This is not a portal room.")
-    else:
-        portal = evt.portal
+    portal = evt.portal
     puppet = await _get_puppet_from_cmd(evt)
     if not puppet:
-        return
+        return None
     levels = await portal.main_intent.get_power_levels(portal.mxid)
     if levels.get_user_level(puppet.mxid) < levels.invite:
         return await evt.reply("You do not have permissions to invite users to this room")
