@@ -155,12 +155,12 @@ class MatrixHandler(BaseMatrixHandler):
     async def handle_accept_knock(
         self, room_id: RoomID, user_id: UserID, sender: UserID, reason: str, event_id: EventID
     ) -> None:
-        self.log.debug(f"the knock of {user_id} on room {room_id} was accepted: {reason}")
+        self.log.debug(f"Knock {user_id} to {room_id} was accepted: {reason}")
         portal = await po.Portal.get_by_mxid(room_id)
         if not portal:
             return
         sender = await u.User.get_by_mxid(sender)
-        sender, is_relay = await portal.get_relay_sender(sender, "accept knock")
+        sender, is_relay = await portal.get_relay_sender(sender, "knock accept")
         if not sender:
             return
 
@@ -174,12 +174,12 @@ class MatrixHandler(BaseMatrixHandler):
     async def handle_reject_knock(
         self, room_id: RoomID, user_id: UserID, sender: UserID, reason: str, event_id: EventID
     ) -> None:
-        self.log.debug(f"the knock of {user_id} on room {room_id} was rejected: {reason}")
+        self.log.debug(f"Knock from {user_id} to {room_id} was rejected: {reason}")
         portal = await po.Portal.get_by_mxid(room_id)
         if not portal:
             return
         sender = await u.User.get_by_mxid(sender)
-        sender, is_relay = await portal.get_relay_sender(sender, "accept knock")
+        sender, is_relay = await portal.get_relay_sender(sender, "knock reject")
         if not sender:
             return
 

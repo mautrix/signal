@@ -2088,14 +2088,14 @@ class Portal(DBPortal, BasePortal):
                         self.mxid, user.mxid, reason="Banned on Signal"
                     )
                 except (MForbidden, MBadState) as e:
-                    self.log.debug(f"could not ban {user.mxid}: {e}")
+                    self.log.debug(f"Could not ban {user.mxid}: {e}")
             puppet = await p.Puppet.get_by_address(Address(uuid=member.uuid))
             unban_users.discard(puppet.mxid)
             remove_users.discard(puppet.mxid)
             try:
                 await self.main_intent.ban_user(self.mxid, puppet.mxid, reason="Banned on Signal")
             except (MForbidden, MBadState) as e:
-                self.log.debug(f"could not ban {puppet.mxid}: {e}")
+                self.log.debug(f"Could not ban {puppet.mxid}: {e}")
 
         for mxid in unban_users:
             user = await u.User.get_by_mxid(mxid, create=False)
@@ -2105,7 +2105,7 @@ class Portal(DBPortal, BasePortal):
                         self.mxid, user.mxid, reason="Unbanned on Signal"
                     )
                 except (MForbidden, MBadState) as e:
-                    self.log.debug(f"could not unban {user.mxid}: {e}")
+                    self.log.debug(f"Could not unban {user.mxid}: {e}")
             puppet = await p.Puppet.get_by_mxid(mxid, create=False)
             if puppet:
                 try:
@@ -2113,7 +2113,7 @@ class Portal(DBPortal, BasePortal):
                         self.mxid, puppet.mxid, reason="Unbanned on Signal"
                     )
                 except (MForbidden, MBadState) as e:
-                    self.log.debug(f"could not unban {puppet.mxid}: {e}")
+                    self.log.debug(f"Could not unban {puppet.mxid}: {e}")
 
         for address in info.members + pending_members:
             user = await u.User.get_by_address(address)
@@ -2137,7 +2137,7 @@ class Portal(DBPortal, BasePortal):
                     self.mxid, puppet.intent_for(self).mxid, check_cache=True
                 )
             except (MForbidden, IntentError, MBadState) as e:
-                self.log.debug(f"could not invite {user.mxid}: {e}")
+                self.log.debug(f"Could not invite {user.mxid}: {e}")
             if address.uuid not in self._pending_members:
                 await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
@@ -2153,7 +2153,7 @@ class Portal(DBPortal, BasePortal):
                         servers=[self.config["homeserver.domain"]],
                     )
                 except (MForbidden, IntentError) as e:
-                    self.log.debug(f"failed to bridge knock: {e}")
+                    self.log.debug(f"Failed to bridge knock: {e}")
 
         for mxid in remove_users:
             user = await u.User.get_by_mxid(mxid, create=False)
@@ -2173,7 +2173,7 @@ class Portal(DBPortal, BasePortal):
                         reason="not a member of this Signal group",
                     )
                 except (MForbidden, MBadState) as e:
-                    self.log.debug(f"could not kick {user.mxid}: {e}")
+                    self.log.debug(f"Could not kick {user.mxid}: {e}")
 
     async def _kick_with_puppet(self, user: p.Puppet | u.User, sender: p.Puppet) -> None:
         try:
