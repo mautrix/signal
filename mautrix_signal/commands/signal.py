@@ -23,6 +23,7 @@ import json
 from mausignald.errors import UnknownIdentityKey, UnregisteredUserError
 from mausignald.types import Address, GroupID, TrustLevel
 from mautrix.appservice import IntentAPI
+from mautrix.bridge import RejectMatrixInvite
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import (
     ContentURI,
@@ -589,3 +590,30 @@ async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEv
         or levels.events[EventType.ROOM_TOPIC] >= 50
     ):
         await evt.reply(meta_power_warning)
+
+
+@command_handler(
+    needs_auth=False,
+    management_only=False,
+    help_section=SECTION_SIGNAL,
+    help_text="Invite a Signal user by phone number",
+    help_args="<_phone_>",
+)
+async def invite(evt: CommandEvent) -> EventID:
+    if not evt.is_portal:
+        return await evt.reply("This is not a portal room.")
+    else:
+        portal = evt.portal
+    puppet = await _get_puppet_from_cmd(evt)
+    if not puppet:
+        return
+    levels = await portal.main_intent.get_power_levels(portal.mxid)
+    if levels.get_user_level(puppet.mxid) < levels.invite:
+        return await evt.reply("You do not have permissions to invite users to this room")
+
+    try:
+        info = await portal.handle_matrix_invite(evt.sender, puppet)
+        sender, is_relay = await portal.get_relay_sender(evt.sender, "updating info")
+        await portal.update_info(sender, info)
+    except RejectMatrixInvite as e:
+        return await evt.reply(f"Failed to invite {puppet.name}: {e}")
