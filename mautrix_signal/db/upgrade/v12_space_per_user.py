@@ -19,5 +19,5 @@ from . import upgrade_table
 
 
 @upgrade_table.register(description="Store space in user table")
-async def upgrade_v10(conn: Connection) -> None:
+async def upgrade_v12(conn: Connection) -> None:
     await conn.execute("ALTER TABLE user ADD COLUMN space_room TEXT NOT NULL DEFAULT ''")
