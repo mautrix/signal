@@ -80,8 +80,9 @@ class User(DBUser, BaseUser):
         username: str | None = None,
         uuid: UUID | None = None,
         notice_room: RoomID | None = None,
+        space_room: RoomID | None = None,
     ) -> None:
-        super().__init__(mxid=mxid, username=username, uuid=uuid, notice_room=notice_room)
+        super().__init__(mxid=mxid, username=username, uuid=uuid, notice_room=notice_room, space_room=space_room)
         BaseUser.__init__(self)
         self._notice_room_lock = asyncio.Lock()
         self._sync_lock = asyncio.Lock()

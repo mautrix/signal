@@ -34,18 +34,19 @@ class User:
     username: str | None
     uuid: UUID | None
     notice_room: RoomID | None
+    space_room: RoomID | None
 
     async def insert(self) -> None:
-        q = 'INSERT INTO "user" (mxid, username, uuid, notice_room) VALUES ($1, $2, $3, $4)'
-        await self.db.execute(q, self.mxid, self.username, self.uuid, self.notice_room)
+        q = 'INSERT INTO "user" (mxid, username, uuid, notice_room, space_room) VALUES ($1, $2, $3, $4, $5)'
+        await self.db.execute(q, self.mxid, self.username, self.uuid, self.notice_room, self.space_room)
 
     async def update(self) -> None:
-        q = 'UPDATE "user" SET username=$1, uuid=$2, notice_room=$3 WHERE mxid=$4'
-        await self.db.execute(q, self.username, self.uuid, self.notice_room, self.mxid)
+        q = 'UPDATE "user" SET username=$1, uuid=$2, notice_room=$3, space_room=$4 WHERE mxid=$5'
+        await self.db.execute(q, self.username, self.uuid, self.notice_room, self.space_room, self.mxid)
 
     @classmethod
     async def get_by_mxid(cls, mxid: UserID) -> User | None:
-        q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE mxid=$1'
+        q = 'SELECT mxid, username, uuid, notice_room, space_room FROM "user" WHERE mxid=$1'
         row = await cls.db.fetchrow(q, mxid)
         if not row:
             return None
@@ -53,7 +54,7 @@ class User:
 
     @classmethod
     async def get_by_username(cls, username: str) -> User | None:
-        q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username=$1'
+        q = 'SELECT mxid, username, uuid, notice_room, space_room FROM "user" WHERE username=$1'
         row = await cls.db.fetchrow(q, username)
         if not row:
             return None
@@ -61,7 +62,7 @@ class User:
 
     @classmethod
     async def get_by_uuid(cls, uuid: UUID) -> User | None:
-        q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE uuid=$1'
+        q = 'SELECT mxid, username, uuid, notice_room, space_room FROM "user" WHERE uuid=$1'
         row = await cls.db.fetchrow(q, uuid)
         if not row:
             return None
@@ -69,6 +70,6 @@ class User:
 
     @classmethod
     async def all_logged_in(cls) -> list[User]:
-        q = 'SELECT mxid, username, uuid, notice_room FROM "user" WHERE username IS NOT NULL'
+        q = 'SELECT mxid, username, uuid, notice_room, space_room FROM "user" WHERE username IS NOT NULL'
         rows = await cls.db.fetch(q)
         return [cls(**row) for row in rows]
