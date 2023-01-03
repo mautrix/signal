@@ -32,8 +32,8 @@ from mausignald.types import (
     WebsocketConnectionStateChangeEvent,
 )
 from mautrix.appservice import AppService
-from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
-from mautrix.types import RoomID, UserID
+from mautrix.bridge import AutologinError, BaseUser, async_getter_lock, portal
+from mautrix.types import RoomDirectoryVisibility, RoomID, UserID
 from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.util.opt_prometheus import Gauge
 
@@ -70,6 +70,7 @@ class User(DBUser, BaseUser):
 
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
+    _space_room_lock: asyncio.Lock
     _connected: bool
     _websocket_connection_state: BridgeStateEvent | None
     _latest_non_transient_disconnect_state: datetime | None
@@ -161,6 +162,37 @@ class User(DBUser, BaseUser):
         if not self.username:
             return None
         return await po.Portal.get_by_chat_id(puppet.uuid, receiver=self.username, create=create)
+
+    async def get_space_room(self) -> RoomID | None:
+        if not self.space_room:
+            self.log.debug("Locking to create space.")
+            self._space_room_lock = asyncio.Lock()
+            puppet = await self.get_puppet()
+            main_intent = self.az._intent
+            self.log.debug("Inviting user " + self.mxid)
+            invites = []
+            invites.append(self.mxid)
+            self.log.debug("Creating a new space for the user")
+            creation_content= {}
+            creation_content["type"] = "m.space"
+            spaceId = await main_intent.create_room(
+                    name="Signal",
+                    topic="Signal bridge space",
+                    invitees=invites,
+                    visibility=RoomDirectoryVisibility.PRIVATE,
+                    creation_content=creation_content
+                )
+            if not spaceId:
+                raise Exception("Failed to create room: no mxid returned")
+            await self.set_space_room(spaceId)
+
+        else:
+            self.log.debug("Space room found: " + self.space_room)
+        return self.space_room
+
+    async def set_space_room(self, spaceId: RoomID):
+        self.space_room = spaceId
+        await self.update()
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id

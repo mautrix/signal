@@ -2438,6 +2438,20 @@ class Portal(DBPortal, BasePortal):
                 "content": power_levels.serialize(),
             },
         ]
+
+        if self.config["signal.space_per_user"]:
+            spaceId = await source.get_space_room()
+            parentSpaceContent = {}
+            parentSpaceContent["via"] = self.config["homeserver.domain"].split(".")
+            parentSpaceContent["canonical"] = True
+            initial_state.append(
+                {
+                    "type": str(EventType.SPACE_PARENT),
+                    "content": parentSpaceContent,
+                    "state_key": spaceId,
+                }
+            )
+
         invites = []
         if self.config["bridge.encryption.default"] and self.matrix.e2ee:
             self.encrypted = True
@@ -2507,7 +2521,17 @@ class Portal(DBPortal, BasePortal):
         if not self.is_direct:
             await self._update_participants(source, info)
 
+        if self.config["signal.space_per_user"]:
+            spaceId = await source.get_space_room()
+            await self._add_to_space(spaceId, self.mxid)
+
         return self.mxid
+
+    async def _add_to_space(self, spaceId: RoomID, portalId: RoomID | None):
+        self.log.debug("Adding room %s to space %s", portalId, spaceId)
+        parentSpaceContent = {}
+        parentSpaceContent["via"] = self.config["homeserver.domain"].split(".")
+        await self.az._intent.send_state_event(spaceId, EventType.SPACE_CHILD, parentSpaceContent)
 
     # endregion
     # region Database getters

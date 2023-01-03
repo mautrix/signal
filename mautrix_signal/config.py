@@ -45,6 +45,7 @@ class Config(BaseBridgeConfig):
         copy("signal.remove_file_after_handling")
         copy("signal.registration_enabled")
         copy("signal.enable_disappearing_messages_in_groups")
+        copy("signal.space_per_user")
 
         copy("metrics.enabled")
         copy("metrics.listen_port")
