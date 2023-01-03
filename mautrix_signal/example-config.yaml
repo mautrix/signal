@@ -110,6 +110,8 @@ signal:
     # time of the messages will be determined by the first users to read the message, rather
     # than individually. If the bridge has a single user, this can be turned on safely.
     enable_disappearing_messages_in_groups: false
+    # Creates a space for all the rooms bridged
+    space_per_user: false
 
 # Bridge config
 bridge:
