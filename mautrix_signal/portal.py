@@ -2441,6 +2441,7 @@ class Portal(DBPortal, BasePortal):
 
         if self.config["signal.space_per_user"]:
             spaceId = await source.get_space_room()
+            self.log.debug("Adding parent state for new room : %s", spaceId)
             parentSpaceContent = {}
             parentSpaceContent["via"] = self.config["homeserver.domain"].split(".")
             parentSpaceContent["canonical"] = True
