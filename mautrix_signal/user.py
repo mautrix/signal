@@ -167,15 +167,13 @@ class User(DBUser, BaseUser):
         if not self.space_room:
             self.log.debug("Locking to create space.")
             self._space_room_lock = asyncio.Lock()
-            puppet = await self.get_puppet()
-            main_intent = self.az._intent
             self.log.debug("Inviting user " + self.mxid)
             invites = []
             invites.append(self.mxid)
             self.log.debug("Creating a new space for the user")
             creation_content= {}
             creation_content["type"] = "m.space"
-            spaceId = await main_intent.create_room(
+            spaceId = await self.az._intent.create_room(
                     name="Signal",
                     topic="Signal bridge space",
                     invitees=invites,
