@@ -2441,9 +2441,9 @@ class Portal(DBPortal, BasePortal):
 
         if self.config["signal.space_per_user"]:
             spaceId = await source.get_space_room()
-            self.log.debug("Adding parent state for new room : %s", spaceId)
+            self.log.debug("Adding parent state for new room: %s", spaceId)
             parentSpaceContent = {}
-            parentSpaceContent["via"] = self.config["homeserver.domain"].split(".")
+            parentSpaceContent["via"] = self.config["homeserver.domain"].split()
             parentSpaceContent["canonical"] = True
             initial_state.append(
                 {
@@ -2530,9 +2530,10 @@ class Portal(DBPortal, BasePortal):
 
     async def _add_to_space(self, spaceId: RoomID, portalId: RoomID | None):
         self.log.debug("Adding room %s to space %s", portalId, spaceId)
+        assert self.az._intent is not None
         parentSpaceContent = {}
-        parentSpaceContent["via"] = self.config["homeserver.domain"].split(".")
-        await self.az._intent.send_state_event(spaceId, EventType.SPACE_CHILD, parentSpaceContent)
+        parentSpaceContent["via"] = self.config["homeserver.domain"].split()
+        await self.az._intent.send_state_event(spaceId, EventType.SPACE_CHILD, parentSpaceContent, portalId)
 
     # endregion
     # region Database getters
