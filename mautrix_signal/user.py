@@ -33,7 +33,7 @@ from mausignald.types import (
 )
 from mautrix.appservice import AppService
 from mautrix.bridge import AutologinError, BaseUser, async_getter_lock, portal
-from mautrix.types import RoomDirectoryVisibility, RoomID, UserID
+from mautrix.types import EventType, RoomDirectoryVisibility, RoomID, UserID
 from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.util.opt_prometheus import Gauge
 
@@ -70,7 +70,7 @@ class User(DBUser, BaseUser):
 
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
-    _space_room_lock: asyncio.Lock
+    _space_create_lock: asyncio.Lock
     _connected: bool
     _websocket_connection_state: BridgeStateEvent | None
     _latest_non_transient_disconnect_state: datetime | None
@@ -164,33 +164,39 @@ class User(DBUser, BaseUser):
         return await po.Portal.get_by_chat_id(puppet.uuid, receiver=self.username, create=create)
 
     async def get_space_room(self) -> RoomID | None:
+        if not self.config["bridge.personal_filtering_spaces"]:
+            return
         if not self.space_room:
-            self.log.debug("Locking to create space.")
-            self._space_room_lock = asyncio.Lock()
-            self.log.debug("Inviting user " + self.mxid)
-            invites = []
-            invites.append(self.mxid)
-            self.log.debug("Creating a new space for the user")
-            creation_content= {}
-            creation_content["type"] = "m.space"
-            spaceId = await self.az._intent.create_room(
-                    name="Signal",
-                    topic="Signal bridge space",
-                    invitees=invites,
-                    visibility=RoomDirectoryVisibility.PRIVATE,
-                    creation_content=creation_content
-                )
-            if not spaceId:
-                raise Exception("Failed to create room: no mxid returned")
-            await self.set_space_room(spaceId)
-
-        else:
-            self.log.debug("Space room found: " + self.space_room)
+            await self._create_space_room()
         return self.space_room
 
-    async def set_space_room(self, spaceId: RoomID):
-        self.space_room = spaceId
-        await self.update()
+    async def _create_space_room(self):
+        self._space_create_lock = asyncio.Lock()
+        if not self.space_room:
+            self.log.debug(f"Creating a new space for {self.mxid}")
+            avatar_state_event_content = {"url": self.config["appservice.bot_avatar"]}
+            assert self.az._intent is not None
+            room = await self.az._intent.create_room(
+                    name="Signal",
+                    topic="Your Signal bridged chats",
+                    invitees=[self.mxid],
+                    visibility=RoomDirectoryVisibility.PRIVATE,
+                    creation_content={"type": "m.space"},
+                    initial_state=[
+                        {
+                            "type": str(EventType.ROOM_AVATAR),
+                            "content": avatar_state_event_content
+                        },
+                    ],
+                    power_level_override={"users": {self.az._intent.mxid: 9001, self.mxid: 50}}
+                )
+            self.space_room = room
+            await self.update()
+            self.log.debug(f"Created new space {room}")
+            try:
+                await self.az._intent.ensure_joined(room)
+            except Exception:
+                self.log.warning(f"Failed to add bridge bot to new space {room}")
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
@@ -348,11 +354,14 @@ class User(DBUser, BaseUser):
                 self.log.debug(f"Didn't find puppet for {address} while syncing contact")
                 return
             await puppet.update_info(profile or address, self)
+            portal = await po.Portal.get_by_chat_id(
+                puppet.uuid, receiver=self.username, create=True
+            )
             if create_portals:
-                portal = await po.Portal.get_by_chat_id(
-                    puppet.uuid, receiver=self.username, create=True
-                )
                 await portal.create_matrix_room(self, profile or address)
+            elif portal.mxid:
+                await portal.update_matrix_room(self, profile or address)
+
         except Exception as e:
             await self.handle_auth_failure(e)
             raise

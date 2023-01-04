@@ -45,13 +45,13 @@ class Config(BaseBridgeConfig):
         copy("signal.remove_file_after_handling")
         copy("signal.registration_enabled")
         copy("signal.enable_disappearing_messages_in_groups")
-        copy("signal.space_per_user")
 
         copy("metrics.enabled")
         copy("metrics.listen_port")
 
         copy("bridge.username_template")
         copy("bridge.displayname_template")
+        copy("bridge.personal_filtering_spaces")
         if self["bridge.allow_contact_list_name_updates"]:
             base["bridge.contact_list_names"] = "allow"
         else:

@@ -110,8 +110,6 @@ signal:
     # time of the messages will be determined by the first users to read the message, rather
     # than individually. If the bridge has a single user, this can be turned on safely.
     enable_disappearing_messages_in_groups: false
-    # Creates a space for all the rooms bridged
-    space_per_user: false
 
 # Bridge config
 bridge:
@@ -123,6 +121,8 @@ bridge:
     # available variable in displayname_preference. The variables in displayname_preference
     # can also be used here directly.
     displayname_template: "{displayname} (Signal)"
+    # Should the bridge create a space for each logged-in user and add bridged rooms to it?
+    personal_filtering_spaces: false
     # Whether or not contact list displaynames should be used.
     # Possible values: disallow, allow, prefer
     #
