@@ -359,9 +359,12 @@ class ProvisioningAPI:
     # region Logout
 
     async def logout(self, request: web.Request) -> web.Response:
-        user = await self.check_token_and_logged_in(request)
-        await user.logout()
-        return web.json_response({}, headers=self._acao_headers)
+        try:
+            user = await self.check_token_and_logged_in(request)
+            await user.logout()
+            return web.json_response({}, headers=self._acao_headers)
+        except web.HTTPNotFound:
+            return web.json_response({"error": "You're not logged in"}, headers=self._acao_headers)
 
     # endregion
 
