@@ -38,11 +38,15 @@ class User:
 
     async def insert(self) -> None:
         q = 'INSERT INTO "user" (mxid, username, uuid, notice_room, space_room) VALUES ($1, $2, $3, $4, $5)'
-        await self.db.execute(q, self.mxid, self.username, self.uuid, self.notice_room, self.space_room)
+        await self.db.execute(
+            q, self.mxid, self.username, self.uuid, self.notice_room, self.space_room
+        )
 
     async def update(self) -> None:
         q = 'UPDATE "user" SET username=$1, uuid=$2, notice_room=$3, space_room=$4 WHERE mxid=$5'
-        await self.db.execute(q, self.username, self.uuid, self.notice_room, self.space_room, self.mxid)
+        await self.db.execute(
+            q, self.username, self.uuid, self.notice_room, self.space_room, self.mxid
+        )
 
     @classmethod
     async def get_by_mxid(cls, mxid: UserID) -> User | None:

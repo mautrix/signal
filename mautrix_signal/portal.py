@@ -2519,14 +2519,15 @@ class Portal(DBPortal, BasePortal):
             assert self.az._intent is not None
             assert spaceId is not None
             await self.az._intent.send_state_event(
-                    spaceId,
-                    EventType.SPACE_CHILD,
-                    {"via": [self.config["homeserver.domain"]]},
-                    str(self.mxid)
-                )
+                spaceId,
+                EventType.SPACE_CHILD,
+                {"via": [self.config["homeserver.domain"]]},
+                str(self.mxid),
+            )
             self.log.debug(f"Added room {self.mxid} to user's personal space ({spaceId})")
         except Exception:
             self.log.warning(f"Failed to add chat {self.mxid} to user's personal space.")
+
     # endregion
     # region Database getters
 

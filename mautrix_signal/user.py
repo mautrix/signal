@@ -83,7 +83,9 @@ class User(DBUser, BaseUser):
         notice_room: RoomID | None = None,
         space_room: RoomID | None = None,
     ) -> None:
-        super().__init__(mxid=mxid, username=username, uuid=uuid, notice_room=notice_room, space_room=space_room)
+        super().__init__(
+            mxid=mxid, username=username, uuid=uuid, notice_room=notice_room, space_room=space_room
+        )
         BaseUser.__init__(self)
         self._notice_room_lock = asyncio.Lock()
         self._sync_lock = asyncio.Lock()
@@ -177,19 +179,16 @@ class User(DBUser, BaseUser):
             avatar_state_event_content = {"url": self.config["appservice.bot_avatar"]}
             assert self.az._intent is not None
             room = await self.az._intent.create_room(
-                    name="Signal",
-                    topic="Your Signal bridged chats",
-                    invitees=[self.mxid],
-                    visibility=RoomDirectoryVisibility.PRIVATE,
-                    creation_content={"type": "m.space"},
-                    initial_state=[
-                        {
-                            "type": str(EventType.ROOM_AVATAR),
-                            "content": avatar_state_event_content
-                        },
-                    ],
-                    power_level_override={"users": {self.az._intent.mxid: 9001, self.mxid: 50}}
-                )
+                name="Signal",
+                topic="Your Signal bridged chats",
+                invitees=[self.mxid],
+                visibility=RoomDirectoryVisibility.PRIVATE,
+                creation_content={"type": "m.space"},
+                initial_state=[
+                    {"type": str(EventType.ROOM_AVATAR), "content": avatar_state_event_content},
+                ],
+                power_level_override={"users": {self.az._intent.mxid: 9001, self.mxid: 50}},
+            )
             self.space_room = room
             await self.update()
             self.log.debug(f"Created new space {room}")
