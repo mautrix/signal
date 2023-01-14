@@ -20,4 +20,4 @@ Pillow>=4,<10
 signalstickers-client>=3,<4
 
 #/sqlite
-aiosqlite>=0.16,<0.18
+aiosqlite>=0.16,<0.19

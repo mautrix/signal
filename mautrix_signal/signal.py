@@ -341,7 +341,7 @@ class SignalHandler(SignaldClient):
             return
         is_typing = typing.action == TypingAction.STARTED
         await sender.intent_for(portal).set_typing(
-            portal.mxid, is_typing, ignore_cache=True, timeout=SIGNAL_TYPING_TIMEOUT
+            portal.mxid, timeout=SIGNAL_TYPING_TIMEOUT if is_typing else 0
         )
 
     @staticmethod

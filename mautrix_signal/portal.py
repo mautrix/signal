@@ -363,7 +363,7 @@ class Portal(DBPortal, BasePortal):
                 status.status = MessageStatus.RETRIABLE
         else:
             status.status = MessageStatus.SUCCESS
-        status.fill_legacy_booleans()
+
         await intent.send_message_event(
             room_id=self.mxid,
             event_type=EventType.BEEPER_MESSAGE_STATUS,
@@ -1212,7 +1212,7 @@ class Portal(DBPortal, BasePortal):
         self.log.debug(f"Started handling message {message.timestamp} by {sender.uuid}")
         self.log.trace(f"Message content: {message}")
         intent = sender.intent_for(self)
-        await intent.set_typing(self.mxid, False)
+        await intent.set_typing(self.mxid, timeout=0)
         event_id = None
         reply_to = await self._find_quote_event_id(message.quote)
 
