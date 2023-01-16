@@ -110,6 +110,10 @@ class ProfileUnavailableError(ResponseError):
     pass
 
 
+class NoSuchAccountError(ResponseError):
+    pass
+
+
 response_error_types = {
     "invalid_request": RequestValidationFailure,
     "TimeoutException": TimeoutException,
@@ -124,6 +128,7 @@ response_error_types = {
     "OwnProfileKeyDoesNotExistError": OwnProfileKeyDoesNotExistError,
     "UnregisteredUserError": UnregisteredUserError,
     "ProfileUnavailableError": ProfileUnavailableError,
+    "NoSuchAccountError": NoSuchAccountError,
     # TODO add rest from https://gitlab.com/signald/signald/-/tree/main/src/main/java/io/finn/signald/clientprotocol/v1/exceptions
 }
 

@@ -11,7 +11,7 @@ import asyncio
 
 from mautrix.util.logging import TraceLogger
 
-from .errors import AuthorizationFailedError, RPCError, UnexpectedResponse
+from .errors import AuthorizationFailedError, NoSuchAccountError, RPCError, UnexpectedResponse
 from .rpc import CONNECT_EVENT, DISCONNECT_EVENT, SignaldRPCClient
 from .types import (
     Account,
@@ -131,7 +131,7 @@ class SignaldClient(SignaldRPCClient):
         except RPCError as e:
             self.log.debug("Failed to subscribe to %s: %s", username, e)
             state = WebsocketConnectionState.DISCONNECTED
-            if isinstance(e, AuthorizationFailedError):
+            if isinstance(e, (AuthorizationFailedError, NoSuchAccountError)):
                 state = WebsocketConnectionState.AUTHENTICATION_FAILED
             evt = WebsocketConnectionStateChangeEvent(state=state, account=username)
             await self._run_event_handler(evt)
