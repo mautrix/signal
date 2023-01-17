@@ -1542,6 +1542,10 @@ class Portal(DBPortal, BasePortal):
                 )
                 or changed
             )
+        if group_change.new_timer:
+            changed = (
+                await self.update_expires_in_seconds(editor, group_change.new_timer) or changed
+            )
 
         if changed:
             await self.update_bridge_info()
@@ -1930,13 +1934,14 @@ class Portal(DBPortal, BasePortal):
             await self.update_bridge_info()
             await self.update()
 
-    async def update_expires_in_seconds(self, sender: p.Puppet, expires_in_seconds: int) -> None:
+    async def update_expires_in_seconds(self, sender: p.Puppet, expires_in_seconds: int) -> bool:
         if expires_in_seconds == 0:
             expires_in_seconds = None
         if self.expiration_time == expires_in_seconds:
-            return
+            return False
 
         assert self.mxid
+        self.log.debug(f"Setting portal expiration time to {expires_in_seconds}")
         self.expiration_time = expires_in_seconds
         await self.update()
 
@@ -1944,6 +1949,7 @@ class Portal(DBPortal, BasePortal):
         body = f"Set the disappearing message timer to {time_str}"
         content = TextMessageEventContent(msgtype=MessageType.NOTICE, body=body)
         await self._send_message(sender.intent_for(self), content)
+        return True
 
     async def get_dm_puppet(self) -> p.Puppet | None:
         if not self.is_direct:
