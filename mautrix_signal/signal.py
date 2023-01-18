@@ -83,6 +83,8 @@ class SignalHandler(SignaldClient):
             await self.handle_receipt(sender, evt.receipt_message)
         if evt.call_message:
             await self.handle_call_message(user, sender, evt)
+        if evt.decryption_error_message:
+            await self.handle_decryption_error(user, sender, evt)
         if evt.sync_message:
             if evt.sync_message.read_messages:
                 await self.handle_own_receipts(sender, evt.sync_message.read_messages)
@@ -346,6 +348,24 @@ class SignalHandler(SignaldClient):
         for message in messages:
             portal = await po.Portal.get_by_mxid(message.mx_room)
             await sender.intent_for(portal).mark_read(portal.mxid, message.mxid)
+
+    async def handle_decryption_error(
+        self, user: u.User, sender: pu.Puppet, msg: IncomingMessage
+    ) -> None:
+        # These messages mean that a message resend was requested. Signald will handle it, but we
+        # need to update the checkpoints.
+        assert msg.decryption_error_message
+        my_uuid = user.address.uuid
+        timestamp = msg.decryption_error_message.timestamp
+        self.log.debug(f"Got decryption error message for {my_uuid}/{timestamp}")
+        message = await DBMessage.find_by_sender_timestamp(my_uuid, timestamp)
+        if not message:
+            self.log.warning("couldn't find message to referenced in decryption error")
+            return
+        portal = await po.Portal.get_by_mxid(message.mx_room)
+        self.log.debug(
+            f"Got decryption error message for {message.mxid} from {sender} in {portal.mxid}"
+        )
 
     async def start(self) -> None:
         await self.connect()

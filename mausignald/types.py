@@ -476,6 +476,13 @@ class ReceiptMessage(SerializableAttrs):
 
 
 @dataclass
+class DecryptionErrorMessage(SerializableAttrs):
+    timestamp: int
+    device_id: int
+    ratchet_key: Optional[str] = None
+
+
+@dataclass
 class ContactSyncMeta(SerializableAttrs):
     id: Optional[str] = None
 
@@ -612,6 +619,7 @@ class IncomingMessage(SerializableAttrs):
     sync_message: Optional[SyncMessage] = field(default=None)
     typing_message: Optional[TypingMessage] = None
     receipt_message: Optional[ReceiptMessage] = None
+    decryption_error_message: Optional[DecryptionErrorMessage] = None
 
 
 @dataclass(kw_only=True)
