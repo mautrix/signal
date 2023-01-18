@@ -185,16 +185,22 @@ bridge:
         #   unverified - Send keys to all device in the room.
         #   cross-signed-untrusted - Require valid cross-signing, but trust all cross-signing keys.
         #   cross-signed-tofu - Require valid cross-signing, trust cross-signing keys on first use (and reject changes).
-        #   cross-signed-verified - Require valid cross-signing, plus a valid user signature from the bridge bot.
+        #   cross-signed-trusted - Require valid cross-signing, plus a valid user signature from the bridge bot.
         #                           Note that creating user signatures from the bridge bot is not currently possible.
         #   verified - Require manual per-device verification
         #              (currently only possible by modifying the `trust` column in the `crypto_device` database table).
         verification_levels:
-            # Minimum level for which the bridge should send keys to when bridging messages from Telegram to Matrix.
+            # Messages received from the non matrix side and bridged to matrix
+            # are encrypted. The encryption keys for this message are only sent
+            # to devices with at minimum this trust level.
             receive: unverified
-            # Minimum level that the bridge should accept for incoming Matrix messages.
+            # Messages sent to the bridge on matrix are ignored unless the
+            # sending device has at minimum this trust level.
             send: unverified
-            # Minimum level that the bridge should require for accepting key requests.
+            # Devices belonging to one user can request encryption keys from
+            # each other. If a device belonging to a bridge user requests keys,
+            # the bridge will only share its encryption keys if the requesting
+            # device has at minimum this trust level.
             share: cross-signed-tofu
         # Options for Megolm room key rotation. These options allow you to
         # configure the m.room.encryption event content. See:
