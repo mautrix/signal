@@ -35,8 +35,9 @@ from mausignald.types import (
     TypingMessage,
     WebsocketConnectionStateChangeEvent,
 )
-from mautrix.types import EventID, Format, MessageType, TextMessageEventContent
+from mautrix.types import EventID, EventType, Format, MessageType, TextMessageEventContent
 from mautrix.util.logging import TraceLogger
+from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
 from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage
@@ -362,9 +363,16 @@ class SignalHandler(SignaldClient):
         if not message:
             self.log.warning("couldn't find message to referenced in decryption error")
             return
-        portal = await po.Portal.get_by_mxid(message.mx_room)
         self.log.debug(
-            f"Got decryption error message for {message.mxid} from {sender} in {portal.mxid}"
+            f"Got decryption error message for {message.mxid} from {sender.uuid} "
+            f"in {message.mx_room}"
+        )
+        user.send_remote_checkpoint(
+            status=MessageSendCheckpointStatus.DELIVERY_FAILED,
+            event_id=message.mxid,
+            room_id=message.mx_room,
+            event_type=EventType.ROOM_MESSAGE,
+            error=f"{sender.uuid} sent a decryption error message for this message",
         )
 
     async def start(self) -> None:
