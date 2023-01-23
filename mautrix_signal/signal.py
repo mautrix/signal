@@ -415,6 +415,8 @@ class SignalHandler(SignaldClient):
                     f"Successfully subscribed {user.username}, running sync in background"
                 )
                 background_task.create(user.sync())
+            else:
+                user.username = None
         if self.delete_unknown_accounts:
             self.log.debug("Checking for unknown accounts to delete")
             for account in await self.list_accounts():
