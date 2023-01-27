@@ -673,6 +673,12 @@ class WebsocketType(SerializableEnum):
 
 
 @dataclass
+class MessageResendSuccessEvent(SerializableAttrs):
+    account: str
+    timestamp: int
+
+
+@dataclass
 class WebsocketConnectionStateChangeEvent(SerializableAttrs):
     state: WebsocketConnectionState
     account: str

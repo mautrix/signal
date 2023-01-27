@@ -26,6 +26,7 @@ from mausignald.types import (
     ErrorMessage,
     IncomingMessage,
     MessageData,
+    MessageResendSuccessEvent,
     OfferMessageType,
     OwnReadReceipt,
     ReceiptMessage,
@@ -37,7 +38,6 @@ from mausignald.types import (
 )
 from mautrix.types import EventID, EventType, Format, MessageType, TextMessageEventContent
 from mautrix.util.logging import TraceLogger
-from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
 from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage
@@ -67,6 +67,7 @@ class SignalHandler(SignaldClient):
         self.add_event_handler(
             WebsocketConnectionStateChangeEvent, self.on_websocket_connection_state_change
         )
+        self.add_event_handler(MessageResendSuccessEvent, self.on_message_resend_success)
 
     async def on_message(self, evt: IncomingMessage) -> None:
         sender = await pu.Puppet.get_by_address(evt.source, resolve_via=evt.account)
@@ -178,6 +179,11 @@ class SignalHandler(SignaldClient):
     ) -> None:
         user = await u.User.get_by_username(evt.account)
         user.on_websocket_connection_state_change(evt)
+
+    @staticmethod
+    async def on_message_resend_success(evt: MessageResendSuccessEvent):
+        user = await u.User.get_by_username(evt.account)
+        user.on_message_resend_success(evt)
 
     async def handle_message(
         self,

@@ -26,19 +26,21 @@ from mausignald.types import (
     Account,
     Address,
     GroupV2,
+    MessageResendSuccessEvent,
     Profile,
     WebsocketConnectionState,
     WebsocketConnectionStateChangeEvent,
 )
 from mautrix.appservice import AppService
 from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
-from mautrix.types import RoomID, UserID
+from mautrix.types import EventType, RoomID, UserID
 from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
+from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 from mautrix.util.opt_prometheus import Gauge
 
 from . import portal as po, puppet as pu
 from .config import Config
-from .db import User as DBUser
+from .db import Message as DBMessage, User as DBUser
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -247,6 +249,22 @@ class User(DBUser, BaseUser):
             self._latest_non_transient_disconnect_state = now
 
         self._websocket_connection_state = bridge_state
+
+    async def on_message_resend_success(self, evt: MessageResendSuccessEvent):
+        # These messages mean we need to resend the message to that user.
+        my_uuid = self.address.uuid
+        self.log.debug(f"Successfully resent message {my_uuid}/{evt.timestamp}")
+        message = await DBMessage.find_by_sender_timestamp(my_uuid, evt.timestamp)
+        if not message:
+            self.log.warning("couldn't find message that was resent")
+            return
+        self.log.debug(f"Successfully resent {message.mxid} in {message.mx_room}")
+        self.send_remote_checkpoint(
+            status=MessageSendCheckpointStatus.SUCCESS,
+            event_id=message.mxid,
+            room_id=message.mx_room,
+            event_type=EventType.ROOM_MESSAGE,
+        )
 
     async def _sync_puppet(self) -> None:
         puppet = await self.get_puppet()
