@@ -73,7 +73,7 @@ class User(DBUser, BaseUser):
     _notice_room_lock: asyncio.Lock
     _connected: bool
     _websocket_connection_state: BridgeStateEvent | None
-    _latest_non_transient_disconnect_state: datetime | None
+    _latest_non_transient_bridge_state: datetime | None
 
     def __init__(
         self,
@@ -211,25 +211,30 @@ class User(DBUser, BaseUser):
             return
 
         now = datetime.now()
-        if bridge_state == BridgeStateEvent.TRANSIENT_DISCONNECT:
+        if bridge_state in (BridgeStateEvent.TRANSIENT_DISCONNECT, BridgeStateEvent.CONNECTING):
+            self.log.debug(
+                f"New bridge state {bridge_state} is likely transient. Waiting 15 seconds to send."
+            )
 
-            async def wait_report_transient_disconnect():
-                # Wait for 10 seconds (that should be enough for the bridge to get connected)
-                # before sending a TRANSIENT_DISCONNECT.
-                # self._latest_non_transient_disconnect_state will only be None if the bridge is
-                # still starting.
-                if self._latest_non_transient_disconnect_state is None:
-                    await sleep(15)
-                    if self._latest_non_transient_disconnect_state is None:
-                        asyncio.create_task(self.push_bridge_state(bridge_state))
+            async def wait_report_bridge_state():
+                # Wait for 15 seconds (that should be enough for the bridge to get connected)
+                # before sending a TRANSIENT_DISCONNECT/CONNECTING.
+                await sleep(15)
+                if (
+                    self._latest_non_transient_bridge_state
+                    and now > self._latest_non_transient_bridge_state
+                ):
+                    asyncio.create_task(self.push_bridge_state(bridge_state))
 
-                # Wait for another minute. If the bridge stays in TRANSIENT_DISCONNECT for that
-                # long, something terrible has happened (signald failed to restart, the internet
-                # broke, etc.)
+                self._websocket_connection_state = bridge_state
+
+                # Wait for another minute. If the bridge stays in TRANSIENT_DISCONNECT/CONNECTING
+                # for that long, something terrible has happened (signald failed to restart, the
+                # internet broke, etc.)
                 await sleep(60)
                 if (
-                    self._latest_non_transient_disconnect_state
-                    and now > self._latest_non_transient_disconnect_state
+                    self._latest_non_transient_bridge_state
+                    and now > self._latest_non_transient_bridge_state
                 ):
                     asyncio.create_task(
                         self.push_bridge_state(
@@ -237,18 +242,21 @@ class User(DBUser, BaseUser):
                             message="Failed to restore connection to Signal",
                         )
                     )
+                    self._websocket_connection_state = BridgeStateEvent.UNKNOWN_ERROR
                 else:
                     self.log.info(
-                        "New state since last TRANSIENT_DISCONNECT push, "
+                        f"New state since last {bridge_state} push, "
                         "not transitioning to UNKNOWN_ERROR."
                     )
 
-            asyncio.create_task(wait_report_transient_disconnect())
+            asyncio.create_task(wait_report_bridge_state())
+        elif self._websocket_connection_state == bridge_state:
+            self.log.info("Websocket state unchanged, not reporting new bridge state")
+            self._latest_non_transient_bridge_state = now
         else:
             asyncio.create_task(self.push_bridge_state(bridge_state))
-            self._latest_non_transient_disconnect_state = now
-
-        self._websocket_connection_state = bridge_state
+            self._latest_non_transient_bridge_state = now
+            self._websocket_connection_state = bridge_state
 
     async def on_message_resend_success(self, evt: MessageResendSuccessEvent):
         # These messages mean we need to resend the message to that user.
