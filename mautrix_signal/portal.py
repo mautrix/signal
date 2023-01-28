@@ -37,7 +37,6 @@ from mausignald.types import (
     Address,
     AnnouncementsMode,
     Attachment,
-    Group,
     GroupAccessControl,
     GroupChange,
     GroupID,
@@ -119,7 +118,7 @@ except ImportError:
 
 StateBridge = EventType.find("m.bridge", EventType.Class.STATE)
 StateHalfShotBridge = EventType.find("uk.half-shot.bridge", EventType.Class.STATE)
-ChatInfo = Union[Group, GroupV2, GroupV2ID, Profile, Address]
+ChatInfo = Union[GroupV2, Profile, Address]
 MAX_MATRIX_MESSAGE_SIZE = 30000
 BEEPER_LINK_PREVIEWS_KEY = "com.beeper.linkpreviews"
 BEEPER_IMAGE_ENCRYPTION_KEY = "beeper:image:encryption"
@@ -1872,7 +1871,7 @@ class Portal(DBPortal, BasePortal):
     # endregion
     # region Updating portal info
 
-    async def update_info(self, source: u.User, info: ChatInfo) -> None:
+    async def update_info(self, source: u.User, info: ChatInfo | GroupV2ID) -> None:
         if self.is_direct:
             if not isinstance(info, (Profile, Address)):
                 raise ValueError(f"Unexpected type for direct chat update_info: {type(info)}")
@@ -1902,24 +1901,17 @@ class Portal(DBPortal, BasePortal):
                 return
 
         changed = False
-        if isinstance(info, Group):
-            changed = await self._update_name(info.name) or changed
-        elif isinstance(info, GroupV2):
-            if self.revision < info.revision:
-                self.revision = info.revision
-                changed = True
-            elif self.revision > info.revision:
-                self.log.warning(
-                    f"Got outdated info when syncing through {source.username} "
-                    f"({info.revision} < {self.revision}), ignoring..."
-                )
-                return
-            changed = await self._update_name(info.title) or changed
-            changed = await self._update_topic(info.description) or changed
-        elif isinstance(info, GroupV2ID):
+        if self.revision < info.revision:
+            self.revision = info.revision
+            changed = True
+        elif self.revision > info.revision:
+            self.log.warning(
+                f"Got outdated info when syncing through {source.username} "
+                f"({info.revision} < {self.revision}), ignoring..."
+            )
             return
-        else:
-            raise ValueError(f"Unexpected type for group update_info: {type(info)}")
+        changed = await self._update_name(info.title) or changed
+        changed = await self._update_topic(info.description) or changed
         changed = await self._update_avatar(info) or changed
         await self._update_participants(source, info)
         try:
@@ -2045,12 +2037,10 @@ class Portal(DBPortal, BasePortal):
         else:
             await action(self.main_intent)
 
-    async def _update_avatar(self, info: ChatInfo, sender: p.Puppet | None = None) -> bool:
+    async def _update_avatar(self, info: GroupV2, sender: p.Puppet | None = None) -> bool:
         path = None
         if isinstance(info, GroupV2):
             path = info.avatar
-        elif isinstance(info, Group):
-            path = f"group-{self.chat_id}"
         res = await p.Puppet.upload_avatar(self, path, self.main_intent)
         if res is False:
             return False
@@ -2068,8 +2058,8 @@ class Portal(DBPortal, BasePortal):
             self.avatar_set = False
         return True
 
-    async def _update_participants(self, source: u.User, info: ChatInfo) -> None:
-        if not self.mxid or not isinstance(info, (Group, GroupV2)):
+    async def _update_participants(self, source: u.User, info: GroupV2) -> None:
+        if not self.mxid:
             return
 
         member_events = await self.main_intent.get_members(self.mxid)
@@ -2089,12 +2079,9 @@ class Portal(DBPortal, BasePortal):
             if evt.content.membership == Membership.BAN and evt.state_key != self.az.bot_mxid
         }
 
-        pending_members = info.pending_members if isinstance(info, GroupV2) else []
-        requesting_members = info.requesting_members if isinstance(info, GroupV2) else []
-        banned_members = info.banned_members if isinstance(info, GroupV2) else []
-        self._pending_members = {addr.uuid for addr in pending_members}
+        self._pending_members = {addr.uuid for addr in info.pending_members}
 
-        for member in banned_members:
+        for member in info.banned_members:
             user = await u.User.get_by_uuid(member.uuid)
             if user:
                 unban_users.discard(user.mxid)
@@ -2131,7 +2118,7 @@ class Portal(DBPortal, BasePortal):
                 except (MForbidden, MBadState) as e:
                     self.log.debug(f"Could not unban {puppet.mxid}: {e}")
 
-        for address in info.members + pending_members:
+        for address in info.members + info.pending_members:
             user = await u.User.get_by_address(address)
             if user:
                 remove_users.discard(user.mxid)
@@ -2144,10 +2131,7 @@ class Portal(DBPortal, BasePortal):
             if not puppet:
                 self.log.warning(f"Didn't find puppet for member {address}")
                 continue
-            try:
-                await source.sync_contact(address)
-            except ProfileUnavailableError:
-                self.log.debug(f"Profile of puppet with {address} is unavailable")
+            await source.sync_contact(address)
             try:
                 await self.main_intent.invite_user(
                     self.mxid, puppet.intent_for(self).mxid, check_cache=True
@@ -2158,7 +2142,7 @@ class Portal(DBPortal, BasePortal):
                 await puppet.intent_for(self).ensure_joined(self.mxid)
             remove_users.discard(puppet.default_mxid)
 
-        for address in requesting_members:
+        for address in info.requesting_members:
             puppet = await p.Puppet.get_by_address(address)
             if puppet:
                 remove_users.discard(puppet.mxid)
@@ -2236,7 +2220,7 @@ class Portal(DBPortal, BasePortal):
             return None
         return join_rule
 
-    async def _update_join_rules(self, info: ChatInfo) -> None:
+    async def _update_join_rules(self, info: GroupV2) -> None:
         if not self.mxid:
             return
         new_join_rule = await self._get_new_join_rule(info.access_control.link)
@@ -2291,7 +2275,7 @@ class Portal(DBPortal, BasePortal):
     # region Creating Matrix rooms
 
     async def update_matrix_room(self, source: u.User, info: ChatInfo) -> None:
-        if not self.is_direct and not isinstance(info, (Group, GroupV2, GroupV2ID)):
+        if not self.is_direct and not isinstance(info, GroupV2):
             raise ValueError(f"Unexpected type for updating group portal: {type(info)}")
         elif self.is_direct and not isinstance(info, (Profile, Address)):
             raise ValueError(f"Unexpected type for updating direct chat portal: {type(info)}")
@@ -2300,21 +2284,14 @@ class Portal(DBPortal, BasePortal):
         except Exception:
             self.log.exception("Failed to update portal")
 
-    async def create_matrix_room(self, source: u.User, info: ChatInfo) -> RoomID | None:
-        if not self.is_direct and not isinstance(info, (Group, GroupV2, GroupV2ID)):
+    async def create_matrix_room(
+        self, source: u.User, info: ChatInfo | GroupV2ID
+    ) -> RoomID | None:
+        if not self.is_direct and not isinstance(info, GroupV2ID):
             raise ValueError(f"Unexpected type for creating group portal: {type(info)}")
         elif self.is_direct and not isinstance(info, (Profile, Address)):
             raise ValueError(f"Unexpected type for creating direct chat portal: {type(info)}")
-        if isinstance(info, Group) and not info.members:
-            try:
-                groups = await self.signal.list_groups(source.username)
-            except Exception as e:
-                await source.handle_auth_failure(e)
-                raise
-            info = next(
-                (g for g in groups if isinstance(g, Group) and g.group_id == info.group_id), info
-            )
-        elif isinstance(info, GroupV2ID) and not isinstance(info, GroupV2):
+        if isinstance(info, GroupV2ID) and not isinstance(info, GroupV2):
             self.log.debug(
                 f"create_matrix_room() called with {info}, fetching full info from signald"
             )
@@ -2373,31 +2350,33 @@ class Portal(DBPortal, BasePortal):
             levels.state_default = 0
             meta_edit_level = 0
         else:
-            if isinstance(info, GroupV2):
-                ac = info.access_control
-                for detail in info.member_detail + info.pending_member_detail:
-                    puppet = await p.Puppet.get_by_uuid(detail.uuid)
-                    puppet_mxid = puppet.intent_for(self).mxid
-                    current_level = levels.get_user_level(puppet_mxid)
-                    if bot_pl > current_level and bot_pl >= 50:
-                        level = current_level
-                        if puppet.is_real_user:
-                            if current_level >= 50 and detail.role == GroupMemberRole.DEFAULT:
-                                level = 0
-                            elif (
-                                current_level < 50 and detail.role == GroupMemberRole.ADMINISTRATOR
-                            ):
-                                level = 50
-                        else:
-                            level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
+            if not info:
+                self.log.debug(f"No info provided for updating power levels in {self.mxid}")
+                return
+            ac = info.access_control
+            for detail in info.member_detail + info.pending_member_detail:
+                puppet = await p.Puppet.get_by_uuid(detail.uuid)
+                puppet_mxid = puppet.intent_for(self).mxid
+                current_level = levels.get_user_level(puppet_mxid)
+                if bot_pl > current_level and bot_pl >= 50:
+                    level = current_level
+                    user = await u.User.get_by_uuid(detail.uuid)
+                    if user:
+                        if current_level >= 50 and detail.role == GroupMemberRole.DEFAULT:
+                            level = 0
+                        elif current_level < 50 and detail.role == GroupMemberRole.ADMINISTRATOR:
+                            level = 50
                         if level == 0:
-                            levels.users.pop(puppet_mxid, None)
+                            levels.users.pop(user.mxid, None)
                         else:
-                            levels.users[puppet_mxid] = level
-                announcements = info.announcements
-            else:
-                ac = GroupAccessControl()
-                announcements = AnnouncementsMode.UNKNOWN
+                            levels.users[user.mxid] = level
+                    else:
+                        level = 50 if detail.role == GroupMemberRole.ADMINISTRATOR else 0
+                    if level == 0:
+                        levels.users.pop(puppet_mxid, None)
+                    else:
+                        levels.users[puppet_mxid] = level
+            announcements = info.announcements
             levels.ban = 50
             levels.kick = 50
             levels.invite = 50 if ac.members == AccessControlMode.ADMINISTRATOR else 0
