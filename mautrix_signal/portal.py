@@ -2189,7 +2189,7 @@ class Portal(DBPortal, BasePortal):
             self.log.debug(f"Could not remove {user.mxid}: {e}")
 
     async def _update_power_levels(self, info: ChatInfo) -> None:
-        if not self.mxid:
+        if not self.mxid or not info:
             return
 
         power_levels = await self.main_intent.get_power_levels(self.mxid)
@@ -2337,7 +2337,7 @@ class Portal(DBPortal, BasePortal):
     async def _get_power_levels(
         self,
         levels: PowerLevelStateEventContent | None = None,
-        info: ChatInfo | None = None,
+        info: ChatInfo = None,
         is_initial: bool = False,
     ) -> PowerLevelStateEventContent:
         levels = levels or PowerLevelStateEventContent()
@@ -2350,9 +2350,6 @@ class Portal(DBPortal, BasePortal):
             levels.state_default = 0
             meta_edit_level = 0
         else:
-            if not info:
-                self.log.debug(f"No info provided for updating power levels in {self.mxid}")
-                return
             ac = info.access_control
             for detail in info.member_detail + info.pending_member_detail:
                 puppet = await p.Puppet.get_by_uuid(detail.uuid)
