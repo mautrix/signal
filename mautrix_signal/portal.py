@@ -1373,12 +1373,10 @@ class Portal(DBPortal, BasePortal):
                 for user in users:
                     if not user:
                         continue
-                    if (
-                        group_member.role == GroupMemberRole.ADMINISTRATOR
-                        and levels.users.get(user.mxid, 0) < 50
-                    ):
-                        levels.users[user.mxid] = 50
-                        levels.users = {k: v for k, v in sorted(list(levels.users.items()))}
+                    if group_member.role == GroupMemberRole.ADMINISTRATOR:
+                        if levels.users.get(user.mxid, 0) < 50:
+                            levels.users[user.mxid] = 50
+                            levels.users = {k: v for k, v in sorted(list(levels.users.items()))}
                     elif levels.users.get(user.mxid, 0) >= 50:
                         levels.users.pop(user.mxid, 0)
             await self._try_with_puppet(
