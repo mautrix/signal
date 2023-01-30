@@ -373,6 +373,18 @@ class SignalHandler(SignaldClient):
             f"Got decryption error message for {message.mxid} from {sender.uuid} "
             f"in {message.mx_room}"
         )
+        portal = await po.Portal.get_by_mxid(message.mx_room)
+        if not portal or not portal.mxid:
+            self.log.warning("couldn't find portal for message referenced in decryption error")
+            return
+
+        evt = await user.intent_for(portal).get_event(message.mx_room, message.mxid)
+        if evt.content.get("fi.mau.double_puppet_source"):
+            self.log.debug(
+                "message requested in decryption error is double-puppeted, not sending checkpoint"
+            )
+            return
+
         user.send_remote_checkpoint(
             status=MessageSendCheckpointStatus.DELIVERY_FAILED,
             event_id=message.mxid,
