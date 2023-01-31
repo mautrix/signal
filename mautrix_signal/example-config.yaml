@@ -250,6 +250,8 @@ bridge:
         # Currently the only events are login start, QR code scan, and login
         # success/failure.
         segment_key: null
+        # Optional user_id to use when sending Segment events. If null, defaults to using mxID.
+        segment_user_id: null
 
     # The prefix for commands. Only required in non-management rooms.
     command_prefix: "!signal"

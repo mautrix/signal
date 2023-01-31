@@ -46,14 +46,18 @@ class ProvisioningAPI:
     bridge: "SignalBridge"
 
     def __init__(
-        self, bridge: "SignalBridge", shared_secret: str, segment_key: str | None
+        self,
+        bridge: "SignalBridge",
+        shared_secret: str,
+        segment_key: str | None,
+        segment_user_id: str | None,
     ) -> None:
         self.bridge = bridge
         self.app = web.Application()
         self.shared_secret = shared_secret
 
         if segment_key:
-            init_segment(segment_key)
+            init_segment(segment_key, segment_user_id)
 
         # Whoami
         self.app.router.add_get("/v1/api/whoami", self.status)
