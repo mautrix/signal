@@ -29,6 +29,7 @@ from .types import (
     LinkPreview,
     LinkSession,
     Mention,
+    MessageResendSuccessEvent,
     Profile,
     ProofRequiredType,
     Quote,
@@ -62,6 +63,7 @@ class SignaldClient(SignaldRPCClient):
         self.add_rpc_handler("WebSocketConnectionState", self._websocket_connection_state_change)
         self.add_rpc_handler("version", self._log_version)
         self.add_rpc_handler("StorageChange", self._parse_storage_change)
+        self.add_rpc_handler("MessageResendSuccess", self._parse_message_resend_request)
         self.add_rpc_handler(CONNECT_EVENT, self._resubscribe)
         self.add_rpc_handler(DISCONNECT_EVENT, self._on_disconnect)
 
@@ -92,6 +94,11 @@ class SignaldClient(SignaldRPCClient):
         if data["type"] != "StorageChange":
             return
         await self._run_event_handler(StorageChange.deserialize(data))
+
+    async def _parse_message_resend_request(self, data: dict[str, Any]) -> None:
+        if data["type"] != "MesaageResendSuccess":
+            return
+        await self._run_event_handler(MessageResendSuccessEvent.deserialize(data))
 
     async def _parse_message(self, data: dict[str, Any]) -> None:
         event_type = data["type"]
