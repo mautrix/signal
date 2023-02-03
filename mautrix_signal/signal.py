@@ -41,6 +41,7 @@ from mautrix.util.logging import TraceLogger
 
 from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage
+from .web.segment_analytics import track
 
 if TYPE_CHECKING:
     from .__main__ import SignalBridge
@@ -125,6 +126,8 @@ class SignalHandler(SignaldClient):
                 portal = await po.Portal.get_by_chat_id(sender.uuid, receiver=user.username)
                 if portal and portal.mxid:
                     await sender.intent_for(portal).redact(portal.mxid, event_id)
+                    error = {"sender": str(sender.uuid), "timestamp": str(evt.timestamp)}
+                    track(user, "$signal_inbound_error_redacted", error)
 
     async def on_error_message(self, err: ErrorMessage) -> None:
         self.log.warning(
@@ -165,6 +168,12 @@ class SignalHandler(SignaldClient):
                     intent=sender.intent_for(portal),
                     content=TextMessageEventContent(body=err_text, msgtype=MessageType.NOTICE),
                 )
+                error = {
+                    "message": err_text,
+                    "sender": str(sender.uuid),
+                    "timestamp": str(err.data.timestamp),
+                }
+                track(user, "$signal_inbound_error_displayed", error)
             finally:
                 fut.set_result(event_id)
 
