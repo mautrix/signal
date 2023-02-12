@@ -34,6 +34,7 @@ from mausignald.types import (
 from mautrix.appservice import AppService
 from mautrix.bridge import AutologinError, BaseUser, async_getter_lock
 from mautrix.types import EventType, RoomID, UserID
+from mautrix.util import background_task
 from mautrix.util.bridge_state import BridgeState, BridgeStateEvent
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 from mautrix.util.opt_prometheus import Gauge
@@ -168,7 +169,7 @@ class User(DBUser, BaseUser):
         self._add_to_cache()
         await self.update()
         await self.bridge.signal.subscribe(self.username)
-        asyncio.create_task(self.sync())
+        background_task.create(self.sync())
         self._track_metric(METRIC_LOGGED_IN, True)
 
     def on_websocket_connection_state_change(
@@ -224,7 +225,7 @@ class User(DBUser, BaseUser):
                     self._latest_non_transient_bridge_state
                     and now > self._latest_non_transient_bridge_state
                 ):
-                    asyncio.create_task(self.push_bridge_state(bridge_state))
+                    background_task.create(self.push_bridge_state(bridge_state))
 
                 self._websocket_connection_state = bridge_state
 
@@ -236,7 +237,7 @@ class User(DBUser, BaseUser):
                     self._latest_non_transient_bridge_state
                     and now > self._latest_non_transient_bridge_state
                 ):
-                    asyncio.create_task(
+                    background_task.create(
                         self.push_bridge_state(
                             BridgeStateEvent.UNKNOWN_ERROR,
                             message="Failed to restore connection to Signal",
@@ -249,12 +250,12 @@ class User(DBUser, BaseUser):
                         "not transitioning to UNKNOWN_ERROR."
                     )
 
-            asyncio.create_task(wait_report_bridge_state())
+            background_task.create(wait_report_bridge_state())
         elif self._websocket_connection_state == bridge_state:
             self.log.info("Websocket state unchanged, not reporting new bridge state")
             self._latest_non_transient_bridge_state = now
         else:
-            asyncio.create_task(self.push_bridge_state(bridge_state))
+            background_task.create(self.push_bridge_state(bridge_state))
             self._latest_non_transient_bridge_state = now
             self._websocket_connection_state = bridge_state
 

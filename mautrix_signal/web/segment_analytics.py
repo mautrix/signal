@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from yarl import URL
 import aiohttp
+
+from mautrix.util import background_task
 
 from .. import user as u
 
@@ -30,7 +31,7 @@ async def _track(user: u.User, event: str, properties: dict) -> None:
 
 def track(user: u.User, event: str, properties: dict | None = None):
     if segment_key:
-        asyncio.create_task(_track(user, event, properties or {}))
+        background_task.create(_track(user, event, properties or {}))
 
 
 def init(key, user_id: str | None = None):

@@ -16,7 +16,6 @@
 from __future__ import annotations
 
 from typing import Awaitable
-import asyncio
 import base64
 import json
 
@@ -33,6 +32,7 @@ from mautrix.types import (
     PowerLevelStateEventContent,
     RoomID,
 )
+from mautrix.util import background_task
 
 from .. import portal as po, puppet as pu
 from ..util import normalize_number, user_has_power_level
@@ -533,7 +533,7 @@ async def _locked_confirm_bridge(
     await portal.save()
     await portal.update_bridge_info()
 
-    asyncio.create_task(portal.update_matrix_room(evt.sender, group))
+    background_task.create(portal.update_matrix_room(evt.sender, group))
 
     await warn_missing_power(levels, evt)
 

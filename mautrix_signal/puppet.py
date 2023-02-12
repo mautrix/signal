@@ -36,6 +36,7 @@ from mautrix.types import (
     SyncToken,
     UserID,
 )
+from mautrix.util import background_task
 from mautrix.util.simple_template import SimpleTemplate
 
 from . import portal as p, signal, user as u
@@ -204,7 +205,7 @@ class Puppet(DBPuppet, BasePuppet):
                 update = await self._update_avatar(f"contact-{self.number}") or update
             if update:
                 await self.update()
-                asyncio.create_task(self._try_update_portal_meta())
+                background_task.create(self._try_update_portal_meta())
 
     @staticmethod
     def fmt_phone(number: str) -> str:

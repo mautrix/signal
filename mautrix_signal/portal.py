@@ -83,7 +83,7 @@ from mautrix.types import (
     UserID,
     VideoInfo,
 )
-from mautrix.util import ffmpeg, variation_selector
+from mautrix.util import background_task, ffmpeg, variation_selector
 from mautrix.util.format_duration import format_duration
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -320,7 +320,7 @@ class Portal(DBPortal, BasePortal):
             )
             await sender.handle_auth_failure(e)
             await self._send_error_notice("message", e)
-            asyncio.create_task(self._send_message_status(event_id, e))
+            background_task.create(self._send_message_status(event_id, e))
 
     async def _send_error_notice(self, type_name: str, err: Exception) -> None:
         if not self.config["bridge.delivery_error_reports"]:
@@ -513,7 +513,7 @@ class Portal(DBPortal, BasePortal):
             dm = DisappearingMessage(self.mxid, event_id, self.expiration_time)
             dm.start_timer()
             await dm.insert()
-            asyncio.create_task(self._disappear_event(dm))
+            background_task.create(self._disappear_event(dm))
 
         sender.send_remote_checkpoint(
             MessageSendCheckpointStatus.SUCCESS,
@@ -524,7 +524,7 @@ class Portal(DBPortal, BasePortal):
             retry_num=retry_count,
         )
         await self._send_delivery_receipt(event_id)
-        asyncio.create_task(self._send_message_status(event_id, err=None))
+        background_task.create(self._send_message_status(event_id, err=None))
 
     async def _signal_send_with_retries(
         self,
@@ -607,7 +607,7 @@ class Portal(DBPortal, BasePortal):
             )
             await self._send_error_notice("reaction", e)
             await sender.handle_auth_failure(e)
-            asyncio.create_task(self._send_message_status(event_id, e))
+            background_task.create(self._send_message_status(event_id, e))
         else:
             sender.send_remote_checkpoint(
                 MessageSendCheckpointStatus.SUCCESS,
@@ -617,7 +617,7 @@ class Portal(DBPortal, BasePortal):
                 retry_num=retry_count,
             )
             await self._send_delivery_receipt(event_id)
-            asyncio.create_task(self._send_message_status(event_id, err=None))
+            background_task.create(self._send_message_status(event_id, err=None))
 
     async def _handle_matrix_reaction(
         self,
@@ -683,8 +683,8 @@ class Portal(DBPortal, BasePortal):
                     error=e,
                 )
                 await sender.handle_auth_failure(e)
-                asyncio.create_task(self._send_error_notice("message deletion", e))
-                asyncio.create_task(self._send_message_status(event_id, e))
+                background_task.create(self._send_error_notice("message deletion", e))
+                background_task.create(self._send_message_status(event_id, e))
             else:
                 self.log.trace(f"Removed {message} after Matrix redaction")
                 sender.send_remote_checkpoint(
@@ -694,7 +694,7 @@ class Portal(DBPortal, BasePortal):
                     EventType.ROOM_REDACTION,
                 )
                 await self._send_delivery_receipt(redaction_event_id)
-                asyncio.create_task(self._send_message_status(redaction_event_id, err=None))
+                background_task.create(self._send_message_status(redaction_event_id, err=None))
             return
 
         reaction = await DBReaction.get_by_mxid(event_id, self.mxid)
@@ -723,8 +723,8 @@ class Portal(DBPortal, BasePortal):
                     error=e,
                 )
                 await sender.handle_auth_failure(e)
-                asyncio.create_task(self._send_error_notice("reaction deletion", e))
-                asyncio.create_task(self._send_message_status(event_id, e))
+                background_task.create(self._send_error_notice("reaction deletion", e))
+                background_task.create(self._send_message_status(event_id, e))
             else:
                 self.log.trace(f"Removed {reaction} after Matrix redaction")
                 sender.send_remote_checkpoint(
@@ -734,7 +734,7 @@ class Portal(DBPortal, BasePortal):
                     EventType.ROOM_REDACTION,
                 )
                 await self._send_delivery_receipt(redaction_event_id)
-                asyncio.create_task(self._send_message_status(redaction_event_id, err=None))
+                background_task.create(self._send_message_status(redaction_event_id, err=None))
             return
 
         sender.send_remote_checkpoint(
@@ -745,7 +745,7 @@ class Portal(DBPortal, BasePortal):
             error="No message or reaction found for redaction",
         )
         status_err = UnknownReactionTarget("No message or reaction found for redaction")
-        asyncio.create_task(self._send_message_status(redaction_event_id, err=status_err))
+        background_task.create(self._send_message_status(redaction_event_id, err=status_err))
 
     async def handle_matrix_join(self, user: u.User) -> None:
         if self.is_direct or not await user.is_logged_in():
@@ -1314,7 +1314,7 @@ class Portal(DBPortal, BasePortal):
                 if sender.uuid == source.uuid:
                     dm.start_timer()
                     await dm.insert()
-                    asyncio.create_task(self._disappear_event(dm))
+                    background_task.create(self._disappear_event(dm))
                     self.log.debug(
                         f"{event_id} set to be redacted in {message.expires_in_seconds} seconds"
                     )

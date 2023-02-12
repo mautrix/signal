@@ -37,6 +37,7 @@ from mausignald.types import (
     WebsocketConnectionStateChangeEvent,
 )
 from mautrix.types import EventID, EventType, Format, MessageType, TextMessageEventContent
+from mautrix.util import background_task
 from mautrix.util.logging import TraceLogger
 from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
@@ -216,7 +217,7 @@ class SignalHandler(SignaldClient):
         addr_override: Address | None = None,
     ) -> None:
         if msg.profile_key_update:
-            asyncio.create_task(user.sync_contact(sender.address, use_cache=False))
+            background_task.create(user.sync_contact(sender.address, use_cache=False))
             return
         if msg.group_v2:
             portal = await po.Portal.get_by_chat_id(msg.group_v2.id, create=True)
@@ -413,7 +414,7 @@ class SignalHandler(SignaldClient):
                 self.log.info(
                     f"Successfully subscribed {user.username}, running sync in background"
                 )
-                asyncio.create_task(user.sync())
+                background_task.create(user.sync())
         if self.delete_unknown_accounts:
             self.log.debug("Checking for unknown accounts to delete")
             for account in await self.list_accounts():
