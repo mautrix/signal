@@ -264,7 +264,7 @@ class User(DBUser, BaseUser):
         self.log.debug(f"Successfully resent message {my_uuid}/{evt.timestamp}")
         message = await DBMessage.find_by_sender_timestamp(my_uuid, evt.timestamp)
         if not message:
-            self.log.warning("couldn't find message that was resent")
+            self.log.warning("Couldn't find message that was resent")
             return
         self.log.debug(f"Successfully resent {message.mxid} in {message.mx_room}")
         self.send_remote_checkpoint(

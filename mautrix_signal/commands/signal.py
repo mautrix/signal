@@ -528,6 +528,7 @@ async def _locked_confirm_bridge(
         levels,
         portal.encrypted,
         portal.photo_id,
+        join_rule,
     ) = await get_initial_state(evt.az.intent, evt.room_id)
     await portal.save()
     await portal.update_bridge_info()

@@ -38,6 +38,7 @@ from mausignald.types import (
 )
 from mautrix.types import EventID, EventType, Format, MessageType, TextMessageEventContent
 from mautrix.util.logging import TraceLogger
+from mautrix.util.message_send_checkpoint import MessageSendCheckpointStatus
 
 from . import portal as po, puppet as pu, user as u
 from .db import Message as DBMessage
@@ -192,7 +193,7 @@ class SignalHandler(SignaldClient):
     @staticmethod
     async def on_message_resend_success(evt: MessageResendSuccessEvent):
         user = await u.User.get_by_username(evt.account)
-        user.on_message_resend_success(evt)
+        await user.on_message_resend_success(evt)
 
     async def handle_message(
         self,
@@ -376,7 +377,7 @@ class SignalHandler(SignaldClient):
         self.log.debug(f"Got decryption error message for {my_uuid}/{timestamp}")
         message = await DBMessage.find_by_sender_timestamp(my_uuid, timestamp)
         if not message:
-            self.log.warning("couldn't find message to referenced in decryption error")
+            self.log.warning("Couldn't find message to referenced in decryption error")
             return
         self.log.debug(
             f"Got decryption error message for {message.mxid} from {sender.uuid} "
@@ -384,13 +385,13 @@ class SignalHandler(SignaldClient):
         )
         portal = await po.Portal.get_by_mxid(message.mx_room)
         if not portal or not portal.mxid:
-            self.log.warning("couldn't find portal for message referenced in decryption error")
+            self.log.warning("Couldn't find portal for message referenced in decryption error")
             return
 
-        evt = await user.intent_for(portal).get_event(message.mx_room, message.mxid)
+        evt = await portal.main_intent.get_event(message.mx_room, message.mxid)
         if evt.content.get("fi.mau.double_puppet_source"):
             self.log.debug(
-                "message requested in decryption error is double-puppeted, not sending checkpoint"
+                "Message requested in decryption error is double-puppeted, not sending checkpoint"
             )
             return
 
