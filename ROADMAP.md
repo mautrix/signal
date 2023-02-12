@@ -63,7 +63,7 @@
   * [ ] Provisioning API for logging in
     * [x] Linking as secondary device
     * [ ] Registering as primary device
-  * [x] Private chat creation by inviting Matrix puppet of Signal user to new room
+  * [x] Private chat/group creation by inviting Matrix puppet of Signal user to new room
   * [x] Option to use own Matrix account for messages sent from other Signal clients
     * [x] Automatic login with shared secret
     * [x] Manual login with `login-matrix`

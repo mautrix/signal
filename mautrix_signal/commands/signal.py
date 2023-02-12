@@ -21,7 +21,6 @@ import json
 
 from mausignald.errors import UnknownIdentityKey, UnregisteredUserError
 from mausignald.types import Address, GroupID, TrustLevel
-from mautrix.appservice import IntentAPI
 from mautrix.bridge import RejectMatrixInvite
 from mautrix.bridge.commands import SECTION_ADMIN, HelpSection, command_handler
 from mautrix.types import (
@@ -38,6 +37,7 @@ from .. import portal as po, puppet as pu
 from ..util import normalize_number, user_has_power_level
 from .auth import make_qr
 from .typehint import CommandEvent
+from .util import get_initial_state
 
 try:
     import PIL as _
@@ -358,7 +358,6 @@ async def create(evt: CommandEvent) -> EventID:
     await warn_missing_power(levels, evt)
 
     await portal.create_signal_group(evt.sender, levels, join_rule)
-    await evt.reply(f"Signal chat created. ID: {portal.chat_id}")
 
 
 @command_handler(
@@ -538,45 +537,6 @@ async def _locked_confirm_bridge(
     await warn_missing_power(levels, evt)
 
     return await evt.reply("Bridging complete. Portal synchronization should begin momentarily.")
-
-
-async def get_initial_state(
-    intent: IntentAPI, room_id: RoomID
-) -> tuple[
-    str | None,
-    str | None,
-    PowerLevelStateEventContent | None,
-    bool,
-    ContentURI | None,
-    JoinRule | None,
-]:
-    state = await intent.get_state(room_id)
-    title: str | None = None
-    about: str | None = None
-    levels: PowerLevelStateEventContent | None = None
-    encrypted: bool = False
-    avatar_url: ContentURI | None = None
-    join_rule: JoinRule | None = None
-    for event in state:
-        try:
-            if event.type == EventType.ROOM_NAME:
-                title = event.content.name
-            elif event.type == EventType.ROOM_TOPIC:
-                about = event.content.topic
-            elif event.type == EventType.ROOM_POWER_LEVELS:
-                levels = event.content
-            elif event.type == EventType.ROOM_CANONICAL_ALIAS:
-                title = title or event.content.canonical_alias
-            elif event.type == EventType.ROOM_ENCRYPTION:
-                encrypted = True
-            elif event.type == EventType.ROOM_AVATAR:
-                avatar_url = event.content.url
-            elif event.type == EventType.ROOM_JOIN_RULES:
-                join_rule = event.content.join_rule
-        except KeyError:
-            # Some state event probably has empty content
-            pass
-    return title, about, levels, encrypted, avatar_url, join_rule
 
 
 async def warn_missing_power(levels: PowerLevelStateEventContent, evt: CommandEvent) -> None:
