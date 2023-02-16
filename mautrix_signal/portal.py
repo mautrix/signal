@@ -1251,25 +1251,11 @@ class Portal(DBPortal, BasePortal):
 
         is_first_text = True
         for attachment in message.attachments:
-            if not attachment.incoming_filename:
-                self.log.warning(
-                    "Failed to bridge attachment, no incoming filename: %s", attachment
-                )
-                continue
             as_text = (
                 is_first_text
                 and attachment.content_type == "text/x-signal-plain"
                 and attachment.size < MAX_MATRIX_MESSAGE_SIZE
             )
-
-            file_size = attachment.size or os.path.getsize(attachment.incoming_filename)
-            if file_size > self.matrix.media_config.upload_size:
-                self.log.warning(
-                    "Failed to bridge attachment %s in %s: file too large",
-                    attachment.id,
-                    message.timestamp,
-                )
-                continue
 
             content = await self._handle_signal_attachment(intent, attachment, text=as_text)
             if as_text:
@@ -1606,6 +1592,19 @@ class Portal(DBPortal, BasePortal):
     async def _handle_signal_attachment(
         self, intent: IntentAPI, attachment: Attachment, sticker: bool = False, text: bool = False
     ) -> MediaMessageEventContent | TextMessageEventContent:
+        if not attachment.incoming_filename:
+            self.log.warning("Failed to bridge attachment, no incoming filename: %s", attachment)
+            return TextMessageEventContent(
+                msgtype=MessageType.NOTICE, body="Missing attachment data"
+            )
+        file_size = attachment.size or os.path.getsize(attachment.incoming_filename)
+        if file_size > self.matrix.media_config.upload_size:
+            self.log.warning(
+                f"Dropping attachment {attachment.id}: file too large "
+                f"({file_size} > {self.matrix.media_config.upload_size})"
+            )
+            return TextMessageEventContent(msgtype=MessageType.NOTICE, body="Attachment too large")
+
         self.log.trace(f"Reuploading attachment {attachment}")
         if not attachment.content_type:
             attachment.content_type = (
