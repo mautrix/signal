@@ -171,11 +171,13 @@ class User(DBUser, BaseUser):
         self.uuid = account.address.uuid
         self._add_to_cache()
         await self.update()
+        self.log.debug(f"Subscribing to {self.username} / {self.uuid}")
         if await self.bridge.signal.subscribe(self.username):
             background_task.create(self.sync())
             self._track_metric(METRIC_LOGGED_IN, True)
             self.log.debug("Successfully subscribed")
         else:
+            self.log.warning("Failed to subscribe")
             self.username = None
 
     def on_websocket_connection_state_change(
