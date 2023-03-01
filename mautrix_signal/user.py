@@ -73,7 +73,7 @@ class User(DBUser, BaseUser):
     _sync_lock: asyncio.Lock
     _notice_room_lock: asyncio.Lock
     _connected: bool
-    _state_id: str
+    _state_id: str | None
     _websocket_connection_state: BridgeStateEvent | None
     _latest_non_transient_bridge_state: datetime | None
 
@@ -168,6 +168,7 @@ class User(DBUser, BaseUser):
 
     async def on_signin(self, account: Account) -> None:
         self.username = account.account_id
+        self._state_id = account.account_id
         self.uuid = account.address.uuid
         self._add_to_cache()
         await self.update()
