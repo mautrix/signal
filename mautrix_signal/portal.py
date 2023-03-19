@@ -28,6 +28,7 @@ import time
 
 from mausignald.errors import (
     AttachmentTooLargeError,
+    GroupPatchNotAcceptedError,
     NotConnected,
     ProfileUnavailableError,
     RPCError,
@@ -860,6 +861,13 @@ class Portal(DBPortal, BasePortal):
                 invited_by.username, self.chat_id, add_members=[user.address]
             )
             self.revision = update_meta.revision
+        except GroupPatchNotAcceptedError as e:
+            update_meta = await self.signal.get_group(invited_by.username, self.chat_id)
+            if (
+                user.address not in update_meta.members
+                and user.address not in update_meta.pending_members
+            ):
+                raise RejectMatrixInvite(str(e)) from e
         except RPCError as e:
             raise RejectMatrixInvite(str(e)) from e
         if user.mxid == self.config["bridge.relay.relaybot"] != "@relaybot:example.com":
