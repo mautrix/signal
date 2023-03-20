@@ -93,7 +93,8 @@ class SignalBridge(Bridge):
                 # Add some randomness to the sync to avoid a thundering herd
                 await asyncio.sleep(uniform(0, SYNC_JITTER))
                 try:
-                    await user.sync(is_startup=hacky_daily_resync and n % 24 == 23)
+                    await user.sync(is_startup=hacky_daily_resync and n % 24 == 23, full=False)
+
                 except asyncio.CancelledError:
                     return
                 except Exception:

@@ -302,10 +302,10 @@ class User(DBUser, BaseUser):
             except AutologinError as e:
                 self.log.warning(f"Failed to enable custom puppet: {e}")
 
-    async def sync(self, is_startup: bool = False) -> None:
+    async def sync(self, is_startup: bool = False, full: bool = True) -> None:
         await self.sync_puppet()
         await self.sync_contacts(is_startup=is_startup)
-        await self.sync_groups()
+        await self.sync_groups(full=full)
         self.log.debug("Sync complete")
 
     async def sync_puppet(self) -> None:
@@ -323,10 +323,10 @@ class User(DBUser, BaseUser):
             self.log.exception("Error while syncing contacts")
             await self.handle_auth_failure(e)
 
-    async def sync_groups(self) -> None:
+    async def sync_groups(self, full: bool = True) -> None:
         try:
             async with self._sync_lock:
-                await self._sync_groups()
+                await self._sync_groups(full)
         except Exception as e:
             self.log.exception("Error while syncing groups")
             await self.handle_auth_failure(e)
@@ -359,17 +359,18 @@ class User(DBUser, BaseUser):
                 portal = await po.Portal.get_by_chat_id(
                     puppet.uuid, receiver=self.username, create=True
                 )
-                await portal.create_matrix_room(self, profile or address)
+                if not portal.mxid:
+                    await portal.create_matrix_room(self, profile or address)
         except Exception as e:
             await self.handle_auth_failure(e)
             raise
 
-    async def _sync_group_v2(self, group: GroupV2, create_portals: bool) -> None:
+    async def _sync_group_v2(self, group: GroupV2, create_portals: bool, full: bool) -> None:
         self.log.trace("Syncing group %s", group.id)
         portal = await po.Portal.get_by_chat_id(group.id, create=True)
-        if create_portals:
+        if create_portals and not portal.mxid:
             await portal.create_matrix_room(self, group)
-        elif portal.mxid:
+        elif portal.mxid and (full == True or group.revision != portal.revision):
             await portal.update_matrix_room(self, group)
 
     async def _hacky_duplicate_contact_check(
@@ -399,11 +400,11 @@ class User(DBUser, BaseUser):
             except Exception:
                 self.log.exception(f"Failed to sync contact {contact.address}")
 
-    async def _sync_groups(self) -> None:
+    async def _sync_groups(self, full: bool) -> None:
         create_group_portal = self.config["bridge.autocreate_group_portal"]
         for group in await self.bridge.signal.list_groups(self.username):
             try:
-                await self._sync_group_v2(group, create_group_portal)
+                await self._sync_group_v2(group, create_group_portal, full)
             except Exception:
                 self.log.exception(f"Failed to sync group {group.id}")
 

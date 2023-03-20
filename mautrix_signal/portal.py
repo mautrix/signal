@@ -2310,6 +2310,7 @@ class Portal(DBPortal, BasePortal):
                 return None
             else:
                 self.log.trace("get_group() returned full info: %s", info)
+        # This should no longer evaluate to True for any code path, keeping it just in case
         if self.mxid:
             await self.update_matrix_room(source, info)
             return self.mxid
