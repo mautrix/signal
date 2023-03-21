@@ -1,3 +1,0 @@
-include:
-- project: 'mautrix/ci'
-  file: '/python.yml'
