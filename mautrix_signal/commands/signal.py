@@ -257,11 +257,21 @@ async def mark_trusted(evt: CommandEvent) -> EventID:
     needs_admin=False,
     needs_auth=True,
     help_section=SECTION_SIGNAL,
-    help_text="Sync data from Signal",
+    help_text="Sync data from signald",
 )
 async def sync(evt: CommandEvent) -> None:
     await evt.sender.sync()
     await evt.reply("Sync complete")
+
+
+@command_handler(
+    needs_admin=False,
+    needs_auth=True,
+    help_section=SECTION_SIGNAL,
+    help_text="Request your phone to re-send data like contacts and group info",
+)
+async def request_sync(evt: CommandEvent) -> None:
+    await evt.bridge.signal.request_sync(evt.sender.username)
 
 
 @command_handler(

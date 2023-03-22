@@ -346,6 +346,23 @@ class SignaldClient(SignaldRPCClient):
     async def remove_linked_device(self, username: str, device_id: int) -> None:
         await self.request_v1("remove_linked_device", account=username, deviceId=device_id)
 
+    async def request_sync(
+        self,
+        username: str,
+        blocked: bool = True,
+        configuration: bool = True,
+        contacts: bool = True,
+        groups: bool = True,
+    ) -> None:
+        await self.request_v1(
+            "request_sync",
+            account=username,
+            blocked=blocked,
+            configuration=configuration,
+            contacts=contacts,
+            groups=groups,
+        )
+
     async def list_contacts(self, username: str, use_cache: bool = False) -> list[Profile]:
         kwargs = {"async": use_cache}
         resp = await self.request_v1("list_contacts", account=username, **kwargs)

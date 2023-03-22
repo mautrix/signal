@@ -85,6 +85,7 @@ class ProvisioningAPI:
 
         # Start new chat API
         self.app.router.add_get("/v2/contacts", self.list_contacts)
+        self.app.router.add_get("/v2/sync", self.request_sync)
         self.app.router.add_get("/v2/resolve_identifier/{number}", self.resolve_identifier)
         self.app.router.add_post("/v2/pm/{number}", self.start_pm)
 
@@ -394,6 +395,11 @@ class ProvisioningAPI:
             },
             headers=self._acao_headers,
         )
+
+    async def request_sync(self, request: web.Request) -> web.Response:
+        user = await self.check_token_and_logged_in(request)
+        await self.bridge.signal.request_sync(user.username)
+        return web.json_response({}, headers=self._acao_headers)
 
     async def _resolve_identifier(self, number: str, user: u.User) -> pu.Puppet:
         try:
