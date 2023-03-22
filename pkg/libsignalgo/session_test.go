@@ -72,6 +72,7 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	assert.NoError(t, err)
 
 	signedPreKeyRecord, err := libsignalgo.NewSignedPreKeyRecordFromPrivateKey(signedPreKeyID, time.UnixMilli(42000), bobSignedPreKey, bobSignedPreKeySignature)
+	assert.NoError(t, err)
 	err = bobStore.StoreSignedPreKey(signedPreKeyID, signedPreKeyRecord, ctx)
 	assert.NoError(t, err)
 }

@@ -2,11 +2,20 @@ name: Go
 
 on: [push, pull_request]
 
+env:
+  LIBSIGNAL_REF: "v0.22.2"
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+        with:
+          repository: signalapp/libsignal
+          path: libsignal
+          ref: ${{ env.LIBSIGNAL_REF }}
+
 
       - name: Set up Go
         uses: actions/setup-go@v3
@@ -16,13 +25,47 @@ jobs:
       - name: Install libolm
         run: sudo apt-get install libolm-dev libolm3
 
-      - name: Install goimports
+      - name: Build libsignal
+        run: |
+          cd libsignal/rust/bridge/ffi
+          cargo build --release --verbose
+
+      - name: Install dependencies
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
           export PATH="$HOME/go/bin:$PATH"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.0
 
-      - name: Lint
-        run: pre-commit run -a
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          repository: signalapp/libsignal
+          path: libsignal
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.20"
+
+      - name: Set up gotestfmt
+        uses: GoTestTools/gotestfmt-action@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install libolm
+        run: sudo apt-get install libolm-dev libolm3
+
+      - name: Build libsignal
+        run: |
+          cd libsignal/rust/bridge/ffi
+          cargo build --release --verbose
+
+      - name: Run tests
+        run: |
+          export LIBRARY_PATH=libsignal/target/release
+          go test -v -json ./pkg/libsignalgo -cover | gotestfmt

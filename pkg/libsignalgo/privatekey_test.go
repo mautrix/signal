@@ -116,7 +116,9 @@ func TestPrivateKeyOperations(t *testing.T) {
 		assert.NoError(t, err)
 
 		sharedSecret1, err := privateKey.Agree(publicKey2)
+		assert.NoError(t, err)
 		sharedSecret2, err := privateKey2.Agree(publicKey)
+		assert.NoError(t, err)
 
 		assert.Equal(t, sharedSecret1, sharedSecret2)
 	})

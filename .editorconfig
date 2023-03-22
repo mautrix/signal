@@ -13,6 +13,4 @@ trim_trailing_whitespace = false
 
 [*.{yaml,yml,sql}]
 indent_style = space
-
-[.gitlab-ci.yml]
 indent_size = 2
