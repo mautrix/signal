@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 
-	"github.com/beeper/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
 type SenderKeyName struct {

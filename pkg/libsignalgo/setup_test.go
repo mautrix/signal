@@ -6,7 +6,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/beeper/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
 type FFILogger struct{}

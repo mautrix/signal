@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/beeper/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
 // From PublicAPITests.swift:testSenderCertificates
