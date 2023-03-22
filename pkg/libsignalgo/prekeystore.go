@@ -2,7 +2,7 @@ package libsignalgo
 
 /*
 #cgo LDFLAGS: ./libsignal/target/release/libsignal_ffi.a -ldl
-#include "./libsignal/libsignal-ffi.h"
+#include "./libsignal-ffi.h"
 
 typedef const SignalPreKeyRecord const_pre_key_record;
 

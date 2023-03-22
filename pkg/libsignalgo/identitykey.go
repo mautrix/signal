@@ -2,7 +2,7 @@ package libsignalgo
 
 /*
 #cgo LDFLAGS: ./libsignal/target/release/libsignal_ffi.a -ldl
-#include "./libsignal/libsignal-ffi.h"
+#include "./libsignal-ffi.h"
 */
 import "C"
 
