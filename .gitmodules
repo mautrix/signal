@@ -1,3 +1,0 @@
-[submodule "pkg/libsignalgo/libsignal"]
-	path = pkg/libsignalgo/libsignal
-	url = https://github.com/signalapp/libsignal.git
