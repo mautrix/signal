@@ -1,7 +1,7 @@
 package libsignalgo
 
 /*
-#cgo LDFLAGS: ./libsignal/target/release/libsignal_ffi.a -ldl
+#cgo LDFLAGS: -lsignal_ffi -ldl
 #include "./libsignal-ffi.h"
 
 typedef const SignalSessionRecord const_session_record;
