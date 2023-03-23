@@ -175,7 +175,7 @@ class User(DBUser, BaseUser):
         await self.update()
         self.log.debug(f"Subscribing to {self.username} / {self.uuid}")
         if await self.bridge.signal.subscribe(self.username):
-            background_task.create(self.sync())
+            background_task.create(self.sync(is_startup=True))
             self._track_metric(METRIC_LOGGED_IN, True)
             self.log.debug("Successfully subscribed")
         else:
@@ -302,9 +302,9 @@ class User(DBUser, BaseUser):
             except AutologinError as e:
                 self.log.warning(f"Failed to enable custom puppet: {e}")
 
-    async def sync(self) -> None:
+    async def sync(self, is_startup: bool = False) -> None:
         await self.sync_puppet()
-        await self.sync_contacts()
+        await self.sync_contacts(is_startup=is_startup)
         await self.sync_groups()
         self.log.debug("Sync complete")
 
@@ -315,10 +315,10 @@ class User(DBUser, BaseUser):
         except Exception:
             self.log.exception("Error while syncing own puppet")
 
-    async def sync_contacts(self) -> None:
+    async def sync_contacts(self, is_startup: bool = False) -> None:
         try:
             async with self._sync_lock:
-                await self._sync_contacts()
+                await self._sync_contacts(is_startup)
         except Exception as e:
             self.log.exception("Error while syncing contacts")
             await self.handle_auth_failure(e)
@@ -372,7 +372,9 @@ class User(DBUser, BaseUser):
         elif portal.mxid:
             await portal.update_matrix_room(self, group)
 
-    async def _hacky_duplicate_contact_check(self, contacts: list[Profile]) -> None:
+    async def _hacky_duplicate_contact_check(
+        self, contacts: list[Profile], is_startup: bool
+    ) -> None:
         name_map: dict[str, list[Profile]] = {}
         for contact in contacts:
             if contact.contact_name:
@@ -380,14 +382,17 @@ class User(DBUser, BaseUser):
         duplicates = {name: profiles for name, profiles in name_map.items() if len(profiles) > 1}
         if duplicates:
             self.log.warning(f"Found duplicate contact names, potential name mixup: {duplicates}")
+            if is_startup:
+                self.log.debug("Requesting contact sync to resolve potential name mixup")
+                await self.bridge.signal.request_sync(self.username)
         else:
             self.log.debug("No duplicate contact names found")
 
-    async def _sync_contacts(self) -> None:
+    async def _sync_contacts(self, is_startup: bool) -> None:
         create_contact_portal = self.config["bridge.autocreate_contact_portal"]
         contacts = await self.bridge.signal.list_contacts(self.username)
         if self.config["bridge.hacky_contact_name_mixup_detection"]:
-            await self._hacky_duplicate_contact_check(contacts)
+            await self._hacky_duplicate_contact_check(contacts, is_startup=is_startup)
         for contact in contacts:
             try:
                 await self.sync_contact(contact, create_contact_portal)
