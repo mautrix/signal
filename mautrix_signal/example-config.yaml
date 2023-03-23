@@ -237,6 +237,7 @@ bridge:
     # Should the bridge auto-create a group chat on Signal when a ghost is invited to a room?
     # Requires the user to have sufficient power level and double puppeting enabled.
     create_group_on_invite: true
+    hacky_contact_name_mixup_detection: false
 
     # Provisioning API part of the web server for automated portal creation and fetching information.
     # Used by things like mautrix-manager (https://github.com/tulir/mautrix-manager).

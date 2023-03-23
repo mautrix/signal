@@ -372,9 +372,23 @@ class User(DBUser, BaseUser):
         elif portal.mxid:
             await portal.update_matrix_room(self, group)
 
+    async def _hacky_duplicate_contact_check(self, contacts: list[Profile]) -> None:
+        name_map: dict[str, list[Profile]] = {}
+        for contact in contacts:
+            if contact.contact_name:
+                name_map.setdefault(contact.contact_name, []).append(contact)
+        duplicates = {name: profiles for name, profiles in name_map.items() if len(profiles) > 1}
+        if duplicates:
+            self.log.warning(f"Found duplicate contact names, potential name mixup: {duplicates}")
+        else:
+            self.log.debug("No duplicate contact names found")
+
     async def _sync_contacts(self) -> None:
         create_contact_portal = self.config["bridge.autocreate_contact_portal"]
-        for contact in await self.bridge.signal.list_contacts(self.username):
+        contacts = await self.bridge.signal.list_contacts(self.username)
+        if self.config["bridge.hacky_contact_name_mixup_detection"]:
+            await self._hacky_duplicate_contact_check(contacts)
+        for contact in contacts:
             try:
                 await self.sync_contact(contact, create_contact_portal)
             except Exception:
