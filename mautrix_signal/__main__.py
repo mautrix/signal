@@ -77,9 +77,11 @@ class SignalBridge(Bridge):
         await super().start()
         self.periodic_sync_task = asyncio.create_task(self._periodic_sync_loop())
 
-    @staticmethod
-    async def _actual_periodic_sync_loop(log: logging.Logger, interval: int) -> None:
+    async def _actual_periodic_sync_loop(self, log: logging.Logger, interval: int) -> None:
+        n = 0
+        hacky_daily_resync = self.config["bridge.hacky_contact_name_mixup_detection"]
         while True:
+            n += 1
             try:
                 await asyncio.sleep(interval)
             except asyncio.CancelledError:
@@ -89,7 +91,7 @@ class SignalBridge(Bridge):
                 # Add some randomness to the sync to avoid a thundering herd
                 await asyncio.sleep(uniform(0, SYNC_JITTER))
                 try:
-                    await user.sync()
+                    await user.sync(is_startup=hacky_daily_resync and n % 24 == 23)
                 except asyncio.CancelledError:
                     return
                 except Exception:
