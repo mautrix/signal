@@ -104,7 +104,10 @@ class SignalBridge(Bridge):
             log.debug("Periodic sync is not enabled")
             return
         log.debug("Starting periodic sync loop")
-        await self._actual_periodic_sync_loop(log, interval)
+        try:
+            await self._actual_periodic_sync_loop(log, interval)
+        except Exception:
+            log.fatal("Error in periodic resync", exc_info=True)
         log.debug("Periodic sync stopped")
 
     def prepare_stop(self) -> None:
