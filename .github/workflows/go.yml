@@ -27,8 +27,8 @@ jobs:
 
       - name: Build libsignal
         run: |
-          cd libsignal/rust/bridge/ffi
-          cargo build --release --verbose
+          cd libsignal
+          cargo build -p libsignal-ffi --release --verbose
 
       - name: Install dependencies
         run: |
@@ -62,8 +62,8 @@ jobs:
 
       - name: Build libsignal
         run: |
-          cd libsignal/rust/bridge/ffi
-          cargo build --release --verbose
+          cd libsignal
+          cargo build -p libsignal-ffi --release --verbose
 
       - name: Run tests
         run: |
