@@ -238,6 +238,8 @@ bridge:
     # Requires the user to have sufficient power level and double puppeting enabled.
     create_group_on_invite: true
     hacky_contact_name_mixup_detection: false
+    # Preliminary support for MSC2530. This only works for media messages and will not work by default on most clients
+    caption_in_message: false
 
     # Provisioning API part of the web server for automated portal creation and fetching information.
     # Used by things like mautrix-manager (https://github.com/tulir/mautrix-manager).

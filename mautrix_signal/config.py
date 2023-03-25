@@ -66,6 +66,7 @@ class Config(BaseBridgeConfig):
         copy("bridge.double_puppet_allow_discovery")
         copy("bridge.create_group_on_invite")
         copy("bridge.hacky_contact_name_mixup_detection")
+        copy("bridge.caption_in_message")
         if self["bridge.login_shared_secret"]:
             base["bridge.login_shared_secret_map"] = {
                 base["homeserver.domain"]: self["bridge.login_shared_secret"]

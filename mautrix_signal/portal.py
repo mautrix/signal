@@ -446,6 +446,8 @@ class Portal(DBPortal, BasePortal):
             attachment = await self._make_attachment(message, attachment_path)
             attachments = [attachment]
             text = message.body if is_relay else None
+            if self.config["bridge.caption_in_message"]:
+                text = message.body if message.get("filename") is not None else None
             self.log.trace("Formed outgoing attachment %s", attachment)
         elif message.msgtype == MessageType.LOCATION:
             try:
