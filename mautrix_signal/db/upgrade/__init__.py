@@ -14,4 +14,5 @@ from . import (
     v09_group_topic,
     v10_puppet_name_quality,
     v11_drop_number_support,
+    v12_add_contact_info_to_puppet,
 )

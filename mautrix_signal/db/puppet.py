@@ -40,6 +40,7 @@ class Puppet:
     avatar_url: ContentURI | None
     name_set: bool
     avatar_set: bool
+    contact_info_set: bool
     is_registered: bool
 
     custom_mxid: UserID | None
@@ -62,6 +63,7 @@ class Puppet:
             self.avatar_url,
             self.name_set,
             self.avatar_set,
+            self.contact_info_set,
             self.is_registered,
             self.custom_mxid,
             self.access_token,
@@ -79,9 +81,9 @@ class Puppet:
     async def insert(self) -> None:
         q = """
         INSERT INTO puppet (uuid, number, name, name_quality, avatar_hash, avatar_url,
-                            name_set, avatar_set, is_registered,
+                            name_set, avatar_set, contact_info_set, is_registered,
                             custom_mxid, access_token, next_batch, base_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
         """
         async with self.db.acquire() as conn, conn.transaction():
             await self._delete_existing_number(conn)
@@ -96,8 +98,8 @@ class Puppet:
         q = """
         UPDATE puppet
         SET number=$2, name=$3, name_quality=$4, avatar_hash=$5, avatar_url=$6,
-            name_set=$7, avatar_set=$8, is_registered=$9,
-            custom_mxid=$10, access_token=$11, next_batch=$12, base_url=$13
+            name_set=$7, avatar_set=$8, contact_info_set=$9, is_registered=$10,
+            custom_mxid=$11, access_token=$12, next_batch=$13, base_url=$14
         WHERE uuid=$1
         """
         await self.db.execute(q, *self._values)
@@ -111,11 +113,11 @@ class Puppet:
         base_url = URL(base_url_str) if base_url_str is not None else None
         return cls(base_url=base_url, **data)
 
-    _select_base = (
-        "SELECT uuid, number, name, name_quality, avatar_hash, avatar_url, name_set, avatar_set, "
-        "       is_registered, custom_mxid, access_token, next_batch, base_url "
-        "FROM puppet"
-    )
+    _select_base = """
+        SELECT uuid, number, name, name_quality, avatar_hash, avatar_url, name_set, avatar_set,
+               contact_info_set, is_registered, custom_mxid, access_token, next_batch, base_url
+        FROM puppet
+    """
 
     @classmethod
     async def get_by_uuid(cls, uuid: UUID) -> Puppet | None:
