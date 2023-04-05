@@ -38,6 +38,8 @@ SYNC_JITTER = 10
 class SignalBridge(Bridge):
     module = "mautrix_signal"
     name = "mautrix-signal"
+    beeper_service_name = "signal"
+    beeper_network_name = "signal"
     command = "python -m mautrix-signal"
     description = "A Matrix-Signal puppeting bridge."
     repo_url = "https://github.com/mautrix/signal"
