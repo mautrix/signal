@@ -15,8 +15,9 @@ import (
 type Database struct {
 	*dbutil.Database
 
-	User     *UserQuery
-	Portal   *PortalQuery
+	User   *UserQuery
+	Portal *PortalQuery
+	Puppet *PuppetQuery
 }
 
 func New(baseDB *dbutil.Database, log maulogger.Logger) *Database {

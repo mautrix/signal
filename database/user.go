@@ -56,8 +56,8 @@ type User struct {
 	log log.Logger
 
 	MXID           id.UserID
-	SignalID      string
-	SignalToken   string
+	SignalID       string
+	SignalToken    string
 	ManagementRoom id.RoomID
 	SpaceRoom      id.RoomID
 	DMSpaceRoom    id.RoomID

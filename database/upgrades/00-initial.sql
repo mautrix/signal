@@ -1,3 +1,4 @@
+-- v0 -> v1: Latest revision
 CREATE TABLE "user" (
     mxid TEXT PRIMARY KEY,
     signal_id TEXT UNIQUE,

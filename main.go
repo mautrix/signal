@@ -4,12 +4,13 @@ import (
 	_ "embed"
 
 	"sync"
+
+	"go.mau.fi/mautrix-signal/config"
+	"go.mau.fi/mautrix-signal/database"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/util/configupgrade"
-	"go.mau.fi/mautrix-signal/database"
-	"go.mau.fi/mautrix-signal/config"
 )
 
 //go:embed example-config.yaml
@@ -24,29 +25,30 @@ var (
 )
 
 type SignalBridge struct {
-		bridge.Bridge
+	bridge.Bridge
 
-		Config *config.Config
-		DB     *database.Database
+	Config *config.Config
+	DB     *database.Database
 
-		//provisioning *ProvisioningAPI
+	//provisioning *ProvisioningAPI
 
-		usersByMXID map[id.UserID]*User
-		usersByID   map[string]*User
-		usersLock   sync.Mutex
+	usersByMXID map[id.UserID]*User
+	usersByID   map[string]*User
+	usersLock   sync.Mutex
 
-		managementRooms     map[id.RoomID]*User
-		managementRoomsLock sync.Mutex
+	managementRooms     map[id.RoomID]*User
+	managementRoomsLock sync.Mutex
 
-		portalsByMXID map[id.RoomID]*Portal
-		portalsByID   map[database.PortalKey]*Portal
-		portalsLock   sync.Mutex
+	portalsByMXID map[id.RoomID]*Portal
+	portalsByID   map[database.PortalKey]*Portal
+	portalsLock   sync.Mutex
 
-		puppets             map[string]*Puppet
-		puppetsByCustomMXID map[id.UserID]*Puppet
-		puppetsLock         sync.Mutex
-
+	puppets             map[string]*Puppet
+	puppetsByCustomMXID map[id.UserID]*Puppet
+	puppetsLock         sync.Mutex
 }
+
+var _ bridge.ChildOverride = (*SignalBridge)(nil)
 
 func (br *SignalBridge) GetExampleConfig() string {
 	return ExampleConfig
@@ -64,11 +66,11 @@ func (br *SignalBridge) Init() {
 	br.CommandProcessor = commands.NewProcessor(&br.Bridge)
 	br.RegisterCommands()
 
-	br.DB = database.New(br.Bridge.DB)
+	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
 }
 
 func (br *SignalBridge) Start() {
-	go br.startUsers()
+	go br.StartUsers()
 }
 
 func (br *SignalBridge) Stop() {
@@ -143,4 +145,3 @@ func main() {
 
 	br.Main()
 }
-
