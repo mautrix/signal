@@ -148,6 +148,8 @@ func main() {
 		Version:      "0.1.0",
 		ProtocolName: "Signal",
 
+		CryptoPickleKey: "maunium.net/go/mautrix-signal",
+
 		ConfigUpgrader: &configupgrade.StructUpgrader{
 			SimpleUpgrader: configupgrade.SimpleUpgrader(config.DoUpgrade),
 			Blocks:         config.SpacedBlocks,
