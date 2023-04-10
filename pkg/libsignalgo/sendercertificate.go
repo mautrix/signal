@@ -108,7 +108,7 @@ func (sc *SenderCertificate) GetSenderE164() (string, error) {
 }
 
 func (sc *SenderCertificate) GetExpiration() (time.Time, error) {
-	var expiration C.ulong
+	var expiration C.ulonglong
 	signalFfiError := C.signal_sender_certificate_get_expiration(&expiration, sc.ptr)
 	if signalFfiError != nil {
 		return time.Time{}, wrapError(signalFfiError)
