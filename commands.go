@@ -37,7 +37,7 @@ var cmdPing = &commands.FullHandler{
 	Name: "ping",
 	Help: commands.HelpMeta{
 		Section:     commands.HelpSectionAuth,
-		Description: "Check your connection to Discord",
+		Description: "Check your connection to Signal",
 	},
 }
 

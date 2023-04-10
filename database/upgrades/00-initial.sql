@@ -1,18 +1,7 @@
 -- v0 -> v1: Latest revision
-CREATE TABLE "user" (
-    mxid TEXT PRIMARY KEY,
-    signal_id TEXT UNIQUE,
-
-    signal_token   TEXT,
-    management_room TEXT,
-    space_room      TEXT,
-    dm_space_room   TEXT,
-
-    read_state_version INTEGER NOT NULL DEFAULT 0
-)
 
 CREATE TABLE portal (
-    signal_id     TEXT,
+    signal_id          TEXT,
     receiver      TEXT,
     other_user_id TEXT,
     type          INTEGER NOT NULL,
@@ -31,5 +20,34 @@ CREATE TABLE portal (
 
     first_event_id TEXT NOT NULL,
 
-    PRIMARY KEY (signal_id, receiver),
-)
+    relay_webhook_id     TEXT,
+    relay_webhook_secret TEXT,
+
+    PRIMARY KEY (signal_id, receiver)
+);
+
+CREATE TABLE puppet (
+    id TEXT PRIMARY KEY,
+
+    name       TEXT NOT NULL,
+    name_set   BOOLEAN NOT NULL,
+    avatar     TEXT NOT NULL,
+    avatar_url TEXT NOT NULL,
+    avatar_set BOOLEAN NOT NULL,
+
+    custom_mxid  TEXT,
+    access_token TEXT,
+    next_batch   TEXT
+);
+
+CREATE TABLE "user" (
+    mxid TEXT PRIMARY KEY,
+    signal_id TEXT UNIQUE,
+
+    signal_token   TEXT,
+    management_room TEXT,
+    space_room      TEXT,
+    dm_space_room   TEXT,
+
+    read_state_version INTEGER NOT NULL DEFAULT 0
+);

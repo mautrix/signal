@@ -137,6 +137,8 @@ func (br *SignalBridge) GetPuppetByCustomMXID(mxid id.UserID) *Puppet {
 }
 
 func (br *SignalBridge) GetAllPuppetsWithCustomMXID() []*Puppet {
+	br.puppetsLock.Lock()
+	defer br.puppetsLock.Unlock()
 	return br.dbPuppetsToPuppets(br.DB.Puppet.GetAllWithCustomMXID())
 }
 

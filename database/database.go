@@ -31,6 +31,10 @@ func New(baseDB *dbutil.Database, log maulogger.Logger) *Database {
 		db:  db,
 		log: log.Sub("Portal"),
 	}
+	db.Puppet = &PuppetQuery{
+		db:  db,
+		log: log.Sub("Puppet"),
+	}
 	return db
 }
 
