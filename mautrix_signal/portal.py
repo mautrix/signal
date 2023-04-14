@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Union, cast
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Awaitable, Callable, Literal, Union, cast
 from collections import deque
 from uuid import UUID, uuid4
 import asyncio
@@ -138,7 +138,7 @@ class Portal(DBPortal, BasePortal):
     matrix: m.MatrixHandler
     signal: s.SignalHandler
     az: AppService
-    private_chat_portal_meta: bool
+    private_chat_portal_meta: Literal["default", "always", "never"]
     expiration_time: int | None
 
     _main_intent: IntentAPI | None
@@ -201,6 +201,14 @@ class Portal(DBPortal, BasePortal):
     @property
     def is_direct(self) -> bool:
         return isinstance(self.chat_id, UUID)
+
+    @property
+    def set_dm_room_metadata(self) -> bool:
+        return (
+            not self.is_direct
+            or self.private_chat_portal_meta == "always"
+            or (self.encrypted and self.private_chat_portal_meta != "never")
+        )
 
     @property
     def disappearing_enabled(self) -> bool:
@@ -1965,9 +1973,6 @@ class Portal(DBPortal, BasePortal):
             await self.update_puppet_number(puppet.fmt_phone(puppet.number), save=False)
 
     async def update_puppet_number(self, number: str, save: bool = True) -> None:
-        if not self.encrypted and not self.private_chat_portal_meta:
-            return
-
         changed = await self._update_topic(number)
         if changed and save:
             await self.update_bridge_info()
@@ -1976,27 +1981,21 @@ class Portal(DBPortal, BasePortal):
     async def update_puppet_avatar(
         self, new_hash: str, avatar_url: ContentURI, save: bool = True
     ) -> None:
-        if not self.encrypted and not self.private_chat_portal_meta:
-            return
-
-        if self.avatar_hash != new_hash or not self.avatar_set:
+        if self.avatar_hash != new_hash or (not self.avatar_set and self.set_dm_room_metadata):
             self.avatar_hash = new_hash
             self.avatar_url = avatar_url
-            if self.mxid:
+            self.avatar_set = False
+            if self.mxid and self.set_dm_room_metadata:
                 try:
                     await self.main_intent.set_room_avatar(self.mxid, avatar_url)
                     self.avatar_set = True
                 except Exception:
                     self.log.exception("Error setting avatar")
-                    self.avatar_set = False
                 if save:
                     await self.update_bridge_info()
                     await self.update()
 
     async def update_puppet_name(self, name: str, save: bool = True) -> None:
-        if not self.encrypted and not self.private_chat_portal_meta:
-            return
-
         changed = await self._update_name(name)
 
         if changed and save:
@@ -2004,9 +2003,10 @@ class Portal(DBPortal, BasePortal):
             await self.update()
 
     async def _update_name(self, name: str, sender: p.Puppet | None = None) -> bool:
-        if self.name != name or not self.name_set:
+        if self.name != name or (not self.name_set and self.set_dm_room_metadata):
             self.name = name
-            if self.mxid:
+            self.name_set = False
+            if self.mxid and self.set_dm_room_metadata:
                 try:
                     await self._try_with_puppet(
                         lambda i: i.set_room_name(self.mxid, self.name), puppet=sender
@@ -2014,7 +2014,6 @@ class Portal(DBPortal, BasePortal):
                     self.name_set = True
                 except Exception:
                     self.log.exception("Error setting name")
-                    self.name_set = False
             return True
         return False
 
@@ -2439,9 +2438,9 @@ class Portal(DBPortal, BasePortal):
                 invites.append(self.az.bot_mxid)
         if self.is_direct and source.uuid == self.chat_id:
             name = self.name = "Signal Note to Self"
-        elif self.encrypted or self.private_chat_portal_meta or not self.is_direct:
+        elif self.set_dm_room_metadata:
             name = self.name
-        if self.avatar_url:
+        if self.avatar_url and self.set_dm_room_metadata:
             initial_state.append(
                 {
                     "type": str(EventType.ROOM_AVATAR),
@@ -2468,7 +2467,7 @@ class Portal(DBPortal, BasePortal):
         if not self.mxid:
             raise Exception("Failed to create room: no mxid returned")
         self.name_set = bool(name)
-        self.avatar_set = bool(self.avatar_url)
+        self.avatar_set = bool(self.avatar_url) and self.set_dm_room_metadata
 
         if self.encrypted and self.matrix.e2ee and self.is_direct:
             try:
