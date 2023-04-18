@@ -233,8 +233,6 @@ class Puppet(DBPuppet, BasePuppet):
                     "com.beeper.bridge.remote_id": str(self.uuid),
                     "com.beeper.bridge.service": "signal",
                     "com.beeper.bridge.network": "signal",
-                    "com.beeper.bridge.is_bridge_bot": False,
-                    "com.beeper.bridge.is_bot": False,
                 }
             )
             self.contact_info_set = True
