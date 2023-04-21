@@ -1,0 +1,44 @@
+/**
+ * Copyright (C) 2014-2016 Open Whisper Systems
+ *
+ * Licensed according to the LICENSE file in this repository.
+ */
+syntax = "proto2";
+
+package signalservice;
+
+option java_package         = "org.whispersystems.signalservice.internal.push";
+option java_outer_classname = "ProvisioningProtos";
+
+message ProvisioningUuid {
+  optional string uuid = 1;
+}
+
+message ProvisionEnvelope {
+  optional bytes publicKey = 1;
+  optional bytes body      = 2; // Encrypted ProvisionMessage
+}
+
+message ProvisionMessage {
+  optional bytes  aciIdentityKeyPublic  = 1;
+  optional bytes  aciIdentityKeyPrivate = 2;
+  optional bytes  pniIdentityKeyPublic  = 11;
+  optional bytes  pniIdentityKeyPrivate = 12;
+  optional string aci                   = 8;
+  optional string pni                   = 10;
+  optional string number                = 3;
+  optional string provisioningCode      = 4;
+  optional string userAgent             = 5;
+  optional bytes  profileKey            = 6;
+  optional bool   readReceipts          = 7;
+  optional uint32 provisioningVersion   = 9;
+  // NEXT ID: 13
+}
+
+enum ProvisioningVersion {
+  option allow_alias = true;
+
+  INITIAL         = 0;
+  TABLET_SUPPORT  = 1;
+  CURRENT         = 1;
+}
