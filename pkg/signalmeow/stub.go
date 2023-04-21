@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"time"
 
-	"nhooyr.io/websocket"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
+	"google.golang.org/protobuf/proto"
+	"nhooyr.io/websocket"
 )
 
 func Main() {
@@ -67,6 +68,39 @@ func provision_secondary_device(signalling_key []byte) {
 			log.Fatal(err)
 		}
 		fmt.Printf("Received: ***\n%s\n***", msg)
+
+		// Ensure the message is a request and has a valid verb and path
+		if *msg.Type == signalpb.WebSocketMessage_REQUEST {
+			if *msg.Request.Verb == "PUT" && *msg.Request.Path == "/v1/address" {
+				// Decode provisioning UUID
+				provisioning_uuid := &signalpb.ProvisioningUuid{}
+				err = proto.Unmarshal(msg.Request.Body, provisioning_uuid)
+
+				// Create provisioning URL
+				//provisioning_url := "sgnl://linkdevice/?uuid=" + *provisioning_uuid.Uuid + "&pub_key=" + string(signalling_key)
+
+				// Create a 200 response
+				msg_type := signalpb.WebSocketMessage_RESPONSE
+				message := "OK"
+				status := uint32(200)
+				response := &signalpb.WebSocketMessage{
+					Type: &msg_type,
+					Response: &signalpb.WebSocketResponseMessage{
+						Id: msg.Request.Id,
+						Message: &message,
+						Status: &status,
+					},
+				}
+
+				// Send response
+				err = wspb.Write(ctx, ws, response)
+				if err != nil {
+					log.Printf("failed on write %s", resp)
+					log.Fatal(err)
+				}
+				fmt.Printf("Sent: ***\n%s\n***", response)
+			}
+		}
 
 		ws.Close(websocket.StatusNormalClosure, "")
 }
