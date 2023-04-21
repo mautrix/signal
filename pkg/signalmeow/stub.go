@@ -43,33 +43,6 @@ func RandomBytes(length int) []byte {
 		return b
 }
 
-//func old_provision_secondary_device(signalling_key []byte) {
-//		// open a websocket without authentication, to receive a tsurl://
-//		url := "wss://chat.signal.org:443/v1/websocket/provisioning/"
-//		origin := "http://localhost/"
-//		config, _ := websocket.NewConfig(url, origin)
-//		tlsConfig := &tls.Config{
-//				// TODO: Don't do this
-//				InsecureSkipVerify: true,
-//		}
-//		config.TlsConfig = tlsConfig
-//		config.Protocol = []string{"wss"}
-//		ws, err := websocket.DialConfig(config)
-//		if err != nil {
-//				log.Printf("failed on open %s", ws)
-//				log.Fatal(err)
-//		}
-//		//if _, err := ws.Write([]byte("hello, world!\n")); err != nil {
-//		//		log.Fatal(err)
-//		//}
-//		var msg = make([]byte, 512)
-//		var n int
-//		if n, err = ws.Read(msg); err != nil {
-//				log.Fatal(err)
-//		}
-//		fmt.Printf("Received: %s.\n", msg[:n])
-//}
-
 func provision_secondary_device(signalling_key []byte) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 		defer cancel()
