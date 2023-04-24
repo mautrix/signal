@@ -3,7 +3,7 @@ package signalmeow
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
+	"encoding/base64"
 	"log"
 	"math/rand"
 	"net/http"
@@ -56,18 +56,25 @@ func provision_secondary_device(signalling_key []byte) {
 	ws, resp, err := websocket.Dial(ctx, url, opt)
 
 	if err != nil {
-		log.Printf("failed on open %s", resp)
+		log.Printf("failed on open %v", resp)
 		log.Fatal(err)
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
+	provisioning_cipher := NewProvisioningCipher()
+	pub_key := provisioning_cipher.GetPublicKey()
+
+	// The things we want
+	provisioning_url := ""
+	envelope := &signalpb.ProvisionEnvelope{}
+
 	msg := &signalpb.WebSocketMessage{}
 	err = wspb.Read(ctx, ws, msg)
 	if err != nil {
-		log.Printf("failed on read %s", resp)
+		log.Printf("failed on read %v", resp)
 		log.Fatal(err)
 	}
-	fmt.Printf("Received: ***\n%s\n***", msg)
+	log.Printf("Received: ***\n%s\n***", msg)
 
 	// Ensure the message is a request and has a valid verb and path
 	if *msg.Type == signalpb.WebSocketMessage_REQUEST {
@@ -76,10 +83,13 @@ func provision_secondary_device(signalling_key []byte) {
 			// Decode provisioning UUID
 			provisioning_uuid := &signalpb.ProvisioningUuid{}
 			err = proto.Unmarshal(msg.Request.Body, provisioning_uuid)
-			fmt.Printf("UUID: ***\n%s\n***", provisioning_uuid)
 
 			// Create provisioning URL
-			//provisioning_url := "sgnl://linkdevice/?uuid=" + *provisioning_uuid.Uuid + "&pub_key=" + string(signalling_key)
+			// Base64 encode the public key
+			bytes_key, _ := pub_key.Bytes()
+			base64_key := base64.StdEncoding.EncodeToString(bytes_key)
+			provisioning_url = "sgnl://linkdevice/?uuid=" + *provisioning_uuid.Uuid + "&pub_key=" + string(base64_key)
+			log.Printf("provisioning_url: %s", provisioning_url)
 
 			// Create a 200 response
 			msg_type := signalpb.WebSocketMessage_RESPONSE
@@ -91,18 +101,67 @@ func provision_secondary_device(signalling_key []byte) {
 					Id:      msg.Request.Id,
 					Message: &message,
 					Status:  &status,
+					Headers: []string{},
 				},
 			}
 
 			// Send response
 			err = wspb.Write(ctx, ws, response)
 			if err != nil {
-				log.Printf("failed on write %s", resp)
+				log.Printf("failed on write %v", resp)
 				log.Fatal(err)
 			}
-			fmt.Printf("Sent: ***\n%s\n***", response)
+
+			log.Printf("Sent: ***\n%s\n***", response)
+		}
+	}
+
+	msg2 := &signalpb.WebSocketMessage{}
+	err = wspb.Read(ctx, ws, msg2)
+	if err != nil {
+		log.Printf("failed on 2nd read %v", resp)
+		log.Fatal(err)
+	}
+	log.Printf("Received: ***\n%s\n***", msg2)
+
+	if *msg2.Type == signalpb.WebSocketMessage_REQUEST {
+		if *msg2.Request.Verb == "PUT" && *msg2.Request.Path == "/v1/message" {
+
+			envelope = &signalpb.ProvisionEnvelope{}
+			err = proto.Unmarshal(msg2.Request.Body, envelope)
+			if err != nil {
+				log.Printf("failed on unmarshal %v", resp)
+				log.Fatal(err)
+			}
+
+			// Create a 200 response
+			msg_type := signalpb.WebSocketMessage_RESPONSE
+			message := "OK"
+			status := uint32(200)
+			response := &signalpb.WebSocketMessage{
+				Type: &msg_type,
+				Response: &signalpb.WebSocketResponseMessage{
+					Id:      msg2.Request.Id,
+					Message: &message,
+					Status:  &status,
+					Headers: []string{},
+				},
+			}
+
+			// Send response
+			err = wspb.Write(ctx, ws, response)
+			if err != nil {
+				log.Printf("failed on write %v", resp)
+				log.Fatal(err)
+			}
+			log.Printf("Sent: ***\n%s\n***", response)
 		}
 	}
 
 	ws.Close(websocket.StatusNormalClosure, "")
+
+	log.Printf("provisioning_url: %s", provisioning_url)
+	log.Printf("Envelope: ***\n%s\n***", envelope)
+	provisioning_message := provisioning_cipher.Decrypt(envelope)
+	log.Printf("provisioning_message: ***\n%s\n***", provisioning_message)
 }
