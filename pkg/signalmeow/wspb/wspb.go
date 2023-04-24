@@ -66,7 +66,6 @@ func write(ctx context.Context, c *websocket.Conn, v proto.Message) (err error) 
 	return c.Write(ctx, websocket.MessageBinary, data)
 }
 
-
 // Adapted from: bpool.go
 var my_bpool sync.Pool
 
@@ -85,7 +84,6 @@ func pool_put(b *bytes.Buffer) {
 	b.Reset()
 	my_bpool.Put(b)
 }
-
 
 // Adapted from: errd.go
 
