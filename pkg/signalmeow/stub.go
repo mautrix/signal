@@ -193,8 +193,8 @@ func provision_secondary_device(signalling_key []byte) {
 
 	ws.Close(websocket.StatusNormalClosure, "")
 
-	log.Printf("provisioning_url: %s", provisioning_url)
-	log.Printf("Envelope: %s", envelope)
+	log.Printf("provisioning_url: %v", provisioning_url)
+	log.Printf("Envelope: %v", envelope)
 	provisioning_message := provisioning_cipher.Decrypt(envelope)
-	log.Printf("provisioning_message: %s", provisioning_message)
+	log.Printf("provisioning_message: %v", provisioning_message)
 }

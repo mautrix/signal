@@ -36,8 +36,7 @@ func (c *ProvisioningCipher) GetPublicKey() *libsignalgo.PublicKey {
 
 const SUPPORTED_VERSION uint8 = 1
 const CIPHER_KEY_SIZE uint = 32
-const MAC_KEY_SIZE uint = 20
-const MAC_SIZE uint = 10
+const MAC_SIZE uint = 32
 
 const VERSION_OFFSET uint = 0
 const VERSION_LENGTH uint = 1
@@ -61,8 +60,15 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) *signalpb.
 		log.Fatalf("Invalid ProvisionMessage version: %v", body[0])
 	}
 	body_len := uint(len(body))
+	log.Printf("body_len: %v", body_len)
 	iv := body[IV_OFFSET : IV_OFFSET+IV_LENGTH]
 	mac := body[body_len-MAC_SIZE : body_len]
+	if uint(len(mac)) != MAC_SIZE {
+		log.Fatalf("Invalid MAC size: %v", len(mac))
+	}
+	if uint(len(iv)) != IV_LENGTH {
+		log.Fatalf("Invalid IV size: %v", len(iv))
+	}
 	cipher_text := body[CIPHERTEXT_OFFSET : body_len-CIPHER_KEY_SIZE]
 	iv_and_ciphertext := body[0 : body_len-CIPHER_KEY_SIZE]
 
@@ -85,7 +91,7 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) *signalpb.
 	verifier.Write(iv_and_ciphertext)
 	ourMac := verifier.Sum(nil)
 	if len(ourMac) != len(mac) {
-		log.Fatalf("Invalid MAC length: %v", len(ourMac))
+		log.Fatalf("Invalid MAC length: ourmac:%v mac:%v", len(ourMac), len(mac))
 	}
 	if !hmac.Equal(ourMac[:32], mac) {
 		log.Fatalf("Invalid MAC: %v", ourMac)
