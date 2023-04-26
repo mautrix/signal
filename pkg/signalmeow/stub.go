@@ -3,12 +3,17 @@ package signalmeow
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
+	"os"
 	"time"
 
+	"github.com/mdp/qrterminal/v3"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 	"google.golang.org/protobuf/proto"
@@ -48,12 +53,36 @@ func provision_secondary_device(signalling_key []byte) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	url := "wss://chat.signal.org:443/v1/websocket/provisioning/"
+	urlStr := "wss://chat.signal.org:443/v1/websocket/provisioning/"
+
+	proxyURL, err := url.Parse("http://localhost:8080")
+	if err != nil {
+		log.Fatal("Error parsing proxy URL:", err)
+	}
+
+	caCertPath := "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
+	caCert, err := ioutil.ReadFile(caCertPath)
+	if err != nil {
+		log.Fatal("Error reading mitmproxy CA certificate:", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		RootCAs:            caCertPool,
+	}
 
 	opt := &websocket.DialOptions{
-		HTTPClient: &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+				Proxy:           http.ProxyURL(proxyURL),
+			},
+		},
 	}
-	ws, resp, err := websocket.Dial(ctx, url, opt)
+	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
 
 	if err != nil {
 		log.Printf("failed on open %v", resp)
@@ -86,9 +115,11 @@ func provision_secondary_device(signalling_key []byte) {
 		err = proto.Unmarshal(msg.Request.Body, provisioning_uuid)
 
 		// Create provisioning URL
-		bytes_key, _ := pub_key.Bytes()
+		bytes_key, _ := pub_key.Serialize()
 		base64_key := base64.StdEncoding.EncodeToString(bytes_key)
-		provisioning_url = "sgnl://linkdevice/?uuid=" + *provisioning_uuid.Uuid + "&pub_key=" + string(base64_key)
+		uuid := url.QueryEscape(*provisioning_uuid.Uuid)
+		pub_key := url.QueryEscape(base64_key)
+		provisioning_url = "sgnl://linkdevice?uuid=" + uuid + "&pub_key=" + pub_key
 		log.Printf("provisioning_url: %s", provisioning_url)
 
 		// Create a 200 response
@@ -114,6 +145,9 @@ func provision_secondary_device(signalling_key []byte) {
 
 		log.Printf("*** Sent: %s", response)
 	}
+
+	// Print the provisioning URL to the console as a QR code
+	qrterminal.Generate(provisioning_url, qrterminal.M, os.Stdout)
 
 	msg2 := &signalpb.WebSocketMessage{}
 	err = wspb.Read(ctx, ws, msg2)
