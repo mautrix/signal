@@ -2,12 +2,16 @@ package signalmeow
 
 import (
 	"context"
+	crand "crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
+	"math/big"
+	mrand "math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -25,36 +29,30 @@ func Main() {
 	//var password string
 
 	//// Generate a random 24 byte password with upper and lower case letters and numbers
-	//var rand_password = GeneratePassword(24)
-	//// 52 bytes of random data (not just upper or lower case letters)
-	var signalling_key = RandomBytes(52)
 
-	//log.Print("signalling_key: ", signalling_key)
-	provision_secondary_device(signalling_key)
+	provision_secondary_device()
 
 }
 
-func GeneratePassword(length int) string {
-	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
-	b := make([]rune, length)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))]
+func generateRandomPassword(length int) (string, error) {
+	if length < 1 {
+		return "", fmt.Errorf("password length must be at least 1")
 	}
-	return string(b)
+
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var password []byte
+	for i := 0; i < length; i++ {
+		index, err := crand.Int(crand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			return "", fmt.Errorf("error generating random index: %v", err)
+		}
+		password = append(password, charset[index.Int64()])
+	}
+
+	return string(password), nil
 }
 
-func RandomBytes(length int) []byte {
-	b := make([]byte, length)
-	rand.Read(b)
-	return b
-}
-
-func provision_secondary_device(signalling_key []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
-	urlStr := "wss://chat.signal.org:443/v1/websocket/provisioning/"
-
+func open_websocket(ctx context.Context, urlStr string) (*websocket.Conn, *http.Response, error) {
 	proxyURL, err := url.Parse("http://localhost:8080")
 	if err != nil {
 		log.Fatal("Error parsing proxy URL:", err)
@@ -88,6 +86,13 @@ func provision_secondary_device(signalling_key []byte) {
 		log.Printf("failed on open %v", resp)
 		log.Fatal(err)
 	}
+	return ws, resp, err
+}
+
+func provision_secondary_device() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	ws, resp, err := open_websocket(ctx, "wss://chat.signal.org:443/v1/websocket/provisioning/")
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
 	provisioning_cipher := NewProvisioningCipher()
@@ -197,4 +202,67 @@ func provision_secondary_device(signalling_key []byte) {
 	log.Printf("Envelope: %v", envelope)
 	provisioning_message := provisioning_cipher.Decrypt(envelope)
 	log.Printf("provisioning_message: %v", provisioning_message)
+
+	// Confirm device
+	confirm_device(provisioning_message)
+
+	// Generate PreKeys
+	// Register PreKeys (PUT /v2/keys via HTTP)
+
+}
+
+func confirm_device(provisioning_message *signalpb.ProvisionMessage) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	ws, resp, err := open_websocket(ctx, "wss://chat.signal.org:443/v1/websocket/")
+
+	// Random number between 1 and 16383
+	registrationId := mrand.Intn(16383) + 1
+	pniRegistrationId := mrand.Intn(16383) + 1
+
+	data := map[string]interface{}{
+		"registrationId":    registrationId,
+		"pniRegistrationId": pniRegistrationId,
+		"supportsSms":       true,
+	}
+
+	json_bytes, err := json.Marshal(data)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+
+	msg_type := signalpb.WebSocketMessage_REQUEST
+	response := &signalpb.WebSocketMessage{
+		Type: &msg_type,
+		Request: &signalpb.WebSocketRequestMessage{
+			Id:   proto.Uint64(1),
+			Verb: proto.String("PUT"),
+			Path: proto.String("/v1/devices/" + *provisioning_message.ProvisioningCode),
+			Body: json_bytes,
+		},
+	}
+	response.Request.Headers = append(response.Request.Headers, "Content-Type: application/json")
+	username := provisioning_message.Number
+	password, _ := generateRandomPassword(24)
+	basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + password))
+	response.Request.Headers = append(response.Request.Headers, "authorization:Basic "+basicAuth)
+
+	// Send response
+	err = wspb.Write(ctx, ws, response)
+	if err != nil {
+		log.Printf("failed on write %v", resp)
+		log.Fatal(err)
+	}
+
+	log.Printf("*** Sent: %s", response)
+
+	received_msg := &signalpb.WebSocketMessage{}
+	err = wspb.Read(ctx, ws, received_msg)
+	if err != nil {
+		log.Printf("failed to read after devices call: %v", resp)
+		log.Fatal(err)
+	}
+	log.Printf("*** Received: %s", received_msg)
+
 }
