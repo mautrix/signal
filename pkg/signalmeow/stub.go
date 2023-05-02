@@ -25,13 +25,19 @@ import (
 )
 
 func Main() {
-	//var username string
-	//var password string
+	provisioning_message := provision_secondary_device()
 
-	//// Generate a random 24 byte password with upper and lower case letters and numbers
+	username := provisioning_message.Number
+	password, _ := generateRandomPassword(24)
+	code := provisioning_message.ProvisioningCode
+	registration_id := mrand.Intn(16383) + 1
+	pni_registration_id := mrand.Intn(16383) + 1
+	confirm_device(*username, password, *code, registration_id, pni_registration_id)
 
-	provision_secondary_device()
+	generate_pre_keys()
+	register_pre_keys()
 
+	// Persist necessary data
 }
 
 func generateRandomPassword(length int) (string, error) {
@@ -89,7 +95,7 @@ func open_websocket(ctx context.Context, urlStr string) (*websocket.Conn, *http.
 	return ws, resp, err
 }
 
-func provision_secondary_device() {
+func provision_secondary_device() *signalpb.ProvisionMessage {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	ws, resp, err := open_websocket(ctx, "wss://chat.signal.org:443/v1/websocket/provisioning/")
@@ -203,28 +209,21 @@ func provision_secondary_device() {
 	provisioning_message := provisioning_cipher.Decrypt(envelope)
 	log.Printf("provisioning_message: %v", provisioning_message)
 
-	// Confirm device
-	confirm_device(provisioning_message)
-
-	// Generate PreKeys
-	// Register PreKeys (PUT /v2/keys via HTTP)
-
+	return provisioning_message
 }
 
-func confirm_device(provisioning_message *signalpb.ProvisionMessage) {
+func confirm_device(username string, password string, code string, registration_id int, pni_registration_id int) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	ws, resp, err := open_websocket(ctx, "wss://chat.signal.org:443/v1/websocket/")
-
-	// Random number between 1 and 16383
-	registrationId := mrand.Intn(16383) + 1
-	pniRegistrationId := mrand.Intn(16383) + 1
+	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
 	data := map[string]interface{}{
-		"registrationId":    registrationId,
-		"pniRegistrationId": pniRegistrationId,
+		"registrationId":    registration_id,
+		"pniRegistrationId": pni_registration_id,
 		"supportsSms":       true,
 	}
+	// TODO: Set deviceName with "Signal Bridge" or something properly encrypted
 
 	json_bytes, err := json.Marshal(data)
 	if err != nil {
@@ -238,14 +237,12 @@ func confirm_device(provisioning_message *signalpb.ProvisionMessage) {
 		Request: &signalpb.WebSocketRequestMessage{
 			Id:   proto.Uint64(1),
 			Verb: proto.String("PUT"),
-			Path: proto.String("/v1/devices/" + *provisioning_message.ProvisioningCode),
+			Path: proto.String("/v1/devices/" + code),
 			Body: json_bytes,
 		},
 	}
 	response.Request.Headers = append(response.Request.Headers, "Content-Type: application/json")
-	username := provisioning_message.Number
-	password, _ := generateRandomPassword(24)
-	basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + password))
+	basicAuth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 	response.Request.Headers = append(response.Request.Headers, "authorization:Basic "+basicAuth)
 
 	// Send response
@@ -264,5 +261,10 @@ func confirm_device(provisioning_message *signalpb.ProvisionMessage) {
 		log.Fatal(err)
 	}
 	log.Printf("*** Received: %s", received_msg)
+}
 
+func generate_pre_keys() {
+}
+
+func register_pre_keys() {
 }
