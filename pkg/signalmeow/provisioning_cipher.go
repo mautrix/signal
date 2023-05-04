@@ -15,7 +15,7 @@ import (
 )
 
 type ProvisioningCipher struct {
-	key_pair *libsignalgo.IdentityKeyPair
+	keyPair *libsignalgo.IdentityKeyPair
 }
 
 func NewProvisioningCipher() *ProvisioningCipher {
@@ -23,15 +23,15 @@ func NewProvisioningCipher() *ProvisioningCipher {
 }
 
 func (c *ProvisioningCipher) GetPublicKey() *libsignalgo.PublicKey {
-	if c.key_pair == nil {
-		key_pair, err := libsignalgo.GenerateIdentityKeyPair()
+	if c.keyPair == nil {
+		keyPair, err := libsignalgo.GenerateIdentityKeyPair()
 		if err != nil {
 			log.Printf("Unable to generate key pair")
 			log.Fatal(err)
 		}
-		c.key_pair = key_pair
+		c.keyPair = keyPair
 	}
-	return c.key_pair.GetPublicKey()
+	return c.keyPair.GetPublicKey()
 }
 
 const SUPPORTED_VERSION uint8 = 1
@@ -45,11 +45,11 @@ const IV_LENGTH uint = 16
 const CIPHERTEXT_OFFSET uint = IV_OFFSET + IV_LENGTH
 
 func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) *signalpb.ProvisionMessage {
-	master_ephemeral, err := libsignalgo.DeserializePublicKey(env.GetPublicKey())
+	masterEphemeral, err := libsignalgo.DeserializePublicKey(env.GetPublicKey())
 	if err != nil {
 		log.Fatalf("Unable to deserialize public key: %v", err)
 	}
-	if master_ephemeral == nil {
+	if masterEphemeral == nil {
 		log.Fatalf("No public key: %v", env)
 	}
 	body := env.GetBody()
@@ -59,20 +59,20 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) *signalpb.
 	if body[0] != 1 {
 		log.Fatalf("Invalid ProvisionMessage version: %v", body[0])
 	}
-	body_len := uint(len(body))
-	log.Printf("body_len: %v", body_len)
+	bodyLen := uint(len(body))
+	log.Printf("bodyLen: %v", bodyLen)
 	iv := body[IV_OFFSET : IV_OFFSET+IV_LENGTH]
-	mac := body[body_len-MAC_SIZE : body_len]
+	mac := body[bodyLen-MAC_SIZE : bodyLen]
 	if uint(len(mac)) != MAC_SIZE {
 		log.Fatalf("Invalid MAC size: %v", len(mac))
 	}
 	if uint(len(iv)) != IV_LENGTH {
 		log.Fatalf("Invalid IV size: %v", len(iv))
 	}
-	cipher_text := body[CIPHERTEXT_OFFSET : body_len-CIPHER_KEY_SIZE]
-	iv_and_ciphertext := body[0 : body_len-CIPHER_KEY_SIZE]
+	cipherText := body[CIPHERTEXT_OFFSET : bodyLen-CIPHER_KEY_SIZE]
+	ivAndCipherText := body[0 : bodyLen-CIPHER_KEY_SIZE]
 
-	agreement, err := c.key_pair.GetPrivateKey().Agree(master_ephemeral)
+	agreement, err := c.keyPair.GetPrivateKey().Agree(masterEphemeral)
 	if err != nil {
 		log.Fatalf("Unable to agree on key: %v", err)
 	}
@@ -88,7 +88,7 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) *signalpb.
 	parts2 := sharedSecrets[32:]
 
 	verifier := hmac.New(sha256.New, parts2)
-	verifier.Write(iv_and_ciphertext)
+	verifier.Write(ivAndCipherText)
 	ourMac := verifier.Sum(nil)
 	if len(ourMac) != len(mac) {
 		log.Fatalf("Invalid MAC length: ourmac:%v mac:%v", len(ourMac), len(mac))
@@ -103,8 +103,8 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) *signalpb.
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
-	paddedInput := make([]byte, len(cipher_text))
-	mode.CryptBlocks(paddedInput, cipher_text)
+	paddedInput := make([]byte, len(cipherText))
+	mode.CryptBlocks(paddedInput, cipherText)
 
 	//input, err := pkcs7.Unpad(paddedInput)
 	//if err != nil {

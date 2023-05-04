@@ -1,7 +1,12 @@
 package main
 
 import (
+	"log"
+
+	"github.com/skip2/go-qrcode"
 	"maunium.net/go/mautrix/bridge/commands"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 )
 
 type WrappedCommandEvent struct {
@@ -17,6 +22,7 @@ func (br *SignalBridge) RegisterCommands() {
 	proc := br.CommandProcessor.(*commands.Processor)
 	proc.AddHandlers(
 		cmdPing,
+		cmdLogin,
 	)
 }
 
@@ -43,4 +49,97 @@ var cmdPing = &commands.FullHandler{
 
 func fnPing(ce *WrappedCommandEvent) {
 	ce.Reply("A fake ping! Well done! 💥")
+}
+
+var cmdLogin = &commands.FullHandler{
+	Func: wrapCommand(fnLogin),
+	Name: "login",
+	Help: commands.HelpMeta{
+		Section:     commands.HelpSectionAuth,
+		Description: "Link the bridge to your WhatsApp account as a web client.",
+	},
+}
+
+func fnLogin(ce *WrappedCommandEvent) {
+	//if ce.User.Session != nil {
+	//	if ce.User.IsConnected() {
+	//		ce.Reply("You're already logged in")
+	//	} else {
+	//		ce.Reply("You're already logged in. Perhaps you wanted to `reconnect`?")
+	//	}
+	//	return
+	//}
+
+	var qrEventID id.EventID
+
+	// First get the provisioning URL
+	provChan, err := ce.User.Login()
+	resp := <-provChan
+	if resp.Err != nil {
+		log.Printf("PerformProvisioning error: %v", resp.Err)
+		return
+	}
+	if resp.ProvisioningUrl != "" {
+		qrEventID = ce.User.sendQR(ce, resp.ProvisioningUrl, qrEventID)
+	}
+
+	// Next, get the results of finishing registration
+	resp = <-provChan
+	if resp.Err != nil {
+		log.Printf("PerformProvisioning error: %v", resp.Err)
+		return
+	}
+	if resp.ProvisioningData != nil {
+		// Persist necessary data
+		log.Printf("provisioningData: %v", resp.ProvisioningData)
+	}
+
+	if err != nil {
+		ce.Log.Errorln("Failed to log in:", err)
+		ce.Reply("Failed to log in: %v", err)
+		return
+	}
+
+	_, _ = ce.Bot.RedactEvent(ce.RoomID, qrEventID)
+}
+
+func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevEvent id.EventID) id.EventID {
+	url, ok := user.uploadQR(ce, code)
+	if !ok {
+		return prevEvent
+	}
+	content := event.MessageEventContent{
+		MsgType: event.MsgImage,
+		Body:    code,
+		URL:     url.CUString(),
+	}
+	if len(prevEvent) != 0 {
+		content.SetEdit(prevEvent)
+	}
+	resp, err := ce.Bot.SendMessageEvent(ce.RoomID, event.EventMessage, &content)
+	if err != nil {
+		ce.Log.Errorln("Failed to send QR code to user:", err)
+	} else if len(prevEvent) == 0 {
+		prevEvent = resp.EventID
+	}
+	return prevEvent
+}
+
+func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI, bool) {
+	qrCode, err := qrcode.Encode(code, qrcode.Low, 256)
+	if err != nil {
+		ce.Log.Errorln("Failed to encode QR code:", err)
+		ce.Reply("Failed to encode QR code: %v", err)
+		return id.ContentURI{}, false
+	}
+
+	bot := user.bridge.AS.BotClient()
+
+	resp, err := bot.UploadBytes(qrCode, "image/png")
+	if err != nil {
+		ce.Log.Errorln("Failed to upload QR code:", err)
+		ce.Reply("Failed to upload QR code: %v", err)
+		return id.ContentURI{}, false
+	}
+	return resp.ContentURI, true
 }

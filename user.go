@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
@@ -227,6 +228,15 @@ func (br *SignalBridge) StartUsers() {
 			}
 		}(customPuppet)
 	}
+}
+
+func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
+	user.Lock()
+	defer user.Unlock()
+
+	provChan := signalmeow.PerformProvisioning()
+
+	return provChan, nil
 }
 
 func (user *User) Connect() error {
