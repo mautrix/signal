@@ -74,9 +74,16 @@ func fnLogin(ce *WrappedCommandEvent) {
 
 	// First get the provisioning URL
 	provChan, err := ce.User.Login()
+	if err != nil {
+		ce.Log.Errorln("Failure logging in:", err)
+		ce.Reply("Failure logging in: %v", err)
+		return
+	}
+
 	resp := <-provChan
 	if resp.Err != nil {
-		log.Printf("PerformProvisioning error: %v", resp.Err)
+		log.Printf("Error getting provisioning URL: %v", resp.Err)
+		ce.Reply("Error getting provisioning URL: %v", resp.Err)
 		return
 	}
 	if resp.ProvisioningUrl != "" {
@@ -86,20 +93,19 @@ func fnLogin(ce *WrappedCommandEvent) {
 	// Next, get the results of finishing registration
 	resp = <-provChan
 	if resp.Err != nil {
-		log.Printf("PerformProvisioning error: %v", resp.Err)
+		log.Printf("Error finishing registration: %v", resp.Err)
+		ce.Reply("Error finishing registration: %v", resp.Err)
 		return
 	}
-	if resp.ProvisioningData != nil {
-		// Persist necessary data
-		log.Printf("provisioningData: %v", resp.ProvisioningData)
-	}
-
-	if err != nil {
-		ce.Log.Errorln("Failed to log in:", err)
-		ce.Reply("Failed to log in: %v", err)
+	if resp.ProvisioningData == nil {
+		log.Printf("Didn't receive provisioningData")
+		ce.Reply("Didn't receive provisioningData")
 		return
 	}
 
+	log.Printf("provisioningData: %v", resp.ProvisioningData)
+	ce.Reply("Successfully logged in! 🎉")
+	ce.Reply("ACI: %v, Phone Number: %v", resp.ProvisioningData.AciUuid, resp.ProvisioningData.Number)
 	_, _ = ce.Bot.RedactEvent(ce.RoomID, qrEventID)
 }
 

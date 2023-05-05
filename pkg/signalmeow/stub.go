@@ -34,20 +34,20 @@ func Main() {
 	}
 
 	// Now, generate and register the prekeys
-	aciPreKeys := GeneratePreKeys(0, 0, 100, resp.ProvisioningData.aciIdentityKeyPair, "aci")
-	pniPreKeys := GeneratePreKeys(0, 0, 100, resp.ProvisioningData.pniIdentityKeyPair, "pni")
+	aciPreKeys := GeneratePreKeys(0, 0, 100, resp.ProvisioningData.AciIdentityKeyPair, "aci")
+	pniPreKeys := GeneratePreKeys(0, 0, 100, resp.ProvisioningData.PniIdentityKeyPair, "pni")
 
-	username := resp.ProvisioningData.number
-	if resp.ProvisioningData.aciUuid != "" {
-		username = resp.ProvisioningData.aciUuid
+	username := resp.ProvisioningData.Number
+	if resp.ProvisioningData.AciUuid != "" {
+		username = resp.ProvisioningData.AciUuid
 	}
-	username = username + "." + fmt.Sprint(resp.ProvisioningData.deviceId)
-	err := RegisterPreKeys(aciPreKeys, "aci", username, resp.ProvisioningData.password)
+	username = username + "." + fmt.Sprint(resp.ProvisioningData.DeviceId)
+	err := RegisterPreKeys(aciPreKeys, "aci", username, resp.ProvisioningData.Password)
 	if err != nil {
 		log.Printf("RegisterPreKeys error: %v", err)
 		return
 	}
-	err = RegisterPreKeys(pniPreKeys, "pni", username, resp.ProvisioningData.password)
+	err = RegisterPreKeys(pniPreKeys, "pni", username, resp.ProvisioningData.Password)
 	if err != nil {
 		log.Printf("RegisterPreKeys error: %v", err)
 		return

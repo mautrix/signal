@@ -26,15 +26,15 @@ type ConfirmDeviceResponse struct {
 }
 
 type ProvisioningData struct {
-	aciIdentityKeyPair *libsignalgo.IdentityKeyPair
-	pniIdentityKeyPair *libsignalgo.IdentityKeyPair
-	registrationId     int
-	pniRegistrationId  int
-	aciUuid            string
-	pniUuid            string
-	deviceId           int
-	number             string
-	password           string
+	AciIdentityKeyPair *libsignalgo.IdentityKeyPair
+	PniIdentityKeyPair *libsignalgo.IdentityKeyPair
+	RegistrationId     int
+	PniRegistrationId  int
+	AciUuid            string
+	PniUuid            string
+	DeviceId           int
+	Number             string
+	Password           string
 }
 
 // Enum for the provisioningUrl, ProvisioningMessage, and error
@@ -89,15 +89,15 @@ func PerformProvisioning() chan ProvisioningResponse {
 		}
 
 		provisioningData := &ProvisioningData{
-			aciIdentityKeyPair: aciIdentityKeyPair,
-			pniIdentityKeyPair: pniIdentityKeyPair,
-			registrationId:     registrationId,
-			pniRegistrationId:  pniRegistrationId,
-			aciUuid:            deviceResponse.uuid,
-			pniUuid:            deviceResponse.pni,
-			deviceId:           deviceId,
-			number:             *provisioningMessage.Number,
-			password:           password,
+			AciIdentityKeyPair: aciIdentityKeyPair,
+			PniIdentityKeyPair: pniIdentityKeyPair,
+			RegistrationId:     registrationId,
+			PniRegistrationId:  pniRegistrationId,
+			AciUuid:            deviceResponse.uuid,
+			PniUuid:            deviceResponse.pni,
+			DeviceId:           deviceId,
+			Number:             *provisioningMessage.Number,
+			Password:           password,
 		}
 		c <- ProvisioningResponse{"", provisioningData, nil}
 	}()
