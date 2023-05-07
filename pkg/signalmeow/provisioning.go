@@ -14,6 +14,8 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 	"google.golang.org/protobuf/proto"
 	"nhooyr.io/websocket"
@@ -40,11 +42,11 @@ type ProvisioningData struct {
 // Enum for the provisioningUrl, ProvisioningMessage, and error
 type ProvisioningResponse struct {
 	ProvisioningUrl  string
-	ProvisioningData *ProvisioningData
+	ProvisioningData *types.DeviceData
 	Err              error
 }
 
-func PerformProvisioning() chan ProvisioningResponse {
+func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningResponse {
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
@@ -88,7 +90,7 @@ func PerformProvisioning() chan ProvisioningResponse {
 			deviceId = deviceResponse.deviceId
 		}
 
-		provisioningData := &ProvisioningData{
+		provisioningData := &types.DeviceData{
 			AciIdentityKeyPair: aciIdentityKeyPair,
 			PniIdentityKeyPair: pniIdentityKeyPair,
 			RegistrationId:     registrationId,
@@ -99,6 +101,11 @@ func PerformProvisioning() chan ProvisioningResponse {
 			Number:             *provisioningMessage.Number,
 			Password:           password,
 		}
+
+		// Store the provisioning data
+		deviceStore.SaveDeviceData(provisioningData)
+
+		// Return the provisioning data
 		c <- ProvisioningResponse{"", provisioningData, nil}
 	}()
 	return c

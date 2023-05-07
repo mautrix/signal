@@ -5,12 +5,18 @@ import (
 	"log"
 	"os"
 
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
-	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
 
 func Main() {
-	provChan := PerformProvisioning()
+	sqlStore, err := store.New("sqlite3", "file:signalmeow.db?_foreign_keys=on")
+	if err != nil {
+		log.Printf("store.New error: %v", err)
+		return
+	}
+	provChan := PerformProvisioning(sqlStore)
 
 	// First get the provisioning URL
 	resp := <-provChan
@@ -42,32 +48,18 @@ func Main() {
 		username = resp.ProvisioningData.AciUuid
 	}
 	username = username + "." + fmt.Sprint(resp.ProvisioningData.DeviceId)
-	err := RegisterPreKeys(aciPreKeys, "aci", username, resp.ProvisioningData.Password)
-	if err != nil {
-		log.Printf("RegisterPreKeys error: %v", err)
+	regErr := RegisterPreKeys(aciPreKeys, "aci", username, resp.ProvisioningData.Password)
+	if regErr != nil {
+		log.Printf("RegisterPreKeys error: %v", regErr)
 		return
 	}
-	err = RegisterPreKeys(pniPreKeys, "pni", username, resp.ProvisioningData.Password)
-	if err != nil {
-		log.Printf("RegisterPreKeys error: %v", err)
+	regErr = RegisterPreKeys(pniPreKeys, "pni", username, resp.ProvisioningData.Password)
+	if regErr != nil {
+		log.Printf("RegisterPreKeys error: %v", regErr)
 		return
 	}
 
 	// Persist prekeys
 	log.Printf("aciPreKeys: %v", aciPreKeys)
 	log.Printf("pniPreKeys: %v", pniPreKeys)
-}
-
-type AccountStore interface {
-	SaveProvisioningData(aciUuid string, pd *ProvisioningData) error
-	ProvisioningData(aciUuid string) (*ProvisioningData, error)
-}
-
-type PreKeyStore interface {
-	SavePreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error
-	PreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error)
-	RemovePreKey(aciUuid string, uuidKind string, preKeyId int) error
-	SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error
-	PreSignedKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error)
-	RemoveSignedPreKey(aciUuid string, uuidKind string, preKeyId int) error
 }
