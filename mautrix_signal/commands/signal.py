@@ -518,7 +518,7 @@ async def confirm_bridge(evt: CommandEvent) -> EventID | None:
     help_args="<captcha token>",
 )
 async def submit_challenge(evt: CommandEvent) -> None:
-    if len(evt.args == 0):
+    if len(evt.args) == 0:
         await evt.reply("**Usage:** `$cmdprefix+sp submit-challenge <captcha token>`")
         return
     challenge_token = evt.sender.challenge_token
