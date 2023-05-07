@@ -246,6 +246,25 @@ async def logout(evt: CommandEvent) -> None:
 
 
 @command_handler(
+    needs_auth=False,
+    management_only=True,
+    needs_admin=True,
+    help_section=SECTION_AUTH,
+    help_text="Remove all local data about a user's Signal link",
+    help_args="<mxid>",
+)
+async def logout_user(evt: CommandEvent) -> None:
+    if len(evt.args) == 0:
+        await evt.reply("**Usage**: $cmdprefix+sp logout-user <mxid>")
+    user = await evt.bridge.get_user(UserID(evt.args[0]))
+    if not await user.is_logged_in():
+        await evt.reply("This user is not logged in")
+        return
+    await user.logout()
+    await evt.reply("Successfully logged out")
+
+
+@command_handler(
     needs_auth=True,
     management_only=True,
     help_section=SECTION_AUTH,
