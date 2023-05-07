@@ -67,6 +67,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		if err != nil {
 			log.Printf("openProvisioningWebsocket error: %v", err)
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
 		}
 		defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 		provisioningCipher := NewProvisioningCipher()
@@ -74,8 +75,10 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
 		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningUrl: provisioningUrl, Err: err}
 
+		log.Print("continuing provisioning")
 		provisioningMessage, _ := continueProvisioning(ctx, ws, provisioningCipher)
 		ws.Close(websocket.StatusNormalClosure, "")
+		log.Print("websocket closed")
 
 		aciPublicKey, _ := libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic())
 		aciPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
@@ -92,6 +95,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		code := provisioningMessage.ProvisioningCode
 		registrationId := mrand.Intn(16383) + 1
 		pniRegistrationId := mrand.Intn(16383) + 1
+		log.Print("confirming device")
 		deviceResponse := confirmDevice(username, password, *code, registrationId, pniRegistrationId)
 		log.Printf("deviceResponse: %v", deviceResponse)
 
@@ -113,46 +117,29 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		}
 
 		// Store the provisioning data
-		deviceStore.PutDevice(data)
+		err = deviceStore.PutDevice(data)
+		if err != nil {
+			log.Printf("error storing new device: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
 		newDevice, err := deviceStore.DeviceByAci(data.AciUuid)
 		if err != nil {
 			log.Printf("error retrieving new device: %v", err)
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
 		}
 
 		// Return the provisioning data
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
-		// Generate prekeys
-		aciPreKeys := GeneratePreKeys(0, 0, 100, data.AciIdentityKeyPair, types.UUID_KIND_ACI)
-		pniPreKeys := GeneratePreKeys(0, 0, 100, data.PniIdentityKeyPair, types.UUID_KIND_PNI)
+		// Generate, store, and register prekeys
+		err = GenerateAndRegisterPreKeys(newDevice, types.UUID_KIND_ACI)
+		err = GenerateAndRegisterPreKeys(newDevice, types.UUID_KIND_PNI)
 
-		// Persist prekeys
-		for _, preKey := range aciPreKeys.PreKeys {
-			newDevice.PreKeyStore.SavePreKey(types.UUID_KIND_ACI, preKey, false)
-		}
-		newDevice.PreKeyStore.SaveSignedPreKey(types.UUID_KIND_ACI, aciPreKeys.SignedPreKey, false)
-		for _, preKey := range pniPreKeys.PreKeys {
-			newDevice.PreKeyStore.SavePreKey(types.UUID_KIND_PNI, preKey, false)
-		}
-		newDevice.PreKeyStore.SaveSignedPreKey(types.UUID_KIND_PNI, pniPreKeys.SignedPreKey, false)
-
-		// Register prekeys
-		preKeyUsername := data.Number
-		if data.AciUuid != "" {
-			preKeyUsername = data.AciUuid
-		}
-		preKeyUsername = preKeyUsername + "." + fmt.Sprint(data.DeviceId)
-		regErr := RegisterPreKeys(aciPreKeys, types.UUID_KIND_ACI, preKeyUsername, data.Password)
-		if regErr != nil {
-			log.Printf("RegisterPreKeys error: %v", regErr)
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: regErr}
-			return
-		}
-		regErr = RegisterPreKeys(pniPreKeys, types.UUID_KIND_PNI, preKeyUsername, data.Password)
-		if regErr != nil {
-			log.Printf("RegisterPreKeys error: %v", regErr)
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: regErr}
+		if err != nil {
+			log.Printf("error generating and registering prekeys: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 

@@ -26,10 +26,15 @@ type StoreContainer struct {
 	DatabaseErrorHandler func(device *types.DeviceData, action string, attemptIndex int, err error) (retry bool)
 }
 
+// Device is a wrapper for a signalmeow session, including device data,
+// and interfaces for operating on the DB within the session.
 type Device struct {
 	Data        types.DeviceData
 	PreKeyStore PreKeyStore
 }
+
+// Implemented in prekey_store.go
+var _ PreKeyStore = (*SQLStore)(nil)
 
 // New connects to the given SQL database and wraps it in a StoreContainer.
 // Only SQLite and Postgres are currently fully supported.
@@ -152,6 +157,7 @@ var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before acce
 
 // PutDevice stores the given device in this database.
 func (c *StoreContainer) PutDevice(device *types.DeviceData) error {
+	log.Printf("storing device %s", device.AciUuid)
 	// TODO: if storing with same ACI UUID and device id, update instead of insert
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet
@@ -167,6 +173,9 @@ func (c *StoreContainer) PutDevice(device *types.DeviceData) error {
 		device.PniUuid, pniIdentityKeyPair, device.PniRegistrationId,
 		device.DeviceId, device.Number, device.Password,
 	)
+	if err != nil {
+		log.Printf("failed to insert device: %v", err)
+	}
 	return err
 }
 
@@ -195,70 +204,4 @@ func newSQLStore(container *StoreContainer, aciUuid string) *SQLStore {
 		StoreContainer: container,
 		AciUuid:        aciUuid,
 	}
-}
-
-var _ PreKeyStore = (*SQLStore)(nil)
-
-type PreKeyStore interface {
-	PreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.PreKeyRecord, error)
-	SavePreKey(uuidKind types.UUIDKind, preKey *libsignalgo.PreKeyRecord, markUploaded bool) error
-	RemovePreKey(uuidKind types.UUIDKind, preKeyId int) error
-	SignedPreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error)
-	SaveSignedPreKey(uuidKind types.UUIDKind, preKey *libsignalgo.SignedPreKeyRecord, markUploaded bool) error
-	RemoveSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error
-}
-
-// PreKeyStore interface
-const (
-	getLastPreKeyIDQuery        = `SELECT MAX(key_id) FROM signalmeow_pre_keys WHERE aci_uuid=$1`
-	insertPreKeyQuery           = `INSERT INTO signalmeow_pre_keys (aci_uuid, key_id, key, uploaded) VALUES ($1, $2, $3, $4)`
-	getUnuploadedPreKeysQuery   = `SELECT key_id, key FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND uploaded=false ORDER BY key_id LIMIT $2`
-	getPreKeyQuery              = `SELECT key_id, key FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND key_id=$2`
-	deletePreKeyQuery           = `DELETE FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND key_id=$2`
-	markPreKeysAsUploadedQuery  = `UPDATE signalmeow_pre_keys SET uploaded=true WHERE aci_uuid=$1 AND key_id<=$2`
-	getUploadedPreKeyCountQuery = `SELECT COUNT(*) FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND uploaded=true`
-)
-
-func (c *SQLStore) PreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.PreKeyRecord, error) {
-	return nil, nil
-}
-
-func (s *SQLStore) getNextPreKeyID() (uint32, error) {
-	var lastKeyID sql.NullInt32
-	err := s.db.QueryRow(getLastPreKeyIDQuery, s.AciUuid).Scan(&lastKeyID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to query next prekey ID: %w", err)
-	}
-	return uint32(lastKeyID.Int32) + 1, nil
-}
-
-func (c *SQLStore) SavePreKey(
-	uuidKind types.UUIDKind,
-	preKey *libsignalgo.PreKeyRecord,
-	markUploaded bool) error {
-	//	id, err := preKey.GetID()
-	//	serialized, err := preKey.Serialize()
-	//	if err != nil {
-	//		return err
-	//	}
-	//	_, err = c.db.Exec(`
-	//`)
-	//
-	return nil
-}
-
-func (c *SQLStore) RemovePreKey(uuidKind types.UUIDKind, preKeyId int) error {
-	return nil
-}
-
-func (c *SQLStore) SignedPreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error) {
-	return nil, nil
-}
-
-func (c *SQLStore) SaveSignedPreKey(uuidKind types.UUIDKind, preKey *libsignalgo.SignedPreKeyRecord, markUploaded bool) error {
-	return nil
-}
-
-func (c *SQLStore) RemoveSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error {
-	return nil
 }

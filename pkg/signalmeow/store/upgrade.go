@@ -71,7 +71,8 @@ func (c *StoreContainer) Upgrade() error {
 
 func upgradeV1(tx *sql.Tx, _ *StoreContainer) error {
 	_, err := tx.Exec(`CREATE TABLE signalmeow_device (
-		aci_uuid                TEXT NOT NULL,
+		aci_uuid                TEXT PRIMARY KEY,
+
 		aci_identity_key_pair   bytea NOT NULL,
 		registration_id         INTEGER NOT NULL CHECK ( registration_id >= 0 AND registration_id < 4294967296 ),
 
@@ -87,12 +88,14 @@ func upgradeV1(tx *sql.Tx, _ *StoreContainer) error {
 		return err
 	}
 	_, err = tx.Exec(`CREATE TABLE signalmeow_pre_keys (
-		aci_uuid TEXT NOT NULL,
-		key_id   INTEGER NOT NULL,
-		key_pair bytea   NOT NULL,
-		uploaded BOOLEAN NOT NULL,
+		aci_uuid	TEXT NOT NULL,
+		key_id		INTEGER NOT NULL,
+		uuid_kind	TEXT NOT NULL,
+		is_signed   BOOLEAN NOT NULL,
+		key_pair	bytea   NOT NULL,
+		uploaded	BOOLEAN NOT NULL,
 
-		PRIMARY KEY (aci_uuid, key_id),
+		PRIMARY KEY (aci_uuid, uuid_kind, is_signed, key_id),
 		FOREIGN KEY (aci_uuid) REFERENCES signalmeow_device(aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 	)`)
 	if err != nil {

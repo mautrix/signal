@@ -3,26 +3,72 @@ package signalmeow
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 type GeneratedPreKeys struct {
-	PreKeys      []*libsignalgo.PreKeyRecord
-	SignedPreKey *libsignalgo.SignedPreKeyRecord
+	PreKeys      []libsignalgo.PreKeyRecord
+	SignedPreKey libsignalgo.SignedPreKeyRecord
 	IdentityKey  []uint8
 }
 
-func GenerateAndRegisterPreKeys() error {
-	return nil
+func GenerateAndRegisterPreKeys(device *store.Device, uuidKind types.UUIDKind) error {
+	// Generate prekeys
+	preKeys := GeneratePreKeys(0, 100, uuidKind)
+
+	// Persist prekeys
+	for _, preKey := range *preKeys {
+		device.PreKeyStore.SavePreKey(uuidKind, &preKey, false)
+	}
+
+	var identityKeyPair *libsignalgo.IdentityKeyPair
+	if uuidKind == types.UUID_KIND_ACI {
+		identityKeyPair = device.Data.AciIdentityKeyPair
+	} else {
+		identityKeyPair = device.Data.PniIdentityKeyPair
+	}
+	signedPreKey := GenerateSignedPreKey(0, uuidKind, identityKeyPair)
+	device.PreKeyStore.SaveSignedPreKey(uuidKind, signedPreKey, false)
+
+	// Register prekeys
+	identityKey, err := identityKeyPair.GetPublicKey().Serialize()
+	if err != nil {
+		log.Fatalf("Error serializing identity key: %v", err)
+		return err
+	}
+	generatedPreKeys := GeneratedPreKeys{
+		PreKeys:      *preKeys,
+		SignedPreKey: *signedPreKey,
+		IdentityKey:  identityKey,
+	}
+	preKeyUsername := device.Data.Number
+	if device.Data.AciUuid != "" {
+		preKeyUsername = device.Data.AciUuid
+	}
+	preKeyUsername = preKeyUsername + "." + fmt.Sprint(device.Data.DeviceId)
+	err = RegisterPreKeys(&generatedPreKeys, uuidKind, preKeyUsername, device.Data.Password)
+	if err != nil {
+		log.Printf("RegisterPreKeys error: %v", err)
+		return err
+	}
+
+	// Mark prekeys as registered
+	lastPreKeyId, err := (*preKeys)[len(*preKeys)-1].GetID()
+	err = device.PreKeyStore.MarkPreKeysAsUploaded(uuidKind, lastPreKeyId)
+	signedId, err := signedPreKey.GetID()
+	err = device.PreKeyStore.MarkSignedPreKeysAsUploaded(uuidKind, signedId)
+
+	return err
 }
 
-func GeneratePreKeys(startKeyId uint32, startSignedKeyId uint32, count uint32, identityKeyPair *libsignalgo.IdentityKeyPair, uuidKind types.UUIDKind) *GeneratedPreKeys {
-	// Generate n prekeys
-	generatedPreKeys := &GeneratedPreKeys{}
+func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind types.UUIDKind) *[]libsignalgo.PreKeyRecord {
+	generatedPreKeys := []libsignalgo.PreKeyRecord{}
 	for i := startKeyId; i < startKeyId+count; i++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
 		if err != nil {
@@ -32,9 +78,13 @@ func GeneratePreKeys(startKeyId uint32, startSignedKeyId uint32, count uint32, i
 		if err != nil {
 			log.Fatalf("Error creating preKey record: %v", err)
 		}
-		generatedPreKeys.PreKeys = append(generatedPreKeys.PreKeys, preKey)
+		generatedPreKeys = append(generatedPreKeys, *preKey)
 	}
 
+	return &generatedPreKeys
+}
+
+func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind types.UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *libsignalgo.SignedPreKeyRecord {
 	// Generate a signed prekey
 	privateKey, err := libsignalgo.GeneratePrivateKey()
 	if err != nil {
@@ -53,17 +103,9 @@ func GeneratePreKeys(startKeyId uint32, startSignedKeyId uint32, count uint32, i
 	if err != nil {
 		log.Fatalf("Error signing public key: %v", err)
 	}
-	generatedPreKeys.SignedPreKey = &libsignalgo.SignedPreKeyRecord{}
-	generatedPreKeys.SignedPreKey, err = libsignalgo.NewSignedPreKeyRecordFromPrivateKey(startSignedKeyId, timestamp, privateKey, signature)
+	signedPreKey, err := libsignalgo.NewSignedPreKeyRecordFromPrivateKey(startSignedKeyId, timestamp, privateKey, signature)
 
-	// Save identity key
-	identityKey, err := identityKeyPair.GetPublicKey().Serialize()
-	if err != nil {
-		log.Fatalf("Error serializing identity key: %v", err)
-	}
-	generatedPreKeys.IdentityKey = identityKey
-
-	return generatedPreKeys
+	return signedPreKey
 }
 
 func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind, username string, password string) error {

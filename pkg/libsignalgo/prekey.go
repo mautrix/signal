@@ -94,13 +94,13 @@ func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
 	return CopyBufferToBytes(serialized, length), nil
 }
 
-func (pkr *PreKeyRecord) GetID() (int, error) {
+func (pkr *PreKeyRecord) GetID() (uint, error) {
 	var id C.uint32_t
 	signalFfiError := C.signal_pre_key_record_get_id(&id, pkr.ptr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
-	return int(id), nil
+	return uint(id), nil
 }
 
 func (pkr *PreKeyRecord) GetPublicKey() (*PublicKey, error) {
