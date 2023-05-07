@@ -19,8 +19,8 @@ type PreKeyStore interface {
 	PreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error)
 	SavePreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error
 	RemovePreKey(aciUuid string, uuidKind string, preKeyId int) error
-	SignedPreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error)
-	SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error
+	SignedPreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error)
+	SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.SignedPreKeyRecord) error
 	RemoveSignedPreKey(aciUuid string, uuidKind string, preKeyId int) error
 }
 
@@ -188,31 +188,25 @@ var _ PreKeyStore = (*SQLStoreContainer)(nil)
 
 // PreKeyStore interface
 func (c *SQLStoreContainer) PreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error) {
-	panic("implement me")
 	return nil, nil
 }
 
 func (c *SQLStoreContainer) SavePreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error {
-	panic("implement me")
 	return nil
 }
 
 func (c *SQLStoreContainer) RemovePreKey(aciUuid string, uuidKind string, preKeyId int) error {
-	panic("implement me")
 	return nil
 }
 
-func (c *SQLStoreContainer) SignedPreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error) {
-	panic("implement me")
+func (c *SQLStoreContainer) SignedPreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error) {
 	return nil, nil
 }
 
-func (c *SQLStoreContainer) SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error {
-	panic("implement me")
+func (c *SQLStoreContainer) SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.SignedPreKeyRecord) error {
 	return nil
 }
 
 func (c *SQLStoreContainer) RemoveSignedPreKey(aciUuid string, uuidKind string, preKeyId int) error {
-	panic("implement me")
 	return nil
 }

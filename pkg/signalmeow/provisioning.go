@@ -39,14 +39,24 @@ type ProvisioningData struct {
 	Password           string
 }
 
+type ProvisioningState int
+
+const (
+	StateProvisioningError ProvisioningState = iota
+	StateProvisioningURLReceived
+	StateProvisioningDataReceived
+	StateProvisioningPreKeysRegistered
+)
+
 // Enum for the provisioningUrl, ProvisioningMessage, and error
 type ProvisioningResponse struct {
+	State            ProvisioningState
 	ProvisioningUrl  string
 	ProvisioningData *types.DeviceData
 	Err              error
 }
 
-func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningResponse {
+func PerformProvisioning(deviceStore store.DeviceStore, preKeyStore store.PreKeyStore) chan ProvisioningResponse {
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
@@ -56,13 +66,13 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		ws, err := openProvisioningWebsocket(ctx)
 		if err != nil {
 			log.Printf("openProvisioningWebsocket error: %v", err)
-			c <- ProvisioningResponse{"", nil, err}
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 		}
 		defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 		provisioningCipher := NewProvisioningCipher()
 
 		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
-		c <- ProvisioningResponse{provisioningUrl, nil, err}
+		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningUrl: provisioningUrl, Err: err}
 
 		provisioningMessage, _ := continueProvisioning(ctx, ws, provisioningCipher)
 		ws.Close(websocket.StatusNormalClosure, "")
@@ -90,7 +100,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 			deviceId = deviceResponse.deviceId
 		}
 
-		provisioningData := &types.DeviceData{
+		data := &types.DeviceData{
 			AciIdentityKeyPair: aciIdentityKeyPair,
 			PniIdentityKeyPair: pniIdentityKeyPair,
 			RegistrationId:     registrationId,
@@ -103,10 +113,43 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		}
 
 		// Store the provisioning data
-		deviceStore.SaveDeviceData(provisioningData)
+		deviceStore.SaveDeviceData(data)
 
 		// Return the provisioning data
-		c <- ProvisioningResponse{"", provisioningData, nil}
+		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
+
+		// Now, generate and register the prekeys
+		aciPreKeys := GeneratePreKeys(0, 0, 100, data.AciIdentityKeyPair, "aci")
+		pniPreKeys := GeneratePreKeys(0, 0, 100, data.PniIdentityKeyPair, "pni")
+
+		preKeyUsername := data.Number
+		if data.AciUuid != "" {
+			preKeyUsername = data.AciUuid
+		}
+		preKeyUsername = preKeyUsername + "." + fmt.Sprint(data.DeviceId)
+		regErr := RegisterPreKeys(aciPreKeys, "aci", preKeyUsername, data.Password)
+		if regErr != nil {
+			log.Printf("RegisterPreKeys error: %v", regErr)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: regErr}
+			return
+		}
+		regErr = RegisterPreKeys(pniPreKeys, "pni", preKeyUsername, data.Password)
+		if regErr != nil {
+			log.Printf("RegisterPreKeys error: %v", regErr)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: regErr}
+			return
+		}
+
+		// Persist prekeys
+		for _, preKey := range aciPreKeys.PreKeys {
+			preKeyStore.SavePreKey(data.AciUuid, "aci", preKey)
+		}
+		preKeyStore.SaveSignedPreKey(data.AciUuid, "aci", aciPreKeys.SignedPreKey)
+		for _, preKey := range pniPreKeys.PreKeys {
+			preKeyStore.SavePreKey(data.PniUuid, "pni", preKey)
+		}
+		preKeyStore.SaveSignedPreKey(data.PniUuid, "pni", pniPreKeys.SignedPreKey)
+		c <- ProvisioningResponse{State: StateProvisioningPreKeysRegistered}
 	}()
 	return c
 }
