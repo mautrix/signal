@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from mautrix.util.format_duration import format_duration
+
 
 class RPCError(Exception):
     pass
@@ -123,11 +125,12 @@ class ProofRequiredError(ResponseError):
         self.options = data.get("options")
         self.retry_after = data.get("retry_after")
         self.token = data.get("token")
-        message = (
-            f"You have been rate-limited by Signal. Try again in {self.retry_after} "
-            "seconds or complete a captcha challenge using the `submit-challenge` command. "
-            "A captcha may be obtained at https://signalcaptchas.org/challenge/generate.html"
-        )
+        message = "You have been rate limited by Signal."
+        if isinstance(self.retry_after, (int, float)):
+            message += (
+                f" Try again in {format_duration(int(self.retry_after))} "
+                "or complete a captcha challenge using the `submit-challenge` command."
+            )
         super().__init__(data, message_override=message)
 
 
