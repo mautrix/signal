@@ -56,7 +56,7 @@ type ProvisioningResponse struct {
 	Err              error
 }
 
-func PerformProvisioning(deviceStore store.DeviceStore, preKeyStore store.PreKeyStore) chan ProvisioningResponse {
+func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningResponse {
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
@@ -113,42 +113,49 @@ func PerformProvisioning(deviceStore store.DeviceStore, preKeyStore store.PreKey
 		}
 
 		// Store the provisioning data
-		deviceStore.SaveDeviceData(data)
+		deviceStore.PutDevice(data)
+		newDevice, err := deviceStore.DeviceByAci(data.AciUuid)
+		if err != nil {
+			log.Printf("error retrieving new device: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+		}
 
 		// Return the provisioning data
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
-		// Now, generate and register the prekeys
-		aciPreKeys := GeneratePreKeys(0, 0, 100, data.AciIdentityKeyPair, "aci")
-		pniPreKeys := GeneratePreKeys(0, 0, 100, data.PniIdentityKeyPair, "pni")
+		// Generate prekeys
+		aciPreKeys := GeneratePreKeys(0, 0, 100, data.AciIdentityKeyPair, types.UUID_KIND_ACI)
+		pniPreKeys := GeneratePreKeys(0, 0, 100, data.PniIdentityKeyPair, types.UUID_KIND_PNI)
 
+		// Persist prekeys
+		for _, preKey := range aciPreKeys.PreKeys {
+			newDevice.PreKeyStore.SavePreKey(types.UUID_KIND_ACI, preKey, false)
+		}
+		newDevice.PreKeyStore.SaveSignedPreKey(types.UUID_KIND_ACI, aciPreKeys.SignedPreKey, false)
+		for _, preKey := range pniPreKeys.PreKeys {
+			newDevice.PreKeyStore.SavePreKey(types.UUID_KIND_PNI, preKey, false)
+		}
+		newDevice.PreKeyStore.SaveSignedPreKey(types.UUID_KIND_PNI, pniPreKeys.SignedPreKey, false)
+
+		// Register prekeys
 		preKeyUsername := data.Number
 		if data.AciUuid != "" {
 			preKeyUsername = data.AciUuid
 		}
 		preKeyUsername = preKeyUsername + "." + fmt.Sprint(data.DeviceId)
-		regErr := RegisterPreKeys(aciPreKeys, "aci", preKeyUsername, data.Password)
+		regErr := RegisterPreKeys(aciPreKeys, types.UUID_KIND_ACI, preKeyUsername, data.Password)
 		if regErr != nil {
 			log.Printf("RegisterPreKeys error: %v", regErr)
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: regErr}
 			return
 		}
-		regErr = RegisterPreKeys(pniPreKeys, "pni", preKeyUsername, data.Password)
+		regErr = RegisterPreKeys(pniPreKeys, types.UUID_KIND_PNI, preKeyUsername, data.Password)
 		if regErr != nil {
 			log.Printf("RegisterPreKeys error: %v", regErr)
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: regErr}
 			return
 		}
 
-		// Persist prekeys
-		for _, preKey := range aciPreKeys.PreKeys {
-			preKeyStore.SavePreKey(data.AciUuid, "aci", preKey)
-		}
-		preKeyStore.SaveSignedPreKey(data.AciUuid, "aci", aciPreKeys.SignedPreKey)
-		for _, preKey := range pniPreKeys.PreKeys {
-			preKeyStore.SavePreKey(data.PniUuid, "pni", preKey)
-		}
-		preKeyStore.SaveSignedPreKey(data.PniUuid, "pni", pniPreKeys.SignedPreKey)
 		c <- ProvisioningResponse{State: StateProvisioningPreKeysRegistered}
 	}()
 	return c
@@ -280,7 +287,7 @@ func confirmDevice(username string, password string, code string, registrationId
 	if ok {
 		deviceResp.uuid = uuid
 	}
-	pni, ok := body["pni"].(string)
+	pni, ok := body[types.UUID_KIND_PNI].(string)
 	if ok {
 		deviceResp.pni = pni
 	}

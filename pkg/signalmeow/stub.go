@@ -15,7 +15,7 @@ func Main() {
 		log.Printf("store.New error: %v", err)
 		return
 	}
-	provChan := PerformProvisioning(sqlStore, sqlStore)
+	provChan := PerformProvisioning(sqlStore)
 
 	// First get the provisioning URL
 	resp := <-provChan

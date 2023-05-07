@@ -35,7 +35,7 @@ type SignalBridge struct {
 
 	Config    *config.Config
 	DB        *database.Database
-	MeowStore *meowstore.SQLStoreContainer
+	MeowStore *meowstore.StoreContainer
 
 	//provisioning *ProvisioningAPI
 

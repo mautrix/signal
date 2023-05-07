@@ -4,15 +4,15 @@ import (
 	"database/sql"
 )
 
-type upgradeFunc func(*sql.Tx, *SQLStoreContainer) error
+type upgradeFunc func(*sql.Tx, *StoreContainer) error
 
 // Upgrades is a list of functions that will upgrade a database to the latest version.
 //
 // This may be of use if you want to manage the database fully manually, but in most cases you
-// should just call SQLStoreContainer.Upgrade to let the library handle everything.
+// should just call StoreContainer.Upgrade to let the library handle everything.
 var Upgrades = [...]upgradeFunc{upgradeV1}
 
-func (c *SQLStoreContainer) getVersion() (int, error) {
+func (c *StoreContainer) getVersion() (int, error) {
 	_, err := c.db.Exec("CREATE TABLE IF NOT EXISTS signalmeow_version (version INTEGER)")
 	if err != nil {
 		return -1, err
@@ -26,7 +26,7 @@ func (c *SQLStoreContainer) getVersion() (int, error) {
 	return version, nil
 }
 
-func (c *SQLStoreContainer) setVersion(tx *sql.Tx, version int) error {
+func (c *StoreContainer) setVersion(tx *sql.Tx, version int) error {
 	_, err := tx.Exec("DELETE FROM signalmeow_version")
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (c *SQLStoreContainer) setVersion(tx *sql.Tx, version int) error {
 }
 
 // Upgrade upgrades the database from the current to the latest version available.
-func (c *SQLStoreContainer) Upgrade() error {
+func (c *StoreContainer) Upgrade() error {
 	version, err := c.getVersion()
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (c *SQLStoreContainer) Upgrade() error {
 	return nil
 }
 
-func upgradeV1(tx *sql.Tx, _ *SQLStoreContainer) error {
+func upgradeV1(tx *sql.Tx, _ *StoreContainer) error {
 	_, err := tx.Exec(`CREATE TABLE signalmeow_device (
 		aci_uuid                TEXT NOT NULL,
 		aci_identity_key_pair   bytea NOT NULL,

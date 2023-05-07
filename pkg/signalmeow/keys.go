@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 type GeneratedPreKeys struct {
@@ -19,7 +20,7 @@ func GenerateAndRegisterPreKeys() error {
 	return nil
 }
 
-func GeneratePreKeys(startKeyId uint32, startSignedKeyId uint32, count uint32, identityKeyPair *libsignalgo.IdentityKeyPair, uuidKind string) *GeneratedPreKeys {
+func GeneratePreKeys(startKeyId uint32, startSignedKeyId uint32, count uint32, identityKeyPair *libsignalgo.IdentityKeyPair, uuidKind types.UUIDKind) *GeneratedPreKeys {
 	// Generate n prekeys
 	generatedPreKeys := &GeneratedPreKeys{}
 	for i := startKeyId; i < startKeyId+count; i++ {
@@ -65,7 +66,7 @@ func GeneratePreKeys(startKeyId uint32, startSignedKeyId uint32, count uint32, i
 	return generatedPreKeys
 }
 
-func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind string, username string, password string) error {
+func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind, username string, password string) error {
 	// Convert generated prekeys to JSON
 	preKeysJson := []map[string]interface{}{}
 	for _, preKey := range generatedPreKeys.PreKeys {
@@ -97,7 +98,7 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind string, userna
 	}
 
 	// Send request
-	keysUrl := "https://chat.signal.org/v2/keys?identity=" + uuidKind
+	keysUrl := "https://chat.signal.org/v2/keys?identity=" + string(uuidKind)
 	jsonBytes, err := json.Marshal(register_json)
 	if err != nil {
 		log.Printf("Error marshalling register JSON: %v", err)

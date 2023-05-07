@@ -10,22 +10,15 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
+var _ DeviceStore = (*StoreContainer)(nil)
+
 type DeviceStore interface {
-	SaveDeviceData(dd *types.DeviceData) error
-	DeviceDataByAci(aciUuid string) (*types.DeviceData, error)
+	PutDevice(dd *types.DeviceData) error
+	DeviceByAci(aciUuid string) (*Device, error)
 }
 
-type PreKeyStore interface {
-	PreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error)
-	SavePreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error
-	RemovePreKey(aciUuid string, uuidKind string, preKeyId int) error
-	SignedPreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error)
-	SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.SignedPreKeyRecord) error
-	RemoveSignedPreKey(aciUuid string, uuidKind string, preKeyId int) error
-}
-
-// SQLStoreContainer is a wrapper for a SQL database that can contain multiple signalmeow sessions.
-type SQLStoreContainer struct {
+// StoreContainer is a wrapper for a SQL database that can contain multiple signalmeow sessions.
+type StoreContainer struct {
 	db      *sql.DB
 	dialect string
 	log     log.Logger
@@ -33,13 +26,18 @@ type SQLStoreContainer struct {
 	DatabaseErrorHandler func(device *types.DeviceData, action string, attemptIndex int, err error) (retry bool)
 }
 
-// New connects to the given SQL database and wraps it in a SQLStoreContainer.
+type Device struct {
+	Data        types.DeviceData
+	PreKeyStore PreKeyStore
+}
+
+// New connects to the given SQL database and wraps it in a StoreContainer.
 // Only SQLite and Postgres are currently fully supported.
 // The logger can be nil and will default to a no-op logger.
 // When using SQLite, it's strongly recommended to enable foreign keys by adding `?_foreign_keys=true`:
 //
 //	container, err := sqlstore.New("sqlite3", "file:yoursqlitefile.db?_foreign_keys=on", nil)
-func New(dialect, address string) (*SQLStoreContainer, error) {
+func New(dialect, address string) (*StoreContainer, error) {
 	db, err := sql.Open(dialect, address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -47,13 +45,12 @@ func New(dialect, address string) (*SQLStoreContainer, error) {
 	container := NewWithDB(db, dialect)
 	err = container.Upgrade()
 	if err != nil {
-		panic(err)
 		return nil, fmt.Errorf("failed to upgrade database: %w", err)
 	}
 	return container, nil
 }
 
-// NewWithDB wraps an existing SQL connection in a SQLStoreContainer.
+// NewWithDB wraps an existing SQL connection in a StoreContainer.
 // Only SQLite and Postgres are currently fully supported.
 // The logger can be nil and will default to a no-op logger.
 // When using SQLite, it's strongly recommended to enable foreign keys by adding `?_foreign_keys=true`:
@@ -68,8 +65,8 @@ func New(dialect, address string) (*SQLStoreContainer, error) {
 //
 //	container := sqlstore.NewWithDB(...)
 //	err := container.Upgrade()
-func NewWithDB(db *sql.DB, dialect string) *SQLStoreContainer {
-	return &SQLStoreContainer{
+func NewWithDB(db *sql.DB, dialect string) *StoreContainer {
+	return &StoreContainer{
 		db:      db,
 		dialect: dialect,
 	}
@@ -89,31 +86,35 @@ type scannable interface {
 	Scan(dest ...interface{}) error
 }
 
-func (c *SQLStoreContainer) scanDevice(row scannable) (*types.DeviceData, error) {
-	var device types.DeviceData
+func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
+	var device Device
+	deviceData := &device.Data
 	var aciIdentityKeyPair, pniIdentityKeyPair []byte
 
 	err := row.Scan(
-		&device.AciUuid, &aciIdentityKeyPair, &device.RegistrationId,
-		&device.PniUuid, &pniIdentityKeyPair, &device.PniRegistrationId,
-		&device.DeviceId, &device.Number, &device.Password,
+		&deviceData.AciUuid, &aciIdentityKeyPair, &deviceData.RegistrationId,
+		&deviceData.PniUuid, &pniIdentityKeyPair, &deviceData.PniRegistrationId,
+		&deviceData.DeviceId, &deviceData.Number, &deviceData.Password,
 	)
-	device.AciIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
-	device.PniIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
+	deviceData.AciIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
+	deviceData.PniIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
 	}
+
+	innerStore := newSQLStore(c, deviceData.AciUuid)
+	device.PreKeyStore = innerStore
 
 	return &device, nil
 }
 
 // GetAllDevices finds all the devices in the database.
-func (c *SQLStoreContainer) GetAllDevices() ([]*types.DeviceData, error) {
+func (c *StoreContainer) GetAllDevices() ([]*Device, error) {
 	res, err := c.db.Query(getAllDevicesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
-	sessions := make([]*types.DeviceData, 0)
+	sessions := make([]*Device, 0)
 	for res.Next() {
 		sess, scanErr := c.scanDevice(res)
 		if scanErr != nil {
@@ -124,10 +125,9 @@ func (c *SQLStoreContainer) GetAllDevices() ([]*types.DeviceData, error) {
 	return sessions, nil
 }
 
-// GetDevice finds the device with the specified JID in the database.
+// GetDevice finds the device with the specified ACI UUID in the database.
 // If the device is not found, nil is returned instead.
-// Note that the parameter usually must be an AD-JID.
-func (c *SQLStoreContainer) DeviceDataByAci(aciUuid string) (*types.DeviceData, error) {
+func (c *StoreContainer) DeviceByAci(aciUuid string) (*Device, error) {
 	sess, err := c.scanDevice(c.db.QueryRow(getDeviceQuery, aciUuid))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -147,12 +147,12 @@ const (
 	deleteDeviceQuery = `DELETE FROM signalmeow_device WHERE aci_uuid=$1`
 )
 
-// ErrDeviceIDMustBeSet is the error returned by PutDevice if you try to save a device before knowing its JID.
+// ErrDeviceIDMustBeSet is the error returned by PutDevice if you try to save a device before knowing its ACI UUID.
 var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before accessing database")
 
-// PutDevice stores the given device in this database. This should be called through Device.Save()
-// (which usually doesn't need to be called manually, as the library does that automatically when relevant).
-func (c *SQLStoreContainer) SaveDeviceData(device *types.DeviceData) error {
+// PutDevice stores the given device in this database.
+func (c *StoreContainer) PutDevice(device *types.DeviceData) error {
+	// TODO: if storing with same ACI UUID and device id, update instead of insert
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet
 	}
@@ -171,7 +171,7 @@ func (c *SQLStoreContainer) SaveDeviceData(device *types.DeviceData) error {
 }
 
 // DeleteDevice deletes the given device from this database. This should be called through Device.Delete()
-func (c *SQLStoreContainer) DeleteDevice(device *types.DeviceData) error {
+func (c *StoreContainer) DeleteDevice(device *types.DeviceData) error {
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet
 	}
@@ -183,30 +183,82 @@ func (c *SQLStoreContainer) DeleteDevice(device *types.DeviceData) error {
 // Implementing "Store" interfaces
 //
 
-var _ DeviceStore = (*SQLStoreContainer)(nil) // Implemented above
-var _ PreKeyStore = (*SQLStoreContainer)(nil)
+// SQLStore is basically a StoreContainer with an ACI UUID attached to it,
+// reperesenting a store for a single user
+type SQLStore struct {
+	*StoreContainer
+	AciUuid string
+}
+
+func newSQLStore(container *StoreContainer, aciUuid string) *SQLStore {
+	return &SQLStore{
+		StoreContainer: container,
+		AciUuid:        aciUuid,
+	}
+}
+
+var _ PreKeyStore = (*SQLStore)(nil)
+
+type PreKeyStore interface {
+	PreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.PreKeyRecord, error)
+	SavePreKey(uuidKind types.UUIDKind, preKey *libsignalgo.PreKeyRecord, markUploaded bool) error
+	RemovePreKey(uuidKind types.UUIDKind, preKeyId int) error
+	SignedPreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error)
+	SaveSignedPreKey(uuidKind types.UUIDKind, preKey *libsignalgo.SignedPreKeyRecord, markUploaded bool) error
+	RemoveSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error
+}
 
 // PreKeyStore interface
-func (c *SQLStoreContainer) PreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.PreKeyRecord, error) {
+const (
+	getLastPreKeyIDQuery        = `SELECT MAX(key_id) FROM signalmeow_pre_keys WHERE aci_uuid=$1`
+	insertPreKeyQuery           = `INSERT INTO signalmeow_pre_keys (aci_uuid, key_id, key, uploaded) VALUES ($1, $2, $3, $4)`
+	getUnuploadedPreKeysQuery   = `SELECT key_id, key FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND uploaded=false ORDER BY key_id LIMIT $2`
+	getPreKeyQuery              = `SELECT key_id, key FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND key_id=$2`
+	deletePreKeyQuery           = `DELETE FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND key_id=$2`
+	markPreKeysAsUploadedQuery  = `UPDATE signalmeow_pre_keys SET uploaded=true WHERE aci_uuid=$1 AND key_id<=$2`
+	getUploadedPreKeyCountQuery = `SELECT COUNT(*) FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND uploaded=true`
+)
+
+func (c *SQLStore) PreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.PreKeyRecord, error) {
 	return nil, nil
 }
 
-func (c *SQLStoreContainer) SavePreKey(aciUuid string, uuidKind string, preKey *libsignalgo.PreKeyRecord) error {
+func (s *SQLStore) getNextPreKeyID() (uint32, error) {
+	var lastKeyID sql.NullInt32
+	err := s.db.QueryRow(getLastPreKeyIDQuery, s.AciUuid).Scan(&lastKeyID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query next prekey ID: %w", err)
+	}
+	return uint32(lastKeyID.Int32) + 1, nil
+}
+
+func (c *SQLStore) SavePreKey(
+	uuidKind types.UUIDKind,
+	preKey *libsignalgo.PreKeyRecord,
+	markUploaded bool) error {
+	//	id, err := preKey.GetID()
+	//	serialized, err := preKey.Serialize()
+	//	if err != nil {
+	//		return err
+	//	}
+	//	_, err = c.db.Exec(`
+	//`)
+	//
 	return nil
 }
 
-func (c *SQLStoreContainer) RemovePreKey(aciUuid string, uuidKind string, preKeyId int) error {
+func (c *SQLStore) RemovePreKey(uuidKind types.UUIDKind, preKeyId int) error {
 	return nil
 }
 
-func (c *SQLStoreContainer) SignedPreKey(aciUuid string, uuidKind string, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error) {
+func (c *SQLStore) SignedPreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error) {
 	return nil, nil
 }
 
-func (c *SQLStoreContainer) SaveSignedPreKey(aciUuid string, uuidKind string, preKey *libsignalgo.SignedPreKeyRecord) error {
+func (c *SQLStore) SaveSignedPreKey(uuidKind types.UUIDKind, preKey *libsignalgo.SignedPreKeyRecord, markUploaded bool) error {
 	return nil
 }
 
-func (c *SQLStoreContainer) RemoveSignedPreKey(aciUuid string, uuidKind string, preKeyId int) error {
+func (c *SQLStore) RemoveSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error {
 	return nil
 }
