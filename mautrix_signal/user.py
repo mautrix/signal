@@ -94,6 +94,7 @@ class User(DBUser, BaseUser):
         self._state_id = self.username
         self._websocket_connection_state = None
         self._latest_non_transient_bridge_state = None
+        self.challenge_token = None
         perms = self.config.get_permissions(mxid)
         self.relay_whitelisted, self.is_whitelisted, self.is_admin, self.permission_level = perms
 

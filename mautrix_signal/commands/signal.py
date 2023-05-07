@@ -519,7 +519,7 @@ async def confirm_bridge(evt: CommandEvent) -> EventID | None:
 )
 async def submit_challenge(evt: CommandEvent) -> None:
     if len(evt.args == 0):
-        await evt.reply("**Usage:** `$cmdprefix+sp captcha-challenge <captcha-token>`")
+        await evt.reply("**Usage:** `$cmdprefix+sp submit-challenge <captcha token>`")
         return
     challenge_token = evt.sender.challenge_token
     captcha_token = evt.args[0]
@@ -528,16 +528,14 @@ async def submit_challenge(evt: CommandEvent) -> None:
             "No open challenge found. If the bridge was restarted, try"
             "triggering another ProofRequiredError"
         )
-    evt.log.debug(f"submitting challenge for token {challenge_token}")
+    evt.log.debug(f"Submitting challenge for token {challenge_token}")
     try:
         await evt.bridge.signal.submit_challenge(
             evt.sender.username, captcha_token=evt.args[0], challenge=challenge_token
         )
     except Exception as e:
-        await evt.reply(f"failed to submit captcha challenge: {e}")
-        return
-    await evt.reply("Captcha challenge submitted successfully")
-    return
+        return await evt.reply(f"Failed to submit captcha challenge: {e}")
+    return await evt.reply("Captcha challenge submitted successfully")
 
 
 async def _locked_confirm_bridge(
