@@ -39,7 +39,6 @@ func (c *SQLStoreContainer) setVersion(tx *sql.Tx, version int) error {
 func (c *SQLStoreContainer) Upgrade() error {
 	version, err := c.getVersion()
 	if err != nil {
-		panic(err)
 		return err
 	}
 
@@ -47,7 +46,6 @@ func (c *SQLStoreContainer) Upgrade() error {
 		var tx *sql.Tx
 		tx, err = c.db.Begin()
 		if err != nil {
-			panic(err)
 			return err
 		}
 
@@ -56,17 +54,14 @@ func (c *SQLStoreContainer) Upgrade() error {
 		err = migrateFunc(tx, c)
 		if err != nil {
 			_ = tx.Rollback()
-			panic(err)
 			return err
 		}
 
 		if err = c.setVersion(tx, version+1); err != nil {
-			panic(err)
 			return err
 		}
 
 		if err = tx.Commit(); err != nil {
-			panic(err)
 			return err
 		}
 	}

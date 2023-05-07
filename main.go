@@ -3,6 +3,7 @@ package main
 import (
 	_ "embed"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/database"
+	meowstore "go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/id"
@@ -31,8 +33,9 @@ var (
 type SignalBridge struct {
 	bridge.Bridge
 
-	Config *config.Config
-	DB     *database.Database
+	Config    *config.Config
+	DB        *database.Database
+	MeowStore *meowstore.SQLStoreContainer
 
 	//provisioning *ProvisioningAPI
 
@@ -71,6 +74,7 @@ func (br *SignalBridge) Init() {
 	br.RegisterCommands()
 
 	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
+	br.MeowStore = meowstore.NewWithDB(br.DB.RawDB, br.DB.Dialect.String())
 	//signalLog = br.ZLog.With().Str("component", "discordgo").Logger()
 
 	// TODO move this to mautrix-go?
@@ -85,6 +89,11 @@ func (br *SignalBridge) Init() {
 }
 
 func (br *SignalBridge) Start() {
+	err := br.MeowStore.Upgrade()
+	if err != nil {
+		br.Log.Fatalln("Failed to upgrade signalmeow database: %v", err)
+		os.Exit(15)
+	}
 	go br.StartUsers()
 }
 

@@ -234,7 +234,7 @@ func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
 	user.Lock()
 	defer user.Unlock()
 
-	provChan := signalmeow.PerformProvisioning()
+	provChan := signalmeow.PerformProvisioning(user.bridge.MeowStore)
 
 	return provChan, nil
 }
