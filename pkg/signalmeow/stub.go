@@ -15,6 +15,40 @@ func Main() {
 		log.Printf("store.New error: %v", err)
 		return
 	}
+
+	// See if we already have a device
+	devices, err := sqlStore.GetAllDevices()
+	if err != nil {
+		log.Printf("GetAllDevices error: %v", err)
+		return
+	}
+	if len(devices) > 1 {
+		log.Printf("Too many devices, not sure which to test with: %v", len(devices))
+		return
+	}
+	if len(devices) == 1 {
+		log.Printf("Using existing device: %v", devices[0])
+	} else {
+		doProvisioning(sqlStore)
+		devices, err = sqlStore.GetAllDevices()
+		if err != nil {
+			log.Printf("GetAllDevices error: %v", err)
+			return
+		}
+		if len(devices) != 1 {
+			log.Printf("Expected 1 device, got %v", len(devices))
+			return
+		}
+	}
+	//device := devices[0]
+
+	// Start message receiver
+	// open websocket
+	//ctx, cancel := context.WithCancel(context.Background())
+	//ws, resp, err := openWebsocket(ctx, "/v1/websocket/?login=true")
+}
+
+func doProvisioning(sqlStore *store.StoreContainer) {
 	provChan := PerformProvisioning(sqlStore)
 
 	// First get the provisioning URL

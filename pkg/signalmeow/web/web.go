@@ -1,4 +1,4 @@
-package signalmeow
+package web
 
 import (
 	"bytes"
@@ -19,6 +19,11 @@ const proxyUrlStr = "http://localhost:8080"
 const caCertPath = "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
 
 const urlHost = "chat.signal.org:443"
+
+// Paths used to open websockets and make HTTP requests
+const WebsocketProvisioningPath = "/v1/websocket/provisioning/"
+const WebsocketPath = "/v1/websocket/"
+const HTTPKeysPath = "/v2/keys"
 
 // TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
 func proxiedHTTPClient() *http.Client {
@@ -58,7 +63,7 @@ func proxiedHTTPClient() *http.Client {
 	return client
 }
 
-func openWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
+func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
 		HTTPClient: proxiedHTTPClient(),
 	}
@@ -71,7 +76,7 @@ func openWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 	return ws, resp, err
 }
 
-func createWSResponse(id uint64, status uint32) *signalpb.WebSocketMessage {
+func CreateWSResponse(id uint64, status uint32) *signalpb.WebSocketMessage {
 	if status == 200 {
 		msg_type := signalpb.WebSocketMessage_RESPONSE
 		message := "OK"
@@ -93,7 +98,7 @@ func createWSResponse(id uint64, status uint32) *signalpb.WebSocketMessage {
 
 var wsRequestId uint64 = 0
 
-func createWSRequest(method string, path string, body []byte, username *string, password *string) *signalpb.WebSocketMessage {
+func CreateWSRequest(method string, path string, body []byte, username *string, password *string) *signalpb.WebSocketMessage {
 	wsRequestId += 1
 	msg_type := signalpb.WebSocketMessage_REQUEST
 	request := &signalpb.WebSocketMessage{
@@ -113,7 +118,7 @@ func createWSRequest(method string, path string, body []byte, username *string, 
 	return request
 }
 
-func sendHTTPRequest(method string, path string, body []byte, username *string, password *string) (*http.Response, error) {
+func SendHTTPRequest(method string, path string, body []byte, username *string, password *string) (*http.Response, error) {
 	urlStr := "https://" + urlHost + path
 	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(body))
 	if err != nil {

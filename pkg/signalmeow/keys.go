@@ -10,6 +10,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 type GeneratedPreKeys struct {
@@ -140,13 +141,13 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind
 	}
 
 	// Send request
-	keysPath := "/v2/keys?identity=" + string(uuidKind)
+	keysPath := web.HTTPKeysPath + "?identity=" + string(uuidKind)
 	jsonBytes, err := json.Marshal(register_json)
 	if err != nil {
 		log.Printf("Error marshalling register JSON: %v", err)
 		return err
 	}
-	resp, err := sendHTTPRequest("PUT", keysPath, jsonBytes, &username, &password)
+	resp, err := web.SendHTTPRequest("PUT", keysPath, jsonBytes, &username, &password)
 	if err != nil {
 		log.Fatalf("Error sending request: %v", err)
 	}

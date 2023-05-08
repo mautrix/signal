@@ -16,6 +16,7 @@ import (
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 	"google.golang.org/protobuf/proto"
 	"nhooyr.io/websocket"
@@ -147,7 +148,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 }
 
 func openProvisioningWebsocket(ctx context.Context) (*websocket.Conn, error) {
-	ws, resp, err := openWebsocket(ctx, "/v1/websocket/provisioning/")
+	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketProvisioningPath)
 	if err != nil {
 		log.Printf("openWebsocket error, resp: %v", resp)
 		return nil, err
@@ -185,7 +186,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		log.Printf("provisioningUrl: %s", provisioningUrl)
 
 		// Create and send response
-		response := createWSResponse(*msg.Request.Id, 200)
+		response := web.CreateWSResponse(*msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
 			return "", err
@@ -213,7 +214,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 			return nil, err
 		}
 
-		response := createWSResponse(*msg.Request.Id, 200)
+		response := web.CreateWSResponse(*msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
 			return nil, err
@@ -226,7 +227,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 func confirmDevice(username string, password string, code string, registrationId int, pniRegistrationId int) (*ConfirmDeviceResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	ws, resp, err := openWebsocket(ctx, "/v1/websocket/")
+	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
 	data := map[string]interface{}{
@@ -243,7 +244,7 @@ func confirmDevice(username string, password string, code string, registrationId
 	}
 
 	// Create and send request
-	request := createWSRequest("PUT", "/v1/devices/"+code, jsonBytes, &username, &password)
+	request := web.CreateWSRequest("PUT", "/v1/devices/"+code, jsonBytes, &username, &password)
 	err = wspb.Write(ctx, ws, request)
 	if err != nil {
 		log.Printf("failed on write %v", resp)
