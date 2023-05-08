@@ -1,12 +1,18 @@
 package signalmeow
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
+	"google.golang.org/protobuf/proto"
 )
 
 func Main() {
@@ -40,12 +46,45 @@ func Main() {
 			return
 		}
 	}
-	//device := devices[0]
+	device := devices[0]
 
 	// Start message receiver
-	// open websocket
-	//ctx, cancel := context.WithCancel(context.Background())
-	//ws, resp, err := openWebsocket(ctx, "/v1/websocket/?login=true")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	username := device.Data.AciUuid + "." + fmt.Sprintf("%d", device.Data.DeviceId)
+	password := device.Data.Password
+	agent := "OWD"
+	path := web.WebsocketPath + "?" + "agent=" + agent + "login=" + username + "&password=" + password
+	ws, resp, err := web.OpenWebsocket(ctx, path)
+	if err != nil {
+		log.Printf("OpenWebsocket error: %v", err)
+		return
+	}
+	if resp.StatusCode != 101 {
+		log.Printf("Unexpected status code: %v", resp.StatusCode)
+		return
+	}
+	for {
+		msg := &signalpb.WebSocketMessage{}
+		err = wspb.Read(ctx, ws, msg)
+		if err != nil {
+			log.Printf("Read error: %v", err)
+			return
+		}
+		if *msg.Type == signalpb.WebSocketMessage_REQUEST &&
+			*msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/messages" {
+			log.Printf("Received AN ACTUAL message: %v", msg)
+			envelope := &signalpb.Envelope{}
+			err := proto.Unmarshal(msg.Request.Body, envelope)
+			if err != nil {
+				log.Printf("Unmarshal error: %v", err)
+				return
+			}
+			log.Printf("-----> envelope: %v", envelope)
+		} else {
+			log.Printf("Received NOT a message: %v", msg)
+		}
+	}
 }
 
 func doProvisioning(sqlStore *store.StoreContainer) {

@@ -77,23 +77,23 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 }
 
 func CreateWSResponse(id uint64, status uint32) *signalpb.WebSocketMessage {
-	if status == 200 {
-		msg_type := signalpb.WebSocketMessage_RESPONSE
-		message := "OK"
-		response := &signalpb.WebSocketMessage{
-			Type: &msg_type,
-			Response: &signalpb.WebSocketResponseMessage{
-				Id:      &id,
-				Message: &message,
-				Status:  &status,
-				Headers: []string{},
-			},
-		}
-		return response
+	if status != 200 {
+		// TODO support non-200 responses
+		log.Fatal("Error creating response (non 200 not supported yet)")
+		return nil
 	}
-	// TODO support non-200 responses
-	log.Fatal("Error creating response (non 200 not supported yet)")
-	return nil
+	msg_type := signalpb.WebSocketMessage_RESPONSE
+	message := "OK"
+	response := &signalpb.WebSocketMessage{
+		Type: &msg_type,
+		Response: &signalpb.WebSocketResponseMessage{
+			Id:      &id,
+			Message: &message,
+			Status:  &status,
+			Headers: []string{},
+		},
+	}
+	return response
 }
 
 var wsRequestId uint64 = 0

@@ -5,6 +5,7 @@ import (
 	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -208,7 +209,6 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 		*msg.Request.Verb == "PUT" &&
 		*msg.Request.Path == "/v1/message" {
 
-		envelope = &signalpb.ProvisionEnvelope{}
 		err = proto.Unmarshal(msg.Request.Body, envelope)
 		if err != nil {
 			return nil, err
@@ -219,6 +219,8 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		return nil, errors.New("invalid provisioning message")
 	}
 	provisioningMessage := provisioningCipher.Decrypt(envelope)
 	return provisioningMessage, nil
