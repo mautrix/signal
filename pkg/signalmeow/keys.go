@@ -140,13 +140,13 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind
 	}
 
 	// Send request
-	keysUrl := "https://chat.signal.org/v2/keys?identity=" + string(uuidKind)
+	keysPath := "/v2/keys?identity=" + string(uuidKind)
 	jsonBytes, err := json.Marshal(register_json)
 	if err != nil {
 		log.Printf("Error marshalling register JSON: %v", err)
 		return err
 	}
-	resp, err := sendHTTPRequest("PUT", keysUrl, jsonBytes, &username, &password)
+	resp, err := sendHTTPRequest("PUT", keysPath, jsonBytes, &username, &password)
 	if err != nil {
 		log.Fatalf("Error sending request: %v", err)
 	}

@@ -18,6 +18,9 @@ import (
 const proxyUrlStr = "http://localhost:8080"
 const caCertPath = "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
 
+const urlHost = "chat.signal.org:443"
+
+// TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
 func proxiedHTTPClient() *http.Client {
 	var proxyURL *url.URL
 	if proxyUrlStr != "" {
@@ -55,10 +58,11 @@ func proxiedHTTPClient() *http.Client {
 	return client
 }
 
-func openWebsocket(ctx context.Context, urlStr string) (*websocket.Conn, *http.Response, error) {
+func openWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
 		HTTPClient: proxiedHTTPClient(),
 	}
+	urlStr := "wss://" + urlHost + path
 	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
 
 	if err != nil {
@@ -109,7 +113,8 @@ func createWSRequest(method string, path string, body []byte, username *string, 
 	return request
 }
 
-func sendHTTPRequest(method string, urlStr string, body []byte, username *string, password *string) (*http.Response, error) {
+func sendHTTPRequest(method string, path string, body []byte, username *string, password *string) (*http.Response, error) {
+	urlStr := "https://" + urlHost + path
 	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(body))
 	if err != nil {
 		log.Fatalf("Error creating request: %v", err)

@@ -147,7 +147,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 }
 
 func openProvisioningWebsocket(ctx context.Context) (*websocket.Conn, error) {
-	ws, resp, err := openWebsocket(ctx, "wss://chat.signal.org:443/v1/websocket/provisioning/")
+	ws, resp, err := openWebsocket(ctx, "/v1/websocket/provisioning/")
 	if err != nil {
 		log.Printf("openWebsocket error, resp: %v", resp)
 		return nil, err
@@ -226,7 +226,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 func confirmDevice(username string, password string, code string, registrationId int, pniRegistrationId int) (*ConfirmDeviceResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
-	ws, resp, err := openWebsocket(ctx, "wss://chat.signal.org:443/v1/websocket/")
+	ws, resp, err := openWebsocket(ctx, "/v1/websocket/")
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
 	data := map[string]interface{}{
