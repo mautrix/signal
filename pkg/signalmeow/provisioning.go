@@ -75,10 +75,8 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
 		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningUrl: provisioningUrl, Err: err}
 
-		log.Print("continuing provisioning")
 		provisioningMessage, _ := continueProvisioning(ctx, ws, provisioningCipher)
 		ws.Close(websocket.StatusNormalClosure, "")
-		log.Print("websocket closed")
 
 		aciPublicKey, _ := libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic())
 		aciPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
@@ -87,17 +85,17 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		pniPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate())
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
 
-		log.Printf("aciIdentityKeyPair: %v", aciIdentityKeyPair)
-		log.Printf("pniIdentityKeyPair: %v", pniIdentityKeyPair)
-
 		username := *provisioningMessage.Number
 		password, _ := generateRandomPassword(24)
 		code := provisioningMessage.ProvisioningCode
 		registrationId := mrand.Intn(16383) + 1
 		pniRegistrationId := mrand.Intn(16383) + 1
-		log.Print("confirming device")
-		deviceResponse := confirmDevice(username, password, *code, registrationId, pniRegistrationId)
-		log.Printf("deviceResponse: %v", deviceResponse)
+		deviceResponse, err := confirmDevice(username, password, *code, registrationId, pniRegistrationId)
+		if err != nil {
+			log.Printf("confirmDevice error: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
 
 		deviceId := 1
 		if deviceResponse.deviceId != 0 {
@@ -225,7 +223,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 	return provisioningMessage, nil
 }
 
-func confirmDevice(username string, password string, code string, registrationId int, pniRegistrationId int) ConfirmDeviceResponse {
+func confirmDevice(username string, password string, code string, registrationId int, pniRegistrationId int) (*ConfirmDeviceResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	ws, resp, err := openWebsocket(ctx, "wss://chat.signal.org:443/v1/websocket/")
@@ -240,7 +238,8 @@ func confirmDevice(username string, password string, code string, registrationId
 
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("failed to marshal json: %v", resp)
+		return nil, err
 	}
 
 	// Create and send request
@@ -248,24 +247,27 @@ func confirmDevice(username string, password string, code string, registrationId
 	err = wspb.Write(ctx, ws, request)
 	if err != nil {
 		log.Printf("failed on write %v", resp)
-		log.Fatal(err)
+		return nil, err
 	}
-
-	log.Printf("*** Sent: %s", request)
 
 	receivedMsg := &signalpb.WebSocketMessage{}
 	err = wspb.Read(ctx, ws, receivedMsg)
 	if err != nil {
 		log.Printf("failed to read after devices call: %v", resp)
-		log.Fatal(err)
+		return nil, err
 	}
-	log.Printf("*** Received: %s", receivedMsg)
 
 	// Decode body into JSON
 	var body map[string]interface{}
 	err = json.Unmarshal(receivedMsg.Response.Body, &body)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf("failed to unmarshal json: %v", resp)
+		return nil, err
+	}
+	status := int(*receivedMsg.Response.Status)
+	if status < 200 || status >= 300 {
+		log.Printf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
+		return nil, fmt.Errorf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
 	}
 
 	// Put body into struct
@@ -283,7 +285,7 @@ func confirmDevice(username string, password string, code string, registrationId
 		deviceResp.deviceId = int(deviceId)
 	}
 
-	return deviceResp
+	return &deviceResp, nil
 }
 
 func generateRandomPassword(length int) (string, error) {
