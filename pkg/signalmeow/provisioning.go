@@ -237,6 +237,15 @@ func confirmDevice(username string, password string, code string, registrationId
 		"pniRegistrationId": pniRegistrationId,
 		"supportsSms":       false,
 		"fetchesMessages":   true,
+		"capabilities": map[string]interface{}{
+			"gv2-3":             true,
+			"announcementGroup": true,
+			"giftBadges":        true,
+			"senderKey":         true,
+			"changeNumber":      true,
+			"stories":           true,
+			"pni":               true,
+		},
 	}
 	// TODO: Set deviceName with "Signal Bridge" or something properly encrypted
 
