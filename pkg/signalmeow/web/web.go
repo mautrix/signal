@@ -76,20 +76,24 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 	return ws, resp, err
 }
 
-func CreateWSResponse(id uint64, status uint32) *signalpb.WebSocketMessage {
-	if status != 200 {
-		// TODO support non-200 responses
-		log.Fatal("Error creating response (non 200 not supported yet)")
+func CreateWSResponse(id uint64, status int) *signalpb.WebSocketMessage {
+	if status != 200 && status != 400 {
+		// TODO support more responses?
+		log.Fatal("Error creating response (non 200/400 not supported yet)")
 		return nil
 	}
 	msg_type := signalpb.WebSocketMessage_RESPONSE
 	message := "OK"
+	if status == 400 {
+		message = "Unknown"
+	}
+	status32 := uint32(status)
 	response := &signalpb.WebSocketMessage{
 		Type: &msg_type,
 		Response: &signalpb.WebSocketResponseMessage{
 			Id:      &id,
 			Message: &message,
-			Status:  &status,
+			Status:  &status32,
 			Headers: []string{},
 		},
 	}

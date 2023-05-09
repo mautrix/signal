@@ -73,18 +73,31 @@ func Main() {
 			log.Printf("Read error: %v", err)
 			return
 		}
-		if *msg.Type == signalpb.WebSocketMessage_REQUEST &&
-			*msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/message" {
-			log.Printf("Received AN ACTUAL message: %v", msg)
-			envelope := &signalpb.Envelope{}
-			err := proto.Unmarshal(msg.Request.Body, envelope)
+		if *msg.Type == signalpb.WebSocketMessage_REQUEST {
+			responseCode := 200
+			if *msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/message" {
+				log.Printf("Received AN ACTUAL message! verb: %v, path: %v", *msg.Request.Verb, *msg.Request.Path)
+				envelope := &signalpb.Envelope{}
+				err := proto.Unmarshal(msg.Request.Body, envelope)
+				if err != nil {
+					log.Printf("Unmarshal error: %v", err)
+					return
+				}
+				log.Printf("-----> envelope: %v", envelope)
+			} else if *msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/queue/empty" {
+				log.Printf("Received queue empty. verb: %v, path: %v", *msg.Request.Verb, *msg.Request.Path)
+			} else {
+				log.Printf("Received NOT a message: %v", msg)
+				responseCode = 400
+			}
+			resp := web.CreateWSResponse(*msg.Request.Id, responseCode)
+			err = wspb.Write(ctx, ws, resp)
 			if err != nil {
-				log.Printf("Unmarshal error: %v", err)
+				log.Printf("Write error: %v", err)
 				return
 			}
-			log.Printf("-----> envelope: %v", envelope)
 		} else {
-			log.Printf("Received NOT a message: %v", msg)
+			log.Printf("Received NOT a REQUEST: %v", msg)
 		}
 	}
 }
