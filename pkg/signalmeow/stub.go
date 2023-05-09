@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -51,10 +52,11 @@ func Main() {
 	// Start message receiver
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	username := device.Data.AciUuid + "." + fmt.Sprintf("%d", device.Data.DeviceId)
-	password := device.Data.Password
-	agent := "OWD"
-	path := web.WebsocketPath + "?" + "agent=" + agent + "login=" + username + "&password=" + password
+	username := url.QueryEscape(fmt.Sprintf("%s.%d", device.Data.AciUuid, device.Data.DeviceId))
+	password := url.QueryEscape(device.Data.Password)
+	path := web.WebsocketPath +
+		"?login=" + username +
+		"&password=" + password
 	ws, resp, err := web.OpenWebsocket(ctx, path)
 	if err != nil {
 		log.Printf("OpenWebsocket error: %v", err)
@@ -72,7 +74,7 @@ func Main() {
 			return
 		}
 		if *msg.Type == signalpb.WebSocketMessage_REQUEST &&
-			*msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/messages" {
+			*msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/message" {
 			log.Printf("Received AN ACTUAL message: %v", msg)
 			envelope := &signalpb.Envelope{}
 			err := proto.Unmarshal(msg.Request.Body, envelope)

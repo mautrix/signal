@@ -18,7 +18,7 @@ import (
 const proxyUrlStr = "http://localhost:8080"
 const caCertPath = "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
 
-const urlHost = "chat.signal.org:443"
+const urlHost = "chat.signal.org"
 
 // Paths used to open websockets and make HTTP requests
 const WebsocketProvisioningPath = "/v1/websocket/provisioning/"

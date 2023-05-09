@@ -88,7 +88,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
 
 		username := *provisioningMessage.Number
-		password, _ := generateRandomPassword(24)
+		password, _ := generateRandomPassword(22)
 		code := provisioningMessage.ProvisioningCode
 		registrationId := mrand.Intn(16383) + 1
 		pniRegistrationId := mrand.Intn(16383) + 1
@@ -235,7 +235,8 @@ func confirmDevice(username string, password string, code string, registrationId
 	data := map[string]interface{}{
 		"registrationId":    registrationId,
 		"pniRegistrationId": pniRegistrationId,
-		"supportsSms":       true,
+		"supportsSms":       false,
+		"fetchesMessages":   true,
 	}
 	// TODO: Set deviceName with "Signal Bridge" or something properly encrypted
 
