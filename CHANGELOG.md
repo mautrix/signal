@@ -1,3 +1,39 @@
+# v0.4.3 (2023-05-17)
+
+Target signald version: [v0.23.2](https://gitlab.com/signald/signald/-/releases/0.23.2)
+
+* Added option to not set name/avatar for DM rooms even if the room is encrypted.
+* Added options to automatically ratchet/delete megolm sessions to minimize
+  access to old messages.
+* Added command to request group/contact sync from primary device.
+* Added error notices if incoming attachments are dropped.
+* Fixed bugs with creating groups.
+* Fixed handling changes to disappearing message timer in groups.
+
+## Changes by [@maltee1]
+
+* Added bridging of group join requests on Signal to knocks on Matrix ([#275]).
+* Added bridging of banned users from Signal to Matrix ([#275]).
+* Added admin command to force logout other Matrix users from the bridge ([#359]).
+* Added `submit-challenge` command to submit captcha codes when encountering
+  ratelimits on sending messages ([#320]).
+* Added invite command for inviting Signal users to a group by phone number ([#285]).
+* Added support for bridging Matrix invites to Signal via relay user ([#285]).
+* Added automatic group creation when inviting multiple Signal ghosts to a
+  non-DM room ([#294]).
+* Fixed ghost user getting kicked from Matrix room when trying to invite a user
+  who's already in the group on Signal ([#345]).
+* Fixed bridging power levels from Signal for users who are logged into the
+  bridge, but don't have double puppeting enabled ([#333]).
+
+[#275]: https://github.com/mautrix/signal/pull/275
+[#285]: https://github.com/mautrix/signal/pull/285
+[#294]: https://github.com/mautrix/signal/pull/294
+[#320]: https://github.com/mautrix/signal/pull/320
+[#333]: https://github.com/mautrix/signal/pull/333
+[#345]: https://github.com/mautrix/signal/pull/345
+[#359]: https://github.com/mautrix/signal/pull/359
+
 # v0.4.2 (2022-12-03)
 
 Target signald version: [v0.23.0](https://gitlab.com/signald/signald/-/releases/0.23.0)
