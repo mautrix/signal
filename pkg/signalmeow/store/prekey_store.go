@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -10,13 +11,19 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-type PreKeyStore interface {
+var _ libsignalgo.PreKeyStore = (*SQLStore)(nil)
+var _ libsignalgo.SignedPreKeyStore = (*SQLStore)(nil)
+var _ PreKeyStoreExtras = (*SQLStore)(nil)
+
+// TODO: figure out how best to handle ACI vs PNI UUIDs
+
+type PreKeyStoreExtras interface {
 	PreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.PreKeyRecord, error)
 	SignedPreKey(uuidKind types.UUIDKind, preKeyId int) (*libsignalgo.SignedPreKeyRecord, error)
 	SavePreKey(uuidKind types.UUIDKind, preKey *libsignalgo.PreKeyRecord, markUploaded bool) error
 	SaveSignedPreKey(uuidKind types.UUIDKind, preKey *libsignalgo.SignedPreKeyRecord, markUploaded bool) error
-	RemovePreKey(uuidKind types.UUIDKind, preKeyId int) error
-	RemoveSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error
+	DeletePreKey(uuidKind types.UUIDKind, preKeyId int) error
+	DeleteSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error
 	GetNextPreKeyID(uuidKind types.UUIDKind) (uint, error)
 	GetSignedNextPreKeyID(uuidKind types.UUIDKind) (uint, error)
 	MarkPreKeysAsUploaded(uuidKind types.UUIDKind, upToID uint) error
@@ -25,6 +32,28 @@ type PreKeyStore interface {
 	GetUnuploadedSignedPreKeys(uuidKind types.UUIDKind) ([]*libsignalgo.SignedPreKeyRecord, error)
 	GetUploadedPreKeyCount(uuidKind types.UUIDKind) (int, error)
 	GetUploadedSignedPreKeyCount(uuidKind types.UUIDKind) (int, error)
+}
+
+// libsignalgo.PreKeyStore implementation
+func (s *SQLStore) LoadPreKey(id uint32, ctx context.Context) (*libsignalgo.PreKeyRecord, error) {
+	return s.PreKey(types.UUID_KIND_ACI, int(id))
+}
+func (s *SQLStore) StorePreKey(id uint32, preKeyRecord *libsignalgo.PreKeyRecord, ctx context.Context) error {
+	return s.SavePreKey(types.UUID_KIND_ACI, preKeyRecord, false)
+}
+func (s *SQLStore) RemovePreKey(id uint32, ctx context.Context) error {
+	return s.DeletePreKey(types.UUID_KIND_ACI, int(id))
+}
+
+// libsignalgo.SignedPreKeyStore implementation
+func (s *SQLStore) LoadSignedPreKey(id uint32, ctx context.Context) (*libsignalgo.SignedPreKeyRecord, error) {
+	return s.SignedPreKey(types.UUID_KIND_ACI, int(id))
+}
+func (s *SQLStore) StoreSignedPreKey(id uint32, signedPreKeyRecord *libsignalgo.SignedPreKeyRecord, ctx context.Context) error {
+	return s.SaveSignedPreKey(types.UUID_KIND_ACI, signedPreKeyRecord, false)
+}
+func (s *SQLStore) RemoveSignedPreKey(id uint32, ctx context.Context) error {
+	return s.DeleteSignedPreKey(types.UUID_KIND_ACI, int(id))
 }
 
 const (
@@ -99,12 +128,12 @@ func (s *SQLStore) SaveSignedPreKey(uuidKind types.UUIDKind, preKey *libsignalgo
 	return err
 }
 
-func (s *SQLStore) RemovePreKey(uuidKind types.UUIDKind, preKeyId int) error {
+func (s *SQLStore) DeletePreKey(uuidKind types.UUIDKind, preKeyId int) error {
 	_, err := s.db.Exec(deletePreKeyQuery, s.AciUuid, preKeyId, uuidKind, false)
 	return err
 }
 
-func (s *SQLStore) RemoveSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error {
+func (s *SQLStore) DeleteSignedPreKey(uuidKind types.UUIDKind, preKeyId int) error {
 	_, err := s.db.Exec(deletePreKeyQuery, s.AciUuid, preKeyId, uuidKind, true)
 	return err
 }

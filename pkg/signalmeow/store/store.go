@@ -29,12 +29,20 @@ type StoreContainer struct {
 // Device is a wrapper for a signalmeow session, including device data,
 // and interfaces for operating on the DB within the session.
 type Device struct {
-	Data        types.DeviceData
-	PreKeyStore PreKeyStore
-}
+	Data       types.DeviceData
+	Connection types.DeviceConnection
 
-// Implemented in prekey_store.go
-var _ PreKeyStore = (*SQLStore)(nil)
+	// libsignalgo store interfaces
+	PreKeyStore       libsignalgo.PreKeyStore
+	SignedPreKeyStore libsignalgo.SignedPreKeyStore
+	IdentityStore     libsignalgo.IdentityKeyStore
+	SessionStore      libsignalgo.SessionStore
+
+	// internal store interfaces
+	PreKeyStoreExtras  PreKeyStoreExtras
+	SessionStoreExtras SessionStoreExtras
+	ProfileKeyStore    ProfileKeyStore
+}
 
 // New connects to the given SQL database and wraps it in a StoreContainer.
 // Only SQLite and Postgres are currently fully supported.
@@ -109,6 +117,12 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 
 	innerStore := newSQLStore(c, deviceData.AciUuid)
 	device.PreKeyStore = innerStore
+	device.PreKeyStoreExtras = innerStore
+	device.SignedPreKeyStore = innerStore
+	device.IdentityStore = innerStore
+	device.SessionStore = innerStore
+	device.SessionStoreExtras = innerStore
+	device.ProfileKeyStore = innerStore
 
 	return &device, nil
 }

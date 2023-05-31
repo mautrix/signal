@@ -2,21 +2,19 @@ package signalmeow
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"net/url"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
-	"google.golang.org/protobuf/proto"
 )
 
 func Main() {
+	setupLogging()
+
 	sqlStore, err := store.New("sqlite3", "file:signalmeow.db?_foreign_keys=on")
 	if err != nil {
 		log.Printf("store.New error: %v", err)
@@ -49,57 +47,23 @@ func Main() {
 	}
 	device := devices[0]
 
-	// Start message receiver
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	username := url.QueryEscape(fmt.Sprintf("%s.%d", device.Data.AciUuid, device.Data.DeviceId))
-	password := url.QueryEscape(device.Data.Password)
-	path := web.WebsocketPath +
-		"?login=" + username +
-		"&password=" + password
-	ws, resp, err := web.OpenWebsocket(ctx, path)
+	// sender cert testing
+	cert, err := senderCertificate(device)
 	if err != nil {
-		log.Printf("OpenWebsocket error: %v", err)
+		log.Printf("senderCertificate error: %v", err)
 		return
 	}
-	if resp.StatusCode != 101 {
-		log.Printf("Unexpected status code: %v", resp.StatusCode)
+	log.Printf("senderCertificate: %v, %v", cert, err)
+
+	ctx := context.Background()
+	err = StartReceiveLoops(ctx, device)
+	if err != nil {
+		log.Printf("StartReceiveLoops error: %v", err)
 		return
 	}
-	for {
-		msg := &signalpb.WebSocketMessage{}
-		err = wspb.Read(ctx, ws, msg)
-		if err != nil {
-			log.Printf("Read error: %v", err)
-			return
-		}
-		if *msg.Type == signalpb.WebSocketMessage_REQUEST {
-			responseCode := 200
-			if *msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/message" {
-				log.Printf("Received AN ACTUAL message! verb: %v, path: %v", *msg.Request.Verb, *msg.Request.Path)
-				envelope := &signalpb.Envelope{}
-				err := proto.Unmarshal(msg.Request.Body, envelope)
-				if err != nil {
-					log.Printf("Unmarshal error: %v", err)
-					return
-				}
-				log.Printf("-----> envelope: %v", envelope)
-			} else if *msg.Request.Verb == "PUT" && *msg.Request.Path == "/api/v1/queue/empty" {
-				log.Printf("Received queue empty. verb: %v, path: %v", *msg.Request.Verb, *msg.Request.Path)
-			} else {
-				log.Printf("Received NOT a message: %v", msg)
-				responseCode = 400
-			}
-			resp := web.CreateWSResponse(*msg.Request.Id, responseCode)
-			err = wspb.Write(ctx, ws, resp)
-			if err != nil {
-				log.Printf("Write error: %v", err)
-				return
-			}
-		} else {
-			log.Printf("Received NOT a REQUEST: %v", msg)
-		}
-	}
+
+	// Wait forever
+	select {}
 }
 
 func doProvisioning(sqlStore *store.StoreContainer) {
@@ -142,5 +106,47 @@ func doProvisioning(sqlStore *store.StoreContainer) {
 	} else {
 		log.Printf("Unexpected state: %v", resp.State)
 		return
+	}
+}
+
+// Logging
+
+type FFILogger struct{}
+
+func (FFILogger) Enabled(target string, level libsignalgo.LogLevel) bool { return true }
+
+func (FFILogger) Log(target string, level libsignalgo.LogLevel, file string, line uint, message string) {
+	var evt *zerolog.Event
+	switch level {
+	case libsignalgo.LogLevelError:
+		evt = log.Error()
+	case libsignalgo.LogLevelWarn:
+		evt = log.Warn()
+	case libsignalgo.LogLevelInfo:
+		evt = log.Info()
+	case libsignalgo.LogLevelDebug:
+		evt = log.Debug()
+	case libsignalgo.LogLevelTrace:
+		evt = log.Trace()
+	default:
+		panic("invalid log level from libsignal")
+	}
+
+	evt.Str("component", "libsignal").
+		Str("target", target).
+		Str("file", file).
+		Uint("line", line).
+		Msg(message)
+}
+
+func (FFILogger) Flush() {}
+
+var loggingSetup = false
+
+func setupLogging() {
+	if !loggingSetup {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+		libsignalgo.InitLogger(libsignalgo.LogLevelTrace, FFILogger{})
+		loggingSetup = true
 	}
 }

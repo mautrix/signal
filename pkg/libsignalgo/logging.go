@@ -2,7 +2,7 @@ package libsignalgo
 
 /*
 #cgo LDFLAGS: -lsignal_ffi -ldl
-#include "./libsignal-ffi.h"
+#include <./libsignal-ffi.h>
 
 extern bool signal_log_enabled_callback(char *target, SignalLogLevel level);
 extern void signal_log_callback(char *target, SignalLogLevel level, char *file, uint32_t line, char *message);

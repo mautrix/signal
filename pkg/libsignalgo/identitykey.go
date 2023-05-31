@@ -26,6 +26,15 @@ func (i *IdentityKey) Serialize() ([]byte, error) {
 	return i.publicKey.Serialize()
 }
 
+func DeserializeIdentityKey(bytes []byte) (*IdentityKey, error) {
+	var publicKey *C.SignalPublicKey
+	signalFfiError := C.signal_publickey_deserialize(&publicKey, BytesToBuffer(bytes))
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	return &IdentityKey{publicKey: wrapPublicKey(publicKey)}, nil
+}
+
 func (i *IdentityKey) VerifyAlternateIdentity(other *IdentityKey, signature []byte) (bool, error) {
 	var verify C.bool
 	signalFfiError := C.signal_identitykey_verify_alternate_identity(&verify, i.publicKey.ptr, other.publicKey.ptr, BytesToBuffer(signature))

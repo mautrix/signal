@@ -35,7 +35,27 @@ func wrapPreKeyBundle(ptr *C.SignalPreKeyBundle) *PreKeyBundle {
 	return bundle
 }
 
-func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, preKey *PublicKey, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *PublicKey) (*PreKeyBundle, error) {
+func NewPreKeyBundleWithoutPrekey(registrationID uint32, deviceID uint32, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *IdentityKey) (*PreKeyBundle, error) {
+	var pkb *C.SignalPreKeyBundle
+	var zero uint32 = 0
+	signalFfiError := C.signal_pre_key_bundle_new(
+		&pkb,
+		C.uint32_t(registrationID),
+		C.uint32_t(deviceID),
+		C.uint32_t(^zero), // Turns out we need to pass in a max uint32 value to indicate no prekey
+		nil,
+		C.uint32_t(signedPreKeyID),
+		signedPreKey.ptr,
+		BytesToBuffer(signedPreKeySignature),
+		identityKey.publicKey.ptr,
+	)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	return wrapPreKeyBundle(pkb), nil
+}
+
+func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, preKey *PublicKey, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *IdentityKey) (*PreKeyBundle, error) {
 	var pkb *C.SignalPreKeyBundle
 	signalFfiError := C.signal_pre_key_bundle_new(
 		&pkb,
@@ -46,7 +66,7 @@ func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, pr
 		C.uint32_t(signedPreKeyID),
 		signedPreKey.ptr,
 		BytesToBuffer(signedPreKeySignature),
-		identityKey.ptr,
+		identityKey.publicKey.ptr,
 	)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)

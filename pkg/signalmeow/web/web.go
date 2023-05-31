@@ -2,28 +2,18 @@ package web
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/base64"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
-	"nhooyr.io/websocket"
 )
 
 const proxyUrlStr = "http://localhost:8080"
 const caCertPath = "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
 
 const urlHost = "chat.signal.org"
-
-// Paths used to open websockets and make HTTP requests
-const WebsocketProvisioningPath = "/v1/websocket/provisioning/"
-const WebsocketPath = "/v1/websocket/"
-const HTTPKeysPath = "/v2/keys"
 
 // TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
 func proxiedHTTPClient() *http.Client {
@@ -61,65 +51,6 @@ func proxiedHTTPClient() *http.Client {
 		Transport: transport,
 	}
 	return client
-}
-
-func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
-	opt := &websocket.DialOptions{
-		HTTPClient: proxiedHTTPClient(),
-	}
-	urlStr := "wss://" + urlHost + path
-	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
-
-	if err != nil {
-		log.Printf("failed on open %v", resp)
-	}
-	return ws, resp, err
-}
-
-func CreateWSResponse(id uint64, status int) *signalpb.WebSocketMessage {
-	if status != 200 && status != 400 {
-		// TODO support more responses?
-		log.Fatal("Error creating response (non 200/400 not supported yet)")
-		return nil
-	}
-	msg_type := signalpb.WebSocketMessage_RESPONSE
-	message := "OK"
-	if status == 400 {
-		message = "Unknown"
-	}
-	status32 := uint32(status)
-	response := &signalpb.WebSocketMessage{
-		Type: &msg_type,
-		Response: &signalpb.WebSocketResponseMessage{
-			Id:      &id,
-			Message: &message,
-			Status:  &status32,
-			Headers: []string{},
-		},
-	}
-	return response
-}
-
-var wsRequestId uint64 = 0
-
-func CreateWSRequest(method string, path string, body []byte, username *string, password *string) *signalpb.WebSocketMessage {
-	wsRequestId += 1
-	msg_type := signalpb.WebSocketMessage_REQUEST
-	request := &signalpb.WebSocketMessage{
-		Type: &msg_type,
-		Request: &signalpb.WebSocketRequestMessage{
-			Id:   &wsRequestId,
-			Verb: &method,
-			Path: &path,
-			Body: body,
-		},
-	}
-	request.Request.Headers = append(request.Request.Headers, "Content-Type: application/json")
-	if username != nil && password != nil {
-		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
-		request.Request.Headers = append(request.Request.Headers, "authorization:Basic "+basicAuth)
-	}
-	return request
 }
 
 func SendHTTPRequest(method string, path string, body []byte, username *string, password *string) (*http.Response, error) {

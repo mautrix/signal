@@ -41,7 +41,11 @@ func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp **C.Sig
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store IdentityKeyStore, ctx context.Context) error {
 		key, err := store.GetIdentityKeyPair(ctx)
 		if err == nil && key != nil {
-			*keyp = key.privateKey.ptr
+			clone, err := key.privateKey.Clone()
+			if err != nil {
+				return err
+			}
+			*keyp = clone.ptr
 		}
 		return err
 	})

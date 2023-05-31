@@ -24,7 +24,7 @@ func wrapSenderCertificate(ptr *C.SignalSenderCertificate) *SenderCertificate {
 
 // NewSenderCertificate should only be used for testing (at least according to
 // the Swift bindings).
-func NewSenderCertificate(sender *SealedSenderAddress, publicKey *PublicKey, expiration time.Time, signerCertificate ServerCertificate, signerKey *PrivateKey) (*SenderCertificate, error) {
+func NewSenderCertificate(sender *SealedSenderAddress, publicKey *PublicKey, expiration time.Time, signerCertificate *ServerCertificate, signerKey *PrivateKey) (*SenderCertificate, error) {
 	var sc *C.SignalSenderCertificate
 	signalFfiError := C.signal_sender_certificate_new(&sc, C.CString(sender.UUID.String()), C.CString(sender.E164), C.uint32_t(sender.DeviceID), publicKey.ptr, C.uint64_t(expiration.UnixMilli()), signerCertificate.ptr, signerKey.ptr)
 	if signalFfiError != nil {

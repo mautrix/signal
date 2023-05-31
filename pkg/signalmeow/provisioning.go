@@ -87,6 +87,22 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		pniPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate())
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
 
+		// log provisioningMessage
+		log.Printf("provisioningMessage: %v", provisioningMessage)
+		// log aciPrivateKey
+		log.Printf("provisioningMessage.GetAciIdentityKeyPrivate(): %v", provisioningMessage.GetAciIdentityKeyPrivate())
+		// log aciPublicKey
+		log.Printf("provisioningMessage.GetAciIdentityKeyPublic(): %v", provisioningMessage.GetAciIdentityKeyPublic())
+
+		privateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
+		publicKey, _ := privateKey.GetPublicKey()
+		privateBytes, _ := privateKey.Serialize()
+		publicBytes, _ := publicKey.Serialize()
+		aciBytes, _ := aciIdentityKeyPair.Serialize()
+		log.Printf("privateKeyBytes: %v", privateBytes)
+		log.Printf("publicKeyBytes: %v", publicBytes)
+		log.Printf("aciIdentityKeyPairBytes: %v", aciBytes)
+
 		username := *provisioningMessage.Number
 		password, _ := generateRandomPassword(22)
 		code := provisioningMessage.ProvisioningCode
@@ -130,6 +146,21 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 			return
 		}
 
+		// Store identity keys?
+		device, err := deviceStore.DeviceByAci(data.AciUuid)
+		if err != nil {
+			log.Printf("error retrieving new device: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
+		address, err := libsignalgo.NewAddress(device.Data.AciUuid, uint(device.Data.DeviceId))
+		err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
+		if err != nil {
+			log.Printf("error saving identity key: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
+
 		// Return the provisioning data
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
@@ -144,6 +175,8 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		}
 
 		c <- ProvisioningResponse{State: StateProvisioningPreKeysRegistered}
+
+		log.Printf("my identity key: %v", newDevice.Data.AciIdentityKeyPair.GetIdentityKey())
 	}()
 	return c
 }
@@ -256,8 +289,14 @@ func confirmDevice(username string, password string, code string, registrationId
 	}
 
 	// Create and send request
-	request := web.CreateWSRequest("PUT", "/v1/devices/"+code, jsonBytes, &username, &password)
-	err = wspb.Write(ctx, ws, request)
+	requestId := uint64(1)
+	request := web.CreateWSRequest("PUT", "/v1/devices/"+code, jsonBytes, &requestId, &username, &password)
+	msg_type := signalpb.WebSocketMessage_REQUEST
+	message := &signalpb.WebSocketMessage{
+		Type:    &msg_type,
+		Request: request,
+	}
+	err = wspb.Write(ctx, ws, message)
 	if err != nil {
 		log.Printf("failed on write %v", resp)
 		return nil, err

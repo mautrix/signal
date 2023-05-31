@@ -45,6 +45,7 @@ func (pk *PrivateKey) Clone() (*PrivateKey, error) {
 }
 
 func (pk *PrivateKey) Destroy() error {
+	return nil // TODO fix this
 	runtime.SetFinalizer(pk, nil)
 	return wrapError(C.signal_privatekey_destroy(pk.ptr))
 }
