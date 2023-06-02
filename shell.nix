@@ -9,8 +9,9 @@ mkShell rec {
     protobuf
     rust-cbindgen
     rustup
+	olm
 
-    go_1_19
+    go_1_20
 
     pre-commit
   ];
