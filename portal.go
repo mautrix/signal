@@ -407,3 +407,13 @@ func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
 
 	return portal
 }
+
+func (br *SignalBridge) GetPortalBySignalID(key database.PortalKey) *Portal {
+	br.portalsLock.Lock()
+	defer br.portalsLock.Unlock()
+	portal, ok := br.portalsByID[key]
+	if !ok {
+		return br.loadPortal(br.DB.Portal.GetByID(key), &key)
+	}
+	return portal
+}

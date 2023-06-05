@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"errors"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -9,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	meowstore "go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
@@ -31,6 +34,8 @@ type User struct {
 	log    zerolog.Logger
 
 	PermissionLevel bridgeconfig.PermissionLevel
+
+	SignalDevice *meowstore.Device
 
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
@@ -243,36 +248,58 @@ func (user *User) Connect() error {
 	user.Lock()
 	defer user.Unlock()
 
-	if user.SignalToken == "" {
+	if user.SignalID == "" {
 		return ErrNotLoggedIn
 	}
 
 	user.log.Debug().Msg("(stub) Connecting to Signal")
 
-	//session, err := discordgo.New(user.DiscordToken)
-	//if err != nil {
-	//return err
-	//}
+	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
+	if err != nil {
+		log.Printf("store.DeviceByAci error: %v", err)
+		return err
+	}
+	if device == nil {
+		log.Printf("no device found for aci %s", user.SignalID)
+		return err
+	}
 
+	user.SignalDevice = device
 	// TODO: hook up remote-netework handlers here
-	//user.Session = session
-	//user.Session.AddHandler(user.readyHandler)
-	//user.Session.AddHandler(user.resumeHandler)
-	return nil //user.Session.Open()
+	device.IncomingSignalMessageHandler = user.incomingMessageHandler
+
+	ctx := context.Background()
+	return signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
+}
+
+func (user *User) incomingMessageHandler(msg string, sender string) error {
+	log.Printf("************** incomingMessageHandler message: %s sender: %s", msg, sender)
+	//portal := user.GetPortalBySignalID(sender)
+	//if portal == nil {
+	//log.Printf("no portal found for sender %s", sender)
+	//return errors.New("no portal found for sender")
+	//}
+	return nil
+}
+
+func (user *User) GetPortalBySignalID(signalID string) *Portal {
+	return user.bridge.GetPortalBySignalID(database.NewPortalKey(signalID, user.SignalID))
 }
 
 func (user *User) Disconnect() error {
 	user.Lock()
 	defer user.Unlock()
-	//if user.Session == nil {
-	//return ErrNotConnected
-	//}
+	if user.SignalDevice == nil {
+		return ErrNotConnected
+	}
 
-	user.log.Info().Msg("(stub) Disconnecting session manually")
-	//if err := user.Session.Close(); err != nil {
-	//return err
-	//}
-	//user.Session = nil
+	user.log.Info().Msg("Disconnecting session manually")
+	// TODO: don't reach in so far to disconnect user
+	err := user.SignalDevice.Connection.AuthedWS.Close()
+	if err != nil {
+		return err
+	}
+	user.SignalDevice = nil
 	return nil
 }
 

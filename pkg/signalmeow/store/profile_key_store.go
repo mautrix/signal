@@ -38,11 +38,12 @@ func (s *SQLStore) LoadProfileKey(theirUuid string, ctx context.Context) ([]byte
 func (s *SQLStore) StoreProfileKey(theirUuid string, key []byte, ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	_, err = s.db.Exec(storeProfileKeyQuery, s.AciUuid, theirUuid, key)
+	_, err = tx.Exec(storeProfileKeyQuery, s.AciUuid, theirUuid, key)
 	if err != nil {
-		_ = tx.Rollback()
+		tx.Rollback()
 		return err
 	}
 	err = tx.Commit()

@@ -102,9 +102,10 @@ func (s *SQLStore) StoreSession(address *libsignalgo.Address, record *libsignalg
 	}
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	_, err = s.db.Exec(storeSessionQuery, s.AciUuid, theirUuid, deviceId, serialized)
+	_, err = tx.Exec(storeSessionQuery, s.AciUuid, theirUuid, deviceId, serialized)
 	if err != nil {
 		_ = tx.Rollback()
 		return err

@@ -72,6 +72,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 	//}
 
 	var qrEventID id.EventID
+	var signalID string
 
 	// First get the provisioning URL
 	provChan, err := ce.User.Login()
@@ -104,6 +105,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 	}
 	if resp.State == signalmeow.StateProvisioningDataReceived {
 		log.Printf("provisioningData: %v", resp.ProvisioningData)
+		signalID = resp.ProvisioningData.AciUuid
 		ce.Reply("Successfully logged in!")
 		ce.Reply("ACI: %v, Phone Number: %v", resp.ProvisioningData.AciUuid, resp.ProvisioningData.Number)
 		_, _ = ce.Bot.RedactEvent(ce.RoomID, qrEventID)
@@ -127,6 +129,19 @@ func fnLogin(ce *WrappedCommandEvent) {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return
 	}
+
+	// Update user with SignalID
+	if signalID != "" {
+		ce.User.SignalID = signalID
+	} else {
+		log.Printf("No SignalID received")
+		ce.Reply("Problem logging in - No SignalID received")
+		return
+	}
+	ce.User.Update()
+
+	// Connect to Signal
+	ce.User.Connect()
 }
 
 func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevEvent id.EventID) id.EventID {

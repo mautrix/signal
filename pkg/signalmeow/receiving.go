@@ -65,16 +65,22 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 						}
 
 						// Send a friendly reply
-						if content.DataMessage.Body != nil {
-							reply := &signalpb.Content{
-								DataMessage: &signalpb.DataMessage{
-									Body: proto.String("Hello from signalmeow: " + *content.DataMessage.Body),
-								},
-							}
+						if device.IncomingSignalMessageHandler != nil && content.DataMessage.Body != nil {
 							theirUuid, _ := result.Address.Name()
-							log.Printf("-----> sending reply to: %v", theirUuid)
-							log.Printf("-----> reply: %v", reply)
-							err = sendMessage(ctx, device, theirUuid, reply, 0)
+							device.IncomingSignalMessageHandler(*content.DataMessage.Body, theirUuid)
+						} else {
+							// TODO: don't echo outside of debug mode
+							if content.DataMessage.Body != nil {
+								reply := &signalpb.Content{
+									DataMessage: &signalpb.DataMessage{
+										Body: proto.String("Hello from signalmeow: " + *content.DataMessage.Body),
+									},
+								}
+								theirUuid, _ := result.Address.Name()
+								log.Printf("-----> sending reply to: %v", theirUuid)
+								log.Printf("-----> reply: %v", reply)
+								err = sendMessage(ctx, device, theirUuid, reply, 0)
+							}
 						}
 					}
 				}

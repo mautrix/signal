@@ -42,6 +42,9 @@ type Device struct {
 	PreKeyStoreExtras  PreKeyStoreExtras
 	SessionStoreExtras SessionStoreExtras
 	ProfileKeyStore    ProfileKeyStore
+
+	// Message Handler TODO: should this be here?
+	IncomingSignalMessageHandler func(string, string) error
 }
 
 // New connects to the given SQL database and wraps it in a StoreContainer.
@@ -129,13 +132,14 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 
 // GetAllDevices finds all the devices in the database.
 func (c *StoreContainer) GetAllDevices() ([]*Device, error) {
-	res, err := c.db.Query(getAllDevicesQuery)
+	rows, err := c.db.Query(getAllDevicesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
+	defer rows.Close()
 	sessions := make([]*Device, 0)
-	for res.Next() {
-		sess, scanErr := c.scanDevice(res)
+	for rows.Next() {
+		sess, scanErr := c.scanDevice(rows)
 		if scanErr != nil {
 			return sessions, scanErr
 		}

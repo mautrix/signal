@@ -44,7 +44,6 @@ CREATE TABLE "user" (
     mxid TEXT PRIMARY KEY,
     signal_id TEXT UNIQUE,
 
-    signal_token   TEXT,
     management_room TEXT,
     space_room      TEXT,
     dm_space_room   TEXT,

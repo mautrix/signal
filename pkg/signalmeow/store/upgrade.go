@@ -58,6 +58,7 @@ func (c *StoreContainer) Upgrade() error {
 		}
 
 		if err = c.setVersion(tx, version+1); err != nil {
+			_ = tx.Rollback()
 			return err
 		}
 

@@ -171,6 +171,7 @@ func (s *SQLStore) GetUnuploadedPreKeys(uuidKind types.UUIDKind) ([]*libsignalgo
 	if err != nil {
 		return nil, fmt.Errorf("failed to query existing prekeys: %w", err)
 	}
+	defer res.Close()
 	newKeys := []*libsignalgo.PreKeyRecord{}
 	for res.Next() {
 		key, err := scanPreKey(res)
@@ -188,6 +189,7 @@ func (s *SQLStore) GetUnuploadedSignedPreKeys(uuidKind types.UUIDKind) ([]*libsi
 	if err != nil {
 		return nil, fmt.Errorf("failed to query existing prekeys: %w", err)
 	}
+	defer res.Close()
 	newKeys := []*libsignalgo.SignedPreKeyRecord{}
 	for res.Next() {
 		key, err := scanSignedPreKey(res)
