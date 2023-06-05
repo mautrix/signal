@@ -3,6 +3,10 @@ module go.mau.fi/mautrix-signal
 go 1.20
 
 require (
+	maunium.net/go/mautrix v0.15.2
+)
+
+require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/lib/pq v1.10.7 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
@@ -17,5 +21,4 @@ require (
 	golang.org/x/net v0.6.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	maunium.net/go/maulogger/v2 v2.4.1 // indirect
-	maunium.net/go/mautrix v0.15.0 // indirect
 )
