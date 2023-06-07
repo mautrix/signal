@@ -50,10 +50,8 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 	path := web.WebsocketPath +
 		"?login=" + username +
 		"&password=" + password
-	authedWS, err := web.NewSignalWebsocket(ctx, path, requestHandler)
-	if err != nil {
-		return err
-	}
+	authedWS := web.NewSignalWebsocket(ctx, path)
+	authedWS.Connect(ctx, requestHandler)
 	d.AuthedWS = authedWS
 	return nil
 }

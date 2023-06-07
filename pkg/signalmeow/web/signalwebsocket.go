@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 	"nhooyr.io/websocket"
@@ -23,85 +23,341 @@ type SimpleResponse struct {
 type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage) (*SimpleResponse, error)
 
 type SignalWebsocket struct {
-	mu                     sync.Mutex
-	ws                     *websocket.Conn
-	parentCtx              context.Context
-	ctx                    context.Context
-	cancel                 context.CancelFunc
-	path                   string
-	incomingRequestHandler RequestHandlerFunc
-	responseChannels       map[uint64]chan *signalpb.WebSocketResponseMessage
-	currentRequestId       uint64
+	ws          *websocket.Conn
+	path        string
+	sendChannel chan *SignalWebsocketSendMessage
 }
 
-func NewSignalWebsocket(ctx context.Context, path string, incomingRequestHandler RequestHandlerFunc) (*SignalWebsocket, error) {
-	s := &SignalWebsocket{}
-	s.path = path
-	s.parentCtx = ctx
-	s.incomingRequestHandler = incomingRequestHandler
-	s.responseChannels = make(map[uint64]chan *signalpb.WebSocketResponseMessage)
-	s.mu.Lock()
-	err := s.connect()
-	s.mu.Unlock()
-	if err != nil {
-		return nil, fmt.Errorf("Error connecting: %v", err)
+func NewSignalWebsocket(ctx context.Context, path string) *SignalWebsocket {
+	return &SignalWebsocket{
+		path:        path,
+		sendChannel: make(chan *SignalWebsocketSendMessage),
 	}
-	go s.receiveLoop()
-	// send a keepalive every 30s
+}
+
+type SignalWebsocketConnectError struct {
+	Err    error
+	Status int
+}
+
+func (s *SignalWebsocket) Close() error {
+	if s.ws != nil {
+		return s.ws.Close(websocket.StatusNormalClosure, "")
+	}
+	return nil
+}
+
+// TODO: expose request and error channels instead of using
+// a callback function and just printing errors
+func (s *SignalWebsocket) Connect(
+	ctx context.Context,
+	//requestChan chan *signalpb.WebSocketRequestMessage,
+	//errorChan chan *SignalWebsocketConnectError,
+	requestHandler RequestHandlerFunc,
+) {
+	go s.connectLoop(ctx, requestHandler)
+}
+
+func (s *SignalWebsocket) connectLoop(
+	ctx context.Context,
+	requestHandler RequestHandlerFunc,
+	//requestChan chan *signalpb.WebSocketRequestMessage,
+	//errorChan chan *SignalWebsocketConnectError,
+) {
+	// TODO: pass in requestChan and errorChan instead of creating them here
+	requestChan := make(chan *signalpb.WebSocketRequestMessage)
+	errorChan := make(chan *SignalWebsocketConnectError)
+	s.sendChannel = make(chan *SignalWebsocketSendMessage)
+	defer close(requestChan)
+	defer close(errorChan)
+	defer close(s.sendChannel)
+
+	const backoffIncrement = 5 * time.Second
+	const maxBackoff = 60 * time.Second
+
+	if s.ws != nil {
+		panic("Already connected")
+	}
+
+	backoff := backoffIncrement
+	retrying := false
+
+	// First set up temporary error sink and request handler loop
+	// These exist outside of the connection loop because we want to
+	// maintain them across reconnections
+
+	// Sink errorChan so it doesn't block things
+	go func() {
+		for err := range errorChan {
+			if ctx.Err() != nil {
+				return
+			}
+			log.Printf("Received error from errorChan: %v", err)
+		}
+		log.Printf("errorChan has been closed.")
+	}()
+
+	// Request handling loop
 	go func() {
 		for {
-			time.Sleep(30 * time.Second)
-			s.mu.Lock()
-			if s.ws != nil {
-				err := s.ws.Ping(s.ctx)
+			select {
+			case <-ctx.Done():
+				log.Printf("ctx done, stopping request loop")
+				return
+			case request, ok := <-requestChan:
+				if !ok {
+					log.Printf("requestChan closed, stopping request loop")
+					panic("requestChan closed")
+				}
+				if request == nil {
+					errorChan <- &SignalWebsocketConnectError{
+						Err:    errors.New("Received nil request"),
+						Status: 0,
+					}
+					panic("Received nil request")
+				}
+				response, err := requestHandler(ctx, request)
 				if err != nil {
-					log.Printf("Error sending keepalive: %v", err)
+					errorChan <- &SignalWebsocketConnectError{
+						Err:    errors.Wrap(err, "Error handling request"),
+						Status: 0,
+					}
+					log.Printf("Error handling request: %v", err)
+					continue
+				}
+				if response != nil {
+					log.Printf("Sending response: %v", response)
+					s.sendChannel <- &SignalWebsocketSendMessage{
+						RequestMessage:  request,
+						ResponseMessage: response,
+					}
 				}
 			}
-			s.mu.Unlock()
 		}
 	}()
-	return s, nil
+
+	// Main connection loop - if there's a problem with anything just
+	// kill everything (including the websocket) and build it all up again
+	for {
+		if retrying {
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+			fmt.Printf("Failed to connect, retrying in %v seconds...\n", backoff.Seconds())
+			time.Sleep(backoff)
+			backoff += backoffIncrement
+		}
+
+		ws, resp, err := OpenWebsocket(ctx, s.path)
+		if err != nil || resp.StatusCode != 101 {
+			if err != nil {
+				errorChan <- &SignalWebsocketConnectError{
+					Err:    errors.Wrap(err, "Error opening websocket"),
+					Status: 0,
+				}
+			} else if resp.StatusCode != 101 {
+				errorChan <- &SignalWebsocketConnectError{
+					Err:    errors.Errorf("Bad status opening websocket: %v", resp.Status),
+					Status: resp.StatusCode,
+				}
+				if resp.StatusCode < 500 {
+					panic("Bad status opening websocket - status: " + resp.Status)
+				}
+			}
+			retrying = true
+			continue
+		}
+
+		// Succssfully connected
+		s.ws = ws
+		retrying = false
+		backoff = backoffIncrement
+
+		responseChannels := make(map[uint64]chan *signalpb.WebSocketResponseMessage)
+		loopCtx, loopCancel := context.WithCancelCause(ctx)
+
+		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
+		go func() {
+			err := readLoop(loopCtx, ws, requestChan, &responseChannels)
+			if err != nil {
+				fmt.Printf("Error in readLoop: %v\n", err)
+			}
+			loopCancel(err)
+			log.Printf("readLoop exited")
+		}()
+
+		// Write loop (for sending outgoing requests and responses to incoming requests)
+		go func() {
+			err := writeLoop(loopCtx, ws, s.sendChannel, &responseChannels)
+			if err != nil {
+				fmt.Printf("Error in writeLoop: %v\n", err)
+			}
+			loopCancel(err)
+			log.Printf("writeLoop exited")
+		}()
+
+		// Ping loop (send a keepalive Ping every 30s)
+		go func() {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			for {
+				select {
+				case <-ticker.C:
+					err := ws.Ping(loopCtx)
+					if err != nil {
+						log.Printf("Error sending keepalive: %v", err)
+						loopCancel(err)
+						return
+					}
+					log.Printf("Sent keepalive")
+				case <-loopCtx.Done():
+					return
+				}
+			}
+		}()
+
+		// Wait for receive or write loop to exit (which means there was an error)
+		log.Printf("Waiting for read or write loop to exit")
+		select {
+		case <-loopCtx.Done():
+			log.Printf("received loopCtx done")
+			if context.Cause(loopCtx) != nil {
+				log.Printf("loopCtx error: %v", context.Cause(loopCtx))
+				errorChan <- &SignalWebsocketConnectError{
+					Err:    context.Cause(loopCtx),
+					Status: 0,
+				}
+			}
+		}
+		log.Printf("Read or write loop exited")
+
+		// Clean up
+		ws.Close(200, "Done")
+		for _, responseChannel := range responseChannels {
+			close(responseChannel)
+		}
+		loopCancel(nil)
+		log.Printf("Finished cleanup")
+	}
 }
 
-// Error type for fatal error logging in
-type SignalWebsocketConnectError struct {
-	Err         error
-	Status      int
-	ShouldRetry bool
-}
-
-func (s *SignalWebsocket) connect() *SignalWebsocketConnectError {
-	// If there's an existing connection, close it
-	if s.ws != nil {
-		err := s.ws.Close(websocket.StatusNormalClosure, "")
+func readLoop(
+	ctx context.Context,
+	ws *websocket.Conn,
+	requestChan chan *signalpb.WebSocketRequestMessage,
+	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
+) error {
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		msg := &signalpb.WebSocketMessage{}
+		//ctx, _ := context.WithTimeout(ctx, 10*time.Second) // For testing
+		err := wspb.Read(ctx, ws, msg)
 		if err != nil {
-			log.Printf("Error closing websocket: %v", err)
+			return errors.Wrap(err, "Error reading message")
 		}
-		s.cancel()
-		s.ctx = nil
-		s.cancel = nil
-		s.ws = nil
-	}
-	// Make a new connection
-	s.ctx, s.cancel = context.WithCancel(s.parentCtx)
-	ws, resp, err := OpenWebsocket(s.ctx, s.path)
-	if err != nil {
-		return &SignalWebsocketConnectError{
-			Err:         fmt.Errorf("Error opening websocket: %v", err),
-			Status:      0,
-			ShouldRetry: true,
+		if msg.Type == nil {
+			return errors.New("Received message with no type")
+		} else if *msg.Type == signalpb.WebSocketMessage_REQUEST {
+			if msg.Request == nil {
+				return errors.New("Received request message with no request")
+			}
+			requestChan <- msg.Request
+		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
+			if msg.Response == nil {
+				log.Fatal("Received response with no response")
+			}
+			if msg.Response.Id == nil {
+				log.Fatal("Received response with no id")
+			}
+			responseChannel, ok := (*responseChannels)[*msg.Response.Id]
+			if !ok {
+				log.Printf("Received response with unknown id: %v", *msg.Response.Id)
+				continue
+			}
+			responseChannel <- msg.Response
+			delete(*responseChannels, *msg.Response.Id)
+			log.Printf("Deleted response channel for id: %v", *msg.Response.Id)
+			close(responseChannel)
+		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
+			return errors.Errorf("Received message with unknown type: %v", *msg.Type)
+		} else {
+			return errors.Errorf("Received message with actually unknown type: %v", *msg.Type)
 		}
 	}
-	if resp.StatusCode != 101 {
-		return &SignalWebsocketConnectError{
-			Err:         fmt.Errorf("Bad status opening websocket: %v", resp.Status),
-			Status:      resp.StatusCode,
-			ShouldRetry: resp.StatusCode >= 500,
+}
+
+type SignalWebsocketSendMessage struct {
+	// Populate if we're sending a request:
+	ResponseChannel chan *signalpb.WebSocketResponseMessage
+	// Populate if we're sending a response:
+	ResponseMessage *SimpleResponse
+	// Populate this for request AND response
+	RequestMessage *signalpb.WebSocketRequestMessage
+}
+
+func writeLoop(
+	ctx context.Context,
+	ws *websocket.Conn,
+	sendChannel chan *SignalWebsocketSendMessage,
+	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
+) error {
+	for i := uint64(0); ; i++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case request, ok := <-sendChannel:
+			if !ok {
+				return errors.New("Send channel closed")
+			}
+			if request == nil {
+				return errors.New("Received nil request")
+			}
+			if request.RequestMessage != nil && request.ResponseChannel != nil {
+				msgType := signalpb.WebSocketMessage_REQUEST
+				message := &signalpb.WebSocketMessage{
+					Type:    &msgType,
+					Request: request.RequestMessage,
+				}
+				request.RequestMessage.Id = &i
+				(*responseChannels)[i] = request.ResponseChannel
+				err := wspb.Write(ctx, ws, message)
+				if err != nil {
+					close(request.ResponseChannel)
+					return errors.Wrap(err, "Error writing request message")
+				}
+			} else if request.RequestMessage != nil && request.ResponseMessage != nil {
+				message := CreateWSResponse(*request.RequestMessage.Id, request.ResponseMessage.Status)
+				err := wspb.Write(ctx, ws, message)
+				if err != nil {
+					return errors.Wrap(err, "Error writing response message")
+				}
+			} else {
+				return errors.Errorf("Invalid request: %+v", request)
+			}
 		}
 	}
-	s.ws = ws
-	return nil
+}
+
+func (s *SignalWebsocket) SendRequest(
+	ctx context.Context,
+	request *signalpb.WebSocketRequestMessage,
+	username *string,
+	password *string,
+) (<-chan *signalpb.WebSocketResponseMessage, error) {
+	request.Headers = append(request.Headers, "Content-Type: application/json")
+	if username != nil && password != nil {
+		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
+		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
+	}
+	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
+	s.sendChannel <- &SignalWebsocketSendMessage{
+		RequestMessage:  request,
+		ResponseChannel: responseChannel,
+	}
+	return responseChannel, nil
 }
 
 func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
@@ -154,136 +410,4 @@ func CreateWSRequest(method string, path string, body []byte, requestId *uint64,
 		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
 	}
 	return request
-}
-
-func (s *SignalWebsocket) receiveLoop() {
-	for {
-		if s.ws == nil {
-			log.Printf("No websocket, reconnecting")
-			s.mu.Lock()
-			connectErr := s.connect()
-			if connectErr != nil {
-				log.Printf("Error reconnecting: %v", connectErr)
-				if !connectErr.ShouldRetry {
-					log.Fatal("Fatal error, exiting")
-				}
-			}
-			s.mu.Unlock()
-			time.Sleep(30 * time.Second)
-			continue
-		}
-		msg := &signalpb.WebSocketMessage{}
-		err := wspb.Read(s.ctx, s.ws, msg)
-		if err != nil {
-			log.Printf("Error reading message: %v", err)
-			s.mu.Lock()
-			connectErr := s.connect()
-			if connectErr != nil {
-				log.Printf("Error reconnecting: %v", connectErr)
-				if !connectErr.ShouldRetry {
-					log.Fatal("Fatal error, exiting")
-				}
-			}
-			s.mu.Unlock()
-			time.Sleep(30 * time.Second)
-			continue
-		}
-		if msg.Type == nil {
-			log.Fatal("Received message with no type")
-		} else if *msg.Type == signalpb.WebSocketMessage_REQUEST {
-			if s.incomingRequestHandler == nil {
-				log.Fatal("Received request with no handler")
-			}
-			if msg.Request == nil {
-				log.Fatal("Received request with no request")
-			}
-			response, err := s.incomingRequestHandler(s.ctx, msg.Request)
-			if err != nil {
-				log.Printf("Error handling request: %v", err)
-				continue
-			}
-			if response == nil {
-				log.Printf("Error handling request: no response")
-				continue
-			}
-			responseMessage := CreateWSResponse(*msg.Request.Id, response.Status)
-			s.mu.Lock()
-			err = wspb.Write(s.ctx, s.ws, responseMessage)
-			s.mu.Unlock()
-			if err != nil {
-				log.Printf("Error writing response: %v", err)
-				continue
-			}
-		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
-			if msg.Response == nil {
-				log.Fatal("Received response with no response")
-			}
-			if msg.Response.Id == nil {
-				log.Fatal("Received response with no id")
-			}
-			s.mu.Lock()
-			responseChannel, ok := s.responseChannels[*msg.Response.Id]
-			if !ok {
-				log.Printf("Received response with unknown id: %v", *msg.Response.Id)
-				s.mu.Unlock()
-				continue
-			}
-			responseChannel <- msg.Response
-			delete(s.responseChannels, *msg.Response.Id)
-			close(responseChannel)
-			s.mu.Unlock()
-		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
-			log.Printf("Received message with UNKNOWN type: %v", *msg.Type)
-		} else {
-			log.Printf("Received message with actually unknown type: %v", *msg.Type)
-		}
-	}
-}
-
-func (s *SignalWebsocket) SendRequest(ctx context.Context, request *signalpb.WebSocketRequestMessage, username *string, password *string) (<-chan *signalpb.WebSocketResponseMessage, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.ws == nil {
-		err := s.connect()
-		if err != nil {
-			return nil, err.Err
-		}
-	}
-	request.Headers = append(request.Headers, "Content-Type: application/json")
-	if username != nil && password != nil {
-		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
-		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
-	}
-	msg_type := signalpb.WebSocketMessage_REQUEST
-	message := &signalpb.WebSocketMessage{
-		Type:    &msg_type,
-		Request: request,
-	}
-	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
-	s.currentRequestId++
-	request.Id = &s.currentRequestId
-	s.responseChannels[s.currentRequestId] = responseChannel
-	err := wspb.Write(s.ctx, s.ws, message)
-	if err != nil {
-		close(responseChannel)
-		return responseChannel, err
-	}
-	return responseChannel, nil
-}
-
-func (s *SignalWebsocket) Close() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.ws != nil {
-		err := s.ws.Close(websocket.StatusNormalClosure, "")
-		if err != nil {
-			return err
-		}
-		s.cancel()
-		s.ctx = nil
-		s.cancel = nil
-		s.ws = nil
-	}
-	return nil
 }

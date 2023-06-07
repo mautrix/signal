@@ -56,7 +56,7 @@ func (spkr *SignedPreKeyRecord) Clone() (*SignedPreKeyRecord, error) {
 }
 
 func (spkr *SignedPreKeyRecord) Destroy() error {
-	runtime.SetFinalizer(spkr, nil)
+	//runtime.SetFinalizer(spkr, nil)
 	return wrapError(C.signal_signed_pre_key_record_destroy(spkr.ptr))
 }
 
