@@ -1,12 +1,9 @@
 package database
 
 import (
-	"database/sql"
-
 	log "maunium.net/go/maulogger/v2"
 
 	"maunium.net/go/mautrix/id"
-	"maunium.net/go/mautrix/util/dbutil"
 )
 
 type UserQuery struct {
@@ -21,81 +18,77 @@ func (uq *UserQuery) New() *User {
 	}
 }
 
-func (uq *UserQuery) GetByMXID(userID id.UserID) *User {
-	query := `SELECT mxid, signal_id, management_room, space_room, dm_space_room, read_state_version FROM "user" WHERE mxid=$1`
-	return uq.New().Scan(uq.db.QueryRow(query, userID))
-}
-
-func (uq *UserQuery) GetByID(id string) *User {
-	query := `SELECT mxid, signal_id, management_room, space_room, dm_space_room, read_state_version FROM "user" WHERE signal_id=$1`
-	return uq.New().Scan(uq.db.QueryRow(query, id))
-}
-
-func (uq *UserQuery) GetAllWithToken() []*User {
-	query := `
-		SELECT mxid, signal_id, management_room, space_room, dm_space_room, read_state_version
-		FROM "user"
-	`
-	rows, err := uq.db.Query(query)
-	if err != nil || rows == nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		user := uq.New().Scan(rows)
-		if user != nil {
-			users = append(users, user)
-		}
-	}
-	return users
-}
-
 type User struct {
 	db  *Database
 	log log.Logger
 
 	MXID           id.UserID
+	SignalUsername string
 	SignalID       string
-	ManagementRoom id.RoomID
-	SpaceRoom      id.RoomID
-	DMSpaceRoom    id.RoomID
-
-	ReadStateVersion int
+	NoticeRoom     id.RoomID
 }
 
-func (u *User) Scan(row dbutil.Scannable) *User {
-	var signalID, managementRoom, spaceRoom, dmSpaceRoom sql.NullString
-	err := row.Scan(&u.MXID, &signalID, &managementRoom, &spaceRoom, &dmSpaceRoom, &u.ReadStateVersion)
+func (u *User) Insert() error {
+	q := `INSERT INTO "user" (mxid, username, uuid, notice_room) VALUES ($1, $2, $3, $4)`
+	_, err := u.db.Exec(q, u.MXID, u.SignalUsername, u.SignalID, u.NoticeRoom)
+	return err
+}
+
+func (u *User) Update() error {
+	q := `UPDATE "user" SET username=$1, uuid=$2, notice_room=$3 WHERE mxid=$4`
+	_, err := u.db.Exec(q, u.SignalUsername, u.SignalID, u.NoticeRoom, u.MXID)
+	return err
+}
+
+func (uq *UserQuery) GetByMXID(mxid id.UserID) (*User, error) {
+	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE mxid=$1`
+	row := uq.db.QueryRow(q, mxid)
+	var u User
+	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			u.log.Errorln("Database scan failed:", err)
-			panic(err)
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (uq *UserQuery) GetByUsername(username string) (*User, error) {
+	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE username=$1`
+	row := uq.db.QueryRow(q, username)
+	var u User
+	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (uq *UserQuery) GetByUUID(uuid string) (*User, error) {
+	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE uuid=$1`
+	row := uq.db.QueryRow(q, uuid)
+	var u User
+	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (uq *UserQuery) AllLoggedIn() ([]*User, error) {
+	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE username IS NOT NULL`
+	rows, err := uq.db.Query(q)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		var u User
+		err := rows.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
+		if err != nil {
+			return nil, err
 		}
-		return nil
+		users = append(users, &u)
 	}
-	u.SignalID = signalID.String
-	u.ManagementRoom = id.RoomID(managementRoom.String)
-	u.SpaceRoom = id.RoomID(spaceRoom.String)
-	u.DMSpaceRoom = id.RoomID(dmSpaceRoom.String)
-	return u
-}
-
-func (u *User) Insert() {
-	query := `INSERT INTO "user" (mxid, signal_id, management_room, space_room, dm_space_room, read_state_version) VALUES ($1, $2, $3, $4, $5, $6)`
-	_, err := u.db.Exec(query, u.MXID, strPtr(u.SignalID), strPtr(string(u.ManagementRoom)), strPtr(string(u.SpaceRoom)), strPtr(string(u.DMSpaceRoom)), u.ReadStateVersion)
-	if err != nil {
-		u.log.Warnfln("Failed to insert %s: %v", u.MXID, err)
-		panic(err)
-	}
-}
-
-func (u *User) Update() {
-	query := `UPDATE "user" SET signal_id=$1, management_room=$2, space_room=$3, dm_space_room=$4, read_state_version=$5 WHERE mxid=$6`
-	_, err := u.db.Exec(query, strPtr(u.SignalID), strPtr(string(u.ManagementRoom)), strPtr(string(u.SpaceRoom)), strPtr(string(u.DMSpaceRoom)), u.ReadStateVersion, u.MXID)
-	if err != nil {
-		u.log.Warnfln("Failed to update %q: %v", u.MXID, err)
-		panic(err)
-	}
+	return users, nil
 }

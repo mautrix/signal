@@ -2,17 +2,13 @@ package database
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 
 	log "maunium.net/go/maulogger/v2"
 
 	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/util/dbutil"
-)
-
-const (
-	puppetSelect = "SELECT id, name, name_set, avatar, avatar_url, avatar_set," +
-		" custom_mxid, access_token, next_batch" +
-		" FROM puppet "
 )
 
 type PuppetQuery struct {
@@ -27,107 +23,186 @@ func (pq *PuppetQuery) New() *Puppet {
 	}
 }
 
-func (pq *PuppetQuery) Get(id string) *Puppet {
-	return pq.get(puppetSelect+" WHERE id=$1", id)
-}
-
-func (pq *PuppetQuery) GetByCustomMXID(mxid id.UserID) *Puppet {
-	return pq.get(puppetSelect+" WHERE custom_mxid=$1", mxid)
-}
-
-func (pq *PuppetQuery) get(query string, args ...interface{}) *Puppet {
-	return pq.New().Scan(pq.db.QueryRow(query, args...))
-}
-
-func (pq *PuppetQuery) GetAll() []*Puppet {
-	return pq.getAll(puppetSelect)
-}
-
-func (pq *PuppetQuery) GetAllWithCustomMXID() []*Puppet {
-	return pq.getAll(puppetSelect + " WHERE custom_mxid<>''")
-}
-
-func (pq *PuppetQuery) getAll(query string, args ...interface{}) []*Puppet {
-	rows, err := pq.db.Query(query, args...)
-	if err != nil || rows == nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var puppets []*Puppet
-	for rows.Next() {
-		puppets = append(puppets, pq.New().Scan(rows))
-	}
-
-	return puppets
-}
-
 type Puppet struct {
 	db  *Database
 	log log.Logger
 
-	ID        string
-	Name      string
-	NameSet   bool
-	Avatar    string
-	AvatarURL id.ContentURI
-	AvatarSet bool
+	SignalID    string
+	Number      string
+	Name        string
+	NameQuality int
+	AvatarHash  string
+	AvatarURL   id.ContentURI
+	NameSet     bool
+	AvatarSet   bool
 
-	CustomMXID  id.UserID
-	AccessToken string
-	NextBatch   string
+	IsRegistered bool
+
+	CustomMXID     id.UserID
+	AccessToken    string
+	NextBatch      string
+	BaseURL        string
+	ContactInfoSet bool
+}
+
+func (p *Puppet) values() []interface{} {
+	return []interface{}{
+		p.SignalID,
+		p.Number,
+		p.Name,
+		p.NameQuality,
+		p.AvatarHash,
+		p.AvatarURL,
+		p.NameSet,
+		p.AvatarSet,
+		p.ContactInfoSet,
+		p.IsRegistered,
+		p.CustomMXID,
+		p.AccessToken,
+		p.NextBatch,
+		p.BaseURL,
+	}
 }
 
 func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
-	var avatarURL string
-	var customMXID, accessToken, nextBatch sql.NullString
-
-	err := row.Scan(&p.ID, &p.Name, &p.NameSet, &p.Avatar, &avatarURL, &p.AvatarSet,
-		&customMXID, &accessToken, &nextBatch)
-
+	err := row.Scan(
+		&p.SignalID,
+		&p.Number,
+		&p.Name,
+		&p.NameQuality,
+		&p.AvatarHash,
+		&p.AvatarURL,
+		&p.NameSet,
+		&p.AvatarSet,
+		&p.ContactInfoSet,
+		&p.IsRegistered,
+		&p.CustomMXID,
+		&p.AccessToken,
+		&p.NextBatch,
+		&p.BaseURL,
+	)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			p.log.Errorln("Database scan failed:", err)
-			panic(err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			p.log.Warnfln("Error scanning puppet row: %w", err)
 		}
-
 		return nil
 	}
-
-	p.AvatarURL, _ = id.ParseContentURI(avatarURL)
-	p.CustomMXID = id.UserID(customMXID.String)
-	p.AccessToken = accessToken.String
-	p.NextBatch = nextBatch.String
-
 	return p
 }
 
-func (p *Puppet) Insert() {
-	query := `
-		INSERT INTO puppet (id, name, name_set, avatar, avatar_url, avatar_set, custom_mxid, access_token, next_batch)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`
-	_, err := p.db.Exec(query, p.ID, p.Name, p.NameSet, p.Avatar, p.AvatarURL.String(), p.AvatarSet,
-		strPtr(string(p.CustomMXID)), strPtr(p.AccessToken), strPtr(p.NextBatch))
-
-	if err != nil {
-		p.log.Warnfln("Failed to insert %s: %v", p.ID, err)
-		panic(err)
+func (p *Puppet) deleteExistingNumber(tx *dbutil.LoggingTxn) error {
+	if p.Number == "" {
+		return nil
 	}
+	_, err := tx.Exec("UPDATE puppet SET number=null WHERE number=$1 AND uuid<>$2", p.Number, p.SignalID)
+	return err
 }
 
-func (p *Puppet) Update() {
-	query := `
-		UPDATE puppet SET name=$1, name_set=$2, avatar=$3, avatar_url=$4, avatar_set=$5,
-		                  custom_mxid=$6, access_token=$7, next_batch=$8
-		WHERE id=$9
+func (p *Puppet) Insert() error {
+	q := `
+	INSERT INTO puppet (uuid, number, name, name_quality, avatar_hash, avatar_url,
+						name_set, avatar_set, contact_info_set, is_registered,
+						custom_mxid, access_token, next_batch, base_url)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+			$11, $12, $13, $14)
 	`
-	_, err := p.db.Exec(query, p.Name, p.NameSet, p.Avatar, p.AvatarURL.String(), p.AvatarSet,
-		strPtr(string(p.CustomMXID)), strPtr(p.AccessToken), strPtr(p.NextBatch),
-		p.ID)
-
+	tx, err := p.db.Begin()
 	if err != nil {
-		p.log.Warnfln("Failed to update %s: %v", p.ID, err)
-		panic(err)
+		return fmt.Errorf("error starting transaction: %w", err)
 	}
+	defer tx.Rollback()
+	err = p.deleteExistingNumber(tx)
+	if err != nil {
+		return fmt.Errorf("error deleting existing number: %w", err)
+	}
+	_, err = tx.Exec(q, p.values()...)
+	if err != nil {
+		return fmt.Errorf("error inserting puppet: %w", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+	return nil
+}
+
+func (p *Puppet) UpdateNumber() error {
+	q := "UPDATE puppet SET number=$1 WHERE uuid=$2"
+	tx, err := p.db.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback()
+	err = p.deleteExistingNumber(tx)
+	if err != nil {
+		return fmt.Errorf("error deleting existing number: %w", err)
+	}
+	_, err = tx.Exec(q, p.Number, p.SignalID)
+	if err != nil {
+		return fmt.Errorf("error updating puppet number: %w", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
+	}
+	return nil
+}
+
+func (p *Puppet) Update() error {
+	q := `
+	UPDATE puppet SET
+		number=$2, name=$3, name_quality=$4, avatar_hash=$5, avatar_url=$6,
+		name_set=$7, avatar_set=$8, contact_info_set=$9, is_registered=$10,
+		custom_mxid=$11, access_token=$12, next_batch=$13, base_url=$14
+	WHERE uuid=$1
+	`
+	_, err := p.db.Exec(q, p.values()...)
+	if err != nil {
+		return fmt.Errorf("error updating puppet: %w", err)
+	}
+	return nil
+}
+
+const (
+	selectBase = `
+        SELECT uuid, number, name, name_quality, avatar_hash, avatar_url, name_set, avatar_set,
+               contact_info_set, is_registered, custom_mxid, access_token, next_batch, base_url
+        FROM puppet
+	`
+)
+
+func (pq *PuppetQuery) GetBySignalID(signalID string) (*Puppet, error) {
+	q := selectBase + " WHERE uuid=$1"
+	row := pq.db.QueryRow(q, signalID)
+	p := &Puppet{}
+	return p.Scan(row), nil
+}
+
+func (pq *PuppetQuery) GetByNumber(number string) (*Puppet, error) {
+	q := selectBase + " WHERE number=$1"
+	row := pq.db.QueryRow(q, number)
+	p := &Puppet{}
+	return p.Scan(row), nil
+}
+
+func (pq *PuppetQuery) GetByCustomMXID(mxid string) (*Puppet, error) {
+	q := selectBase + " WHERE custom_mxid=$1"
+	row := pq.db.QueryRow(q, mxid)
+	p := &Puppet{}
+	return p.Scan(row), nil
+}
+
+func (pq *PuppetQuery) GetAllWithCustomMXID() ([]*Puppet, error) {
+	q := selectBase + " WHERE custom_mxid IS NOT NULL"
+	rows, err := pq.db.Query(q)
+	if err != nil {
+		return nil, fmt.Errorf("error getting all puppets with custom mxid: %w", err)
+	}
+	defer rows.Close()
+	puppets := []*Puppet{}
+	for rows.Next() {
+		p := &Puppet{}
+		puppets = append(puppets, p.Scan(rows))
+	}
+	return puppets, nil
 }

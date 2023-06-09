@@ -1,52 +1,59 @@
 -- v0 -> v1: Latest revision
 
 CREATE TABLE portal (
-    signal_id          TEXT,
-    receiver      TEXT,
-    other_user_id TEXT,
-    type          INTEGER NOT NULL,
+    chat_id     TEXT,
+    receiver    TEXT,
+    mxid        TEXT,
+    name        TEXT,
+    topic       TEXT,
+    encrypted   BOOLEAN NOT NULL DEFAULT false,
+    avatar_hash TEXT,
+    avatar_url  TEXT,
+    name_set    BOOLEAN NOT NULL DEFAULT false,
+    avatar_set  BOOLEAN NOT NULL DEFAULT false,
+    revision    INTEGER NOT NULL DEFAULT 0,
+    expiration_time BIGINT,
+    relay_user_id   TEXT,
 
-    mxid       TEXT UNIQUE,
-    plain_name TEXT NOT NULL,
-    name       TEXT NOT NULL,
-    name_set   BOOLEAN NOT NULL,
-    topic      TEXT NOT NULL,
-    topic_set  BOOLEAN NOT NULL,
-    avatar     TEXT NOT NULL,
-    avatar_url TEXT NOT NULL,
-    avatar_set BOOLEAN NOT NULL,
-    encrypted  BOOLEAN NOT NULL,
-    in_space   TEXT NOT NULL,
-
-    first_event_id TEXT NOT NULL,
-
-    relay_webhook_id     TEXT,
-    relay_webhook_secret TEXT,
-
-    PRIMARY KEY (signal_id, receiver)
+    PRIMARY KEY (chat_id, receiver)
 );
 
 CREATE TABLE puppet (
-    id TEXT PRIMARY KEY,
+    uuid         UUID PRIMARY KEY,
+    number       TEXT UNIQUE,
+    name         TEXT,
+    name_quality INTEGER NOT NULL DEFAULT 0,
+    avatar_hash  TEXT,
+    avatar_url   TEXT,
+    name_set     BOOLEAN NOT NULL DEFAULT false,
+    avatar_set   BOOLEAN NOT NULL DEFAULT false,
 
-    name       TEXT NOT NULL,
-    name_set   BOOLEAN NOT NULL,
-    avatar     TEXT NOT NULL,
-    avatar_url TEXT NOT NULL,
-    avatar_set BOOLEAN NOT NULL,
+    is_registered BOOLEAN NOT NULL DEFAULT false,
 
     custom_mxid  TEXT,
     access_token TEXT,
-    next_batch   TEXT
+    next_batch   TEXT,
+    base_url     TEXT,
+    contact_info_set BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE "user" (
-    mxid TEXT PRIMARY KEY,
-    signal_id TEXT UNIQUE,
+    mxid        TEXT PRIMARY KEY,
+    username    TEXT,
+    uuid        UUID,
+    notice_room TEXT
+);
 
-    management_room TEXT,
-    space_room      TEXT,
-    dm_space_room   TEXT,
+CREATE TABLE message (
+    mxid    TEXT NOT NULL,
+    mx_room TEXT NOT NULL,
+    sender          UUID,
+    timestamp       BIGINT,
+    signal_chat_id  TEXT,
+    signal_receiver TEXT,
 
-    read_state_version INTEGER NOT NULL DEFAULT 0
+    PRIMARY KEY (sender, timestamp, signal_chat_id, signal_receiver),
+    FOREIGN KEY (signal_chat_id, signal_receiver) REFERENCES portal(chat_id, receiver) ON DELETE CASCADE,
+    FOREIGN KEY (sender) REFERENCES puppet(uuid) ON DELETE CASCADE,
+    UNIQUE (mxid, mx_room)
 );

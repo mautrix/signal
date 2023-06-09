@@ -274,11 +274,11 @@ func (user *User) Connect() error {
 
 func (user *User) incomingMessageHandler(msg string, sender string) error {
 	log.Printf("************** incomingMessageHandler message: %s sender: %s", msg, sender)
-	//portal := user.GetPortalBySignalID(sender)
-	//if portal == nil {
-	//log.Printf("no portal found for sender %s", sender)
-	//return errors.New("no portal found for sender")
-	//}
+	portal := user.GetPortalBySignalID(sender)
+	if portal == nil {
+		log.Printf("no portal found for sender %s", sender)
+		return errors.New("no portal found for sender")
+	}
 	return nil
 }
 
