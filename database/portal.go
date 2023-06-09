@@ -2,41 +2,14 @@ package database
 
 import (
 	"database/sql"
+	"errors"
+	"fmt"
 
 	log "maunium.net/go/maulogger/v2"
 
 	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/util/dbutil"
 )
-
-// language=postgresql
-const (
-	portalSelect = `
-		SELECT signal_id, receiver, type, other_user_id, mxid,
-		       plain_name, name, name_set, avatar, avatar_url, avatar_set,
-		       encrypted, in_space
-		FROM portal
-	`
-)
-
-type PortalKey struct {
-	ChannelID string
-	Receiver  string
-}
-
-func NewPortalKey(channelID, receiver string) PortalKey {
-	return PortalKey{
-		ChannelID: channelID,
-		Receiver:  receiver,
-	}
-}
-
-func (key PortalKey) String() string {
-	if key.Receiver == "" {
-		return key.ChannelID
-	}
-	return key.ChannelID + "-" + key.Receiver
-}
 
 type PortalQuery struct {
 	db  *Database
@@ -50,150 +23,170 @@ func (pq *PortalQuery) New() *Portal {
 	}
 }
 
-func (pq *PortalQuery) GetAll() []*Portal {
-	return pq.getAll(portalSelect)
+type PortalKey struct {
+	ChatID   string
+	Receiver string
 }
 
-func (pq *PortalQuery) GetByID(key PortalKey) *Portal {
-	return pq.get(portalSelect+" WHERE signal_id=$1 AND (receiver=$2 OR receiver='')", key.ChannelID, key.Receiver)
-}
-
-func (pq *PortalQuery) GetByMXID(mxid id.RoomID) *Portal {
-	return pq.get(portalSelect+" WHERE mxid=$1", mxid)
-}
-
-func (pq *PortalQuery) FindPrivateChatsWith(id string) []*Portal {
-	return pq.getAll(portalSelect+" WHERE other_user_id=$1 AND type=$2", id, "private")
-}
-
-func (pq *PortalQuery) FindPrivateChatsOf(receiver string) []*Portal {
-	query := portalSelect + " portal WHERE receiver=$1 AND type=$2;"
-
-	return pq.getAll(query, receiver, "private")
-}
-
-func (pq *PortalQuery) getAll(query string, args ...interface{}) []*Portal {
-	rows, err := pq.db.Query(query, args...)
-	if err != nil || rows == nil {
-		return nil
-	}
-	defer rows.Close()
-
-	var portals []*Portal
-	for rows.Next() {
-		portals = append(portals, pq.New().Scan(rows))
-	}
-
-	return portals
-}
-
-func (pq *PortalQuery) get(query string, args ...interface{}) *Portal {
-	return pq.New().Scan(pq.db.QueryRow(query, args...))
+func (key PortalKey) String() string {
+	return fmt.Sprintf("%s:%s", key.ChatID, key.Receiver)
 }
 
 type Portal struct {
 	db  *Database
 	log log.Logger
 
-	Key         PortalKey
-	Type        string
-	OtherUserID string
-	ParentID    string
-	GuildID     string
+	ChatID         string
+	Receiver       string
+	MXID           id.RoomID
+	Name           string
+	Topic          string
+	AvatarHash     string
+	AvatarURL      id.ContentURI
+	NameSet        bool
+	AvatarSet      bool
+	Revision       int
+	Encrypted      bool
+	RelayUserID    id.UserID
+	ExpirationTime int
+}
 
-	MXID id.RoomID
-
-	PlainName string
-	Name      string
-	NameSet   bool
-	Topic     string
-	TopicSet  bool
-	Avatar    string
-	AvatarURL id.ContentURI
-	AvatarSet bool
-	Encrypted bool
-	InSpace   id.RoomID
-
-	FirstEventID id.EventID
-
-	RelayWebhookID     string
-	RelayWebhookSecret string
+func (p *Portal) values() []interface{} {
+	return []interface{}{
+		p.ChatID,
+		p.Receiver,
+		p.MXID,
+		p.Name,
+		p.Topic,
+		p.AvatarHash,
+		p.AvatarURL,
+		p.NameSet,
+		p.AvatarSet,
+		p.Revision,
+		p.Encrypted,
+		p.RelayUserID,
+		p.ExpirationTime,
+	}
 }
 
 func (p *Portal) Scan(row dbutil.Scannable) *Portal {
-	var otherUserID, guildID, parentID, mxid, firstEventID, relayWebhookID, relayWebhookSecret sql.NullString
-	var chanType int32
-	var avatarURL string
-
-	err := row.Scan(&p.Key.ChannelID, &p.Key.Receiver, &chanType, &otherUserID, &guildID, &parentID,
-		&mxid, &p.PlainName, &p.Name, &p.NameSet, &p.Topic, &p.TopicSet, &p.Avatar, &avatarURL, &p.AvatarSet,
-		&p.Encrypted, &p.InSpace, &firstEventID, &relayWebhookID, &relayWebhookSecret)
-
+	err := row.Scan(
+		&p.ChatID,
+		&p.Receiver,
+		&p.MXID,
+		&p.Name,
+		&p.Topic,
+		&p.AvatarHash,
+		&p.AvatarURL,
+		&p.NameSet,
+		&p.AvatarSet,
+		&p.Revision,
+		&p.Encrypted,
+		&p.RelayUserID,
+		&p.ExpirationTime,
+	)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			p.log.Errorln("Database scan failed:", err)
-			panic(err)
+		if !errors.Is(err, sql.ErrNoRows) {
+			p.log.Warnfln("Error scanning portal row: %w", err)
 		}
-
 		return nil
 	}
-
-	p.MXID = id.RoomID(mxid.String)
-	p.OtherUserID = otherUserID.String
-	p.GuildID = guildID.String
-	p.ParentID = parentID.String
-	p.Type = "private"
-	p.FirstEventID = id.EventID(firstEventID.String)
-	p.AvatarURL, _ = id.ParseContentURI(avatarURL)
-	p.RelayWebhookID = relayWebhookID.String
-	p.RelayWebhookSecret = relayWebhookSecret.String
-
 	return p
 }
 
-func (p *Portal) Insert() {
-	query := `
-		INSERT INTO portal (signal_id, receiver, type, other_user_id, dc_guild_id, dc_parent_id, mxid,
-		                    plain_name, name, name_set, topic, topic_set, avatar, avatar_url, avatar_set,
-		                    encrypted, in_space)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+func (p *Portal) Insert() error {
+	q := `
+	INSERT INTO portal (
+		chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,
+		revision, encrypted, relay_user_id, expiration_time
+	) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 	`
-	_, err := p.db.Exec(query, p.Key.ChannelID, p.Key.Receiver, p.Type,
-		strPtr(p.OtherUserID), strPtr(p.GuildID), strPtr(p.ParentID), strPtr(string(p.MXID)),
-		p.PlainName, p.Name, p.NameSet, p.Topic, p.TopicSet, p.Avatar, p.AvatarURL.String(), p.AvatarSet,
-		p.Encrypted, p.InSpace, p.FirstEventID.String(), strPtr(p.RelayWebhookID), strPtr(p.RelayWebhookSecret))
-
-	if err != nil {
-		p.log.Warnfln("Failed to insert %s: %v", p.Key, err)
-		panic(err)
-	}
+	_, err := p.db.Exec(q, p.values()...)
+	return err
 }
 
-func (p *Portal) Update() {
-	query := `
-		UPDATE portal
-		SET type=$1, other_user_id=$2, dc_guild_id=$3, dc_parent_id=$4, mxid=$5,
-			plain_name=$6, name=$7, name_set=$8, topic=$9, topic_set=$10, avatar=$11, avatar_url=$12, avatar_set=$13,
-			encrypted=$14, in_space=$15
-		WHERE signal_id=$19 AND receiver=$20
+func (p *Portal) Update() error {
+	q := `
+	UPDATE portal SET mxid=$3, name=$4, topic=$5, avatar_hash=$6, avatar_url=$7, name_set=$8,
+	                  avatar_set=$9, revision=$10, encrypted=$11, relay_user_id=$12,
+	                  expiration_time=$13
+	WHERE chat_id=$1 AND receiver=$2
 	`
-	_, err := p.db.Exec(query,
-		p.Type, strPtr(p.OtherUserID), strPtr(p.GuildID), strPtr(p.ParentID), strPtr(string(p.MXID)),
-		p.PlainName, p.Name, p.NameSet, p.Topic, p.TopicSet, p.Avatar, p.AvatarURL.String(), p.AvatarSet,
-		p.Encrypted, p.InSpace, p.FirstEventID.String(), strPtr(p.RelayWebhookID), strPtr(p.RelayWebhookSecret),
-		p.Key.ChannelID, p.Key.Receiver)
-
-	if err != nil {
-		p.log.Warnfln("Failed to update %s: %v", p.Key, err)
-		panic(err)
-	}
+	_, err := p.db.Exec(q, p.values()...)
+	return err
 }
 
-func (p *Portal) Delete() {
-	query := "DELETE FROM portal WHERE signal_id=$1 AND receiver=$2"
-	_, err := p.db.Exec(query, p.Key.ChannelID, p.Key.Receiver)
+const (
+	portalColumns = `
+        "chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set, "
+        "revision, encrypted, relay_user_id, expiration_time"
+	`
+)
+
+func (pq *PortalQuery) GetByMXID(mxid string) *Portal {
+	q := fmt.Sprintf("SELECT %s FROM portal WHERE mxid=$1", portalColumns)
+	row := pq.db.QueryRow(q, mxid)
+	p := &Portal{}
+	return p.Scan(row)
+}
+
+func (pq *PortalQuery) GetByChatID(pk PortalKey) *Portal {
+	q := fmt.Sprintf("SELECT %s FROM portal WHERE chat_id=$1 AND receiver=$2", portalColumns)
+	row := pq.db.QueryRow(q, pk.ChatID, pk.Receiver)
+	p := &Portal{}
+	return p.Scan(row)
+}
+
+func (pq *PortalQuery) FindPrivateChatsOf(receiver string) []*Portal {
+	q := fmt.Sprintf("SELECT %s FROM portal WHERE receiver=$1", portalColumns)
+	rows, err := pq.db.Query(q, receiver)
 	if err != nil {
-		p.log.Warnfln("Failed to delete %s: %v", p.Key, err)
-		panic(err)
+		pq.log.Warnfln("Error querying private chats of %s: %w", receiver, err)
+		return nil
 	}
+	defer rows.Close()
+	var portals []*Portal
+	for rows.Next() {
+		p := &Portal{}
+		if p.Scan(rows) != nil {
+			portals = append(portals, p)
+		}
+	}
+	return portals
+}
+
+func (pq *PortalQuery) FindPrivateChatsWith(otherUser string) []*Portal {
+	q := fmt.Sprintf("SELECT %s FROM portal WHERE chat_id=$1 AND receiver<>''", portalColumns)
+	rows, err := pq.db.Query(q, otherUser)
+	if err != nil {
+		pq.log.Warnfln("Error querying private chats with %s: %w", otherUser, err)
+		return nil
+	}
+	defer rows.Close()
+	var portals []*Portal
+	for rows.Next() {
+		p := &Portal{}
+		if p.Scan(rows) != nil {
+			portals = append(portals, p)
+		}
+	}
+	return portals
+}
+
+func (pq *PortalQuery) AllWithRoom() []*Portal {
+	q := fmt.Sprintf("SELECT %s FROM portal WHERE mxid IS NOT NULL", portalColumns)
+	rows, err := pq.db.Query(q)
+	if err != nil {
+		pq.log.Warnfln("Error querying all portals with room: %w", err)
+		return nil
+	}
+	defer rows.Close()
+	var portals []*Portal
+	for rows.Next() {
+		p := &Portal{}
+		if p.Scan(rows) != nil {
+			portals = append(portals, p)
+		}
+	}
+	return portals
 }
