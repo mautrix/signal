@@ -1,9 +1,12 @@
 package database
 
 import (
+	"database/sql"
+
 	log "maunium.net/go/maulogger/v2"
 
 	"maunium.net/go/mautrix/id"
+	"maunium.net/go/mautrix/util/dbutil"
 )
 
 type UserQuery struct {
@@ -40,37 +43,36 @@ func (u *User) Update() error {
 	return err
 }
 
-func (uq *UserQuery) GetByMXID(mxid id.UserID) (*User, error) {
+func (u *User) Scan(row dbutil.Scannable) *User {
+	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			u.log.Errorln("Database scan failed:", err)
+		}
+		return nil
+	}
+	return u
+}
+
+func (uq *UserQuery) GetByMXID(mxid id.UserID) *User {
 	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE mxid=$1`
 	row := uq.db.QueryRow(q, mxid)
 	var u User
-	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
+	return u.Scan(row)
 }
 
-func (uq *UserQuery) GetByUsername(username string) (*User, error) {
+func (uq *UserQuery) GetByUsername(username string) *User {
 	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE username=$1`
 	row := uq.db.QueryRow(q, username)
 	var u User
-	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
+	return u.Scan(row)
 }
 
-func (uq *UserQuery) GetByUUID(uuid string) (*User, error) {
+func (uq *UserQuery) GetBySignalID(uuid string) *User {
 	q := `SELECT mxid, username, uuid, notice_room FROM "user" WHERE uuid=$1`
 	row := uq.db.QueryRow(q, uuid)
 	var u User
-	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
-	if err != nil {
-		return nil, err
-	}
-	return &u, nil
+	return u.Scan(row)
 }
 
 func (uq *UserQuery) AllLoggedIn() ([]*User, error) {

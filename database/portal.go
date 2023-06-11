@@ -28,6 +28,13 @@ type PortalKey struct {
 	Receiver string
 }
 
+func NewPortalKey(chatID, receiver string) PortalKey {
+	return PortalKey{
+		ChatID:   chatID,
+		Receiver: receiver,
+	}
+}
+
 func (key PortalKey) String() string {
 	return fmt.Sprintf("%s:%s", key.ChatID, key.Receiver)
 }
@@ -94,6 +101,18 @@ func (p *Portal) Scan(row dbutil.Scannable) *Portal {
 	return p
 }
 
+func (p *Portal) SetPortalKey(pk PortalKey) {
+	p.ChatID = pk.ChatID
+	p.Receiver = pk.Receiver
+}
+
+func (p *Portal) Key() PortalKey {
+	return PortalKey{
+		ChatID:   p.ChatID,
+		Receiver: p.Receiver,
+	}
+}
+
 func (p *Portal) Insert() error {
 	q := `
 	INSERT INTO portal (
@@ -123,9 +142,9 @@ const (
 	`
 )
 
-func (pq *PortalQuery) GetByMXID(mxid string) *Portal {
+func (pq *PortalQuery) GetByMXID(mxid id.RoomID) *Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal WHERE mxid=$1", portalColumns)
-	row := pq.db.QueryRow(q, mxid)
+	row := pq.db.QueryRow(q, mxid.String())
 	p := &Portal{}
 	return p.Scan(row)
 }
@@ -178,6 +197,24 @@ func (pq *PortalQuery) AllWithRoom() []*Portal {
 	rows, err := pq.db.Query(q)
 	if err != nil {
 		pq.log.Warnfln("Error querying all portals with room: %w", err)
+		return nil
+	}
+	defer rows.Close()
+	var portals []*Portal
+	for rows.Next() {
+		p := &Portal{}
+		if p.Scan(rows) != nil {
+			portals = append(portals, p)
+		}
+	}
+	return portals
+}
+
+func (pq *PortalQuery) GetAll() []*Portal {
+	q := fmt.Sprintf("SELECT %s FROM portal", portalColumns)
+	rows, err := pq.db.Query(q)
+	if err != nil {
+		pq.log.Warnfln("Error querying all portals: %w", err)
 		return nil
 	}
 	defer rows.Close()

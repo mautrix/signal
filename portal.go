@@ -76,18 +76,19 @@ func (portal *Portal) MarkEncrypted() {
 }
 
 func (portal *Portal) ReceiveMatrixEvent(user bridge.User, evt *event.Event) {
-	if user.GetPermissionLevel() >= bridgeconfig.PermissionLevelUser || portal.RelayWebhookID != "" {
+	if user.GetPermissionLevel() >= bridgeconfig.PermissionLevelUser {
 		portal.matrixMessages <- portalMatrixMessage{user: user.(*User), evt: evt}
 	}
 }
 
 func (portal *Portal) IsPrivateChat() bool {
-	return false
+	// Assuming that if the receiver is set, it's a private chat
+	return portal.Receiver != ""
 }
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
-	if portal.IsPrivateChat() && portal.OtherUserID != "" {
-		return portal.bridge.GetPuppetByID(portal.OtherUserID).DefaultIntent()
+	if portal.IsPrivateChat() {
+		return portal.bridge.GetPuppetBySignalID(portal.ChatID).DefaultIntent()
 	}
 
 	return portal.bridge.Bot
@@ -109,15 +110,15 @@ func (portal *Portal) getBridgeInfo() (string, CustomBridgeInfoContent) {
 			ExternalURL: "https://signal.org/",
 		},
 		Channel: event.BridgeInfoSection{
-			ID:          portal.Key.ChannelID,
+			ID:          portal.Key().ChatID,
 			DisplayName: portal.Name,
 		},
 	}
 	var bridgeInfoStateKey string
-	bridgeInfoStateKey = fmt.Sprintf("fi.mau.signal://signal/%s", portal.Key.ChannelID)
-	bridgeInfo.Channel.ExternalURL = fmt.Sprintf("https://signal.me/#p/%s", portal.Key.ChannelID)
+	bridgeInfoStateKey = fmt.Sprintf("fi.mau.signal://signal/%s", portal.Key().ChatID)
+	bridgeInfo.Channel.ExternalURL = fmt.Sprintf("https://signal.me/#p/%s", portal.Key().ChatID)
 	var roomType string
-	if true { //portal.Type == discordgo.ChannelTypeDM || portal.Type == discordgo.ChannelTypeGroupDM {
+	if portal.IsPrivateChat() {
 		roomType = "dm"
 	}
 	return bridgeInfoStateKey, CustomBridgeInfoContent{bridgeInfo, roomType}
@@ -166,7 +167,7 @@ func (br *SignalBridge) dbPortalsToPortals(dbPortals []*database.Portal) []*Port
 			continue
 		}
 
-		portal, ok := br.portalsByID[dbPortal.Key]
+		portal, ok := br.portalsByID[dbPortal.Key()]
 		if !ok {
 			portal = br.loadPortal(dbPortal, nil)
 		}
@@ -255,6 +256,14 @@ func (portal *Portal) getEncryptionEventContent() (evt *event.EncryptionEventCon
 	return
 }
 
+func (portal *Portal) shouldSetDMRoomMetadata() bool {
+	return !portal.IsPrivateChat() || portal.bridge.Config.Bridge.PrivateChatPortalMeta
+}
+
+func (portal *Portal) ensureUserInvited(user *User) bool {
+	return user.ensureInvited(portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
+}
+
 func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	portal.roomCreateLock.Lock()
 	defer portal.roomCreateLock.Unlock()
@@ -264,9 +273,9 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	portal.log.Infoln("Creating Matrix room for meta")
 
 	//meta = portal.UpdateInfo(user, meta)
-	if meta == nil {
-		return fmt.Errorf("didn't find metadata")
-	}
+	//if meta == nil {
+	//	return fmt.Errorf("didn't find metadata")
+	//}
 
 	intent := portal.MainIntent()
 	if err := intent.EnsureRegistered(); err != nil {
@@ -331,7 +340,7 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	}
 
 	portal.NameSet = true
-	portal.TopicSet = true
+	//portal.TopicSet = true
 	portal.AvatarSet = !portal.AvatarURL.IsEmpty()
 	portal.MXID = resp.RoomID
 	portal.bridge.portalsLock.Lock()
@@ -353,20 +362,23 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	//portal.syncParticipants(user, channel.Recipients)
 
 	if portal.IsPrivateChat() {
-		puppet := user.bridge.GetPuppetByID(portal.Key.Receiver)
+		puppet := user.bridge.GetPuppetBySignalID(portal.Receiver)
 
 		chats := map[id.UserID][]id.RoomID{puppet.MXID: {portal.MXID}}
 		user.UpdateDirectChats(chats)
 	}
 
-	firstEventResp, err := portal.MainIntent().SendMessageEvent(portal.MXID, portalCreationDummyEvent, struct{}{})
+	_, err = portal.MainIntent().SendMessageEvent(portal.MXID, portalCreationDummyEvent, struct{}{})
 	if err != nil {
 		portal.log.Errorln("Failed to send dummy event to mark portal creation:", err)
 	} else {
-		portal.FirstEventID = firstEventResp.EventID
 		portal.Update()
 	}
 
+	return nil
+}
+
+func (portal *Portal) UpdateInfo(user *User, meta *any) *any {
 	return nil
 }
 
@@ -382,13 +394,13 @@ func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.Port
 		}
 
 		dbPortal = br.DB.Portal.New()
-		dbPortal.Key = *key
+		dbPortal.SetPortalKey(*key)
 		dbPortal.Insert()
 	}
 
 	portal := br.NewPortal(dbPortal)
 
-	br.portalsByID[portal.Key] = portal
+	br.portalsByID[portal.Key()] = portal
 	if portal.MXID != "" {
 		br.portalsByMXID[portal.MXID] = portal
 	}
@@ -408,12 +420,12 @@ func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
 	return portal
 }
 
-func (br *SignalBridge) GetPortalBySignalID(key database.PortalKey) *Portal {
+func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 	br.portalsLock.Lock()
 	defer br.portalsLock.Unlock()
 	portal, ok := br.portalsByID[key]
 	if !ok {
-		return br.loadPortal(br.DB.Portal.GetByID(key), &key)
+		return br.loadPortal(br.DB.Portal.GetByChatID(key), &key)
 	}
 	return portal
 }

@@ -52,12 +52,12 @@ func (p *Puppet) values() []interface{} {
 		p.Name,
 		p.NameQuality,
 		p.AvatarHash,
-		p.AvatarURL,
+		p.AvatarURL.String(),
 		p.NameSet,
 		p.AvatarSet,
 		p.ContactInfoSet,
 		p.IsRegistered,
-		p.CustomMXID,
+		p.CustomMXID.String(),
 		p.AccessToken,
 		p.NextBatch,
 		p.BaseURL,
@@ -65,18 +65,19 @@ func (p *Puppet) values() []interface{} {
 }
 
 func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
+	var avatarURL, customMXID string
 	err := row.Scan(
 		&p.SignalID,
 		&p.Number,
 		&p.Name,
 		&p.NameQuality,
 		&p.AvatarHash,
-		&p.AvatarURL,
+		&avatarURL,
 		&p.NameSet,
 		&p.AvatarSet,
 		&p.ContactInfoSet,
 		&p.IsRegistered,
-		&p.CustomMXID,
+		&customMXID,
 		&p.AccessToken,
 		&p.NextBatch,
 		&p.BaseURL,
@@ -87,6 +88,8 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 		}
 		return nil
 	}
+	p.AvatarURL, _ = id.ParseContentURI(avatarURL)
+	p.CustomMXID = id.UserID(customMXID)
 	return p
 }
 
@@ -171,25 +174,25 @@ const (
 	`
 )
 
-func (pq *PuppetQuery) GetBySignalID(signalID string) (*Puppet, error) {
+func (pq *PuppetQuery) GetBySignalID(signalID string) *Puppet {
 	q := selectBase + " WHERE uuid=$1"
 	row := pq.db.QueryRow(q, signalID)
 	p := &Puppet{}
-	return p.Scan(row), nil
+	return p.Scan(row)
 }
 
-func (pq *PuppetQuery) GetByNumber(number string) (*Puppet, error) {
+func (pq *PuppetQuery) GetByNumber(number string) *Puppet {
 	q := selectBase + " WHERE number=$1"
 	row := pq.db.QueryRow(q, number)
 	p := &Puppet{}
-	return p.Scan(row), nil
+	return p.Scan(row)
 }
 
-func (pq *PuppetQuery) GetByCustomMXID(mxid string) (*Puppet, error) {
+func (pq *PuppetQuery) GetByCustomMXID(mxid id.UserID) *Puppet {
 	q := selectBase + " WHERE custom_mxid=$1"
-	row := pq.db.QueryRow(q, mxid)
+	row := pq.db.QueryRow(q, mxid.String())
 	p := &Puppet{}
-	return p.Scan(row), nil
+	return p.Scan(row)
 }
 
 func (pq *PuppetQuery) GetAllWithCustomMXID() ([]*Puppet, error) {

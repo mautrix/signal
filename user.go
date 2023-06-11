@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	meowstore "go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
 	"maunium.net/go/mautrix/bridge/status"
@@ -37,6 +39,8 @@ type User struct {
 
 	SignalDevice *meowstore.Device
 
+	ManagementRoom id.RoomID
+
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
 	wasDisconnected bool
@@ -56,8 +60,7 @@ func (user *User) IsLoggedIn() bool {
 	user.Lock()
 	defer user.Unlock()
 
-	//TODO
-	return false
+	return user.SignalUsername != ""
 }
 
 func (user *User) GetManagementRoomID() id.RoomID {
@@ -88,7 +91,7 @@ func (user *User) GetIDoublePuppet() bridge.DoublePuppet {
 }
 
 func (user *User) GetIGhost() bridge.Ghost {
-	p := user.bridge.GetPuppetByID(user.SignalID)
+	p := user.bridge.GetPuppetBySignalID(user.SignalID)
 	if p == nil {
 		return nil
 	}
@@ -110,7 +113,7 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 	user := br.NewUser(dbUser)
 	br.usersByMXID[user.MXID] = user
 	if user.SignalID != "" {
-		br.usersByID[user.SignalID] = user
+		br.usersBySignalID[user.SignalID] = user
 	}
 	if user.ManagementRoom != "" {
 		br.managementRoomsLock.Lock()
@@ -134,13 +137,13 @@ func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
 	return user
 }
 
-func (br *SignalBridge) GetUserByID(id string) *User {
+func (br *SignalBridge) GetUserBySignalID(id string) *User {
 	br.usersLock.Lock()
 	defer br.usersLock.Unlock()
 
-	user, ok := br.usersByID[id]
+	user, ok := br.usersBySignalID[id]
 	if !ok {
-		return br.loadUser(br.DB.User.GetByID(id), nil)
+		return br.loadUser(br.DB.User.GetBySignalID(id), nil)
 	}
 	return user
 }
@@ -155,6 +158,39 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 	}
 	user.BridgeState = br.NewBridgeStateQueue(user)
 	return user
+}
+
+func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
+	extraContent := make(map[string]interface{})
+	if isDirect {
+		extraContent["is_direct"] = true
+	}
+	customPuppet := user.bridge.GetPuppetByCustomMXID(user.MXID)
+	if customPuppet != nil && customPuppet.CustomIntent() != nil {
+		extraContent["fi.mau.will_auto_accept"] = true
+	}
+	_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
+	var httpErr mautrix.HTTPError
+	if err != nil && errors.As(err, &httpErr) && httpErr.RespError != nil && strings.Contains(httpErr.RespError.Err, "is already in the room") {
+		user.bridge.StateStore.SetMembership(roomID, user.MXID, event.MembershipJoin)
+		ok = true
+		return
+	} else if err != nil {
+		user.log.Warn().Err(err).Msgf("Failed to invite user to %s", roomID)
+	} else {
+		ok = true
+	}
+
+	if customPuppet != nil && customPuppet.CustomIntent() != nil {
+		err = customPuppet.CustomIntent().EnsureJoined(roomID, appservice.EnsureJoinedParams{IgnoreCache: true})
+		if err != nil {
+			user.log.Warn().Err(err).Msgf("Failed to auto-join %s", roomID)
+			ok = false
+		} else {
+			ok = true
+		}
+	}
+	return
 }
 
 // ** status.BridgeStateFiller methods **
@@ -175,11 +211,15 @@ func (user *User) GetRemoteName() string {
 
 // ** Startup, connection and shutdown methods **
 
-func (br *SignalBridge) getAllUsersWithToken() []*User {
+func (br *SignalBridge) getAllLoggedInUsers() []*User {
 	br.usersLock.Lock()
 	defer br.usersLock.Unlock()
 
-	dbUsers := br.DB.User.GetAllWithToken()
+	dbUsers, err := br.DB.User.AllLoggedIn()
+	if err != nil {
+		br.ZLog.Error().Err(err).Msg("Error fetching all logged in users")
+		return nil
+	}
 	users := make([]*User, len(dbUsers))
 
 	for idx, dbUser := range dbUsers {
@@ -215,7 +255,7 @@ func (user *User) startupTryConnect(retryCount int) {
 func (br *SignalBridge) StartUsers() {
 	br.ZLog.Debug().Msg("Starting users")
 
-	usersWithToken := br.getAllUsersWithToken()
+	usersWithToken := br.getAllLoggedInUsers()
 	for _, u := range usersWithToken {
 		go u.startupTryConnect(0)
 	}
@@ -274,7 +314,7 @@ func (user *User) Connect() error {
 
 func (user *User) incomingMessageHandler(msg string, sender string) error {
 	log.Printf("************** incomingMessageHandler message: %s sender: %s", msg, sender)
-	portal := user.GetPortalBySignalID(sender)
+	portal := user.GetPortalByChatID(sender)
 	if portal == nil {
 		log.Printf("no portal found for sender %s", sender)
 		return errors.New("no portal found for sender")
@@ -282,8 +322,12 @@ func (user *User) incomingMessageHandler(msg string, sender string) error {
 	return nil
 }
 
-func (user *User) GetPortalBySignalID(signalID string) *Portal {
-	return user.bridge.GetPortalBySignalID(database.NewPortalKey(signalID, user.SignalID))
+func (user *User) GetPortalByChatID(signalID string) *Portal {
+	pk := database.PortalKey{
+		ChatID:   signalID,
+		Receiver: user.SignalUsername,
+	}
+	return user.bridge.GetPortalByChatID(pk)
 }
 
 func (user *User) Disconnect() error {
@@ -371,7 +415,7 @@ func (user *User) getDirectChats() map[id.UserID][]id.RoomID {
 	privateChats := user.bridge.DB.Portal.FindPrivateChatsOf(user.SignalID)
 	for _, portal := range privateChats {
 		if portal.MXID != "" {
-			puppetMXID := user.bridge.FormatPuppetMXID(portal.Key.Receiver)
+			puppetMXID := user.bridge.FormatPuppetMXID(portal.Key().Receiver)
 
 			chats[puppetMXID] = []id.RoomID{portal.MXID}
 		}
