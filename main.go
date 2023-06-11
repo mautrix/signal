@@ -55,6 +55,7 @@ type SignalBridge struct {
 
 	puppets             map[string]*Puppet
 	puppetsByCustomMXID map[id.UserID]*Puppet
+	puppetsByNumber     map[string]*Puppet
 	puppetsLock         sync.Mutex
 }
 

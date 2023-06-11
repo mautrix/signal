@@ -38,10 +38,11 @@ CREATE TABLE puppet (
 );
 
 CREATE TABLE "user" (
-    mxid        TEXT PRIMARY KEY,
-    username    TEXT,
-    uuid        UUID,
-    notice_room TEXT
+    mxid            TEXT PRIMARY KEY,
+    username        TEXT,
+    uuid            UUID,
+    management_room TEXT,
+    notice_room     TEXT
 );
 
 CREATE TABLE message (

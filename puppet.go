@@ -49,6 +49,13 @@ func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
 	return puppet.customIntent
 }
 
+func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
+	if puppet.customIntent == nil || portal.Key().ChatID == puppet.SignalID {
+		return puppet.DefaultIntent()
+	}
+	return puppet.customIntent
+}
+
 // ** bridge.GhostWithProfile methods **
 func (puppet *Puppet) GetDisplayname() string {
 	return puppet.Name
@@ -112,6 +119,28 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
+		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		br.puppetsByNumber[puppet.Number] = puppet
+	}
+
+	return puppet
+}
+
+func (br *SignalBridge) GetPuppetByNumber(number string) *Puppet {
+	br.puppetsLock.Lock()
+	defer br.puppetsLock.Unlock()
+
+	puppet, ok := br.puppetsByNumber[number]
+	if !ok {
+		dbPuppet := br.DB.Puppet.GetByNumber(number)
+		if dbPuppet == nil {
+			return nil
+		}
+
+		puppet = br.NewPuppet(dbPuppet)
+		br.puppets[puppet.SignalID] = puppet
+		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		br.puppetsByNumber[puppet.Number] = puppet
 	}
 
 	return puppet
@@ -131,6 +160,7 @@ func (br *SignalBridge) GetPuppetByCustomMXID(mxid id.UserID) *Puppet {
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
 		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		br.puppetsByNumber[puppet.Number] = puppet
 	}
 
 	return puppet

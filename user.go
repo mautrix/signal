@@ -193,6 +193,40 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 	return
 }
 
+func (user *User) syncChatDoublePuppetDetails(portal *Portal, justCreated bool) {
+	doublePuppet := portal.bridge.GetPuppetByCustomMXID(user.MXID)
+	if doublePuppet == nil {
+		return
+	}
+	if doublePuppet == nil || doublePuppet.CustomIntent() == nil || len(portal.MXID) == 0 {
+		return
+	}
+
+	// TODO: Get chat setting from Signal and sync them here
+	//if justCreated || !user.bridge.Config.Bridge.TagOnlyOnCreate {
+	//	chat, err := user.SignalDevice.Store.ChatSettings.GetChatSettings(portal.Key().ChatID)
+	//	if err != nil {
+	//		user.log.Warn().Err(err).Msgf("Failed to get settings of %s", portal.Key().ChatID)
+	//		return
+	//	}
+	//	intent := doublePuppet.CustomIntent()
+	//	if portal.Key.JID == types.StatusBroadcastJID && justCreated {
+	//		if user.bridge.Config.Bridge.MuteStatusBroadcast {
+	//			user.updateChatMute(intent, portal, time.Now().Add(365*24*time.Hour))
+	//		}
+	//		if len(user.bridge.Config.Bridge.StatusBroadcastTag) > 0 {
+	//			user.updateChatTag(intent, portal, user.bridge.Config.Bridge.StatusBroadcastTag, true)
+	//		}
+	//		return
+	//	} else if !chat.Found {
+	//		return
+	//	}
+	//	user.updateChatMute(intent, portal, chat.MutedUntil)
+	//	user.updateChatTag(intent, portal, user.bridge.Config.Bridge.ArchiveTag, chat.Archived)
+	//	user.updateChatTag(intent, portal, user.bridge.Config.Bridge.PinnedTag, chat.Pinned)
+	//}
+}
+
 // ** status.BridgeStateFiller methods **
 
 func (user *User) GetMXID() id.UserID {
@@ -319,6 +353,11 @@ func (user *User) incomingMessageHandler(msg string, sender string) error {
 		log.Printf("no portal found for sender %s", sender)
 		return errors.New("no portal found for sender")
 	}
+	portalSignalMessage := portalSignalMessage{
+		user: user,
+		msg:  msg,
+	}
+	portal.signalMessages <- portalSignalMessage
 	return nil
 }
 

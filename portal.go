@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"time"
 
 	log "maunium.net/go/maulogger/v2"
 
@@ -20,7 +21,7 @@ import (
 )
 
 type portalSignalMessage struct {
-	msg  any
+	msg  string
 	user *User
 }
 
@@ -88,6 +89,7 @@ func (portal *Portal) IsPrivateChat() bool {
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
 	if portal.IsPrivateChat() {
+		portal.log.Debugln("MainIntent: Private chat, returning custom intent")
 		return portal.bridge.GetPuppetBySignalID(portal.ChatID).DefaultIntent()
 	}
 
@@ -184,7 +186,7 @@ func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
 	portal := &Portal{
 		Portal: dbPortal,
 		bridge: br,
-		log:    br.Log.Sub(fmt.Sprintf("Portal/%s", dbPortal.Key)),
+		log:    br.Log.Sub(fmt.Sprintf("Portal/%s", dbPortal.Key())),
 
 		signalMessages: make(chan portalSignalMessage, br.Config.Bridge.PortalMessageBuffer),
 		matrixMessages: make(chan portalMatrixMessage, br.Config.Bridge.PortalMessageBuffer),
@@ -200,10 +202,13 @@ func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
 
 func (portal *Portal) messageLoop() {
 	for {
+		portal.log.Debugln("Waiting for message...")
 		select {
 		case msg := <-portal.matrixMessages:
+			portal.log.Debugln("Got message from matrix")
 			portal.handleMatrixMessages(msg)
 		case msg := <-portal.signalMessages:
+			portal.log.Debugln("Got message from signal")
 			portal.handleSignalMessages(msg)
 		}
 	}
@@ -228,8 +233,49 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 		if err := portal.CreateMatrixRoom(msg.user, nil); err != nil {
 			portal.log.Errorln("Failed to create portal room:", err)
 			return
+		} else {
+			portal.log.Infoln("Created Matrix room:", portal.MXID)
 		}
 	}
+
+	intent := portal.getMessageIntent(msg.user)
+	if intent == nil {
+		portal.log.Errorln("Failed to get message intent")
+		return
+	}
+
+	timestamp := time.Now() //TODO get this from signal message
+	content := &event.MessageEventContent{
+		Body:    msg.msg,
+		MsgType: event.MsgText,
+	}
+	resp, err := portal.sendMessage(
+		intent,
+		event.EventMessage,
+		content,
+		nil,
+		timestamp.UnixMilli(), // TODO: message timestamp from Signal
+	)
+	if err != nil {
+		portal.log.Errorln("Failed to send message:", err)
+		return
+	}
+	eventID := resp.EventID
+	if eventID == "" {
+		portal.log.Errorln("Failed to send message: empty event ID")
+		return
+	}
+	dbMessage := portal.bridge.DB.Message.New()
+	dbMessage.MXID = eventID
+	dbMessage.MXRoom = portal.MXID
+	//dbMessage.Sender = "TODO" //TODO
+	dbMessage.Timestamp = timestamp
+	dbMessage.SignalChatID = portal.ChatID
+	dbMessage.SignalReceiver = portal.Receiver
+	dbMessage.Insert(nil)
+
+	// TODO: send receipt
+	// TODO: expire if it's an expiring message
 
 	//switch convertedMsg := msg.msg.(type) {
 	//case *discordgo.MessageCreate:
@@ -245,6 +291,71 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 	//default:
 	//		portal.log.Warnln("unknown message type")
 	//}
+}
+
+func (portal *Portal) sendMainIntentMessage(content *event.MessageEventContent) (*mautrix.RespSendEvent, error) {
+	return portal.sendMessage(portal.MainIntent(), event.EventMessage, content, nil, 0)
+}
+
+func (portal *Portal) encrypt(intent *appservice.IntentAPI, content *event.Content, eventType event.Type) (event.Type, error) {
+	if !portal.Encrypted || portal.bridge.Crypto == nil {
+		return eventType, nil
+	}
+	intent.AddDoublePuppetValue(content)
+	// TODO maybe the locking should be inside mautrix-go?
+	portal.encryptLock.Lock()
+	defer portal.encryptLock.Unlock()
+	err := portal.bridge.Crypto.Encrypt(portal.MXID, eventType, content)
+	if err != nil {
+		return eventType, fmt.Errorf("failed to encrypt event: %w", err)
+	}
+	return event.EventEncrypted, nil
+}
+
+func (portal *Portal) sendMessage(intent *appservice.IntentAPI, eventType event.Type, content *event.MessageEventContent, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {
+	wrappedContent := event.Content{Parsed: content, Raw: extraContent}
+	var err error
+	eventType, err = portal.encrypt(intent, &wrappedContent, eventType)
+	if err != nil {
+		return nil, err
+	}
+
+	_, _ = intent.UserTyping(portal.MXID, false, 0)
+	if timestamp == 0 {
+		return intent.SendMessageEvent(portal.MXID, eventType, &wrappedContent)
+	} else {
+		return intent.SendMassagedMessageEvent(portal.MXID, eventType, &wrappedContent, timestamp)
+	}
+}
+
+func (portal *Portal) getMessagePuppet(user *User) (puppet *Puppet) {
+	//if info.IsFromMe {
+	//return portal.bridge.GetPuppetBySignalID(user.SignalID)
+	if portal.IsPrivateChat() {
+		puppet = portal.bridge.GetPuppetByNumber(portal.Key().Receiver)
+	} // else if !info.Sender.IsEmpty() {
+	//	puppet = portal.bridge.GetPuppetBySignalID(info.Sender)
+	//}
+	if puppet == nil {
+		//	portal.log.Warnfln("Message %+v doesn't seem to have a valid sender (%s): puppet is nil", *info, info.Sender)
+		return nil
+	}
+	//user.EnqueuePortalResync(portal)
+	//puppet.SyncContact(user, true, true, "handling message")
+	return puppet
+}
+
+func (portal *Portal) getMessageIntent(user *User) *appservice.IntentAPI {
+	puppet := portal.getMessagePuppet(user)
+	if puppet == nil {
+		return nil
+	}
+	intent := puppet.IntentFor(portal)
+	if !intent.IsCustomPuppet && portal.IsPrivateChat() { //&& info.Sender.User == portal.Key.Receiver.User && portal.Key.Receiver != portal.Key.JID {
+		portal.log.Debugfln("Not handling: user doesn't have double puppeting enabled")
+		return nil
+	}
+	return intent
 }
 
 func (portal *Portal) getEncryptionEventContent() (evt *event.EncryptionEventContent) {
@@ -268,9 +379,10 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	portal.roomCreateLock.Lock()
 	defer portal.roomCreateLock.Unlock()
 	if portal.MXID != "" {
+		portal.log.Debugln("Room already exists")
 		return nil
 	}
-	portal.log.Infoln("Creating Matrix room for meta")
+	portal.log.Infoln("Creating Matrix room for meta, user WAT")
 
 	//meta = portal.UpdateInfo(user, meta)
 	//if meta == nil {
@@ -278,9 +390,16 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	//}
 
 	intent := portal.MainIntent()
+	portal.log.Infof("Intent: %+v", intent)
+
+	portal.log.Infoln("0")
+
 	if err := intent.EnsureRegistered(); err != nil {
+		portal.log.Errorln("Failed to ensure registered:", err)
 		return err
 	}
+
+	portal.log.Infoln("1")
 
 	bridgeInfoStateKey, bridgeInfo := portal.getBridgeInfo()
 	initialState := []*event.Event{{
@@ -294,6 +413,8 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		StateKey: &bridgeInfoStateKey,
 	}}
 
+	portal.log.Infoln("2")
+
 	if !portal.AvatarURL.IsEmpty() {
 		initialState = append(initialState, &event.Event{
 			Type: event.StateRoomAvatar,
@@ -302,6 +423,8 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 			}},
 		})
 	}
+
+	portal.log.Infoln("3")
 
 	creationContent := make(map[string]interface{})
 	if !portal.bridge.Config.Bridge.FederateRooms {
@@ -324,6 +447,8 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		}
 	}
 
+	portal.log.Infoln("4")
+
 	resp, err := intent.CreateRoom(&mautrix.ReqCreateRoom{
 		Visibility:      "private",
 		Name:            portal.Name,
@@ -339,6 +464,8 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		return err
 	}
 
+	portal.log.Infoln("5")
+
 	portal.NameSet = true
 	//portal.TopicSet = true
 	portal.AvatarSet = !portal.AvatarURL.IsEmpty()
@@ -349,6 +476,8 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	portal.Update()
 	portal.log.Infoln("Matrix room created:", portal.MXID)
 
+	portal.log.Infoln("6")
+
 	if portal.Encrypted && portal.IsPrivateChat() {
 		err = portal.bridge.Bot.EnsureJoined(portal.MXID, appservice.EnsureJoinedParams{BotOverride: portal.MainIntent().Client})
 		if err != nil {
@@ -356,24 +485,34 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		}
 	}
 
-	//user.ensureInvited(portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
-	//user.syncChatDoublePuppetDetails(portal, true)
+	portal.log.Infoln("7")
+
+	user.ensureInvited(portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
+	user.syncChatDoublePuppetDetails(portal, true)
+
+	portal.log.Infoln("8")
 
 	//portal.syncParticipants(user, channel.Recipients)
 
 	if portal.IsPrivateChat() {
+		portal.log.Debugln("Portal is private chat, updating direct chats")
 		puppet := user.bridge.GetPuppetBySignalID(portal.Receiver)
 
 		chats := map[id.UserID][]id.RoomID{puppet.MXID: {portal.MXID}}
 		user.UpdateDirectChats(chats)
 	}
 
+	portal.log.Infoln("9")
+
 	_, err = portal.MainIntent().SendMessageEvent(portal.MXID, portalCreationDummyEvent, struct{}{})
 	if err != nil {
 		portal.log.Errorln("Failed to send dummy event to mark portal creation:", err)
 	} else {
+		portal.log.Debugln("Sent dummy event to mark portal creation")
 		portal.Update()
 	}
+
+	portal.log.Infoln("10")
 
 	return nil
 }
@@ -390,6 +529,7 @@ var (
 func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.PortalKey) *Portal {
 	if dbPortal == nil {
 		if key == nil {
+			br.Log.Errorln("loadPortal called with nil dbPortal and nil key")
 			return nil
 		}
 
