@@ -151,7 +151,7 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 
 	ok := portal.ensureUserInvited(inviter)
 	if !ok {
-		br.Log.Warnfln("Failed to invite %s to existing private chat portal %s with %s. Redirecting portal to new room...", inviter.MXID, portal.MXID, puppet.SignalID)
+		br.ZLog.Warn().Msgf("Failed to invite %s to existing private chat portal %s with %s. Redirecting portal to new room...", inviter.MXID, portal.MXID, puppet.SignalID)
 		br.createPrivatePortalFromInvite(roomID, inviter, puppet, portal)
 		return
 	}
@@ -164,13 +164,13 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 }
 
 func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter *User, puppet *Puppet, portal *Portal) {
-	portal.log.Infofln("Creating private chat portal in %s after invite from %s", roomID, inviter.MXID)
+	portal.log.Info().Msgf("Creating private chat portal in %s after invite from %s", roomID, inviter.MXID)
 	// TODO check if room is already encrypted
 	var existingEncryption event.EncryptionEventContent
 	var encryptionEnabled bool
 	err := portal.MainIntent().StateEvent(roomID, event.StateEncryption, "", &existingEncryption)
 	if err != nil {
-		portal.log.Warnfln("Failed to check if encryption is enabled in private chat room %s", roomID)
+		portal.log.Warn().Msgf("Failed to check if encryption is enabled in private chat room %s", roomID)
 	} else {
 		encryptionEnabled = existingEncryption.Algorithm == id.AlgorithmMegolmV1
 	}
@@ -180,22 +180,22 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 	portal.AvatarURL = puppet.AvatarURL
 	portal.AvatarHash = puppet.AvatarHash
 	portal.AvatarSet = puppet.AvatarSet
-	portal.log.Infofln("Created private chat portal in %s after invite from %s", roomID, inviter.MXID)
+	portal.log.Info().Msgf("Created private chat portal in %s after invite from %s", roomID, inviter.MXID)
 	intent := puppet.DefaultIntent()
 
 	if br.Config.Bridge.Encryption.Default || encryptionEnabled {
 		_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: br.Bot.UserID})
 		if err != nil {
-			portal.log.Warnln("Failed to invite bridge bot to enable e2be:", err)
+			portal.log.Warn().Msgf("Failed to invite bridge bot to enable e2be:", err)
 		}
 		err = br.Bot.EnsureJoined(roomID)
 		if err != nil {
-			portal.log.Warnln("Failed to join as bridge bot to enable e2be:", err)
+			portal.log.Warn().Msgf("Failed to join as bridge bot to enable e2be:", err)
 		}
 		if !encryptionEnabled {
 			_, err = intent.SendStateEvent(roomID, event.StateEncryption, "", portal.getEncryptionEventContent())
 			if err != nil {
-				portal.log.Warnln("Failed to enable e2be:", err)
+				portal.log.Warn().Msgf("Failed to enable e2be:", err)
 			}
 		}
 		br.AS.StateStore.SetMembership(roomID, inviter.MXID, event.MembershipJoin)

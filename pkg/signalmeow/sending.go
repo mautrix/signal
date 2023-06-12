@@ -285,6 +285,8 @@ func sendMessage(
 		return err
 	}
 
+	var asyncError error
+
 	go func() {
 		response := <-responseChan
 		log.Printf("Received a RESPONSE! id: %v, code: %v", *response.Id, *response.Status)
@@ -292,6 +294,7 @@ func sendMessage(
 			err := handle409(ctx, d, recipientUuid, response)
 			if err != nil {
 				log.Printf("handle409 error: %v", err)
+				asyncError = err
 				return
 			}
 			// Try to send again (**RECURSIVELY**)
@@ -299,6 +302,7 @@ func sendMessage(
 			err = sendMessage(ctx, d, recipientUuid, content, retryCount+1)
 			if err != nil {
 				log.Printf("2nd try sendMessage error: %v", err)
+				asyncError = err
 				return
 			}
 		}
@@ -307,7 +311,16 @@ func sendMessage(
 	// Open our unauthenticated websocket to send
 	//payload.Request.Headers = append(payload.Request.Headers, "Unidentified-Access-Key: "+unidentifiedAccessKey)
 
-	return nil
+	return asyncError
+}
+
+func SendMessage(ctx context.Context, device *store.Device, recipientUuid string, text string) error {
+	message := &signalpb.Content{
+		DataMessage: &signalpb.DataMessage{
+			Body: proto.String(text),
+		},
+	}
+	return sendMessage(ctx, device, recipientUuid, message, 0)
 }
 
 func handle409(ctx context.Context, device *store.Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {

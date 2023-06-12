@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
 )
@@ -45,6 +46,14 @@ type BridgeConfig struct {
 	CustomEmojiReactions        bool `yaml:"custom_emoji_reactions"`
 	DeletePortalOnChannelDelete bool `yaml:"delete_portal_on_channel_delete"`
 	FederateRooms               bool `yaml:"federate_rooms"`
+
+	MessageHandlingTimeout struct {
+		ErrorAfterStr string `yaml:"error_after"`
+		DeadlineStr   string `yaml:"deadline"`
+
+		ErrorAfter time.Duration `yaml:"-"`
+		Deadline   time.Duration `yaml:"-"`
+	} `yaml:"message_handling_timeout"`
 
 	DoublePuppetServerMap      map[string]string `yaml:"double_puppet_server_map"`
 	DoublePuppetAllowDiscovery bool              `yaml:"double_puppet_allow_discovery"`
