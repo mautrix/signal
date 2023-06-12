@@ -138,6 +138,7 @@ func (br *SignalBridge) GetIGhost(mxid id.UserID) bridge.Ghost {
 }
 
 func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.User, brGhost bridge.Ghost) {
+	br.Log.Debugln("CreatePrivatePortal", roomID, brInviter, brGhost)
 	inviter := brInviter.(*User)
 	puppet := brGhost.(*Puppet)
 	key := database.NewPortalKey(inviter.SignalID, puppet.SignalID)
@@ -163,6 +164,7 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 }
 
 func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter *User, puppet *Puppet, portal *Portal) {
+	portal.log.Infofln("Creating private chat portal in %s after invite from %s", roomID, inviter.MXID)
 	// TODO check if room is already encrypted
 	var existingEncryption event.EncryptionEventContent
 	var encryptionEnabled bool
@@ -224,6 +226,7 @@ func main() {
 
 		puppets:             make(map[string]*Puppet),
 		puppetsByCustomMXID: make(map[id.UserID]*Puppet),
+		puppetsByNumber:     make(map[string]*Puppet),
 	}
 	br.Bridge = bridge.Bridge{
 		Name:         "mautrix-signal",

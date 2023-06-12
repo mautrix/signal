@@ -189,8 +189,8 @@ func (br *SignalBridge) FormatPuppetMXID(did string) id.UserID {
 }
 
 func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Puppet {
-	br.puppetsLock.Lock()
-	defer br.puppetsLock.Unlock()
+	//br.puppetsLock.Lock()
+	//defer br.puppetsLock.Unlock()
 
 	output := make([]*Puppet, len(dbPuppets))
 	for index, dbPuppet := range dbPuppets {
@@ -202,6 +202,7 @@ func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Pupp
 		if !ok {
 			puppet = br.NewPuppet(dbPuppet)
 			br.puppets[dbPuppet.SignalID] = puppet
+			br.puppetsByNumber[dbPuppet.Number] = puppet
 
 			if dbPuppet.CustomMXID != "" {
 				br.puppetsByCustomMXID[dbPuppet.CustomMXID] = puppet

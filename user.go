@@ -107,7 +107,11 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 		}
 		dbUser = br.DB.User.New()
 		dbUser.MXID = *mxid
-		dbUser.Insert()
+		err := dbUser.Insert()
+		if err != nil {
+			log.Printf("Error creating user %s: %s", mxid, err)
+			return nil
+		}
 	}
 
 	user := br.NewUser(dbUser)

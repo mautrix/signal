@@ -33,7 +33,7 @@ type User struct {
 }
 
 func (u *User) Insert() error {
-	q := `INSERT INTO "user" (mxid, username, uuid, management_room, notice_room) VALUES ($1, $2, $3, $4)`
+	q := `INSERT INTO "user" (mxid, username, uuid, management_room, notice_room) VALUES ($1, $2, $3, $4, $5)`
 	_, err := u.db.Exec(q, u.MXID, u.SignalUsername, u.SignalID, u.ManagementRoom, u.NoticeRoom)
 	return err
 }
@@ -45,7 +45,7 @@ func (u *User) Update() error {
 }
 
 func (u *User) Scan(row dbutil.Scannable) *User {
-	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.NoticeRoom)
+	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.ManagementRoom, &u.NoticeRoom)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			u.log.Errorln("Database scan failed:", err)

@@ -66,7 +66,7 @@ func (p *Portal) values() []interface{} {
 		p.Name,
 		p.Topic,
 		p.AvatarHash,
-		p.AvatarURL,
+		p.AvatarURL.String(),
 		p.NameSet,
 		p.AvatarSet,
 		p.Revision,
@@ -77,6 +77,11 @@ func (p *Portal) values() []interface{} {
 }
 
 func (p *Portal) Scan(row dbutil.Scannable) *Portal {
+	if row == nil {
+		p.log.Debugln("nil row passed to Portal.Scan")
+		return nil
+	}
+	var avatarURL string
 	err := row.Scan(
 		&p.ChatID,
 		&p.Receiver,
@@ -84,7 +89,7 @@ func (p *Portal) Scan(row dbutil.Scannable) *Portal {
 		&p.Name,
 		&p.Topic,
 		&p.AvatarHash,
-		&p.AvatarURL,
+		&avatarURL,
 		&p.NameSet,
 		&p.AvatarSet,
 		&p.Revision,
@@ -95,8 +100,14 @@ func (p *Portal) Scan(row dbutil.Scannable) *Portal {
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			p.log.Warnfln("Error scanning portal row: %w", err)
+		} else {
+			p.log.Debugln("No portal row found")
 		}
 		return nil
+	}
+	p.AvatarURL, err = id.ParseContentURI(avatarURL)
+	if err != nil {
+		p.log.Warnfln("Error parsing avatar URL: %w", err)
 	}
 	return p
 }
@@ -137,28 +148,35 @@ func (p *Portal) Update() error {
 
 const (
 	portalColumns = `
-        "chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set, "
-        "revision, encrypted, relay_user_id, expiration_time"
+        chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,
+        revision, encrypted, relay_user_id, expiration_time
 	`
 )
 
 func (pq *PortalQuery) GetByMXID(mxid id.RoomID) *Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal WHERE mxid=$1", portalColumns)
+	log.Debugfln("mxid: %s", mxid.String())
+	log.Debugfln("QUERY: %s", q)
 	row := pq.db.QueryRow(q, mxid.String())
-	p := &Portal{}
+	log.Debugfln("ROW: %s", row)
+	p := pq.New()
 	return p.Scan(row)
 }
 
 func (pq *PortalQuery) GetByChatID(pk PortalKey) *Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal WHERE chat_id=$1 AND receiver=$2", portalColumns)
+	log.Debugfln("QUERY: %s", q)
 	row := pq.db.QueryRow(q, pk.ChatID, pk.Receiver)
-	p := &Portal{}
+	log.Debugfln("ROW: %s", row)
+	p := pq.New()
 	return p.Scan(row)
 }
 
 func (pq *PortalQuery) FindPrivateChatsOf(receiver string) []*Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal WHERE receiver=$1", portalColumns)
 	rows, err := pq.db.Query(q, receiver)
+	log.Debugfln("receiver: %s", receiver)
+	log.Debugfln("QUERY: %s", q)
 	if err != nil {
 		pq.log.Warnfln("Error querying private chats of %s: %w", receiver, err)
 		return nil
@@ -166,7 +184,7 @@ func (pq *PortalQuery) FindPrivateChatsOf(receiver string) []*Portal {
 	defer rows.Close()
 	var portals []*Portal
 	for rows.Next() {
-		p := &Portal{}
+		p := pq.New()
 		if p.Scan(rows) != nil {
 			portals = append(portals, p)
 		}
@@ -177,6 +195,8 @@ func (pq *PortalQuery) FindPrivateChatsOf(receiver string) []*Portal {
 func (pq *PortalQuery) FindPrivateChatsWith(otherUser string) []*Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal WHERE chat_id=$1 AND receiver<>''", portalColumns)
 	rows, err := pq.db.Query(q, otherUser)
+	log.Debugfln("otherUser: %s", otherUser)
+	log.Debugfln("QUERY: %s", q)
 	if err != nil {
 		pq.log.Warnfln("Error querying private chats with %s: %w", otherUser, err)
 		return nil
@@ -184,7 +204,7 @@ func (pq *PortalQuery) FindPrivateChatsWith(otherUser string) []*Portal {
 	defer rows.Close()
 	var portals []*Portal
 	for rows.Next() {
-		p := &Portal{}
+		p := pq.New()
 		if p.Scan(rows) != nil {
 			portals = append(portals, p)
 		}
@@ -195,6 +215,7 @@ func (pq *PortalQuery) FindPrivateChatsWith(otherUser string) []*Portal {
 func (pq *PortalQuery) AllWithRoom() []*Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal WHERE mxid IS NOT NULL", portalColumns)
 	rows, err := pq.db.Query(q)
+	log.Debugfln("BY ISTESF QUERY: %s", q)
 	if err != nil {
 		pq.log.Warnfln("Error querying all portals with room: %w", err)
 		return nil
@@ -202,7 +223,7 @@ func (pq *PortalQuery) AllWithRoom() []*Portal {
 	defer rows.Close()
 	var portals []*Portal
 	for rows.Next() {
-		p := &Portal{}
+		p := pq.New()
 		if p.Scan(rows) != nil {
 			portals = append(portals, p)
 		}
@@ -213,6 +234,7 @@ func (pq *PortalQuery) AllWithRoom() []*Portal {
 func (pq *PortalQuery) GetAll() []*Portal {
 	q := fmt.Sprintf("SELECT %s FROM portal", portalColumns)
 	rows, err := pq.db.Query(q)
+	log.Debugfln("ALLQUERY: %s", q)
 	if err != nil {
 		pq.log.Warnfln("Error querying all portals: %w", err)
 		return nil
@@ -220,7 +242,7 @@ func (pq *PortalQuery) GetAll() []*Portal {
 	defer rows.Close()
 	var portals []*Portal
 	for rows.Next() {
-		p := &Portal{}
+		p := pq.New()
 		if p.Scan(rows) != nil {
 			portals = append(portals, p)
 		}

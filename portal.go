@@ -332,7 +332,7 @@ func (portal *Portal) getMessagePuppet(user *User) (puppet *Puppet) {
 	//if info.IsFromMe {
 	//return portal.bridge.GetPuppetBySignalID(user.SignalID)
 	if portal.IsPrivateChat() {
-		puppet = portal.bridge.GetPuppetByNumber(portal.Key().Receiver)
+		puppet = portal.bridge.GetPuppetBySignalID(portal.ChatID)
 	} // else if !info.Sender.IsEmpty() {
 	//	puppet = portal.bridge.GetPuppetBySignalID(info.Sender)
 	//}
@@ -348,13 +348,14 @@ func (portal *Portal) getMessagePuppet(user *User) (puppet *Puppet) {
 func (portal *Portal) getMessageIntent(user *User) *appservice.IntentAPI {
 	puppet := portal.getMessagePuppet(user)
 	if puppet == nil {
+		portal.log.Debugfln("Not handling: puppet is nil")
 		return nil
 	}
 	intent := puppet.IntentFor(portal)
-	if !intent.IsCustomPuppet && portal.IsPrivateChat() { //&& info.Sender.User == portal.Key.Receiver.User && portal.Key.Receiver != portal.Key.JID {
-		portal.log.Debugfln("Not handling: user doesn't have double puppeting enabled")
-		return nil
-	}
+	//if !intent.IsCustomPuppet && portal.IsPrivateChat() { //&& info.Sender.User == portal.Key.Receiver.User && portal.Key.Receiver != portal.Key.JID {
+	//	portal.log.Debugfln("Not handling: user doesn't have double puppeting enabled")
+	//	return nil
+	//}
 	return intent
 }
 
@@ -535,7 +536,11 @@ func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.Port
 
 		dbPortal = br.DB.Portal.New()
 		dbPortal.SetPortalKey(*key)
-		dbPortal.Insert()
+		err := dbPortal.Insert()
+		if err != nil {
+			br.Log.Errorln("Failed to insert new portal:", err)
+			return nil
+		}
 	}
 
 	portal := br.NewPortal(dbPortal)
