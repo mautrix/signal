@@ -112,11 +112,18 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 	if !ok {
 		dbPuppet := br.DB.Puppet.GetBySignalID(id)
 		if dbPuppet == nil {
+			br.ZLog.Warn().Str("signal_user_id", id).Msg("******* Puppet not found in database, creating new entry")
 			dbPuppet = br.DB.Puppet.New()
 			dbPuppet.SignalID = id
-			dbPuppet.Insert()
+			dbPuppet.Number =
+			err := dbPuppet.Insert()
+			if err != nil {
+				br.ZLog.Error().Err(err).Str("signal_user_id", id).Msg("Error creating new puppet")
+				return nil
+			}
 		}
 
+		br.ZLog.Debug().Str("signal_user_id", id).Msg("**** Puppet found in database")
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
 		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet

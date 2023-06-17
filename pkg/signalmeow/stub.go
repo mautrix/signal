@@ -150,3 +150,6 @@ func setupLogging() {
 		loggingSetup = true
 	}
 }
+
+// TODO find a better home for this
+func RetrieveProfileById(ctx context.Context, address string, profileKey libsignalgo.ProfileKey)
