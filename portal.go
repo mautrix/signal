@@ -23,8 +23,9 @@ import (
 )
 
 type portalSignalMessage struct {
-	msg  string
-	user *User
+	msg    string
+	user   *User
+	sender *Puppet
 }
 
 type portalMatrixMessage struct {
@@ -338,6 +339,14 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	//go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
 		//dbMsg.MarkSent(resp.Timestamp)
+		dbMessage := portal.bridge.DB.Message.New()
+		dbMessage.MXID = evt.ID
+		dbMessage.MXRoom = portal.MXID
+		dbMessage.Sender = sender.SignalID
+		dbMessage.Timestamp = start // TODO: get timestamp from signal
+		dbMessage.SignalChatID = portal.ChatID
+		dbMessage.SignalReceiver = portal.Receiver
+		dbMessage.Insert(nil)
 	}
 }
 
@@ -474,10 +483,13 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 		portal.log.Error().Err(err).Msg("Failed to send message, no event ID")
 		return
 	}
+
+	portal.log.Info().Msgf("**** sender: %v", msg.sender)
+	portal.log.Info().Msgf("**** sender.signalid: %v", msg.sender.SignalID)
 	dbMessage := portal.bridge.DB.Message.New()
 	dbMessage.MXID = eventID
 	dbMessage.MXRoom = portal.MXID
-	//dbMessage.Sender = "TODO" //TODO
+	dbMessage.Sender = msg.sender.SignalID
 	dbMessage.Timestamp = timestamp
 	dbMessage.SignalChatID = portal.ChatID
 	dbMessage.SignalReceiver = portal.Receiver

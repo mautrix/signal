@@ -39,8 +39,6 @@ type User struct {
 
 	SignalDevice *meowstore.Device
 
-	ManagementRoom id.RoomID
-
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
 	wasDisconnected bool
@@ -276,8 +274,9 @@ func (user *User) startupTryConnect(retryCount int) {
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
 		//closeErr := &websocket.CloseError{}
-		if false { // invalid auth error
-			//user.invalidAuthHandler(nil, nil)
+		if errors.Is(err, ErrNotLoggedIn) {
+			user.log.Warn().Msg("Not logged in, skipping startup retry")
+			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut})
 		} else if retryCount < 6 {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 			retryInSeconds := 2 << retryCount
@@ -358,8 +357,9 @@ func (user *User) incomingMessageHandler(msg string, sender string) error {
 		return errors.New("no portal found for sender")
 	}
 	portalSignalMessage := portalSignalMessage{
-		user: user,
-		msg:  msg,
+		user:   user,
+		msg:    msg,
+		sender: portal.getMessagePuppet(user),
 	}
 	portal.signalMessages <- portalSignalMessage
 	return nil

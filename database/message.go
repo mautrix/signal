@@ -68,6 +68,7 @@ func (msg *Message) Insert(txn dbutil.Execable) {
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`,
 		msg.MXID.String(), msg.MXRoom, msg.Sender, msg.Timestamp.UnixMilli(), msg.SignalChatID, msg.SignalReceiver)
+	msg.log.Debugfln("Inserting message", msg.MXID, msg.MXRoom, msg.Sender, msg.Timestamp.UnixMilli(), msg.SignalChatID, msg.SignalReceiver)
 	if err != nil {
 		msg.log.Warnfln("Failed to insert %s, %s: %v", msg.SignalChatID, msg.MXID, err)
 	}
