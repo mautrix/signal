@@ -52,33 +52,30 @@ func (sc *ServerCertificate) Destroy() error {
 }
 
 func (sc *ServerCertificate) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_server_certificate_get_serialized(&serialized, &length, sc.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_server_certificate_get_serialized(&serialized, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (sc *ServerCertificate) GetCertificate() ([]byte, error) {
-	var certificate *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_server_certificate_get_certificate(&certificate, &length, sc.ptr)
+	var certificate C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_server_certificate_get_certificate(&certificate, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(certificate, length), nil
+	return CopySignalOwnedBufferToBytes(certificate), nil
 }
 
 func (sc *ServerCertificate) GetSignature() ([]byte, error) {
-	var signature *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_server_certificate_get_signature(&signature, &length, sc.ptr)
+	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_server_certificate_get_signature(&signature, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(signature, length), nil
+	return CopySignalOwnedBufferToBytes(signature), nil
 }
 
 func (sc *ServerCertificate) GetKeyId() (uint32, error) {

@@ -36,13 +36,12 @@ func DeserializePublicKey(keyData []byte) (*PublicKey, error) {
 }
 
 func (pk *PublicKey) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_publickey_serialize(&serialized, &length, pk.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_publickey_serialize(&serialized, pk.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (k *PublicKey) Destroy() error {
@@ -60,13 +59,12 @@ func (k *PublicKey) Compare(other *PublicKey) (int, error) {
 }
 
 func (k *PublicKey) Bytes() ([]byte, error) {
-	var pub *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_publickey_get_public_key_bytes(&pub, &length, k.ptr)
+	var pub C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_publickey_get_public_key_bytes(&pub, k.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(pub, length), nil
+	return CopySignalOwnedBufferToBytes(pub), nil
 }
 
 func (k *PublicKey) Verify(message, signature []byte) (bool, error) {

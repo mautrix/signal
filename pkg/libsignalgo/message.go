@@ -15,11 +15,9 @@ func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, 
 	contextPointer := gopointer.Save(ctx)
 	defer gopointer.Unref(contextPointer)
 
-	var decrypted *C.uchar
-	var length C.ulong
+	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_message(
 		&decrypted,
-		&length,
 		message.ptr,
 		fromAddress.ptr,
 		wrapSessionStore(sessionStore),
@@ -29,7 +27,7 @@ func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, 
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
-	return CopyBufferToBytes(decrypted, length), nil
+	return CopySignalOwnedBufferToBytes(decrypted), nil
 }
 
 type Message struct {
@@ -66,23 +64,21 @@ func (m *Message) Destroy() error {
 }
 
 func (m *Message) GetBody() ([]byte, error) {
-	var body *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_message_get_body(&body, &length, m.ptr)
+	var body C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_message_get_body(&body, m.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(body, length), nil
+	return CopySignalOwnedBufferToBytes(body), nil
 }
 
 func (m *Message) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_message_get_serialized(&serialized, &length, m.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_message_get_serialized(&serialized, m.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (m *Message) GetMessageVersion() (uint32, error) {

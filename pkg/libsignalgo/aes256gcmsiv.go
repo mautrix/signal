@@ -32,21 +32,20 @@ func (aes *AES256_GCM_SIV) Destroy() error {
 }
 
 func (aes *AES256_GCM_SIV) Encrypt(plaintext, nonce, associatedData []byte) ([]byte, error) {
-	var encrypted *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_aes256_gcm_siv_encrypt(&encrypted, &length, aes.ptr, BytesToBuffer(plaintext), BytesToBuffer(nonce), BytesToBuffer(associatedData))
+	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+
+	signalFfiError := C.signal_aes256_gcm_siv_encrypt(&encrypted, aes.ptr, BytesToBuffer(plaintext), BytesToBuffer(nonce), BytesToBuffer(associatedData))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(encrypted, length), nil
+	return CopySignalOwnedBufferToBytes(encrypted), nil
 }
 
 func (aes *AES256_GCM_SIV) Decrypt(ciphertext, nonce, associatedData []byte) ([]byte, error) {
-	var decrypted *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_aes256_gcm_siv_decrypt(&decrypted, &length, aes.ptr, BytesToBuffer(ciphertext), BytesToBuffer(nonce), BytesToBuffer(associatedData))
+	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_aes256_gcm_siv_decrypt(&decrypted, aes.ptr, BytesToBuffer(ciphertext), BytesToBuffer(nonce), BytesToBuffer(associatedData))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(decrypted, length), nil
+	return CopySignalOwnedBufferToBytes(decrypted), nil
 }

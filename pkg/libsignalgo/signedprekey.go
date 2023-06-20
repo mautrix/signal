@@ -61,23 +61,21 @@ func (spkr *SignedPreKeyRecord) Destroy() error {
 }
 
 func (spkr *SignedPreKeyRecord) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_signed_pre_key_record_serialize(&serialized, &length, spkr.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_signed_pre_key_record_serialize(&serialized, spkr.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (spkr *SignedPreKeyRecord) GetSignature() ([]byte, error) {
-	var signature *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_signed_pre_key_record_get_signature(&signature, &length, spkr.ptr)
+	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_signed_pre_key_record_get_signature(&signature, spkr.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(signature, length), nil
+	return CopySignalOwnedBufferToBytes(signature), nil
 }
 
 func (spkr *SignedPreKeyRecord) GetID() (uint, error) {

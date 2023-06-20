@@ -38,6 +38,7 @@ func wrapPreKeyBundle(ptr *C.SignalPreKeyBundle) *PreKeyBundle {
 func NewPreKeyBundleWithoutPrekey(registrationID uint32, deviceID uint32, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *IdentityKey) (*PreKeyBundle, error) {
 	var pkb *C.SignalPreKeyBundle
 	var zero uint32 = 0
+	var kyberSignatureBuffer = BytesToBuffer([]byte{0}) // Empty buffer
 	signalFfiError := C.signal_pre_key_bundle_new(
 		&pkb,
 		C.uint32_t(registrationID),
@@ -48,6 +49,9 @@ func NewPreKeyBundleWithoutPrekey(registrationID uint32, deviceID uint32, signed
 		signedPreKey.ptr,
 		BytesToBuffer(signedPreKeySignature),
 		identityKey.publicKey.ptr,
+		C.uint32_t(^zero), // No kyber prekey either
+		nil,
+		kyberSignatureBuffer,
 	)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -57,6 +61,8 @@ func NewPreKeyBundleWithoutPrekey(registrationID uint32, deviceID uint32, signed
 
 func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, preKey *PublicKey, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *IdentityKey) (*PreKeyBundle, error) {
 	var pkb *C.SignalPreKeyBundle
+	var zero uint32 = 0
+	var kyberSignatureBuffer = BytesToBuffer([]byte{0}) // Empty buffer
 	signalFfiError := C.signal_pre_key_bundle_new(
 		&pkb,
 		C.uint32_t(registrationID),
@@ -67,6 +73,9 @@ func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, pr
 		signedPreKey.ptr,
 		BytesToBuffer(signedPreKeySignature),
 		identityKey.publicKey.ptr,
+		C.uint32_t(^zero), // No kyber prekey
+		nil,
+		kyberSignatureBuffer,
 	)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)

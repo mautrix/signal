@@ -36,11 +36,9 @@ func GroupDecrypt(ctext []byte, sender *Address, store SenderKeyStore, ctx *Call
 	contextPointer := gopointer.Save(ctx)
 	defer gopointer.Unref(contextPointer)
 
-	var resp *C.uchar
-	var length C.ulong
+	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_group_decrypt_message(
 		&resp,
-		&length,
 		sender.ptr,
 		BytesToBuffer(ctext),
 		wrapSenderKeyStore(store),
@@ -48,5 +46,5 @@ func GroupDecrypt(ctext []byte, sender *Address, store SenderKeyStore, ctx *Call
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
-	return CopyBufferToBytes(resp, length), nil
+	return CopySignalOwnedBufferToBytes(resp), nil
 }

@@ -62,13 +62,12 @@ func (dem *DecryptionErrorMessage) Destroy() error {
 }
 
 func (dem *DecryptionErrorMessage) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_decryption_error_message_serialize(&serialized, &length, dem.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_decryption_error_message_serialize(&serialized, dem.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (dem *DecryptionErrorMessage) GetTimestamp() (time.Time, error) {

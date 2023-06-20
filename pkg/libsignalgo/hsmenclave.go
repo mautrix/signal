@@ -32,13 +32,12 @@ func (hsm *HSMEnclaveClient) Destroy() error {
 }
 
 func (hsm *HSMEnclaveClient) InitialRequest() ([]byte, error) {
-	var resp *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_hsm_enclave_client_initial_request(&resp, &length, hsm.ptr)
+	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_hsm_enclave_client_initial_request(&resp, hsm.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(resp, length), nil
+	return CopySignalOwnedBufferToBytes(resp), nil
 }
 
 func (hsm *HSMEnclaveClient) CompleteHandshake(handshakeReceived []byte) error {
@@ -47,21 +46,19 @@ func (hsm *HSMEnclaveClient) CompleteHandshake(handshakeReceived []byte) error {
 }
 
 func (hsm *HSMEnclaveClient) EstablishedSend(plaintext []byte) ([]byte, error) {
-	var resp *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_hsm_enclave_client_established_send(&resp, &length, hsm.ptr, BytesToBuffer(plaintext))
+	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_hsm_enclave_client_established_send(&resp, hsm.ptr, BytesToBuffer(plaintext))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(resp, length), nil
+	return CopySignalOwnedBufferToBytes(resp), nil
 }
 
 func (cds *HSMEnclaveClient) EstablishedReceive(ciphertext []byte) ([]byte, error) {
-	var resp *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_hsm_enclave_client_established_recv(&resp, &length, cds.ptr, BytesToBuffer(ciphertext))
+	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_hsm_enclave_client_established_recv(&resp, cds.ptr, BytesToBuffer(ciphertext))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(resp, length), nil
+	return CopySignalOwnedBufferToBytes(resp), nil
 }

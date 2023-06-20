@@ -57,33 +57,30 @@ func (sc *SenderCertificate) Destroy() error {
 }
 
 func (sc *SenderCertificate) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_sender_certificate_get_serialized(&serialized, &length, sc.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_sender_certificate_get_serialized(&serialized, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (sc *SenderCertificate) GetCertificate() ([]byte, error) {
-	var certificate *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_sender_certificate_get_certificate(&certificate, &length, sc.ptr)
+	var certificate C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_sender_certificate_get_certificate(&certificate, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(certificate, length), nil
+	return CopySignalOwnedBufferToBytes(certificate), nil
 }
 
 func (sc *SenderCertificate) GetSignature() ([]byte, error) {
-	var signature *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_sender_certificate_get_signature(&signature, &length, sc.ptr)
+	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_sender_certificate_get_signature(&signature, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(signature, length), nil
+	return CopySignalOwnedBufferToBytes(signature), nil
 }
 
 func (sc *SenderCertificate) GetSenderUUID() (uuid.UUID, error) {
@@ -108,7 +105,7 @@ func (sc *SenderCertificate) GetSenderE164() (string, error) {
 }
 
 func (sc *SenderCertificate) GetExpiration() (time.Time, error) {
-	var expiration C.ulong
+	var expiration C.ulonglong
 	signalFfiError := C.signal_sender_certificate_get_expiration(&expiration, sc.ptr)
 	if signalFfiError != nil {
 		return time.Time{}, wrapError(signalFfiError)

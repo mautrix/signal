@@ -41,13 +41,12 @@ func (c *CiphertextMessage) Destroy() error {
 }
 
 func (c *CiphertextMessage) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_ciphertext_message_serialize(&serialized, &length, c.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_ciphertext_message_serialize(&serialized, c.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (c *CiphertextMessage) MessageType() (CiphertextMessageType, error) {

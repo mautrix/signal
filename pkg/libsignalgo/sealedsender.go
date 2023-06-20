@@ -49,11 +49,9 @@ func SealedSenderEncrypt(messageContent *UnidentifiedSenderMessageContent, forRe
 	contextPointer := gopointer.Save(ctx)
 	defer gopointer.Unref(contextPointer)
 
-	var encrypted *C.uchar
-	var length C.ulong
+	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sealed_session_cipher_encrypt(
 		&encrypted,
-		&length,
 		forRecipient.ptr,
 		messageContent.ptr,
 		wrapIdentityKeyStore(identityStore),
@@ -62,7 +60,7 @@ func SealedSenderEncrypt(messageContent *UnidentifiedSenderMessageContent, forRe
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
-	return CopyBufferToBytes(encrypted, length), nil
+	return CopySignalOwnedBufferToBytes(encrypted), nil
 }
 
 func SealedSenderMultiRecipientEncrypt(messageContent *UnidentifiedSenderMessageContent, forRecipients []*Address, identityStore IdentityKeyStore, sessionStore SessionStore, ctx *CallbackContext) ([]byte, error) {
@@ -91,15 +89,13 @@ func SealedSenderDecrypt(
 	contextPointer := gopointer.Save(ctx)
 	defer gopointer.Unref(contextPointer)
 
-	var decrypted *C.uchar
-	var length C.ulong
+	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	var senderE164 *C.char
 	var senderUUID *C.char
 	var senderDeviceID C.uint32_t
 
 	signalFfiError := C.signal_sealed_session_cipher_decrypt(
 		&decrypted,
-		&length,
 		&senderE164,
 		&senderUUID,
 		&senderDeviceID,
@@ -124,7 +120,7 @@ func SealedSenderDecrypt(
 	defer C.signal_free_string(senderUUID)
 
 	return SealedSenderResult{
-		Message: CopyBufferToBytes(decrypted, length),
+		Message: CopySignalOwnedBufferToBytes(decrypted),
 		Sender: SealedSenderAddress{
 			E164:     C.GoString(senderE164),
 			UUID:     uuid.MustParse(C.GoString(senderUUID)),
@@ -193,37 +189,35 @@ func (usmc *UnidentifiedSenderMessageContent) Destroy() error {
 }
 
 func (usmc *UnidentifiedSenderMessageContent) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_unidentified_sender_message_content_serialize(&serialized, &length, usmc.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_unidentified_sender_message_content_serialize(&serialized, usmc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (usmc *UnidentifiedSenderMessageContent) GetContents() ([]byte, error) {
-	var contents *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_unidentified_sender_message_content_get_contents(&contents, &length, usmc.ptr)
+	var contents C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_unidentified_sender_message_content_get_contents(&contents, usmc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(contents, length), nil
+	return CopySignalOwnedBufferToBytes(contents), nil
 }
 
-func (usmc *UnidentifiedSenderMessageContent) GetGroupID() ([]byte, error) {
-	var groupID *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_unidentified_sender_message_content_get_group_id(&groupID, &length, usmc.ptr)
-	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
-	}
-	if groupID == nil {
-		return nil, nil
-	}
-	return CopyBufferToBytes(groupID, length), nil
-}
+//func (usmc *UnidentifiedSenderMessageContent) GetGroupID() ([]byte, error) {
+//	var groupID *C.uchar
+//	var length C.ulong
+//	signalFfiError := C.signal_unidentified_sender_message_content_get_group_id(&groupID, &length, usmc.ptr)
+//	if signalFfiError != nil {
+//		return nil, wrapError(signalFfiError)
+//	}
+//	if groupID == nil {
+//		return nil, nil
+//	}
+//	return CopyBufferToBytes(groupID, length), nil
+//}
 
 func (usmc *UnidentifiedSenderMessageContent) GetSenderCertificate() (*SenderCertificate, error) {
 	var senderCertificate *C.SignalSenderCertificate
@@ -251,63 +245,3 @@ func (usmc *UnidentifiedSenderMessageContent) GetContentHint() (UnidentifiedSend
 	}
 	return UnidentifiedSenderMessageContentHint(contentHint), nil
 }
-
-/*
-func SealedSenderDecrypt(
-	ciphertext []byte,
-	trustRoot *PublicKey,
-	timestamp uint64,
-	localE164 *string,
-	localUuid string,
-	localDeviceId uint32,
-	sessionStore SessionStore,
-	identityStore IdentityKeyStore,
-	preKeyStore PreKeyStore,
-	signedPreKeyStore SignedPreKeyStore,
-	ctx *CallbackContext,
-) (*SealedSenderAddress, []byte, error) {
-	contextPtr := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPtr)
-
-	var plaintext *C.uchar
-	var plaintextLength C.ulong
-	var senderE164 *C.char
-	var senderUuid *C.char
-	var senderDeviceId C.uint32_t
-	signalFfiError := C.signal_sealed_session_cipher_decrypt(
-		&plaintext,
-		&plaintextLength,
-		&senderE164,
-		&senderUuid,
-		&senderDeviceId,
-		BytesToBuffer(ciphertext),
-		trustRoot.ptr,
-		C.uint64_t(timestamp),
-		nil, //C.CString(*localE164), // TODO: make optional localE164
-		C.CString(localUuid),
-		C.uint32_t(localDeviceId),
-		wrapSessionStore(sessionStore),
-		wrapIdentityKeyStore(identityStore),
-		wrapPreKeyStore(preKeyStore),
-		wrapSignedPreKeyStore(signedPreKeyStore),
-		contextPtr,
-	)
-	if signalFfiError != nil {
-		return nil, nil, wrapError(signalFfiError)
-	}
-
-	senderUuidString := CopyCStringToString(senderUuid)
-	uuid, err := uuid.Parse(senderUuidString)
-	if err != nil {
-		log.Println("Error parsing UUID:", err)
-		return nil, nil, err
-	}
-
-	address := &SealedSenderAddress{
-		E164:     CopyCStringToString(senderE164),
-		UUID:     uuid,
-		DeviceID: uint32(senderDeviceId),
-	}
-	return address, CopyBufferToBytes(plaintext, plaintextLength), nil
-}
-*/

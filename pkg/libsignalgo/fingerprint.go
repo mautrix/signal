@@ -48,13 +48,12 @@ func (f *Fingerprint) Destroy() error {
 }
 
 func (f *Fingerprint) ScannableEncoding() ([]byte, error) {
-	var scannableEncoding *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_fingerprint_scannable_encoding(&scannableEncoding, &length, f.ptr)
+	var scannableEncoding C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_fingerprint_scannable_encoding(&scannableEncoding, f.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(scannableEncoding, length), nil
+	return CopySignalOwnedBufferToBytes(scannableEncoding), nil
 }
 
 func (f *Fingerprint) DisplayString() (string, error) {

@@ -41,13 +41,12 @@ func (m *PreKeyMessage) Destroy() error {
 }
 
 func (m *PreKeyMessage) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_pre_key_signal_message_serialize(&serialized, &length, m.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_pre_key_signal_message_serialize(&serialized, m.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (m *PreKeyMessage) GetVersion() (uint32, error) {

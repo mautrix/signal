@@ -60,31 +60,28 @@ func (pk *PrivateKey) GetPublicKey() (*PublicKey, error) {
 }
 
 func (pk *PrivateKey) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_privatekey_serialize(&serialized, &length, pk.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_privatekey_serialize(&serialized, pk.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (pk *PrivateKey) Sign(message []byte) ([]byte, error) {
-	var signed *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_privatekey_sign(&signed, &length, pk.ptr, BytesToBuffer(message))
+	var signed C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_privatekey_sign(&signed, pk.ptr, BytesToBuffer(message))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(signed, length), nil
+	return CopySignalOwnedBufferToBytes(signed), nil
 }
 
 func (pk *PrivateKey) Agree(publicKey *PublicKey) ([]byte, error) {
-	var agreed *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_privatekey_agree(&agreed, &length, pk.ptr, publicKey.ptr)
+	var agreed C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_privatekey_agree(&agreed, pk.ptr, publicKey.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(agreed, length), nil
+	return CopySignalOwnedBufferToBytes(agreed), nil
 }

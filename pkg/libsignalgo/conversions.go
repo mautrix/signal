@@ -18,3 +18,9 @@ func CopyBufferToBytes(buffer *C.uchar, length C.size_t) (b []byte) {
 	C.signal_free_buffer(buffer, length)
 	return
 }
+
+func CopySignalOwnedBufferToBytes(buffer C.SignalOwnedBuffer) (b []byte) {
+	b = C.GoBytes(unsafe.Pointer(buffer.base), C.int(buffer.length))
+	C.signal_free_buffer(buffer.base, buffer.length)
+	return
+}

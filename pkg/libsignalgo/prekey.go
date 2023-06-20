@@ -15,23 +15,22 @@ func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionSt
 	contextPointer := gopointer.Save(ctx)
 	defer gopointer.Unref(contextPointer)
 
-	var decrypted *C.uchar
-	var length C.ulong
+	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_pre_key_message(
 		&decrypted,
-		&length,
 		preKeyMessage.ptr,
 		fromAddress.ptr,
 		wrapSessionStore(sessionStore),
 		wrapIdentityKeyStore(identityStore),
 		wrapPreKeyStore(preKeyStore),
 		wrapSignedPreKeyStore(signedPreKeyStore),
+		nil, // TODO: support Kyber prekeys I guess
 		contextPointer,
 	)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
-	return CopyBufferToBytes(decrypted, length), nil
+	return CopySignalOwnedBufferToBytes(decrypted), nil
 }
 
 type PreKeyRecord struct {
@@ -86,13 +85,12 @@ func (pkr *PreKeyRecord) Destroy() error {
 }
 
 func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_pre_key_record_serialize(&serialized, &length, pkr.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_pre_key_record_serialize(&serialized, pkr.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (pkr *PreKeyRecord) GetID() (uint, error) {

@@ -89,13 +89,12 @@ func NewIdentityKeyPair(publicKey *PublicKey, privateKey *PrivateKey) (*Identity
 }
 
 func (i *IdentityKeyPair) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_identitykeypair_serialize(&serialized, &length, i.publicKey.ptr, i.privateKey.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_identitykeypair_serialize(&serialized, i.publicKey.ptr, i.privateKey.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (i *IdentityKeyPair) GetIdentityKey() *IdentityKey {
@@ -103,11 +102,10 @@ func (i *IdentityKeyPair) GetIdentityKey() *IdentityKey {
 }
 
 func (i *IdentityKeyPair) SignAlternateIdentity(other *IdentityKey) ([]byte, error) {
-	var signature *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_identitykeypair_sign_alternate_identity(&signature, &length, i.publicKey.ptr, i.privateKey.ptr, other.publicKey.ptr)
+	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_identitykeypair_sign_alternate_identity(&signature, i.publicKey.ptr, i.privateKey.ptr, other.publicKey.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(signature, length), nil
+	return CopySignalOwnedBufferToBytes(signature), nil
 }

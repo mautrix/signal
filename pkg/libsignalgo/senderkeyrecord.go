@@ -29,13 +29,12 @@ func DeserializeSenderKeyRecord(serialized []byte) (*SenderKeyRecord, error) {
 }
 
 func (skr *SenderKeyRecord) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_sender_key_record_serialize(&serialized, &length, skr.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_sender_key_record_serialize(&serialized, skr.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (skr *SenderKeyRecord) Clone() (*SenderKeyRecord, error) {

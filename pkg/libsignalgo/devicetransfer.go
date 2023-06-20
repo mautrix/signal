@@ -11,13 +11,12 @@ type DeviceTransferKey struct {
 }
 
 func GenerateDeviceTransferKey() (*DeviceTransferKey, error) {
-	var resp *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_device_transfer_generate_private_key(&resp, &length)
+	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_device_transfer_generate_private_key(&resp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return &DeviceTransferKey{privateKey: CopyBufferToBytes(resp, length)}, nil
+	return &DeviceTransferKey{privateKey: CopySignalOwnedBufferToBytes(resp)}, nil
 }
 
 func (dtk *DeviceTransferKey) PrivateKeyMaterial() []byte {
@@ -25,11 +24,10 @@ func (dtk *DeviceTransferKey) PrivateKeyMaterial() []byte {
 }
 
 func (dtk *DeviceTransferKey) GenerateCertificate(name string, days int) ([]byte, error) {
-	var resp *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_device_transfer_generate_certificate(&resp, &length, BytesToBuffer(dtk.privateKey), C.CString(name), C.uint32_t(days))
+	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_device_transfer_generate_certificate(&resp, BytesToBuffer(dtk.privateKey), C.CString(name), C.uint32_t(days))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(resp, length), nil
+	return CopySignalOwnedBufferToBytes(resp), nil
 }

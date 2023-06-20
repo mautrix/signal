@@ -68,13 +68,12 @@ func (sc *SenderKeyDistributionMessage) Destroy() error {
 }
 
 func (sc *SenderKeyDistributionMessage) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_sender_key_distribution_message_serialize(&serialized, &length, sc.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_sender_key_distribution_message_serialize(&serialized, sc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (sc *SenderKeyDistributionMessage) Process(sender *Address, store SenderKeyStore, ctx *CallbackContext) error {

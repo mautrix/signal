@@ -64,13 +64,12 @@ func (sr *SessionRecord) HasCurrentState() (bool, error) {
 }
 
 func (sr *SessionRecord) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_session_record_serialize(&serialized, &length, sr.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_session_record_serialize(&serialized, sr.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (sr *SessionRecord) GetLocalRegistrationID() (uint32, error) {

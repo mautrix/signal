@@ -50,21 +50,19 @@ func (p *PlaintextContent) Destroy() error {
 }
 
 func (pc *PlaintextContent) Serialize() ([]byte, error) {
-	var serialized *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_plaintext_content_serialize(&serialized, &length, pc.ptr)
+	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_plaintext_content_serialize(&serialized, pc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(serialized, length), nil
+	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
 func (pc *PlaintextContent) GetBody() ([]byte, error) {
-	var body *C.uchar
-	var length C.ulong
-	signalFfiError := C.signal_plaintext_content_get_body(&body, &length, pc.ptr)
+	var body C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_plaintext_content_get_body(&body, pc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return CopyBufferToBytes(body, length), nil
+	return CopySignalOwnedBufferToBytes(body), nil
 }
