@@ -27,6 +27,10 @@ func BytesToBuffer(data []byte) C.SignalBorrowedBuffer {
 	return buf
 }
 
+func EmptyBorrowedBuffer() C.SignalBorrowedBuffer {
+	return C.SignalBorrowedBuffer{}
+}
+
 // TODO: Try out this code from ChatGPT that might be more memory safe
 // - Makes copy of data
 // - Sets finalizer to free memory

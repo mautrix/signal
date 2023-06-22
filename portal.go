@@ -700,6 +700,10 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	if portal.IsPrivateChat() {
 		portal.log.Debug().Msgf("Portal is private chat, updating direct chats: %s", portal.MXID)
 		puppet := user.bridge.GetPuppetBySignalID(portal.Receiver)
+		if puppet == nil {
+			portal.log.Error().Msgf("Failed to find puppet for portal receiver %s", portal.Receiver)
+			return nil
+		}
 
 		chats := map[id.UserID][]id.RoomID{puppet.MXID: {portal.MXID}}
 		user.UpdateDirectChats(chats)

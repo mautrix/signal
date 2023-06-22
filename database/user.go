@@ -58,22 +58,28 @@ func (u *User) Scan(row dbutil.Scannable) *User {
 func (uq *UserQuery) GetByMXID(mxid id.UserID) *User {
 	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE mxid=$1`
 	row := uq.db.QueryRow(q, mxid)
-	var u User
-	return u.Scan(row)
+	if row == nil {
+		return nil
+	}
+	return uq.New().Scan(row)
 }
 
 func (uq *UserQuery) GetByUsername(username string) *User {
 	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE username=$1`
 	row := uq.db.QueryRow(q, username)
-	var u User
-	return u.Scan(row)
+	if row == nil {
+		return nil
+	}
+	return uq.New().Scan(row)
 }
 
 func (uq *UserQuery) GetBySignalID(uuid string) *User {
 	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE uuid=$1`
 	row := uq.db.QueryRow(q, uuid)
-	var u User
-	return u.Scan(row)
+	if row == nil {
+		return nil
+	}
+	return uq.New().Scan(row)
 }
 
 func (uq *UserQuery) AllLoggedIn() ([]*User, error) {
@@ -86,12 +92,12 @@ func (uq *UserQuery) AllLoggedIn() ([]*User, error) {
 
 	var users []*User
 	for rows.Next() {
-		var u User
+		u := uq.New()
 		err := rows.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.ManagementRoom, &u.NoticeRoom)
 		if err != nil {
 			return nil, err
 		}
-		users = append(users, &u)
+		users = append(users, u)
 	}
 	return users, nil
 }

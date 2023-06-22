@@ -77,7 +77,10 @@ func (user *User) SetManagementRoom(roomID id.RoomID) {
 
 	user.ManagementRoom = roomID
 	user.bridge.managementRooms[user.ManagementRoom] = user
-	user.Update()
+	err := user.Update()
+	if err != nil {
+		user.log.Error().Err(err).Msg("Error setting management room")
+	}
 }
 
 func (user *User) GetIDoublePuppet() bridge.DoublePuppet {
@@ -123,11 +126,13 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 		br.managementRoomsLock.Unlock()
 	}
 	// Ensure a puppet is created for this user
-	// LEFT OFF: gotta make a puppet for the user, then maybe messages will insert without FKC
 	newPuppet := br.GetPuppetBySignalID(user.SignalID)
-	if newPuppet.CustomMXID == "" {
+	if newPuppet != nil && newPuppet.CustomMXID == "" {
 		newPuppet.CustomMXID = user.MXID
-		newPuppet.Update()
+		err := newPuppet.Update()
+		if err != nil {
+			log.Printf("Error updating puppet for user %s:", err)
+		}
 	}
 	log.Printf("**** Loaded new puppet for %s: %v", user.MXID, newPuppet)
 	return user

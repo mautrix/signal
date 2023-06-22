@@ -15,6 +15,10 @@ type ProfileKeyCommitment [C.SignalPROFILE_KEY_COMMITMENT_LEN]byte
 type ProfileKeyVersion [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]byte
 type AccessKey [C.SignalACCESS_KEY_LEN]byte
 
+func (pk *ProfileKey) Slice() []byte {
+	return (*pk)[:]
+}
+
 func (pk *ProfileKey) GetCommitment(uuid [16]byte) (*ProfileKeyCommitment, error) {
 	c_result := [C.SignalPROFILE_KEY_COMMITMENT_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))

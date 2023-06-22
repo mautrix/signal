@@ -86,6 +86,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		pniPublicKey, _ := libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic())
 		pniPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate())
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
+		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
 
 		// log provisioningMessage
 		log.Printf("provisioningMessage: %v", provisioningMessage)
@@ -157,6 +158,15 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
 		if err != nil {
 			log.Printf("error saving identity key: %v", err)
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
+
+		// Store our profile key
+		log.Printf("storing profileKey: %v", profileKey)
+		err = device.ProfileKeyStore.StoreProfileKey(data.AciUuid, profileKey, ctx)
+		if err != nil {
+			log.Printf("error storing profile key: %v", err)
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}

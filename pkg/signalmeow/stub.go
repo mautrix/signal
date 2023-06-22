@@ -152,4 +152,22 @@ func setupLogging() {
 }
 
 // TODO find a better home for this
-func RetrieveProfileById(ctx context.Context, address string, profileKey libsignalgo.ProfileKey)
+type ProfileName struct {
+	GivenName  string
+	FamilyName *string
+}
+type Profile struct {
+	Name       *ProfileName
+	About      *string
+	AboutEmoji *string
+}
+
+//func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (*Profile, error) {
+//	profileKey, err := d.ProfileKeyStore.MyProfileKey(ctx)
+//	if err != nil {
+//		log.Printf("MyProfileKey error: %v", err)
+//		return nil, err
+//	}
+//	path := "/v1/profile/" + address
+//	//profileRequest := web.CreateWSRequest("GET", path string, body []byte, requestId *uint64, username *string, password *string)
+//}

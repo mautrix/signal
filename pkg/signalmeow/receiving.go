@@ -57,7 +57,8 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 							} else {
 								log.Printf("-----> their uuid: %v", theirUuid)
 							}
-							err = device.ProfileKeyStore.StoreProfileKey(theirUuid, content.DataMessage.ProfileKey, ctx)
+							profileKey := libsignalgo.ProfileKey(content.DataMessage.ProfileKey)
+							err = device.ProfileKeyStore.StoreProfileKey(theirUuid, profileKey, ctx)
 							if err != nil {
 								log.Printf("StoreProfileKey error: %v", err)
 								return nil, err
@@ -155,21 +156,6 @@ func sealedSenderDecrypt(envelope *signalpb.Envelope, device *store.Device, ctx 
 		device.SignedPreKeyStore,
 		libsignalgo.NewCallbackContext(ctx),
 	)
-	/*
-		address, data, err := libsignalgo.SealedSenderDecrypt(
-			envelope.Content,
-			serverTrustRootKey(),
-			*envelope.Timestamp,
-			nil, // TODO: add our e164 here?
-			device.Data.AciUuid,
-			uint32(device.Data.DeviceId),
-			device.SessionStore,
-			device.IdentityStore,
-			device.PreKeyStore,
-			device.SignedPreKeyStore,
-			libsignalgo.NewCallbackContext(ctx),
-		)
-	*/
 
 	if err != nil {
 		return nil, fmt.Errorf("SealedSenderDecrypt error: %v", err)

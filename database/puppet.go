@@ -28,7 +28,7 @@ type Puppet struct {
 	log log.Logger
 
 	SignalID    string
-	Number      string
+	Number      *string
 	Name        string
 	NameQuality int
 	AvatarHash  string
@@ -94,7 +94,7 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 }
 
 func (p *Puppet) deleteExistingNumber(tx *dbutil.LoggingTxn) error {
-	if p.Number == "" {
+	if p.Number == nil || *p.Number == "" {
 		return nil
 	}
 	_, err := tx.Exec("UPDATE puppet SET number=null WHERE number=$1 AND uuid<>$2", p.Number, p.SignalID)

@@ -108,6 +108,11 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 	br.puppetsLock.Lock()
 	defer br.puppetsLock.Unlock()
 
+	if id == "" {
+		br.ZLog.Warn().Msg("Trying to get puppet with empty signal_user_id")
+		return nil
+	}
+
 	puppet, ok := br.puppets[id]
 	if !ok {
 		dbPuppet := br.DB.Puppet.GetBySignalID(id)
@@ -115,7 +120,7 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 			br.ZLog.Warn().Str("signal_user_id", id).Msg("******* Puppet not found in database, creating new entry")
 			dbPuppet = br.DB.Puppet.New()
 			dbPuppet.SignalID = id
-			dbPuppet.Number =
+			//dbPuppet.Number =
 			err := dbPuppet.Insert()
 			if err != nil {
 				br.ZLog.Error().Err(err).Str("signal_user_id", id).Msg("Error creating new puppet")
@@ -127,7 +132,9 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
 		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
-		br.puppetsByNumber[puppet.Number] = puppet
+		if puppet.Number != nil {
+			br.puppetsByNumber[*puppet.Number] = puppet
+		}
 	}
 
 	return puppet
@@ -147,7 +154,9 @@ func (br *SignalBridge) GetPuppetByNumber(number string) *Puppet {
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
 		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
-		br.puppetsByNumber[puppet.Number] = puppet
+		if puppet.Number != nil {
+			br.puppetsByNumber[*puppet.Number] = puppet
+		}
 	}
 
 	return puppet
@@ -167,7 +176,9 @@ func (br *SignalBridge) GetPuppetByCustomMXID(mxid id.UserID) *Puppet {
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
 		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
-		br.puppetsByNumber[puppet.Number] = puppet
+		if puppet.Number != nil {
+			br.puppetsByNumber[*puppet.Number] = puppet
+		}
 	}
 
 	return puppet
@@ -209,7 +220,9 @@ func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Pupp
 		if !ok {
 			puppet = br.NewPuppet(dbPuppet)
 			br.puppets[dbPuppet.SignalID] = puppet
-			br.puppetsByNumber[dbPuppet.Number] = puppet
+			if dbPuppet.Number != nil {
+				br.puppetsByNumber[*dbPuppet.Number] = puppet
+			}
 
 			if dbPuppet.CustomMXID != "" {
 				br.puppetsByCustomMXID[dbPuppet.CustomMXID] = puppet
