@@ -278,7 +278,7 @@ func sendMessage(
 	}
 	log.Printf("Sending content: %v", string(jsonBytes))
 	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
-	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil, nil)
+	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil)
 
 	responseChan, err := d.Connection.AuthedWS.SendRequest(ctx, request, nil, nil)
 	if err != nil {

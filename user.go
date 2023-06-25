@@ -359,7 +359,16 @@ func (user *User) Connect() error {
 	device.IncomingSignalMessageHandler = user.incomingMessageHandler
 
 	ctx := context.Background()
-	return signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
+	connectErr := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
+
+	// Test fetching a profile
+	user.log.Debug().Msg("****************** Fetching a profile ******************")
+	_, err = signalmeow.RetrieveProfileById(ctx, user.SignalDevice, user.SignalID)
+	if err != nil {
+		user.log.Error().Err(err).Msg("GetProfile error")
+	}
+
+	return connectErr
 }
 
 func (user *User) incomingMessageHandler(msg string, sender string) error {

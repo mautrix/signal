@@ -298,9 +298,10 @@ func confirmDevice(username string, password string, code string, registrationId
 		return nil, err
 	}
 
-	// Create and send request
-	requestId := uint64(1)
-	request := web.CreateWSRequest("PUT", "/v1/devices/"+code, jsonBytes, &requestId, &username, &password)
+	// Create and send request TODO: Use SignalWebsocket
+	request := web.CreateWSRequest("PUT", "/v1/devices/"+code, jsonBytes, &username, &password)
+	one := uint64(1)
+	request.Id = &one
 	msg_type := signalpb.WebSocketMessage_REQUEST
 	message := &signalpb.WebSocketMessage{
 		Type:    &msg_type,

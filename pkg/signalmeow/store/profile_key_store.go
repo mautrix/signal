@@ -24,14 +24,15 @@ const (
 )
 
 func scanProfileKey(row scannable) (*libsignalgo.ProfileKey, error) {
-	var record *libsignalgo.ProfileKey
+	var record []byte
 	err := row.Scan(&record)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
-	return record, err
+	profileKey := libsignalgo.ProfileKey(record)
+	return &profileKey, err
 }
 
 func (s *SQLStore) LoadProfileKey(theirUuid string, ctx context.Context) (*libsignalgo.ProfileKey, error) {

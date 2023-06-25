@@ -2,6 +2,8 @@ package signalmeow
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"os"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -10,6 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 func Main() {
@@ -162,12 +165,52 @@ type Profile struct {
 	AboutEmoji *string
 }
 
-//func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (*Profile, error) {
-//	profileKey, err := d.ProfileKeyStore.MyProfileKey(ctx)
-//	if err != nil {
-//		log.Printf("MyProfileKey error: %v", err)
-//		return nil, err
-//	}
-//	path := "/v1/profile/" + address
-//	//profileRequest := web.CreateWSRequest("GET", path string, body []byte, requestId *uint64, username *string, password *string)
-//}
+func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (*Profile, error) {
+	myProfileKey, err := d.ProfileKeyStore.MyProfileKey(ctx)
+	if err != nil {
+		log.Printf("MyProfileKey error: %v", err)
+		return nil, err
+	}
+	log.Printf("myProfileKey: %v", myProfileKey)
+	var uuidBytes [16]byte
+	copy(uuidBytes[:], d.Data.AciUuid)
+	profileKeyVersion, err := myProfileKey.GetProfileKeyVersion(uuidBytes)
+	if err != nil {
+		log.Printf("MyProfileKey error: %v", err)
+		return nil, err
+	}
+	path := "/v1/profile/" + address
+	if profileKeyVersion != nil {
+		// Assuming we can just make the version bytes into a string
+		path += "/" + profileKeyVersion.String()
+	}
+	log.Printf("path: %v", path)
+	profileRequest := web.CreateWSRequest(
+		"GET",
+		path,
+		nil,
+		nil,
+		nil,
+	)
+	log.Printf("Sending profileRequest: %v", profileRequest)
+	respChan, err := d.Connection.AuthedWS.SendRequest(ctx, profileRequest, nil, nil)
+	if err != nil {
+		log.Printf("SendRequest error: %v", err)
+		return nil, err
+	}
+	log.Printf("Waiting for profile response")
+	resp := <-respChan
+	log.Printf("Got profile response: %v", resp)
+	if *resp.Status != 200 {
+		log.Printf("resp.StatusCode: %v", resp.Status)
+		return nil, errors.New("bad status code")
+	}
+	var profile Profile
+	err = json.Unmarshal(resp.Body, &profile)
+	if err != nil {
+		log.Printf("json.Unmarshal error: %v", err)
+		return nil, err
+	}
+	log.Printf("profile: %v", profile)
+	return &profile, nil
+}

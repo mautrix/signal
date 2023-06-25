@@ -353,6 +353,9 @@ func (s *SignalWebsocket) SendRequest(
 		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
 	}
 	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
+	if s.sendChannel == nil {
+		return nil, errors.New("Send channel not initialized")
+	}
 	s.sendChannel <- &SignalWebsocketSendMessage{
 		RequestMessage:  request,
 		ResponseChannel: responseChannel,
@@ -397,9 +400,8 @@ func CreateWSResponse(id uint64, status int) *signalpb.WebSocketMessage {
 	return response
 }
 
-func CreateWSRequest(method string, path string, body []byte, requestId *uint64, username *string, password *string) *signalpb.WebSocketRequestMessage {
+func CreateWSRequest(method string, path string, body []byte, username *string, password *string) *signalpb.WebSocketRequestMessage {
 	request := &signalpb.WebSocketRequestMessage{
-		Id:   requestId,
 		Verb: &method,
 		Path: &path,
 		Body: body,
