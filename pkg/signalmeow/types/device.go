@@ -37,7 +37,8 @@ type DeviceConnection struct {
 	// cached data (not persisted)
 	SenderCertificate *libsignalgo.SenderCertificate
 	// Network interfaces
-	AuthedWS *web.SignalWebsocket
+	AuthedWS   *web.SignalWebsocket
+	UnauthedWS *web.SignalWebsocket
 }
 
 func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData, requestHandler web.RequestHandlerFunc) error {
@@ -51,8 +52,20 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 		"?login=" + username +
 		"&password=" + password
 	authedWS := web.NewSignalWebsocket(ctx, path)
-	authedWS.Connect(ctx, requestHandler)
+	authedWS.Connect(ctx, &requestHandler)
 	d.AuthedWS = authedWS
+	unauthedWS := web.NewSignalWebsocket(ctx, web.WebsocketPath)
+	unauthedWS.Connect(ctx, nil)
+	d.UnauthedWS = unauthedWS
+	return nil
+}
+func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceData) error {
+	if d.UnauthedWS != nil {
+		return nil
+	}
+	unauthedWS := web.NewSignalWebsocket(ctx, web.WebsocketPath)
+	unauthedWS.Connect(ctx, nil)
+	d.UnauthedWS = unauthedWS
 	return nil
 }
 

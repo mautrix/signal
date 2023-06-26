@@ -2,6 +2,7 @@ package signalmeow
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -165,22 +166,43 @@ type Profile struct {
 	AboutEmoji *string
 }
 
+func ProfileKeyForSignalID(ctx context.Context, d *store.Device, signalId string) (*libsignalgo.ProfileKey, error) {
+	profileKeyStore := d.ProfileKeyStore
+	profileKey, err := profileKeyStore.LoadProfileKey(signalId, ctx)
+	if err != nil {
+		log.Printf("GetProfileKey error: %v", err)
+		return nil, err
+	}
+	return profileKey, nil
+}
+
 func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (*Profile, error) {
-	myProfileKey, err := d.ProfileKeyStore.MyProfileKey(ctx)
+	profileKey, err := ProfileKeyForSignalID(ctx, d, address)
 	if err != nil {
 		log.Printf("MyProfileKey error: %v", err)
 		return nil, err
 	}
-	log.Printf("myProfileKey: %v", myProfileKey)
+	log.Printf("profileKey: %v", profileKey)
 	var uuidBytes [16]byte
 	copy(uuidBytes[:], d.Data.AciUuid)
-	profileKeyVersion, err := myProfileKey.GetProfileKeyVersion(uuidBytes)
+
+	profileKeyVersion, err := profileKey.GetProfileKeyVersion(uuidBytes)
 	if err != nil {
-		log.Printf("MyProfileKey error: %v", err)
+		log.Printf("profileKey error: %v", err)
 		return nil, err
 	}
+
+	accessKey, err := profileKey.DeriveAccessKey()
+	if err != nil {
+		log.Printf("DeriveAccessKey error: %v", err)
+		return nil, err
+	}
+	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
+
 	path := "/v1/profile/" + address
-	if profileKeyVersion != nil {
+	useUnidentified := profileKeyVersion != nil && accessKey != nil
+	if useUnidentified {
+		log.Printf("Using unidentified profile request with profileKeyVersion: %v, accessKey: %v", profileKeyVersion, accessKey)
 		// Assuming we can just make the version bytes into a string
 		path += "/" + profileKeyVersion.String()
 	}
@@ -192,8 +214,14 @@ func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (
 		nil,
 		nil,
 	)
+	if useUnidentified {
+		log.Printf("headers: %v", profileRequest.Headers)
+		profileRequest.Headers = append(profileRequest.Headers, "unidentified-access-key:"+base64AccessKey)
+		profileRequest.Headers = append(profileRequest.Headers, "accept-language:en-CA")
+		log.Printf("headers: %v", profileRequest.Headers)
+	}
 	log.Printf("Sending profileRequest: %v", profileRequest)
-	respChan, err := d.Connection.AuthedWS.SendRequest(ctx, profileRequest, nil, nil)
+	respChan, err := d.Connection.UnauthedWS.SendRequest(ctx, profileRequest, nil, nil)
 	if err != nil {
 		log.Printf("SendRequest error: %v", err)
 		return nil, err

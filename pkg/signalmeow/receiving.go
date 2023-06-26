@@ -17,7 +17,15 @@ import (
 
 func StartReceiveLoops(ctx context.Context, d *store.Device) error {
 	handler := incomingRequestHandlerWithDevice(d)
-	return d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
+	err := d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
+	if err != nil {
+		return err
+	}
+	err = d.Connection.ConnectUnauthedWS(ctx, d.Data)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Returns a RequestHandlerFunc that can be used to handle incoming requests, with a device injected via closure.

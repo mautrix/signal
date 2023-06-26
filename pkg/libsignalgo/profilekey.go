@@ -15,6 +15,10 @@ type ProfileKeyCommitment [C.SignalPROFILE_KEY_COMMITMENT_LEN]byte
 type ProfileKeyVersion [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]byte
 type AccessKey [C.SignalACCESS_KEY_LEN]byte
 
+func (ak *AccessKey) String() string {
+	return string((*ak)[:])
+}
+
 func (pv *ProfileKeyVersion) String() string {
 	return string((*pv)[:])
 }

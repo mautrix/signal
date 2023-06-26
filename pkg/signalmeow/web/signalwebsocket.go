@@ -53,14 +53,14 @@ func (s *SignalWebsocket) Connect(
 	ctx context.Context,
 	//requestChan chan *signalpb.WebSocketRequestMessage,
 	//errorChan chan *SignalWebsocketConnectError,
-	requestHandler RequestHandlerFunc,
+	requestHandler *RequestHandlerFunc,
 ) {
 	go s.connectLoop(ctx, requestHandler)
 }
 
 func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
-	requestHandler RequestHandlerFunc,
+	requestHandler *RequestHandlerFunc,
 	//requestChan chan *signalpb.WebSocketRequestMessage,
 	//errorChan chan *SignalWebsocketConnectError,
 ) {
@@ -116,7 +116,14 @@ func (s *SignalWebsocket) connectLoop(
 					}
 					panic("Received nil request")
 				}
-				response, err := requestHandler(ctx, request)
+				if requestHandler == nil {
+					errorChan <- &SignalWebsocketConnectError{
+						Err:    errors.New("Received request but no handler"),
+						Status: 0,
+					}
+					panic("Received request but no handler")
+				}
+				response, err := (*requestHandler)(ctx, request)
 				if err != nil {
 					errorChan <- &SignalWebsocketConnectError{
 						Err:    errors.Wrap(err, "Error handling request"),
@@ -347,11 +354,11 @@ func (s *SignalWebsocket) SendRequest(
 	username *string,
 	password *string,
 ) (<-chan *signalpb.WebSocketResponseMessage, error) {
-	request.Headers = append(request.Headers, "Content-Type: application/json")
-	if username != nil && password != nil {
-		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
-		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
-	}
+	//request.Headers = append(request.Headers, "Content-Type: application/json")
+	//if username != nil && password != nil {
+	//basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
+	//request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
+	//}
 	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
 	if s.sendChannel == nil {
 		return nil, errors.New("Send channel not initialized")
@@ -406,6 +413,7 @@ func CreateWSRequest(method string, path string, body []byte, username *string, 
 		Path: &path,
 		Body: body,
 	}
+	request.Headers = []string{}
 	request.Headers = append(request.Headers, "Content-Type: application/json")
 	if username != nil && password != nil {
 		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))

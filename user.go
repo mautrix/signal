@@ -362,7 +362,7 @@ func (user *User) Connect() error {
 	connectErr := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
 
 	// Test fetching a profile
-	user.log.Debug().Msg("****************** Fetching a profile ******************")
+	user.log.Debug().Msg("****************** Fetching my profile ******************")
 	_, err = signalmeow.RetrieveProfileById(ctx, user.SignalDevice, user.SignalID)
 	if err != nil {
 		user.log.Error().Err(err).Msg("GetProfile error")
@@ -384,6 +384,19 @@ func (user *User) incomingMessageHandler(msg string, sender string) error {
 		sender: portal.getMessagePuppet(user),
 	}
 	portal.signalMessages <- portalSignalMessage
+
+	// Test fetching a profile
+	user.log.Debug().Msgf("******************* Fetching profile for %s *******************", sender)
+	ctx := context.Background()
+	signalID := sender
+	device := user.SignalDevice
+	p, err := signalmeow.RetrieveProfileById(ctx, device, signalID)
+	if err != nil {
+		user.log.Error().Err(err).Msg("Failed to fetch profile")
+	} else {
+		user.log.Debug().Msgf("Fetched profile: %+v", p)
+	}
+
 	return nil
 }
 
