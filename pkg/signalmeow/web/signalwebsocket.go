@@ -414,7 +414,7 @@ func CreateWSRequest(method string, path string, body []byte, username *string, 
 		Body: body,
 	}
 	request.Headers = []string{}
-	request.Headers = append(request.Headers, "Content-Type: application/json")
+	request.Headers = append(request.Headers, "Content-Type: application/json; charset=utf-8")
 	if username != nil && password != nil {
 		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
 		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
