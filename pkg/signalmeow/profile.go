@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
@@ -38,21 +39,19 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *store.Device, signalId 
 		log.Printf("ProfileKey error: %v", err)
 		return nil, err
 	}
-	var uuidBytes libsignalgo.UUID
-	copy(uuidBytes[:], d.Data.AciUuid)
+	uuidBytes, err := convertUUIDToBytes(signalId)
 	var serverPublicParamsBytes libsignalgo.ServerPublicParams
 	copy(serverPublicParamsBytes[:], serverPublicParams)
 
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
 		serverPublicParamsBytes,
-		uuidBytes,
+		libsignalgo.UUID(uuidBytes),
 		*profileKey,
 	)
 	if err != nil {
 		log.Printf("CreateProfileKeyCredentialRequestContext error: %v", err)
 		return nil, err
 	}
-	log.Printf("requestContext: %v", requestContext)
 
 	request, err := requestContext.ProfileKeyCredentialRequestContextGetRequest()
 	if err != nil {
@@ -75,17 +74,39 @@ func ProfileKeyForSignalID(ctx context.Context, d *store.Device, signalId string
 	return profileKey, nil
 }
 
-func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (*Profile, error) {
-	profileKey, err := ProfileKeyForSignalID(ctx, d, address)
+func convertUUIDToBytes(uuid string) ([]byte, error) {
+	uuid = strings.Replace(uuid, "-", "", -1)
+	uuidBytes, err := hex.DecodeString(uuid)
 	if err != nil {
-		log.Printf("MyProfileKey error: %v", err)
 		return nil, err
 	}
-	log.Printf("profileKey: %v", profileKey)
-	var uuidBytes libsignalgo.UUID
-	copy(uuidBytes[:], d.Data.AciUuid)
+	if len(uuidBytes) != 16 {
+		return nil, errors.New("invalid UUID length")
+	}
+	return uuidBytes, nil
+}
 
-	profileKeyVersion, err := profileKey.GetProfileKeyVersion(uuidBytes)
+func RetrieveProfileById(ctx context.Context, d *store.Device, signalID string) (*Profile, error) {
+	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID)
+	if err != nil {
+		log.Printf("ProfileKey error: %v", err)
+		return nil, err
+	}
+	if profileKey == nil {
+		log.Printf("profileKey is nil")
+		return nil, nil
+	}
+	log.Printf("profileKey: %v", profileKey)
+	uuidBytes, err := convertUUIDToBytes(signalID)
+	if err != nil {
+		log.Printf("UUIDFromString error: %v", err)
+		return nil, err
+	}
+	log.Printf("signalID: %v", signalID)
+	log.Printf("uuidBytes: %v", uuidBytes)
+	uuid := libsignalgo.UUID(uuidBytes)
+
+	profileKeyVersion, err := profileKey.GetProfileKeyVersion(uuid)
 	if err != nil {
 		log.Printf("profileKey error: %v", err)
 		return nil, err
@@ -98,13 +119,13 @@ func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (
 	}
 	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 
-	credentialRequest, err := ProfileKeyCredentialRequest(ctx, d, address)
+	credentialRequest, err := ProfileKeyCredentialRequest(ctx, d, signalID)
 	if err != nil {
 		log.Printf("ProfileKeyCredentialRequest error: %v", err)
 		return nil, err
 	}
 
-	path := "/v1/profile/" + address
+	path := "/v1/profile/" + signalID
 	useUnidentified := profileKeyVersion != nil && accessKey != nil
 	if useUnidentified {
 		log.Printf("Using unidentified profile request with profileKeyVersion: %v, accessKey: %v", profileKeyVersion, accessKey)
@@ -115,7 +136,6 @@ func RetrieveProfileById(ctx context.Context, d *store.Device, address string) (
 		path += "/" + string(credentialRequest)
 		path += "?credentialType=expiringProfileKey"
 	}
-	log.Printf("path: %v", path)
 	profileRequest := web.CreateWSRequest(
 		"GET",
 		path,

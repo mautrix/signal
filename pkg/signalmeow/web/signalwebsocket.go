@@ -311,7 +311,7 @@ func writeLoop(
 	sendChannel chan *SignalWebsocketSendMessage,
 	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
 ) error {
-	for i := uint64(0); ; i++ {
+	for i := uint64(1); ; i++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -414,7 +414,7 @@ func CreateWSRequest(method string, path string, body []byte, username *string, 
 		Body: body,
 	}
 	request.Headers = []string{}
-	request.Headers = append(request.Headers, "Content-Type: application/json; charset=utf-8")
+	request.Headers = append(request.Headers, "content-type:application/json; charset=utf-8")
 	if username != nil && password != nil {
 		basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
 		request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
