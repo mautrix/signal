@@ -2,6 +2,9 @@ package signalmeow
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -19,7 +22,7 @@ type ProfileName struct {
 	FamilyName *string
 }
 type Profile struct {
-	Name       *ProfileName
+	Name       *string
 	About      *string
 	AboutEmoji *string
 }
@@ -168,5 +171,105 @@ func RetrieveProfileById(ctx context.Context, d *store.Device, signalID string) 
 		return nil, err
 	}
 	log.Printf("profile: %v", profile)
+	if profile.Name != nil {
+		base64Name, err := base64.StdEncoding.DecodeString(*profile.Name)
+		decryptedName, err := decryptString(*profileKey, base64Name)
+		if err != nil {
+			log.Printf("error decrypting profile name: %v", err)
+			profile.Name = nil
+		}
+		profile.Name = decryptedName
+		log.Printf("decryptedName: %v", *decryptedName)
+	}
+	if profile.About != nil {
+		base64About, err := base64.StdEncoding.DecodeString(*profile.About)
+		decryptedAbout, err := decryptString(*profileKey, base64About)
+		if err != nil {
+			log.Printf("error decrypting profile about: %v", err)
+			profile.About = nil
+		}
+		profile.About = decryptedAbout
+		log.Printf("decryptedAbout: %v", *decryptedAbout)
+	}
+	if profile.AboutEmoji != nil {
+		base64AboutEmoji, err := base64.StdEncoding.DecodeString(*profile.AboutEmoji)
+		decryptedAboutEmoji, err := decryptString(*profileKey, base64AboutEmoji)
+		if err != nil {
+			log.Printf("error decrypting profile aboutEmoji: %v", err)
+			profile.AboutEmoji = nil
+		}
+		profile.AboutEmoji = decryptedAboutEmoji
+		log.Printf("decryptedAboutEmoji: %v", *decryptedAboutEmoji)
+	}
+
 	return &profile, nil
+}
+
+func decryptString(key libsignalgo.ProfileKey, encryptedText []byte) (*string, error) {
+	if len(encryptedText) < NONCE_LENGTH+16+1 {
+		return nil, errors.New("invalid encryptedText length")
+	}
+	nonce := encryptedText[:NONCE_LENGTH]
+	ciphertext := encryptedText[NONCE_LENGTH:]
+	keyBytes := key[:]
+	padded, err := AesgcmDecrypt(keyBytes, nonce, ciphertext, []byte{})
+	if err != nil {
+		return nil, err
+	}
+	paddedLength := len(padded)
+	plaintextLength := 0
+	for i := paddedLength - 1; i >= 0; i-- {
+		if padded[i] != byte(0) {
+			plaintextLength = i + 1
+			break
+		}
+	}
+	returnString := string(padded[:plaintextLength])
+	return &returnString, nil
+}
+
+func encryptString(key libsignalgo.ProfileKey, plaintext string, paddedLength int) ([]byte, error) {
+	inputLength := len(plaintext)
+	if inputLength > paddedLength {
+		return nil, errors.New("plaintext longer than paddedLength")
+	}
+	padded := append([]byte(plaintext), make([]byte, paddedLength-inputLength)...)
+	nonce := make([]byte, NONCE_LENGTH)
+	rand.Read(nonce)
+	keyBytes := key[:]
+	ciphertext, err := AesgcmEncrypt(keyBytes, nonce, padded)
+	if err != nil {
+		return nil, err
+	}
+	return append(nonce, ciphertext...), nil
+}
+
+const NONCE_LENGTH = 12
+const TAG_LENGTH_BYTES = 16
+
+func AesgcmDecrypt(key, nonce, data, mac []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	aesgcm, err := cipher.NewGCMWithTagSize(block, TAG_LENGTH_BYTES)
+	if err != nil {
+		return nil, err
+	}
+	ciphertext := append(data, mac...)
+
+	return aesgcm.Open(nil, nonce, ciphertext, nil)
+}
+
+func AesgcmEncrypt(key, nonce, plaintext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	aesgcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	return aesgcm.Seal(nil, nonce, plaintext, nil), nil
 }
