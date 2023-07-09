@@ -32,11 +32,15 @@ type Device struct {
 	Data       types.DeviceData
 	Connection types.DeviceConnection
 
+	// NOTE: when adding a new store interface, make sure to assing it below
+	// (search for "innerStore" further down in this file)
+
 	// libsignalgo store interfaces
 	PreKeyStore       libsignalgo.PreKeyStore
 	SignedPreKeyStore libsignalgo.SignedPreKeyStore
 	IdentityStore     libsignalgo.IdentityKeyStore
 	SessionStore      libsignalgo.SessionStore
+	SenderKeyStore    libsignalgo.SenderKeyStore
 
 	// internal store interfaces
 	PreKeyStoreExtras  PreKeyStoreExtras
@@ -119,6 +123,7 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 	}
 
 	innerStore := newSQLStore(c, deviceData.AciUuid)
+	// Assign innerStore to all the interfaces
 	device.PreKeyStore = innerStore
 	device.PreKeyStoreExtras = innerStore
 	device.SignedPreKeyStore = innerStore
@@ -126,6 +131,7 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 	device.SessionStore = innerStore
 	device.SessionStoreExtras = innerStore
 	device.ProfileKeyStore = innerStore
+	device.SenderKeyStore = innerStore
 
 	return &device, nil
 }

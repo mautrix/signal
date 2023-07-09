@@ -140,5 +140,17 @@ func upgradeV1(tx *sql.Tx, _ *StoreContainer) error {
 	if err != nil {
 		return err
 	}
+	_, err = tx.Exec(`CREATE TABLE signalmeow_sender_keys (
+		our_aci_uuid		TEXT	NOT NULL,
+		sender_uuid	TEXT	NOT NULL,
+		sender_device_id	INTEGER	NOT NULL,
+		key					bytea   NOT NULL,
+
+		PRIMARY KEY (our_aci_uuid, sender_uuid, sender_device_id),
+		FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device(aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+	)`)
+	if err != nil {
+		return err
+	}
 	return nil
 }

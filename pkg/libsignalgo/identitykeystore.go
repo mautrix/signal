@@ -16,6 +16,7 @@ extern int signal_is_trusted_identity_callback(void *store_ctx, const_address *a
 import "C"
 import (
 	"context"
+	"log"
 	"unsafe"
 
 	gopointer "github.com/mattn/go-pointer"
@@ -40,6 +41,12 @@ type IdentityKeyStore interface {
 func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp **C.SignalPrivateKey, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store IdentityKeyStore, ctx context.Context) error {
 		key, err := store.GetIdentityKeyPair(ctx)
+		if err != nil {
+			log.Printf("IdentityKeyStore: Error getting identity key pair: %s", err)
+		}
+		if key == nil {
+			log.Printf("IdentityKeyStore: No identity key pair found")
+		}
 		if err == nil && key != nil {
 			clone, err := key.privateKey.Clone()
 			if err != nil {

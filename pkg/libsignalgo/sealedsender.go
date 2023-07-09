@@ -75,6 +75,30 @@ type SealedSenderResult struct {
 	Sender  SealedSenderAddress
 }
 
+func SealedSenderDecryptToUSMC(
+	ciphertext []byte,
+	identityStore IdentityKeyStore,
+	ctx *CallbackContext,
+) (*UnidentifiedSenderMessageContent, error) {
+	contextPointer := gopointer.Save(ctx)
+	defer gopointer.Unref(contextPointer)
+
+	borrowedCiphertext := BytesToBuffer(ciphertext)
+
+	var usmc *C.SignalUnidentifiedSenderMessageContent = nil
+	signalFfiError := C.signal_sealed_session_cipher_decrypt_to_usmc(
+		&usmc,
+		borrowedCiphertext,
+		wrapIdentityKeyStore(identityStore),
+		contextPointer,
+	)
+	if signalFfiError != nil {
+		return nil, wrapCallbackError(signalFfiError, ctx)
+	}
+
+	return wrapUnidentifiedSenderMessageContent(usmc), nil
+}
+
 func SealedSenderDecrypt(
 	ciphertext []byte,
 	localAddress *SealedSenderAddress,
