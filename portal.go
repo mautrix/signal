@@ -456,7 +456,8 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 		}
 	}
 
-	intent := portal.getMessageIntent(msg.user)
+	//intent := portal.getMessageIntent(msg.user, msg.sender)
+	intent := msg.sender.IntentFor(portal)
 	if intent == nil {
 		portal.log.Error().Msg("Failed to get message intent")
 		return
@@ -549,14 +550,14 @@ func (portal *Portal) sendMessage(intent *appservice.IntentAPI, eventType event.
 	}
 }
 
-func (portal *Portal) getMessagePuppet(user *User) (puppet *Puppet) {
+func (portal *Portal) getMessagePuppet(user *User, senderUUID string) (puppet *Puppet) {
 	//if info.IsFromMe {
 	//return portal.bridge.GetPuppetBySignalID(user.SignalID)
 	if portal.IsPrivateChat() {
 		puppet = portal.bridge.GetPuppetBySignalID(portal.ChatID)
-	} // else if !info.Sender.IsEmpty() {
-	//	puppet = portal.bridge.GetPuppetBySignalID(info.Sender)
-	//}
+	} else if senderUUID != "" {
+		puppet = portal.bridge.GetPuppetBySignalID(senderUUID)
+	}
 	if puppet == nil {
 		//	portal.log.Warnfln("Message %+v doesn't seem to have a valid sender (%s): puppet is nil", *info, info.Sender)
 		return nil
@@ -566,8 +567,8 @@ func (portal *Portal) getMessagePuppet(user *User) (puppet *Puppet) {
 	return puppet
 }
 
-func (portal *Portal) getMessageIntent(user *User) *appservice.IntentAPI {
-	puppet := portal.getMessagePuppet(user)
+func (portal *Portal) getMessageIntent(user *User, senderUUID string) *appservice.IntentAPI {
+	puppet := portal.getMessagePuppet(user, senderUUID)
 	if puppet == nil {
 		portal.log.Debug().Msg("Not handling: puppet is nil")
 		return nil

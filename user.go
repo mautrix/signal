@@ -371,31 +371,41 @@ func (user *User) Connect() error {
 	return connectErr
 }
 
-func (user *User) incomingMessageHandler(msg string, sender string) error {
-	log.Printf("************** incomingMessageHandler message: %s sender: %s", msg, sender)
-	portal := user.GetPortalByChatID(sender)
-	if portal == nil {
-		log.Printf("no portal found for sender %s", sender)
-		return errors.New("no portal found for sender")
+func (user *User) incomingMessageHandler(incomingMessage meowstore.IncomingSignalMessage) error {
+	switch incomingMessage.MessageType() {
+	case meowstore.IncomingSignalMessageTypeText:
+		m := incomingMessage.(meowstore.IncomingSignalMessageText)
+		log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
+		chatID := m.SenderUUID
+		if m.GroupID != nil {
+			chatID = *m.GroupID
+		}
+		portal := user.GetPortalByChatID(chatID)
+		if portal == nil {
+			log.Printf("no portal found for chatID %s", chatID)
+			return errors.New("no portal found for chatID")
+		}
+		portalSignalMessage := portalSignalMessage{
+			user:   user,
+			msg:    m.Content,
+			sender: user.bridge.GetPuppetBySignalID(m.SenderUUID),
+		}
+		portal.signalMessages <- portalSignalMessage
+	default:
+		log.Printf("Unknown message type received %v", incomingMessage.MessageType())
 	}
-	portalSignalMessage := portalSignalMessage{
-		user:   user,
-		msg:    msg,
-		sender: portal.getMessagePuppet(user),
-	}
-	portal.signalMessages <- portalSignalMessage
 
 	// Test fetching a profile
-	user.log.Debug().Msgf("******************* Fetching profile for %s *******************", sender)
-	ctx := context.Background()
-	signalID := sender
-	device := user.SignalDevice
-	p, err := signalmeow.RetrieveProfileById(ctx, device, signalID)
-	if err != nil {
-		user.log.Error().Err(err).Msg("Failed to fetch profile")
-	} else {
-		user.log.Debug().Msgf("Fetched profile: %+v", p)
-	}
+	//user.log.Debug().Msgf("******************* Fetching profile for %s *******************", sender)
+	//ctx := context.Background()
+	//signalID := sender
+	//device := user.SignalDevice
+	//p, err := signalmeow.RetrieveProfileById(ctx, device, signalID)
+	//if err != nil {
+	//	user.log.Error().Err(err).Msg("Failed to fetch profile")
+	//} else {
+	//	user.log.Debug().Msgf("Fetched profile: %+v", p)
+	//}
 
 	return nil
 }

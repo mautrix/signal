@@ -249,10 +249,25 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 						}
 					}
 
-					// Send a friendly reply
 					if device.IncomingSignalMessageHandler != nil && content.DataMessage.Body != nil {
 						theirUuid, _ := result.SenderAddress.Name()
-						device.IncomingSignalMessageHandler(*content.DataMessage.Body, theirUuid)
+						var groupID *string
+						if content.DataMessage.GetGroupV2() != nil {
+							groupMasterKeyBytes := content.DataMessage.GetGroupV2().GetMasterKey()
+							groupMasterKeyString := base64.StdEncoding.EncodeToString(groupMasterKeyBytes)
+							groupID = &groupMasterKeyString
+							// TODO: should we use base64 masterkey as an ID????!?
+						}
+						incomingMessage := store.IncomingSignalMessageText{
+							IncomingSignalMessageBase: store.IncomingSignalMessageBase{
+								SenderUUID: theirUuid,
+								GroupID:    groupID,
+							},
+							Timestamp: content.DataMessage.GetTimestamp(),
+							Content:   content.DataMessage.GetBody(),
+						}
+
+						device.IncomingSignalMessageHandler(incomingMessage)
 					} else {
 						// TODO: don't echo outside of debug mode
 						if content.DataMessage.Body != nil {
