@@ -24,6 +24,7 @@ func scanIdentityKeyPair(row scannable) (*libsignalgo.IdentityKeyPair, error) {
 	var keyPair []byte
 	err := row.Scan(&keyPair)
 	if errors.Is(err, sql.ErrNoRows) {
+		log.Println("no identity key pair found")
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -35,6 +36,7 @@ func scanIdentityKey(row scannable) (*libsignalgo.IdentityKey, error) {
 	var key []byte
 	err := row.Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
+		log.Println("no identity key found")
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -120,8 +122,6 @@ func (s *SQLStore) IsTrustedIdentity(
 	trusted := trustLevel == "TRUSTED_UNVERIFIED" || trustLevel == "TRUSTED_VERIFIED"
 	if !trusted {
 		log.Println("RETURNING NOT TRUSTED")
-	} else {
-		log.Println("returning TRUSTED")
 	}
 	return trusted, nil
 }

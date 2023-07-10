@@ -36,6 +36,7 @@ type PreKeyStoreExtras interface {
 
 // libsignalgo.PreKeyStore implementation
 func (s *SQLStore) LoadPreKey(id uint32, ctx context.Context) (*libsignalgo.PreKeyRecord, error) {
+	log.Printf("LoadPreKey: %d", id)
 	return s.PreKey(types.UUID_KIND_ACI, int(id))
 }
 func (s *SQLStore) StorePreKey(id uint32, preKeyRecord *libsignalgo.PreKeyRecord, ctx context.Context) error {
@@ -71,6 +72,7 @@ func scanPreKey(row scannable) (*libsignalgo.PreKeyRecord, error) {
 	var record []byte
 	err := row.Scan(&id, &record)
 	if errors.Is(err, sql.ErrNoRows) {
+		log.Printf("scanPreKey: no rows")
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -83,6 +85,7 @@ func scanSignedPreKey(row scannable) (*libsignalgo.SignedPreKeyRecord, error) {
 	var record []byte
 	err := row.Scan(&id, &record)
 	if errors.Is(err, sql.ErrNoRows) {
+		log.Printf("scanSignedPreKey: no rows")
 		return nil, nil
 	} else if err != nil {
 		return nil, err

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
@@ -83,7 +84,9 @@ func (s *SQLStore) LoadSession(address *libsignalgo.Address, ctx context.Context
 	if err != nil {
 		return nil, err
 	}
+	log.Printf("Loading session for %s:%d", theirUuid, deviceId)
 	_, record, err := scanRecord(s.db.QueryRow(loadSessionQuery, s.AciUuid, theirUuid, deviceId))
+	log.Printf("Loaded session for %s:%d, record: %v", theirUuid, deviceId, record)
 	return record, err
 }
 
@@ -100,6 +103,7 @@ func (s *SQLStore) StoreSession(address *libsignalgo.Address, record *libsignalg
 	if err != nil {
 		return err
 	}
+	log.Printf("Storing session for %s:%d, record: %v", theirUuid, deviceId, record)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		tx.Rollback()
