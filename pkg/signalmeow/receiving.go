@@ -90,8 +90,10 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 					if err != nil {
 						log.Printf("GroupDecrypt error: %v", err)
 					} else {
-						responseCode = 200
-						log.Printf("===== GROUP decryptedText: %v ===== ", decryptedText)
+						err = stripPadding(&decryptedText)
+						if err != nil {
+							return nil, fmt.Errorf("stripPadding error: %v", err)
+						}
 						content := signalpb.Content{}
 						err = proto.Unmarshal(decryptedText, &content)
 						if err != nil {
@@ -102,6 +104,7 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 							Content:       &content,
 							SealedSender:  true,
 						}
+						responseCode = 200
 					}
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePreKey {
@@ -129,8 +132,10 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 					if err != nil {
 						log.Printf("Whisper Decryption error: %v", err)
 					} else {
-						responseCode = 200
-						log.Printf("===== Whisper decryptedText: %v ===== ", decryptedText)
+						err = stripPadding(&decryptedText)
+						if err != nil {
+							return nil, fmt.Errorf("stripPadding error: %v", err)
+						}
 						content := signalpb.Content{}
 						err = proto.Unmarshal(decryptedText, &content)
 						if err != nil {
@@ -141,6 +146,7 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 							Content:       &content,
 							SealedSender:  true,
 						}
+						responseCode = 200
 					}
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePlaintext {
@@ -201,6 +207,7 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 			// Handle content that is now decrypted
 			if result != nil && result.Content != nil {
 				content := result.Content
+				log.Printf("-----> content: %v", content)
 
 				// If there's a sender key distribution message, process it
 				if content.GetSenderKeyDistributionMessage() != nil {

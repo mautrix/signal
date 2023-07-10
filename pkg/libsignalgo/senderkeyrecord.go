@@ -47,6 +47,7 @@ func (skr *SenderKeyRecord) Clone() (*SenderKeyRecord, error) {
 }
 
 func (skr *SenderKeyRecord) Destroy() error {
-	runtime.SetFinalizer(skr, nil)
-	return wrapError(C.signal_sender_key_record_destroy(skr.ptr))
+	return nil
+	//runtime.SetFinalizer(skr, nil)
+	//return wrapError(C.signal_sender_key_record_destroy(skr.ptr))
 }

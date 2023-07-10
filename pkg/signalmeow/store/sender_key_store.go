@@ -19,8 +19,7 @@ const (
 
 func scanSenderKey(row scannable) (*libsignalgo.SenderKeyRecord, error) {
 	var key []byte
-	var deviceId int
-	err := row.Scan(&deviceId, &key)
+	err := row.Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
