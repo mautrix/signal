@@ -22,4 +22,3 @@ message Pack {
     optional Sticker cover    = 3;
     repeated Sticker stickers = 4;
 }
-

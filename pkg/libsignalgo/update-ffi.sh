@@ -38,4 +38,3 @@ cp "${LIBSIGNAL_DIRECTORY}/target/release/libsignal_ffi.a" .
 cp "${LIBSIGNAL_DIRECTORY}/libsignal-ffi.h" .
 
 echo "Files copied successfully."
-
