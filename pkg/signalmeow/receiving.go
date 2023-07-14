@@ -168,6 +168,7 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 						responseCode = 200
 					}
 				}
+
 			} else if *envelope.Type == signalpb.Envelope_PREKEY_BUNDLE {
 				log.Printf("Received envelope type PREKEY_BUNDLE, verb: %v, path: %v", *req.Verb, *req.Path)
 				sender, err := libsignalgo.NewAddress(

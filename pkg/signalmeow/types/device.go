@@ -36,6 +36,7 @@ func (d *DeviceData) BasicAuthCreds() (string, string) {
 type DeviceConnection struct {
 	// cached data (not persisted)
 	SenderCertificate *libsignalgo.SenderCertificate
+	GroupCredentials  *GroupCredentials
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket
@@ -51,19 +52,16 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 	path := web.WebsocketPath +
 		"?login=" + username +
 		"&password=" + password
-	authedWS := web.NewSignalWebsocket(ctx, path)
+	authedWS := web.NewSignalWebsocket(ctx, path, &username, &password)
 	authedWS.Connect(ctx, &requestHandler)
 	d.AuthedWS = authedWS
-	unauthedWS := web.NewSignalWebsocket(ctx, web.WebsocketPath)
-	unauthedWS.Connect(ctx, nil)
-	d.UnauthedWS = unauthedWS
 	return nil
 }
 func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceData) error {
 	if d.UnauthedWS != nil {
 		return nil
 	}
-	unauthedWS := web.NewSignalWebsocket(ctx, web.WebsocketPath)
+	unauthedWS := web.NewSignalWebsocket(ctx, web.WebsocketPath, nil, nil)
 	unauthedWS.Connect(ctx, nil)
 	d.UnauthedWS = unauthedWS
 	return nil

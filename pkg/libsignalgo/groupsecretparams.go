@@ -19,8 +19,8 @@ func GenerateRandomness() (Randomness, error) {
 }
 
 type GroupMasterKey [32]byte
-
-type GroupSecretParams [289]byte
+type GroupSecretParams [C.SignalGROUP_SECRET_PARAMS_LEN]byte
+type GroupPublicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]byte
 
 func GenerateGroupSecretParams() (GroupSecretParams, error) {
 	randomness, err := GenerateRandomness()
@@ -50,4 +50,16 @@ func DeriveGroupSecretParamsFromMasterKey(groupMasterKey GroupMasterKey) (GroupS
 	var groupSecretParams GroupSecretParams
 	copy(groupSecretParams[:], C.GoBytes(unsafe.Pointer(&params), C.int(289)))
 	return groupSecretParams, nil
+}
+
+// wrap C.signal_group_secret_params_get_public_params
+func (gsp *GroupSecretParams) GetPublicParams() (*GroupPublicParams, error) {
+	var publicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]C.uchar
+	signalFfiError := C.signal_group_secret_params_get_public_params(&publicParams, (*[289]C.uint8_t)(unsafe.Pointer(gsp)))
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	var groupPublicParams GroupPublicParams
+	copy(groupPublicParams[:], C.GoBytes(unsafe.Pointer(&publicParams), C.int(C.SignalGROUP_PUBLIC_PARAMS_LEN)))
+	return &groupPublicParams, nil
 }

@@ -25,12 +25,19 @@ type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage)
 type SignalWebsocket struct {
 	ws          *websocket.Conn
 	path        string
+	basicAuth   *string
 	sendChannel chan *SignalWebsocketSendMessage
 }
 
-func NewSignalWebsocket(ctx context.Context, path string) *SignalWebsocket {
+func NewSignalWebsocket(ctx context.Context, path string, username *string, password *string) *SignalWebsocket {
+	var basicAuth *string
+	if username != nil && password != nil {
+		b := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
+		basicAuth = &b
+	}
 	return &SignalWebsocket{
 		path:        path,
+		basicAuth:   basicAuth,
 		sendChannel: make(chan *SignalWebsocketSendMessage),
 	}
 }
@@ -351,14 +358,11 @@ func writeLoop(
 func (s *SignalWebsocket) SendRequest(
 	ctx context.Context,
 	request *signalpb.WebSocketRequestMessage,
-	username *string,
-	password *string,
 ) (<-chan *signalpb.WebSocketResponseMessage, error) {
 	//request.Headers = append(request.Headers, "Content-Type: application/json")
-	//if username != nil && password != nil {
-	//basicAuth := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
-	//request.Headers = append(request.Headers, "authorization:Basic "+basicAuth)
-	//}
+	if s.basicAuth != nil {
+		request.Headers = append(request.Headers, "authorization:Basic "+*s.basicAuth)
+	}
 	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
 	if s.sendChannel == nil {
 		return nil, errors.New("Send channel not initialized")

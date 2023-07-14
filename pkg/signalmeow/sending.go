@@ -280,7 +280,7 @@ func sendMessage(
 	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
 	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil)
 
-	responseChan, err := d.Connection.AuthedWS.SendRequest(ctx, request, nil, nil)
+	responseChan, err := d.Connection.AuthedWS.SendRequest(ctx, request)
 	if err != nil {
 		return err
 	}
