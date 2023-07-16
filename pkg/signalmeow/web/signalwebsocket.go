@@ -378,7 +378,7 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 	opt := &websocket.DialOptions{
 		HTTPClient: proxiedHTTPClient(),
 	}
-	urlStr := "wss://" + urlHost + path
+	urlStr := "wss://" + UrlHost + path
 	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
 
 	if err != nil {

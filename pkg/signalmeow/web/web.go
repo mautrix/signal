@@ -13,7 +13,8 @@ import (
 const proxyUrlStr = "http://localhost:8080"
 const caCertPath = "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
 
-const urlHost = "chat.signal.org"
+const UrlHost = "chat.signal.org"
+const StorageUrlHost = "storage.signal.org"
 
 // TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
 func proxiedHTTPClient() *http.Client {
@@ -53,17 +54,37 @@ func proxiedHTTPClient() *http.Client {
 	return client
 }
 
-func SendHTTPRequest(method string, path string, body []byte, username *string, password *string) (*http.Response, error) {
-	urlStr := "https://" + urlHost + path
-	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(body))
+type HTTPReqOpt struct {
+	Body      []byte
+	Username  *string
+	Password  *string
+	RequestPB bool
+	Host      string
+}
+
+func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Response, error) {
+	// Set defaults
+	if opt == nil {
+		opt = &HTTPReqOpt{}
+	}
+	if opt.Host == "" {
+		opt.Host = UrlHost
+	}
+
+	urlStr := "https://" + opt.Host + path
+	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(opt.Body))
 	if err != nil {
 		log.Fatalf("Error creating request: %v", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if opt.RequestPB {
+		req.Header.Set("Content-Type", "application/x-protobuf")
+	} else {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	//req.Header.Set("User-Agent", "SignalBridge/0.1")
 	//req.Header.Set("X-Signal-Agent", "SignalBridge/0.1")
-	if username != nil && password != nil {
-		req.SetBasicAuth(*username, *password)
+	if opt.Username != nil && opt.Password != nil {
+		req.SetBasicAuth(*opt.Username, *opt.Password)
 	}
 
 	client := proxiedHTTPClient()

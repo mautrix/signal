@@ -3,7 +3,6 @@ package types
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -65,9 +64,4 @@ func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceDat
 	unauthedWS.Connect(ctx, nil)
 	d.UnauthedWS = unauthedWS
 	return nil
-}
-
-func (d DeviceData) SendAuthedHTTPRequest(method string, path string, body []byte) (*http.Response, error) {
-	username, password := d.BasicAuthCreds()
-	return web.SendHTTPRequest(method, path, body, &username, &password)
 }

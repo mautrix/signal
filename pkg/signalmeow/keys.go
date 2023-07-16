@@ -154,7 +154,8 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind
 		log.Printf("Error marshalling register JSON: %v", err)
 		return err
 	}
-	resp, err := web.SendHTTPRequest("PUT", keysPath, jsonBytes, &username, &password)
+	opts := &web.HTTPReqOpt{Body: jsonBytes, Username: &username, Password: &password}
+	resp, err := web.SendHTTPRequest("PUT", keysPath, opts)
 	if err != nil {
 		log.Fatalf("Error sending request: %v", err)
 	}
@@ -196,7 +197,8 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 func FetchAndProcessPreKey(ctx context.Context, device *store.Device, theirUuid string, theirDeviceID int) error {
 	// Fetch prekey
 	path := "/v2/keys/" + theirUuid + "/" + fmt.Sprint(theirDeviceID)
-	resp, err := device.Data.SendAuthedHTTPRequest("GET", path, nil)
+	username, password := device.Data.BasicAuthCreds()
+	resp, err := web.SendHTTPRequest("GET", path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
 		log.Printf("Error sending request: %v", err)
 		return err

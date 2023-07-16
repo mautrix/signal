@@ -10,14 +10,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"strings"
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
+	"google.golang.org/protobuf/proto"
 )
 
 type ProfileName struct {
@@ -109,13 +112,7 @@ type GroupAuth struct {
 func fetchNewGroupCreds(ctx context.Context, d *store.Device, today time.Time) (*types.GroupCredentials, error) {
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
 	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d", today.Unix(), sevenDaysOut.Unix())
-	authRequest := web.CreateWSRequest(
-		"GET",
-		path,
-		nil,
-		nil,
-		nil,
-	)
+	authRequest := web.CreateWSRequest("GET", path, nil, nil, nil)
 	respChan, err := d.Connection.AuthedWS.SendRequest(ctx, authRequest)
 	if err != nil {
 		log.Printf("SendRequest error: %v", err)
@@ -139,11 +136,10 @@ func fetchNewGroupCreds(ctx context.Context, d *store.Device, today time.Time) (
 		log.Printf("creds.Pni != d.PniUuid")
 		return nil, errors.New("creds.Pni != d.PniUuid")
 	}
-	log.Printf("auth credentials: %v", creds)
 	return &creds, nil
 }
 
-func GetCachedAuthorizationForToday(d *store.Device, today time.Time) *types.GroupCredential {
+func getCachedAuthorizationForToday(d *store.Device, today time.Time) *types.GroupCredential {
 	if d.Connection.GroupCredentials == nil {
 		// No cached credentials
 		return nil
@@ -163,7 +159,7 @@ func GetAuthorizationForToday(ctx context.Context, d *store.Device, masterKey li
 	// Timestamps for the start of today, and 7 days later
 	today := time.Now().Truncate(24 * time.Hour)
 
-	todayCred := GetCachedAuthorizationForToday(d, today)
+	todayCred := getCachedAuthorizationForToday(d, today)
 	if todayCred == nil {
 		creds, err := fetchNewGroupCreds(ctx, d, today)
 		if err != nil {
@@ -171,7 +167,7 @@ func GetAuthorizationForToday(ctx context.Context, d *store.Device, masterKey li
 			return nil, err
 		}
 		d.Connection.GroupCredentials = creds
-		todayCred = GetCachedAuthorizationForToday(d, today)
+		todayCred = getCachedAuthorizationForToday(d, today)
 	}
 	if todayCred == nil {
 		return nil, errors.New("Couldn't get credential for today")
@@ -180,7 +176,8 @@ func GetAuthorizationForToday(ctx context.Context, d *store.Device, masterKey li
 
 	//TODO: cache cred after unmarshalling
 	redemptionTime := uint64(todayCred.RedemptionTime)
-	authCredentialResponse, err := libsignalgo.NewAuthCredentialWithPniResponse(todayCred.Credential)
+	credential := todayCred.Credential
+	authCredentialResponse, err := libsignalgo.NewAuthCredentialWithPniResponse(credential)
 	if err != nil {
 		log.Printf("NewAuthCredentialWithPniResponse error: %v", err)
 		return nil, err
@@ -234,25 +231,51 @@ func GetAuthorizationForToday(ctx context.Context, d *store.Device, masterKey li
 
 	return &GroupAuth{
 		Username: hex.EncodeToString(groupPublicParams[:]),
-		Password: hex.EncodeToString(authCredentialPresentation[:]),
+		Password: hex.EncodeToString(*authCredentialPresentation),
 	}, nil
 }
 
-//func RetrieveGroupById(ctx context.Context, d *store.Device, groupID string) (*Group, error) {
-//	// TODO only send auth request when necessary (once a day?)
-//	authCredentialRequest, err := libsignalgo.Auth
-//
-//}
-
-func RetrieveProfileById(ctx context.Context, d *store.Device, signalID string) (*Profile, error) {
-	log.Printf("****************** AUTH CRED TEST ******************")
-	groupAuth, err := GetAuthorizationForToday(ctx, d, libsignalgo.GroupMasterKey{})
+func masterKeyFromGroupID(groupID string) libsignalgo.GroupMasterKey {
+	// We are very tricksy, groupID is just base64 encoded group master key :O
+	masterKeyBytes, err := base64.StdEncoding.DecodeString(groupID)
 	if err != nil {
-		log.Printf("GetAuthorizationForToday error: %v", err)
+		log.Printf("We should always be able to decode groupID into masterKeyBytes")
+		panic(err)
+	}
+	return libsignalgo.GroupMasterKey(masterKeyBytes)
+}
+
+func RetrieveGroupById(ctx context.Context, d *store.Device, groupID string) (*signalpb.Group, error) {
+	masterKey := masterKeyFromGroupID(groupID)
+	groupAuth, err := GetAuthorizationForToday(ctx, d, masterKey)
+	if err != nil {
 		return nil, err
 	}
-	log.Printf("groupAuth: %v", groupAuth)
+	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, RequestPB: true, Host: web.StorageUrlHost}
+	response, err := web.SendHTTPRequest("GET", "/v1/groups", opts)
+	if err != nil {
+		log.Printf("RetrieveGroupById SendHTTPRequest error: %v", err)
+		return nil, err
+	}
+	if response.StatusCode != 200 {
+		log.Printf("RetrieveGroupById SendHTTPRequest bad status: %v", response.StatusCode)
+		return nil, errors.New(fmt.Sprintf("RetrieveGroupById SendHTTPRequest bad status: %v", response.StatusCode))
+	}
+	group := &signalpb.Group{}
+	groupBytes, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		log.Printf("RetrieveGroupById ReadAll error: %v", err)
+		return nil, err
+	}
+	err = proto.Unmarshal(groupBytes, group)
+	if err != nil {
+		log.Printf("RetrieveGroupById Unmarshal error: %v", err)
+		return nil, err
+	}
+	return group, nil
+}
 
+func RetrieveProfileById(ctx context.Context, d *store.Device, signalID string) (*Profile, error) {
 	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID)
 	if err != nil {
 		log.Printf("ProfileKey error: %v", err)

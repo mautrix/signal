@@ -256,8 +256,17 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 						if content.DataMessage.GetGroupV2() != nil {
 							groupMasterKeyBytes := content.DataMessage.GetGroupV2().GetMasterKey()
 							groupMasterKeyString := base64.StdEncoding.EncodeToString(groupMasterKeyBytes)
+							// TODO: should we be using base64 masterkey as an ID????!?
 							groupID = &groupMasterKeyString
-							// TODO: should we use base64 masterkey as an ID????!?
+
+							log.Printf("********* GROUP FETCH TEST *********")
+							// TODO: is this the best place to always fetch the group?
+							group, err := RetrieveGroupById(ctx, device, *groupID)
+							if err != nil {
+								log.Printf("RetrieveGroupById error: %v", err)
+								return nil, err
+							}
+							log.Printf("fetched group: %v", group)
 						}
 						incomingMessage := store.IncomingSignalMessageText{
 							IncomingSignalMessageBase: store.IncomingSignalMessageBase{

@@ -25,7 +25,8 @@ func senderCertificate(d *store.Device) (*libsignalgo.SenderCertificate, error) 
 	}
 
 	username, password := d.Data.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest("GET", "/v1/certificate/delivery", nil, &username, &password)
+	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
+	resp, err := web.SendHTTPRequest("GET", "/v1/certificate/delivery", opts)
 	defer resp.Body.Close()
 	if err != nil {
 		return nil, err

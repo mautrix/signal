@@ -7,6 +7,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"log"
 	"unsafe"
 )
 
@@ -14,13 +15,12 @@ import (
 // type AuthCredentialResponse [C.SignalAUTH_CREDENTIAL_RESPONSE_LEN]byte
 type AuthCredentialWithPni [C.SignalAUTH_CREDENTIAL_WITH_PNI_LEN]byte
 type AuthCredentialWithPniResponse [C.SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]byte
-type AuthCredentialPresentation [C.SignalAUTH_CREDENTIAL_PRESENTATION_V2_LEN]byte
+type AuthCredentialPresentation []byte
 
 func (ac *AuthCredentialWithPni) Slice() []byte {
 	return (*ac)[:]
 }
 
-// wrap C.signal_server_public_params_receive_auth_credential_with_pni
 func ReceiveAuthCredentialWithPni(
 	serverPublicParams ServerPublicParams,
 	aci UUID,
@@ -59,7 +59,6 @@ func NewAuthCredentialWithPniResponse(b []byte) (*AuthCredentialWithPniResponse,
 	return &authCred, nil
 }
 
-// wrap C.signal_server_public_params_create_auth_credential_with_pni_presentation_deterministic
 func CreateAuthCredentialWithPniPresentation(
 	serverPublicParams ServerPublicParams,
 	randomness Randomness,
@@ -82,7 +81,7 @@ func CreateAuthCredentialWithPniPresentation(
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	result := CopySignalOwnedBufferToBytes(c_result)
-	pres := AuthCredentialPresentation(result)
-	return &pres, nil
+	result := AuthCredentialPresentation(CopySignalOwnedBufferToBytes(c_result))
+	log.Printf("AuthCredentialPresentation len: %d", len(result))
+	return &result, nil
 }
