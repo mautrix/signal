@@ -20,17 +20,18 @@ import (
 type GroupMemberRole int32
 
 const (
+	// Note: right now we assume these match the equivalent values in the protobuf (signalpb.Member_Role)
 	GroupMember_UNKNOWN       GroupMemberRole = 0
 	GroupMember_DEFAULT       GroupMemberRole = 1
 	GroupMember_ADMINISTRATOR GroupMemberRole = 2
 )
 
 type GroupMember struct {
-	UserId     string
-	Role       GroupMemberRole
-	ProfileKey libsignalgo.ProfileKey
+	UserId           string
+	Role             GroupMemberRole
+	ProfileKey       libsignalgo.ProfileKey
+	JoinedAtRevision uint32
 	//Presentation     []byte
-	//JoinedAtRevision uint32
 }
 type Group struct {
 	GroupID GroupID
@@ -40,8 +41,8 @@ type Group struct {
 	Members           []*GroupMember
 	Description       string
 	AnnouncementsOnly bool
+	Revision          uint32
 	//PublicKey                 *libsignalgo.PublicKey
-	//Revision			        uint32
 	//DisappearingMessagesTimer []byte
 	//AccessControl             *AccessControl
 	//PendingMembers            []*PendingMember
@@ -208,6 +209,7 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 		log.Printf("DeriveGroupSecretParamsFromMasterKey error: %v", err)
 		return nil, err
 	}
+
 	title, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.Title)
 	if err != nil {
 		log.Printf("DecryptBlobWithPadding Title error: %v", err)
@@ -215,7 +217,63 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 	}
 	decryptedGroup.Title = string(title)
 
+	// TODO: Not sure how to decrypt avatar yet
+	//avatarBytes, err := base64.StdEncoding.DecodeString(encryptedGroup.Avatar)
+	//log.Printf("avatarBytes: %v", avatarBytes)
+	//decryptedAvatar, err := groupSecretParams.DecryptBlobWithPadding(avatarBytes)
+	//if err != nil {
+	//	log.Printf("DecryptBlobWithPadding Avatar error: %v", err)
+	//	//return nil, err
+	//}
+	//decryptedGroup.Avatar = string(decryptedAvatar)
+
+	// Decrypt members
+	decryptedGroup.Members = make([]*GroupMember, 0)
+	for _, member := range encryptedGroup.Members {
+		if member == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(member.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Printf("DecryptUUID UserId error: %v", err)
+			return nil, err
+		}
+		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(member.ProfileKey)
+		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, *userID)
+		if err != nil {
+			log.Printf("DecryptProfileKey ProfileKey error: %v", err)
+			return nil, err
+		}
+		decryptedGroup.Members = append(decryptedGroup.Members, &GroupMember{
+			UserId:           convertByteUUIDToUUID(*userID),
+			ProfileKey:       *profileKey,
+			Role:             GroupMemberRole(member.Role),
+			JoinedAtRevision: member.JoinedAtRevision,
+		})
+	}
+
 	return decryptedGroup, nil
+}
+
+func printGroupMember(member *GroupMember) {
+	if member == nil {
+		log.Printf("GroupMember is nil")
+		return
+	}
+	log.Printf("UserID: %v", member.UserId)
+	log.Printf("ProfileKey: %v", member.ProfileKey)
+	log.Printf("Role: %v", member.Role)
+	log.Printf("JoinedAtRevision: %v", member.JoinedAtRevision)
+}
+func printGroup(group *Group) {
+	log.Printf("GroupID: %v", group.GroupID)
+	log.Printf("Title: %v", group.Title)
+	log.Printf("Avatar: %v", group.Avatar)
+	log.Printf("Members len: %v", len(group.Members))
+	for _, member := range group.Members {
+		printGroupMember(member)
+	}
 }
 
 func RetrieveGroupById(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {

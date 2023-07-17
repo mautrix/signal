@@ -32,3 +32,12 @@ func convertUUIDToByteUUID(uuid string) (*libsignalgo.UUID, error) {
 	byteUUID := libsignalgo.UUID(uuidBytes)
 	return &byteUUID, nil
 }
+
+func convertByteUUIDToUUID(uuidBytes libsignalgo.UUID) string {
+	uuid := hex.EncodeToString(uuidBytes[:4]) + "-" +
+		hex.EncodeToString(uuidBytes[4:6]) + "-" +
+		hex.EncodeToString(uuidBytes[6:8]) + "-" +
+		hex.EncodeToString(uuidBytes[8:10]) + "-" +
+		hex.EncodeToString(uuidBytes[10:])
+	return uuid
+}

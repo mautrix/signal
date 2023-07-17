@@ -81,9 +81,9 @@ func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error
 }
 
 func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*UUID, error) {
-	var uuid *[C.SignalUUID_LEN]C.uchar
+	uuid := [C.SignalUUID_LEN]C.uchar{}
 	signalFfiError := C.signal_group_secret_params_decrypt_uuid(
-		uuid,
+		&uuid,
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
 		(*[C.SignalUUID_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextUUID)),
 	)
@@ -91,14 +91,14 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*UUID,
 		return nil, wrapError(signalFfiError)
 	}
 	var result UUID
-	copy(result[:], C.GoBytes(unsafe.Pointer(uuid), C.int(C.SignalUUID_LEN)))
+	copy(result[:], C.GoBytes(unsafe.Pointer(&uuid), C.int(C.SignalUUID_LEN)))
 	return &result, nil
 }
 
 func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, uuid UUID) (*ProfileKey, error) {
-	var profileKey *[C.SignalPROFILE_KEY_LEN]C.uchar
+	profileKey := [C.SignalPROFILE_KEY_LEN]C.uchar{}
 	signalFfiError := C.signal_group_secret_params_decrypt_profile_key(
-		profileKey,
+		&profileKey,
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
 		(*[C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextProfileKey)),
 		(*[C.SignalUUID_LEN]C.uint8_t)(unsafe.Pointer(&uuid)),
@@ -107,6 +107,6 @@ func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyC
 		return nil, wrapError(signalFfiError)
 	}
 	var result ProfileKey
-	copy(result[:], C.GoBytes(unsafe.Pointer(profileKey), C.int(C.SignalPROFILE_KEY_LEN)))
+	copy(result[:], C.GoBytes(unsafe.Pointer(&profileKey), C.int(C.SignalPROFILE_KEY_LEN)))
 	return &result, nil
 }

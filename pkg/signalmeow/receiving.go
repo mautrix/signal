@@ -266,7 +266,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								log.Printf("RetrieveGroupById error: %v", err)
 								return nil, err
 							}
-							log.Printf("fetched group: %v", group)
+							printGroup(group) // TODO: debug log
 						}
 						incomingMessage := IncomingSignalMessageText{
 							IncomingSignalMessageBase: IncomingSignalMessageBase{
