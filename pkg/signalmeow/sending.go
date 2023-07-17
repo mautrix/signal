@@ -11,14 +11,13 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 	"google.golang.org/protobuf/proto"
 )
 
 // Sending
 
-func senderCertificate(d *store.Device) (*libsignalgo.SenderCertificate, error) {
+func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
 		// TODO: check for expired certificate
 		return d.Connection.SenderCertificate, nil
@@ -105,7 +104,7 @@ func addPadding(version uint32, contents []byte) ([]byte, error) {
 	}
 }
 
-func buildAuthedMessagesToSend(d *store.Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
+func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
 	messages := []MyMessage{}
 
 	recipients, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
@@ -177,7 +176,7 @@ func buildAuthedMessagesToSend(d *store.Device, recipientUuid string, content *s
 	return messages, nil
 }
 
-func buildSSMessagesToSend(d *store.Device, recipientUuid string, message *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
+func buildSSMessagesToSend(d *Device, recipientUuid string, message *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
 	messages := []MyMessage{}
 
 	// Grab our sender cert
@@ -243,7 +242,7 @@ func buildSSMessagesToSend(d *store.Device, recipientUuid string, message *signa
 
 func sendMessage(
 	ctx context.Context,
-	d *store.Device,
+	d *Device,
 	recipientUuid string,
 	content *signalpb.Content,
 	retryCount int, // For ending recursive retries
@@ -315,7 +314,7 @@ func sendMessage(
 	return asyncError
 }
 
-func SendMessage(ctx context.Context, device *store.Device, recipientUuid string, text string) error {
+func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) error {
 	message := &signalpb.Content{
 		DataMessage: &signalpb.DataMessage{
 			Body: proto.String(text),
@@ -324,7 +323,7 @@ func SendMessage(ctx context.Context, device *store.Device, recipientUuid string
 	return sendMessage(ctx, device, recipientUuid, message, 0)
 }
 
-func handle409(ctx context.Context, device *store.Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
+func handle409(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
 	// Decode json body
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)

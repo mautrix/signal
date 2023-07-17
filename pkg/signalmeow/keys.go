@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -23,7 +21,7 @@ type GeneratedPreKeys struct {
 	IdentityKey  []uint8
 }
 
-func GenerateAndRegisterPreKeys(device *store.Device, uuidKind types.UUIDKind) error {
+func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	// Generate prekeys
 	preKeys := GeneratePreKeys(0, 100, uuidKind)
 
@@ -33,7 +31,7 @@ func GenerateAndRegisterPreKeys(device *store.Device, uuidKind types.UUIDKind) e
 	}
 
 	var identityKeyPair *libsignalgo.IdentityKeyPair
-	if uuidKind == types.UUID_KIND_PNI {
+	if uuidKind == UUID_KIND_PNI {
 		identityKeyPair = device.Data.PniIdentityKeyPair
 	} else {
 		identityKeyPair = device.Data.AciIdentityKeyPair
@@ -72,7 +70,7 @@ func GenerateAndRegisterPreKeys(device *store.Device, uuidKind types.UUIDKind) e
 	return err
 }
 
-func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind types.UUIDKind) *[]libsignalgo.PreKeyRecord {
+func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind UUIDKind) *[]libsignalgo.PreKeyRecord {
 	generatedPreKeys := []libsignalgo.PreKeyRecord{}
 	for i := startKeyId; i < startKeyId+count; i++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
@@ -89,7 +87,7 @@ func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind types.UUIDKind) *
 	return &generatedPreKeys
 }
 
-func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind types.UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *libsignalgo.SignedPreKeyRecord {
+func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *libsignalgo.SignedPreKeyRecord {
 	// Generate a signed prekey
 	privateKey, err := libsignalgo.GeneratePrivateKey()
 	if err != nil {
@@ -116,7 +114,7 @@ func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind types.UUIDKind, iden
 	return signedPreKey
 }
 
-func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind, username string, password string) error {
+func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind UUIDKind, username string, password string) error {
 	// Convert generated prekeys to JSON
 	preKeysJson := []map[string]interface{}{}
 	for _, preKey := range generatedPreKeys.PreKeys {
@@ -194,7 +192,7 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(data)
 }
 
-func FetchAndProcessPreKey(ctx context.Context, device *store.Device, theirUuid string, theirDeviceID int) error {
+func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string, theirDeviceID int) error {
 	// Fetch prekey
 	path := "/v2/keys/" + theirUuid + "/" + fmt.Sprint(theirDeviceID)
 	username, password := device.Data.BasicAuthCreds()

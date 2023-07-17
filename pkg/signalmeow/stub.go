@@ -9,13 +9,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
 
 func Main() {
 	setupLogging()
 
-	sqlStore, err := store.New("sqlite3", "file:signalmeow.db?_foreign_keys=on")
+	sqlStore, err := NewStore("sqlite3", "file:signalmeow.db?_foreign_keys=on")
 	if err != nil {
 		log.Printf("store.New error: %v", err)
 		return
@@ -66,7 +65,7 @@ func Main() {
 	select {}
 }
 
-func doProvisioning(sqlStore *store.StoreContainer) {
+func doProvisioning(sqlStore *StoreContainer) {
 	provChan := PerformProvisioning(sqlStore)
 
 	// First get the provisioning URL

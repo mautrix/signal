@@ -1,4 +1,4 @@
-package types
+package signalmeow
 
 import (
 	"context"
@@ -39,6 +39,8 @@ type DeviceConnection struct {
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket
+
+	IncomingSignalMessageHandler func(IncomingSignalMessage) error
 }
 
 func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData, requestHandler web.RequestHandlerFunc) error {

@@ -10,12 +10,11 @@ import (
 	"github.com/google/uuid"
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 	"google.golang.org/protobuf/proto"
 )
 
-func StartReceiveLoops(ctx context.Context, d *store.Device) error {
+func StartReceiveLoops(ctx context.Context, d *Device) error {
 	handler := incomingRequestHandlerWithDevice(d)
 	err := d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
 	if err != nil {
@@ -29,7 +28,7 @@ func StartReceiveLoops(ctx context.Context, d *store.Device) error {
 }
 
 // Returns a RequestHandlerFunc that can be used to handle incoming requests, with a device injected via closure.
-func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFunc {
+func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 	handler := func(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
 		responseCode := 400
 		if *req.Verb == "PUT" && *req.Path == "/api/v1/message" {
@@ -250,26 +249,27 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 						}
 					}
 
-					if device.IncomingSignalMessageHandler != nil && content.DataMessage.Body != nil {
+					if device.Connection.IncomingSignalMessageHandler != nil && content.DataMessage.Body != nil {
 						theirUuid, _ := result.SenderAddress.Name()
-						var groupID *string
+						var groupID *GroupID
 						if content.DataMessage.GetGroupV2() != nil {
 							groupMasterKeyBytes := content.DataMessage.GetGroupV2().GetMasterKey()
-							groupMasterKeyString := base64.StdEncoding.EncodeToString(groupMasterKeyBytes)
+
 							// TODO: should we be using base64 masterkey as an ID????!?
-							groupID = &groupMasterKeyString
+							groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
+							groupID = &groupIDValue
 
 							log.Printf("********* GROUP FETCH TEST *********")
 							// TODO: is this the best place to always fetch the group?
-							group, err := RetrieveGroupById(ctx, device, *groupID)
+							group, err := RetrieveGroupById(ctx, device, groupIDValue)
 							if err != nil {
 								log.Printf("RetrieveGroupById error: %v", err)
 								return nil, err
 							}
 							log.Printf("fetched group: %v", group)
 						}
-						incomingMessage := store.IncomingSignalMessageText{
-							IncomingSignalMessageBase: store.IncomingSignalMessageBase{
+						incomingMessage := IncomingSignalMessageText{
+							IncomingSignalMessageBase: IncomingSignalMessageBase{
 								SenderUUID: theirUuid,
 								GroupID:    groupID,
 							},
@@ -277,7 +277,7 @@ func incomingRequestHandlerWithDevice(device *store.Device) web.RequestHandlerFu
 							Content:   content.DataMessage.GetBody(),
 						}
 
-						device.IncomingSignalMessageHandler(incomingMessage)
+						device.Connection.IncomingSignalMessageHandler(incomingMessage)
 					} else {
 						// TODO: don't echo outside of debug mode
 						if content.DataMessage.Body != nil {
@@ -330,7 +330,7 @@ func serverTrustRootKey() *libsignalgo.PublicKey {
 	return serverTrustRootKey
 }
 
-func sealedSenderDecrypt(envelope *signalpb.Envelope, device *store.Device, ctx context.Context) (*DecryptionResult, error) {
+func sealedSenderDecrypt(envelope *signalpb.Envelope, device *Device, ctx context.Context) (*DecryptionResult, error) {
 	localAddress := libsignalgo.NewSealedSenderAddress(
 		device.Data.Number,
 		uuid.MustParse(device.Data.AciUuid),
@@ -377,7 +377,7 @@ func sealedSenderDecrypt(envelope *signalpb.Envelope, device *store.Device, ctx 
 	return DecryptionResult, nil
 }
 
-func prekeyDecrypt(sender libsignalgo.Address, encryptedContent []byte, device *store.Device, ctx context.Context) (*DecryptionResult, error) {
+func prekeyDecrypt(sender libsignalgo.Address, encryptedContent []byte, device *Device, ctx context.Context) (*DecryptionResult, error) {
 	preKeyMessage, err := libsignalgo.DeserializePreKeyMessage(encryptedContent)
 	if err != nil {
 		return nil, fmt.Errorf("DeserializePreKeyMessage error: %v", err)

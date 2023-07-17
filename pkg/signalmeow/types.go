@@ -1,4 +1,4 @@
-package types
+package signalmeow
 
 const (
 	UUID_KIND_ACI = "aci"

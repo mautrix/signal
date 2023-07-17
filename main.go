@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/database"
-	meowstore "go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/commands"
@@ -38,7 +38,7 @@ type SignalBridge struct {
 
 	Config    *config.Config
 	DB        *database.Database
-	MeowStore *meowstore.StoreContainer
+	MeowStore *signalmeow.StoreContainer
 
 	//provisioning *ProvisioningAPI
 
@@ -78,7 +78,7 @@ func (br *SignalBridge) Init() {
 	br.RegisterCommands()
 
 	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
-	br.MeowStore = meowstore.NewWithDB(br.DB.RawDB, br.DB.Dialect.String())
+	br.MeowStore = signalmeow.NewStoreWithDB(br.DB.RawDB, br.DB.Dialect.String())
 	//signalLog = br.ZLog.With().Str("component", "discordgo").Logger()
 
 	// TODO move this to mautrix-go?

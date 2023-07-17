@@ -1,4 +1,4 @@
-package store
+package signalmeow
 
 import (
 	"database/sql"

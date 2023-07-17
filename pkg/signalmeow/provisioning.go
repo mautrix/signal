@@ -15,8 +15,6 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 	"google.golang.org/protobuf/proto"
@@ -54,11 +52,11 @@ const (
 type ProvisioningResponse struct {
 	State            ProvisioningState
 	ProvisioningUrl  string
-	ProvisioningData *types.DeviceData
+	ProvisioningData *DeviceData
 	Err              error
 }
 
-func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningResponse {
+func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
@@ -121,7 +119,7 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 			deviceId = deviceResponse.deviceId
 		}
 
-		data := &types.DeviceData{
+		data := &DeviceData{
 			AciIdentityKeyPair: aciIdentityKeyPair,
 			PniIdentityKeyPair: pniIdentityKeyPair,
 			RegistrationId:     registrationId,
@@ -175,8 +173,8 @@ func PerformProvisioning(deviceStore store.DeviceStore) chan ProvisioningRespons
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
 		// Generate, store, and register prekeys
-		err = GenerateAndRegisterPreKeys(newDevice, types.UUID_KIND_ACI)
-		err = GenerateAndRegisterPreKeys(newDevice, types.UUID_KIND_PNI)
+		err = GenerateAndRegisterPreKeys(newDevice, UUID_KIND_ACI)
+		err = GenerateAndRegisterPreKeys(newDevice, UUID_KIND_PNI)
 
 		if err != nil {
 			log.Printf("error generating and registering prekeys: %v", err)
@@ -339,7 +337,7 @@ func confirmDevice(username string, password string, code string, registrationId
 	if ok {
 		deviceResp.uuid = uuid
 	}
-	pni, ok := body[types.UUID_KIND_PNI].(string)
+	pni, ok := body[UUID_KIND_PNI].(string)
 	if ok {
 		deviceResp.pni = pni
 	}

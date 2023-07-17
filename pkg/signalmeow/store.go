@@ -1,4 +1,4 @@
-package store
+package signalmeow
 
 import (
 	"database/sql"
@@ -7,13 +7,12 @@ import (
 	"log"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var _ DeviceStore = (*StoreContainer)(nil)
 
 type DeviceStore interface {
-	PutDevice(dd *types.DeviceData) error
+	PutDevice(dd *DeviceData) error
 	DeviceByAci(aciUuid string) (*Device, error)
 }
 
@@ -23,14 +22,14 @@ type StoreContainer struct {
 	dialect string
 	log     log.Logger
 
-	DatabaseErrorHandler func(device *types.DeviceData, action string, attemptIndex int, err error) (retry bool)
+	DatabaseErrorHandler func(device *DeviceData, action string, attemptIndex int, err error) (retry bool)
 }
 
 // Device is a wrapper for a signalmeow session, including device data,
 // and interfaces for operating on the DB within the session.
 type Device struct {
-	Data       types.DeviceData
-	Connection types.DeviceConnection
+	Data       DeviceData
+	Connection DeviceConnection
 
 	// NOTE: when adding a new store interface, make sure to assing it below
 	// (search for "innerStore" further down in this file)
@@ -46,66 +45,6 @@ type Device struct {
 	PreKeyStoreExtras  PreKeyStoreExtras
 	SessionStoreExtras SessionStoreExtras
 	ProfileKeyStore    ProfileKeyStore
-
-	// Message Handler TODO: should this be here?
-	IncomingSignalMessageHandler func(IncomingSignalMessage) error
-}
-
-// Below is a lot of boilerplate to have a nice ADTish type for incoming messages
-
-type IncomingSignalMessageType int
-
-const (
-	IncomingSignalMessageTypeText IncomingSignalMessageType = iota
-	IncomingSignalMessageTypeTyping
-	IncomingSignalMessageTypeReceipt
-)
-
-type IncomingSignalMessage interface {
-	MessageType() IncomingSignalMessageType
-}
-type IncomingSignalMessageText struct {
-	IncomingSignalMessageBase
-	Timestamp uint64
-	Content   string
-}
-
-func (IncomingSignalMessageText) MessageType() IncomingSignalMessageType {
-	return IncomingSignalMessageTypeText
-}
-
-type IncomingSignalMessageTyping struct {
-	IncomingSignalMessageBase
-	Timestamp uint64
-	IsTyping  bool
-}
-
-func (IncomingSignalMessageTyping) MessageType() IncomingSignalMessageType {
-	return IncomingSignalMessageTypeTyping
-}
-
-type IncomingSignalMessageReceiptType int
-
-const (
-	IncomingSignalMessageReceiptTypeDelivery IncomingSignalMessageReceiptType = iota
-	IncomingSignalMessageReceiptTypeRead
-	IncomingSignalMessageReceiptTypeViewed
-)
-
-type IncomingSignalMessageReceipt struct {
-	IncomingSignalMessageBase
-	Timestamps  []uint64
-	ReceiptType IncomingSignalMessageReceiptType
-}
-
-func (IncomingSignalMessageReceipt) MessageType() IncomingSignalMessageType {
-	return IncomingSignalMessageTypeReceipt
-}
-
-type IncomingSignalMessageBase struct {
-	// When uniquely identifiying a chat, use GroupID if it is not nil, otherwise use SenderUUID.
-	SenderUUID string  // Always the UUID of the sender of the message
-	GroupID    *string // Unique identifier for the group chat, or nil for 1:1 chats
 }
 
 // New connects to the given SQL database and wraps it in a StoreContainer.
@@ -114,12 +53,12 @@ type IncomingSignalMessageBase struct {
 // When using SQLite, it's strongly recommended to enable foreign keys by adding `?_foreign_keys=true`:
 //
 //	container, err := sqlstore.New("sqlite3", "file:yoursqlitefile.db?_foreign_keys=on", nil)
-func New(dialect, address string) (*StoreContainer, error) {
+func NewStore(dialect, address string) (*StoreContainer, error) {
 	db, err := sql.Open(dialect, address)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
-	container := NewWithDB(db, dialect)
+	container := NewStoreWithDB(db, dialect)
 	err = container.Upgrade()
 	if err != nil {
 		return nil, fmt.Errorf("failed to upgrade database: %w", err)
@@ -142,7 +81,7 @@ func New(dialect, address string) (*StoreContainer, error) {
 //
 //	container := sqlstore.NewWithDB(...)
 //	err := container.Upgrade()
-func NewWithDB(db *sql.DB, dialect string) *StoreContainer {
+func NewStoreWithDB(db *sql.DB, dialect string) *StoreContainer {
 	return &StoreContainer{
 		db:      db,
 		dialect: dialect,
@@ -237,7 +176,7 @@ const (
 var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before accessing database")
 
 // PutDevice stores the given device in this database.
-func (c *StoreContainer) PutDevice(device *types.DeviceData) error {
+func (c *StoreContainer) PutDevice(device *DeviceData) error {
 	log.Printf("storing device %s", device.AciUuid)
 	// TODO: if storing with same ACI UUID and device id, update instead of insert
 	if device.AciUuid == "" {
@@ -261,7 +200,7 @@ func (c *StoreContainer) PutDevice(device *types.DeviceData) error {
 }
 
 // DeleteDevice deletes the given device from this database. This should be called through Device.Delete()
-func (c *StoreContainer) DeleteDevice(device *types.DeviceData) error {
+func (c *StoreContainer) DeleteDevice(device *DeviceData) error {
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet
 	}

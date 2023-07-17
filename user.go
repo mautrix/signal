@@ -12,7 +12,6 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
-	meowstore "go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
@@ -37,7 +36,7 @@ type User struct {
 
 	PermissionLevel bridgeconfig.PermissionLevel
 
-	SignalDevice *meowstore.Device
+	SignalDevice *signalmeow.Device
 
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
@@ -356,7 +355,7 @@ func (user *User) Connect() error {
 
 	user.SignalDevice = device
 	// TODO: hook up remote-netework handlers here
-	device.IncomingSignalMessageHandler = user.incomingMessageHandler
+	device.Connection.IncomingSignalMessageHandler = user.incomingMessageHandler
 
 	ctx := context.Background()
 	connectErr := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
@@ -371,14 +370,14 @@ func (user *User) Connect() error {
 	return connectErr
 }
 
-func (user *User) incomingMessageHandler(incomingMessage meowstore.IncomingSignalMessage) error {
+func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSignalMessage) error {
 	switch incomingMessage.MessageType() {
-	case meowstore.IncomingSignalMessageTypeText:
-		m := incomingMessage.(meowstore.IncomingSignalMessageText)
+	case signalmeow.IncomingSignalMessageTypeText:
+		m := incomingMessage.(signalmeow.IncomingSignalMessageText)
 		log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
 		chatID := m.SenderUUID
 		if m.GroupID != nil {
-			chatID = *m.GroupID
+			chatID = string(*m.GroupID)
 		}
 		portal := user.GetPortalByChatID(chatID)
 		if portal == nil {
