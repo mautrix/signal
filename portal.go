@@ -338,8 +338,9 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	var err error
 	if _, uuidErr := uuid.Parse(recipientSignalID); uuidErr == nil {
 		// this is a 1:1 chat
-		err = signalmeow.SendMessage(ctx, sender.SignalDevice, recipientSignalID, msg)
-		if err != nil {
+		result := signalmeow.SendMessage(ctx, sender.SignalDevice, recipientSignalID, msg)
+		if !result.WasSuccessful {
+			err = result.FailedSendResult.Error
 			portal.log.Error().Msgf("Error sending event %s to Signal %s: %s", evt.ID, recipientSignalID, err)
 		}
 	} else {

@@ -258,9 +258,22 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Co
 	return messages, nil
 }
 
+type SuccessfulSendResult struct {
+	RecipientUuid string
+	Unidentified  bool
+}
+type FailedSendResult struct {
+	RecipientUuid string
+	Error         error
+}
+type SendMessageResult struct {
+	WasSuccessful bool
+	*SuccessfulSendResult
+	*FailedSendResult
+}
 type GroupMessageSendResult struct {
-	SuccessfullySentTo []GroupMember
-	FailedToSendTo     []GroupMember
+	SuccessfullySentTo []SuccessfulSendResult
+	FailedToSendTo     []FailedSendResult
 }
 
 func dataMessageFromText(text string, timestamp uint64) *signalpb.DataMessage {
@@ -274,13 +287,38 @@ func contentFromDataMessage(dataMessage *signalpb.DataMessage) *signalpb.Content
 		DataMessage: dataMessage,
 	}
 }
-func syncMessageFromDataMessage(dataMessage *signalpb.DataMessage, recipient *string) *signalpb.Content {
+func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results []SuccessfulSendResult) *signalpb.Content {
+	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
+	for _, result := range results {
+		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
+			DestinationUuid: &result.RecipientUuid,
+			Unidentified:    &result.Unidentified,
+		})
+	}
+	return &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Sent: &signalpb.SyncMessage_Sent{
+				Message:            dataMessage,
+				Timestamp:          dataMessage.Timestamp,
+				UnidentifiedStatus: unidentifiedStatuses,
+			},
+		},
+	}
+}
+
+func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result SuccessfulSendResult) *signalpb.Content {
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				Message:         dataMessage,
-				DestinationUuid: recipient,
+				DestinationUuid: &result.RecipientUuid,
 				Timestamp:       dataMessage.Timestamp,
+				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
+					{
+						DestinationUuid: &result.RecipientUuid,
+						Unidentified:    &result.Unidentified,
+					},
+				},
 			},
 		},
 	}
@@ -302,35 +340,43 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 
 	// Send to each member of the group
 	result := &GroupMessageSendResult{
-		SuccessfullySentTo: []GroupMember{},
-		FailedToSendTo:     []GroupMember{},
+		SuccessfullySentTo: []SuccessfulSendResult{},
+		FailedToSendTo:     []FailedSendResult{},
 	}
 	for _, member := range group.Members {
 		if member.UserId == device.Data.AciUuid {
-			// No need to send to ourselves if we don't have any other devices
-			if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
-				syncContent := syncMessageFromDataMessage(dataMessage, nil)
-				err := sendContent(ctx, device, member.UserId, messageTimestamp, syncContent, 0)
-				if err != nil {
-					log.Printf("Failed to send sync message to myself (%v): %v", member.UserId, err)
-				}
-			}
+			// Don't send normal DataMessages to ourselves
 			continue
 		}
-		err := sendContent(ctx, device, member.UserId, messageTimestamp, content, 0)
+		sentUnidentified, err := sendContent(ctx, device, member.UserId, messageTimestamp, content, 0)
 		if err != nil {
-			result.FailedToSendTo = append(result.FailedToSendTo, *member)
+			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
+				RecipientUuid: member.UserId,
+				Error:         err,
+			})
 			log.Printf("Failed to send to %v: %v", member.UserId, err)
 		} else {
-			result.SuccessfullySentTo = append(result.SuccessfullySentTo, *member)
+			result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
+				RecipientUuid: member.UserId,
+				Unidentified:  sentUnidentified,
+			})
 			log.Printf("Successfully sent to %v", member.UserId)
+		}
+
+		// No need to send to ourselves if we don't have any other devices
+		if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
+			syncContent := syncMessageFromGroupDataMessage(dataMessage, result.SuccessfullySentTo)
+			_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+			if selfSendErr != nil {
+				log.Printf("Failed to send sync message to myself (%v): %v", member.UserId, selfSendErr)
+			}
 		}
 	}
 
 	return result, nil
 }
 
-func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) error {
+func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) SendMessageResult {
 	// Assemble the content to send
 	messageTimestamp := currentMessageTimestamp()
 	dataMessage := dataMessageFromText(text, messageTimestamp)
@@ -339,9 +385,22 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, text
 	}
 
 	// Send to the recipient
-	err := sendContent(ctx, device, recipientUuid, messageTimestamp, content, 0)
+	sentUnidentified, err := sendContent(ctx, device, recipientUuid, messageTimestamp, content, 0)
 	if err != nil {
-		return err
+		return SendMessageResult{
+			WasSuccessful: false,
+			FailedSendResult: &FailedSendResult{
+				RecipientUuid: recipientUuid,
+				Error:         err,
+			},
+		}
+	}
+	result := SendMessageResult{
+		WasSuccessful: true,
+		SuccessfulSendResult: &SuccessfulSendResult{
+			RecipientUuid: recipientUuid,
+			Unidentified:  sentUnidentified,
+		},
 	}
 
 	// TODO: don't fetch every time
@@ -350,13 +409,13 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, text
 
 	// If we have other devices, send to them too
 	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
-		syncContent := syncMessageFromDataMessage(dataMessage, &recipientUuid)
-		selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
-		if err != nil {
+		syncContent := syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
+		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+		if selfSendErr != nil {
 			log.Printf("Failed to send sync message to myself: %v", selfSendErr)
 		}
 	}
-	return nil
+	return result
 }
 
 func currentMessageTimestamp() uint64 {
@@ -370,7 +429,7 @@ func sendContent(
 	messageTimestamp uint64,
 	content *signalpb.Content,
 	retryCount int, // For ending recursive retries
-) error {
+) (sentUnidentified bool, err error) {
 	// TODO: also handle non sealed-sender messages
 	// TODO: also handle pre-key messages (for the aformentioned session establishment)
 	// TODO: function returns before message is sent - need async status to caller
@@ -378,7 +437,7 @@ func sendContent(
 	//unidentifiedAccessKey := "a key" // TODO: derive key from their profile key
 
 	if retryCount > 3 {
-		return fmt.Errorf("Too many retries")
+		return false, fmt.Errorf("Too many retries")
 	}
 
 	useUnidentifiedSender := true
@@ -391,6 +450,12 @@ func sendContent(
 	if err != nil {
 		log.Printf("Error deriving access key: %v", err)
 		useUnidentifiedSender = false
+	}
+	// TODO: JUST FOR DEBUGGING
+	if content.DataMessage != nil {
+		if *content.DataMessage.Body == "UNSEAL" {
+			useUnidentifiedSender = false
+		}
 	}
 
 	// Encrypt messages
@@ -409,7 +474,7 @@ func sendContent(
 	}
 	jsonBytes, err := json.Marshal(outgoingMessages)
 	if err != nil {
-		return err
+		return false, err
 	}
 	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
 	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil)
@@ -424,8 +489,9 @@ func sendContent(
 		log.Printf("Sending message to %v with authed sender", recipientUuid)
 		responseChan, err = d.Connection.AuthedWS.SendRequest(ctx, request)
 	}
+	sentUnidentified = useUnidentifiedSender
 	if err != nil {
-		return err
+		return sentUnidentified, err
 	}
 
 	response := <-responseChan
@@ -434,15 +500,15 @@ func sendContent(
 	retryableStatuses := []uint32{409, 428, 500, 503}
 
 	// Check to see if our status is retryable
-	retryable := false
+	needToRetry := false
 	for _, status := range retryableStatuses {
 		if *response.Status == status {
-			retryable = true
+			needToRetry = true
 			break
 		}
 	}
 
-	if retryable {
+	if needToRetry {
 		var err error
 		if *response.Status == 409 {
 			err = handle409(ctx, d, recipientUuid, response)
@@ -450,24 +516,21 @@ func sendContent(
 			err = handle428(ctx, d, recipientUuid, response)
 		}
 		if err != nil {
-			return err
+			return false, err
 		}
 		// Try to send again (**RECURSIVELY**)
-		err = sendContent(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
+		sentUnidentified, err = sendContent(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
 		if err != nil {
 			log.Printf("2nd try sendMessage error: %v", err)
-			return err
+			return sentUnidentified, err
 		}
 	} else if *response.Status != 200 {
 		log.Printf("Unexpected status code: %v", *response.Status)
 		log.Printf("Full response: %v", response)
-		return fmt.Errorf("Unexpected status code: %v", *response.Status)
+		return sentUnidentified, fmt.Errorf("Unexpected status code: %v", *response.Status)
 	}
 
-	// Open our unauthenticated websocket to send
-	//payload.Request.Headers = append(payload.Request.Headers, "Unidentified-Access-Key: "+unidentifiedAccessKey)
-
-	return nil
+	return sentUnidentified, nil
 }
 
 // A 409 means our device list was out of date, so we will fix it up
