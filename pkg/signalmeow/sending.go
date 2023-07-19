@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -344,10 +346,26 @@ func sendMessage(
 
 	response := <-responseChan
 	log.Printf("Received a RESPONSE! id: %v, code: %v", *response.Id, *response.Status)
-	if *response.Status == 409 {
-		err := handle409(ctx, d, recipientUuid, response)
+
+	retryableStatuses := []uint32{409, 428, 500, 503}
+
+	// Check to see if our status is retryable
+	retryable := false
+	for _, status := range retryableStatuses {
+		if *response.Status == status {
+			retryable = true
+			break
+		}
+	}
+
+	if retryable {
+		var err error
+		if *response.Status == 409 {
+			err = handle409(ctx, d, recipientUuid, response)
+		} else if *response.Status == 428 {
+			err = handle428(ctx, d, recipientUuid, response)
+		}
 		if err != nil {
-			log.Printf("handle409 error: %v", err)
 			return err
 		}
 		// Try to send again (**RECURSIVELY**)
@@ -368,6 +386,7 @@ func sendMessage(
 	return nil
 }
 
+// A 409 means our device list was out of date, so we will fix it up
 func handle409(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
 	// Decode json body
 	var body map[string]interface{}
@@ -376,7 +395,6 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 		log.Printf("Unmarshal error: %v", err)
 		return err
 	}
-	log.Printf("-----> body: %v", body)
 	// check for missingDevices and extraDevices
 	if body["missingDevices"] != nil {
 		missingDevices := body["missingDevices"].([]interface{})
@@ -409,4 +427,66 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 		}
 	}
 	return err
+}
+
+// We got rate limited. We will try sending a "pushChallenge" response, but if that doesn't work
+// we just gotta wait.
+// TODO: explore captcha response
+func handle428(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
+	// Decode json body
+	var body map[string]interface{}
+	err := json.Unmarshal(response.Body, &body)
+	if err != nil {
+		log.Printf("Unmarshal error: %v", err)
+		return err
+	}
+
+	// Sample response:
+	//id:25 status:428 message:"Precondition Required" headers:"Retry-After:86400"
+	//headers:"Content-Type:application/json" headers:"Content-Length:88"
+	//body:"{\"token\":\"07af0d73-e05d-42c3-9634-634922061966\",\"options\":[\"recaptcha\",\"pushChallenge\"]}"
+	var retryAfterSeconds uint64 = 0
+	// Find retry after header
+	for _, header := range response.Headers {
+		key, value := strings.Split(header, ":")[0], strings.Split(header, ":")[1]
+		if key == "Retry-After" {
+			retryAfterSeconds, err = strconv.ParseUint(value, 10, 64)
+			if err != nil {
+				log.Printf("ParseUint error: %v", err)
+			}
+		}
+	}
+	if retryAfterSeconds > 0 {
+		log.Printf("Got rate limited, need to wait %v seconds", retryAfterSeconds)
+	}
+	if body["options"] != nil {
+		options := body["options"].([]interface{})
+		for _, option := range options {
+			// TODO: this currently doesn't work, server just returns 422
+			if option == "pushChallenge" {
+				log.Printf("Got pushChallenge, sending response")
+				token := body["token"].(string)
+				username, password := device.Data.BasicAuthCreds()
+				response, err := web.SendHTTPRequest(
+					"PUT",
+					"/v1/challenge",
+					&web.HTTPReqOpt{
+						Body:     []byte(fmt.Sprintf("{\"token\":\"%v\",\"type\":\"pushChallenge\"}", token)),
+						Username: &username,
+						Password: &password,
+					},
+				)
+				if err != nil {
+					log.Printf("SendHTTPRequest error: %v", err)
+					return err
+				}
+				log.Printf("Got response: %v", response)
+				if response.StatusCode != 200 {
+					log.Printf("Unexpected status code: %v", response.StatusCode)
+					return fmt.Errorf("Unexpected status code: %v", response.StatusCode)
+				}
+			}
+		}
+	}
+	return nil
 }
