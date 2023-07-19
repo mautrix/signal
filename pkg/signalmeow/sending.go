@@ -263,10 +263,25 @@ type GroupMessageSendResult struct {
 	FailedToSendTo     []GroupMember
 }
 
-func messageFromText(text string) *signalpb.Content {
+func dataMessageFromText(text string, timestamp uint64) *signalpb.DataMessage {
+	return &signalpb.DataMessage{
+		Body:      proto.String(text),
+		Timestamp: &timestamp,
+	}
+}
+func contentFromDataMessage(dataMessage *signalpb.DataMessage) *signalpb.Content {
 	return &signalpb.Content{
-		DataMessage: &signalpb.DataMessage{
-			Body: proto.String(text),
+		DataMessage: dataMessage,
+	}
+}
+func syncMessageFromDataMessage(dataMessage *signalpb.DataMessage, recipient *string) *signalpb.Content {
+	return &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Sent: &signalpb.SyncMessage_Sent{
+				Message:         dataMessage,
+				DestinationUuid: recipient,
+				Timestamp:       dataMessage.Timestamp,
+			},
 		},
 	}
 }
@@ -277,24 +292,32 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 		return nil, err
 	}
 
-	message := messageFromText(text)
-	message.DataMessage.GroupV2 = GroupMetadataForDataMessage(*group)
+	// Assemble the content to send
 	messageTimestamp := currentMessageTimestamp()
+	dataMessage := dataMessageFromText(text, messageTimestamp)
+	dataMessage.GroupV2 = groupMetadataForDataMessage(*group)
+	content := &signalpb.Content{
+		DataMessage: dataMessage,
+	}
 
+	// Send to each member of the group
 	result := &GroupMessageSendResult{
 		SuccessfullySentTo: []GroupMember{},
 		FailedToSendTo:     []GroupMember{},
 	}
-
-	// Send to each member of the group
 	for _, member := range group.Members {
 		if member.UserId == device.Data.AciUuid {
 			// No need to send to ourselves if we don't have any other devices
-			if howManyOtherDevicesDoWeHave(ctx, device) == 0 {
-				continue
+			if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
+				syncContent := syncMessageFromDataMessage(dataMessage, nil)
+				err := sendContent(ctx, device, member.UserId, messageTimestamp, syncContent, 0)
+				if err != nil {
+					log.Printf("Failed to send sync message to myself (%v): %v", member.UserId, err)
+				}
 			}
+			continue
 		}
-		err := sendMessage(ctx, device, member.UserId, messageTimestamp, message, 0)
+		err := sendContent(ctx, device, member.UserId, messageTimestamp, content, 0)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, *member)
 			log.Printf("Failed to send to %v: %v", member.UserId, err)
@@ -308,18 +331,29 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 }
 
 func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) error {
-	message := messageFromText(text)
+	// Assemble the content to send
 	messageTimestamp := currentMessageTimestamp()
-	err := sendMessage(ctx, device, recipientUuid, messageTimestamp, message, 0)
+	dataMessage := dataMessageFromText(text, messageTimestamp)
+	content := &signalpb.Content{
+		DataMessage: dataMessage,
+	}
+
+	// Send to the recipient
+	err := sendContent(ctx, device, recipientUuid, messageTimestamp, content, 0)
 	if err != nil {
 		return err
 	}
-	// If we have other devices, send to them too
+
+	// TODO: don't fetch every time
+	// (But for now this makes sure we know about all our other devices)
 	FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
+
+	// If we have other devices, send to them too
 	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
-		selfSendErr := sendMessage(ctx, device, device.Data.AciUuid, messageTimestamp, message, 0)
-		if selfSendErr != nil {
-			log.Printf("Failed to send to self: %v", selfSendErr)
+		syncContent := syncMessageFromDataMessage(dataMessage, &recipientUuid)
+		selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+		if err != nil {
+			log.Printf("Failed to send sync message to myself: %v", selfSendErr)
 		}
 	}
 	return nil
@@ -329,7 +363,7 @@ func currentMessageTimestamp() uint64 {
 	return uint64(time.Now().UnixMilli())
 }
 
-func sendMessage(
+func sendContent(
 	ctx context.Context,
 	d *Device,
 	recipientUuid string,
@@ -345,10 +379,6 @@ func sendMessage(
 
 	if retryCount > 3 {
 		return fmt.Errorf("Too many retries")
-	}
-
-	if content.DataMessage != nil {
-		content.DataMessage.Timestamp = &messageTimestamp
 	}
 
 	useUnidentifiedSender := true
@@ -423,7 +453,7 @@ func sendMessage(
 			return err
 		}
 		// Try to send again (**RECURSIVELY**)
-		err = sendMessage(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
+		err = sendContent(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
 		if err != nil {
 			log.Printf("2nd try sendMessage error: %v", err)
 			return err

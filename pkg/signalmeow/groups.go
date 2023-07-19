@@ -276,7 +276,7 @@ func printGroup(group *Group) {
 	}
 }
 
-func GroupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
+func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
 	masterKey := masterKeyFromGroupID(group.GroupID)
 	masterKeyBytes := masterKey[:]
 	return &signalpb.GroupContextV2{
