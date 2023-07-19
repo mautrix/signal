@@ -300,8 +300,18 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				if content.SyncMessage != nil {
 					if content.SyncMessage.Sent != nil {
 						if content.SyncMessage.Sent.Message != nil {
-							senderUuid := content.SyncMessage.Sent.DestinationUuid
-							err = handleIncomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, theirUuid, *senderUuid)
+							destination := content.SyncMessage.Sent.DestinationUuid
+							if content.SyncMessage.Sent.Message.GroupV2 != nil {
+								log.Printf("-----> sync message sent group: %v", content.SyncMessage.Sent.Message.GroupV2)
+								masterKey := libsignalgo.GroupMasterKey(content.SyncMessage.Sent.Message.GroupV2.MasterKey)
+								g := string(groupIDFromMasterKey(masterKey))
+								destination = &g
+							}
+							if destination == nil {
+								log.Printf("-----> sync message sent destination is nil")
+								return nil, fmt.Errorf("sync message sent destination is nil")
+							}
+							err = handleIncomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination)
 							if err != nil {
 								log.Printf("handleIncomingDataMessage error: %v", err)
 								return nil, err
