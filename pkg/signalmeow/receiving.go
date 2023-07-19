@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -87,7 +88,13 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 						libsignalgo.NewCallbackContext(ctx),
 					)
 					if err != nil {
-						log.Printf("GroupDecrypt error: %v", err)
+						if strings.Contains(err.Error(), "message with old counter") {
+							// Duplicate message, ignore
+							responseCode = 200
+							log.Printf("Duplicate message, ignoring")
+						} else {
+							log.Printf("GroupDecrypt error: %v", err)
+						}
 					} else {
 						err = stripPadding(&decryptedText)
 						if err != nil {
@@ -156,7 +163,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				}
 
 				// If we couldn't decrypt with specific decryption methods, try sealedSenderDecrypt
-				if result == nil {
+				if result == nil || responseCode != 200 {
 					log.Printf("Trying sealedSenderDecrypt")
 					var err error
 					result, err = sealedSenderDecrypt(envelope, device, ctx)
@@ -193,6 +200,8 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 			} else if *envelope.Type == signalpb.Envelope_RECEIPT {
 				log.Printf("Received envelope type RECEIPT, verb: %v, path: %v", *req.Verb, *req.Path)
+				// TODO: handle receipt
+				responseCode = 200
 
 			} else if *envelope.Type == signalpb.Envelope_KEY_EXCHANGE {
 				log.Printf("Received envelope type KEY_EXCHANGE, verb: %v, path: %v", *req.Verb, *req.Path)
@@ -281,15 +290,14 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					} else {
 						// TODO: don't echo outside of debug mode
 						if content.DataMessage.Body != nil {
-							reply := &signalpb.Content{
-								DataMessage: &signalpb.DataMessage{
-									Body: proto.String("Hello from signalmeow: " + *content.DataMessage.Body),
-								},
-							}
+							reply := "Hello from signalmeow: " + *content.DataMessage.Body
 							theirUuid, _ := result.SenderAddress.Name()
 							log.Printf("-----> sending reply to: %v", theirUuid)
-							log.Printf("-----> reply: %v", reply)
-							err = sendMessage(ctx, device, theirUuid, reply, 0)
+							err = SendMessage(ctx, device, theirUuid, reply)
+							if err != nil {
+								log.Printf("SendMessage error: %v", err)
+								return nil, err
+							}
 						}
 					}
 				}

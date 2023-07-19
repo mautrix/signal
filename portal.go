@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"maunium.net/go/mautrix"
@@ -331,9 +333,34 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	//}
 	portal.log.Debug().Msgf("Sending event %s to Signal %s", evt.ID, recipientSignalID)
 	start = time.Now()
-	err := signalmeow.SendMessage(ctx, sender.SignalDevice, recipientSignalID, msg)
-	if err != nil {
-		portal.log.Error().Msgf("Error sending event %s to Signal %s: %s", evt.ID, recipientSignalID, err)
+
+	// Check to see if recipientSignalID is a standard UUID (with dashes)
+	var err error
+	if _, uuidErr := uuid.Parse(recipientSignalID); uuidErr == nil {
+		// this is a 1:1 chat
+		err = signalmeow.SendMessage(ctx, sender.SignalDevice, recipientSignalID, msg)
+		if err != nil {
+			portal.log.Error().Msgf("Error sending event %s to Signal %s: %s", evt.ID, recipientSignalID, err)
+		}
+	} else {
+		// this is a group chat
+		groupID := signalmeow.GroupID(recipientSignalID)
+		result, err := signalmeow.SendGroupMessage(ctx, sender.SignalDevice, groupID, msg)
+		if err != nil {
+			portal.log.Error().Msgf("Error sending event %s to Signal group %s: %s", evt.ID, recipientSignalID, err)
+		}
+		totalRecipients := len(result.FailedToSendTo) + len(result.SuccessfullySentTo)
+		if len(result.FailedToSendTo) > 0 {
+			portal.log.Error().Msgf("Failed to send event %s to %d of %d members of Signal group %s", evt.ID, len(result.FailedToSendTo), totalRecipients, recipientSignalID)
+		}
+		if len(result.SuccessfullySentTo) == 0 {
+			portal.log.Error().Msgf("Failed to send event %s to all %d members of Signal group %s", evt.ID, totalRecipients, recipientSignalID)
+			err = errors.New("failed to send to any members of Signal group")
+		} else if len(result.SuccessfullySentTo) < totalRecipients {
+			portal.log.Warn().Msgf("Only sent event %s to %d of %d members of Signal group %s", evt.ID, len(result.SuccessfullySentTo), totalRecipients, recipientSignalID)
+		} else {
+			portal.log.Debug().Msgf("Sent event %s to all %d members of Signal group %s", evt.ID, totalRecipients, recipientSignalID)
+		}
 	}
 	timings.totalSend = time.Since(start)
 	//go ms.sendMessageMetrics(evt, err, "Error sending", true)

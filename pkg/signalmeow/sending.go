@@ -240,10 +240,69 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, message *signalpb.Co
 	return messages, nil
 }
 
+type GroupMessageSendResult struct {
+	SuccessfullySentTo []GroupMember
+	FailedToSendTo     []GroupMember
+}
+
+func messageFromText(text string) *signalpb.Content {
+	return &signalpb.Content{
+		DataMessage: &signalpb.DataMessage{
+			Body: proto.String(text),
+		},
+	}
+}
+
+func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text string) (*GroupMessageSendResult, error) {
+	group, err := RetrieveGroupById(ctx, device, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	message := messageFromText(text)
+	message.DataMessage.GroupV2 = GroupMetadataForDataMessage(*group)
+	messageTimestamp := currentMessageTimestamp()
+
+	result := &GroupMessageSendResult{
+		SuccessfullySentTo: []GroupMember{},
+		FailedToSendTo:     []GroupMember{},
+	}
+
+	for _, member := range group.Members {
+		if member.UserId == device.Data.AciUuid {
+			// No need to send to ourselves
+			continue
+		}
+		err := sendMessage(ctx, device, member.UserId, messageTimestamp, message, 0)
+		if err != nil {
+			result.FailedToSendTo = append(result.FailedToSendTo, *member)
+			log.Printf("Failed to send to %v: %v", member.UserId, err)
+		} else {
+			result.SuccessfullySentTo = append(result.SuccessfullySentTo, *member)
+			log.Printf("Successfully sent to %v", member.UserId)
+		}
+	}
+
+	// TODO: local sync message goes here I think
+	return result, nil
+}
+
+func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) error {
+	message := messageFromText(text)
+	messageTimestamp := currentMessageTimestamp()
+	// TODO: local sync message goes here I think
+	return sendMessage(ctx, device, recipientUuid, messageTimestamp, message, 0)
+}
+
+func currentMessageTimestamp() uint64 {
+	return uint64(time.Now().UnixMilli())
+}
+
 func sendMessage(
 	ctx context.Context,
 	d *Device,
 	recipientUuid string,
+	messageTimestamp uint64,
 	content *signalpb.Content,
 	retryCount int, // For ending recursive retries
 ) error {
@@ -256,8 +315,6 @@ func sendMessage(
 	if retryCount > 3 {
 		return fmt.Errorf("Too many retries")
 	}
-
-	messageTimestamp := uint64(time.Now().UnixMilli())
 
 	if content.DataMessage != nil {
 		content.DataMessage.Timestamp = &messageTimestamp
@@ -285,42 +342,30 @@ func sendMessage(
 		return err
 	}
 
-	var asyncError error
-
-	go func() {
-		response := <-responseChan
-		log.Printf("Received a RESPONSE! id: %v, code: %v", *response.Id, *response.Status)
-		if *response.Status == 409 {
-			err := handle409(ctx, d, recipientUuid, response)
-			if err != nil {
-				log.Printf("handle409 error: %v", err)
-				asyncError = err
-				return
-			}
-			// Try to send again (**RECURSIVELY**)
-
-			err = sendMessage(ctx, d, recipientUuid, content, retryCount+1)
-			if err != nil {
-				log.Printf("2nd try sendMessage error: %v", err)
-				asyncError = err
-				return
-			}
+	response := <-responseChan
+	log.Printf("Received a RESPONSE! id: %v, code: %v", *response.Id, *response.Status)
+	if *response.Status == 409 {
+		err := handle409(ctx, d, recipientUuid, response)
+		if err != nil {
+			log.Printf("handle409 error: %v", err)
+			return err
 		}
-	}()
+		// Try to send again (**RECURSIVELY**)
+		err = sendMessage(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
+		if err != nil {
+			log.Printf("2nd try sendMessage error: %v", err)
+			return err
+		}
+	} else if *response.Status != 200 {
+		log.Printf("Unexpected status code: %v", *response.Status)
+		log.Printf("Full response: %v", response)
+		return fmt.Errorf("Unexpected status code: %v", *response.Status)
+	}
 
 	// Open our unauthenticated websocket to send
 	//payload.Request.Headers = append(payload.Request.Headers, "Unidentified-Access-Key: "+unidentifiedAccessKey)
 
-	return asyncError
-}
-
-func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) error {
-	message := &signalpb.Content{
-		DataMessage: &signalpb.DataMessage{
-			Body: proto.String(text),
-		},
-	}
-	return sendMessage(ctx, device, recipientUuid, message, 0)
+	return nil
 }
 
 func handle409(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {

@@ -276,6 +276,15 @@ func printGroup(group *Group) {
 	}
 }
 
+func GroupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
+	masterKey := masterKeyFromGroupID(group.GroupID)
+	masterKeyBytes := masterKey[:]
+	return &signalpb.GroupContextV2{
+		MasterKey: masterKeyBytes,
+		Revision:  &group.Revision,
+	}
+}
+
 func RetrieveGroupById(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {
 	masterKey := masterKeyFromGroupID(groupID)
 	groupAuth, err := GetAuthorizationForToday(ctx, d, masterKey)
@@ -308,6 +317,15 @@ func RetrieveGroupById(ctx context.Context, d *Device, groupID GroupID) (*Group,
 	if err != nil {
 		log.Printf("RetrieveGroupById decryptGroup error: %v", err)
 		return nil, err
+	}
+
+	// Store the profile keys in case they're new
+	for _, member := range group.Members {
+		err = d.ProfileKeyStore.StoreProfileKey(member.UserId, member.ProfileKey, ctx)
+		if err != nil {
+			log.Printf("DecryptGroup StoreProfileKey error: %v", err)
+			//return nil, err
+		}
 	}
 	return group, nil
 }
