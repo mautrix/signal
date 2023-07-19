@@ -122,6 +122,26 @@ func checkForErrorWithSessions(err error, addresses []*libsignalgo.Address, sess
 	return nil
 }
 
+func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
+	addresses, _, err := d.SessionStoreExtras.AllSessionsForUUID(d.Data.AciUuid, ctx)
+	if err != nil {
+		return 0
+	}
+	// Filter out our deviceID
+	otherDevices := 0
+	for _, address := range addresses {
+		deviceID, err := address.DeviceID()
+		if err != nil {
+			log.Printf("Error getting deviceID from address: %v", err)
+			continue
+		}
+		if deviceID != uint(d.Data.DeviceId) {
+			otherDevices++
+		}
+	}
+	return otherDevices
+}
+
 func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
 	messages := []MyMessage{}
 
@@ -132,6 +152,12 @@ func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalp
 	}
 
 	for i, recipientAddress := range addresses {
+		recipientDeviceID, err := recipientAddress.DeviceID()
+		if err != nil {
+			return nil, err
+		}
+
+		// Marshal and encrypt the message
 		serializedMessage, err := proto.Marshal(content)
 		if err != nil {
 			return nil, err
@@ -158,7 +184,6 @@ func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalp
 		} else if cipherMessageType == libsignalgo.CiphertextMessageTypeWhisper { // 2 -> 1
 			envelopeType = int(signalpb.Envelope_CIPHERTEXT)
 		} else {
-			//panic(fmt.Sprintf("Unknown message type: %v", cipherMessageType))
 			return nil, fmt.Errorf("Unknown message type: %v", cipherMessageType)
 		}
 		log.Printf("Sending message type %v", envelopeType)
@@ -167,15 +192,11 @@ func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalp
 		if err != nil {
 			return nil, err
 		}
-		deviceID, err := recipientAddress.DeviceID()
-		if err != nil {
-			return nil, err
-		}
 
 		// Build payload to send over websocket
 		outgoingMessage := MyMessage{
 			Type:                      envelopeType,
-			DestinationDeviceID:       int(deviceID),
+			DestinationDeviceID:       int(recipientDeviceID),
 			DestinationRegistrationID: int(destinationRegistrationID),
 			Content:                   base64.StdEncoding.EncodeToString(encryptedPayload),
 		}
@@ -201,8 +222,12 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Co
 	}
 
 	for i, recipientAddress := range addresses {
-		sessionRecord := sessionRecords[i]
+		recipientDeviceID, err := recipientAddress.DeviceID()
+		if err != nil {
+			return nil, err
+		}
 
+		// Build message payload
 		serializedMessage, err := proto.Marshal(content)
 		if err != nil {
 			return nil, err
@@ -216,20 +241,14 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Co
 			d.IdentityStore,
 			libsignalgo.NewCallbackContext(ctx),
 		)
-
+		sessionRecord := sessionRecords[i]
 		destinationRegistrationID, err := sessionRecord.GetRemoteRegistrationID()
 		if err != nil {
 			return nil, err
 		}
-		deviceID, err := recipientAddress.DeviceID()
-		if err != nil {
-			return nil, err
-		}
-
-		// Build payload to send over websocket
 		outgoingMessage := MyMessage{
 			Type:                      int(signalpb.Envelope_UNIDENTIFIED_SENDER),
-			DestinationDeviceID:       int(deviceID),
+			DestinationDeviceID:       int(recipientDeviceID),
 			DestinationRegistrationID: int(destinationRegistrationID),
 			Content:                   base64.StdEncoding.EncodeToString(encryptedPayload),
 		}
@@ -267,10 +286,13 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 		FailedToSendTo:     []GroupMember{},
 	}
 
+	// Send to each member of the group
 	for _, member := range group.Members {
 		if member.UserId == device.Data.AciUuid {
-			// No need to send to ourselves
-			continue
+			// No need to send to ourselves if we don't have any other devices
+			if howManyOtherDevicesDoWeHave(ctx, device) == 0 {
+				continue
+			}
 		}
 		err := sendMessage(ctx, device, member.UserId, messageTimestamp, message, 0)
 		if err != nil {
@@ -282,15 +304,25 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 		}
 	}
 
-	// TODO: local sync message goes here I think
 	return result, nil
 }
 
 func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) error {
 	message := messageFromText(text)
 	messageTimestamp := currentMessageTimestamp()
-	// TODO: local sync message goes here I think
-	return sendMessage(ctx, device, recipientUuid, messageTimestamp, message, 0)
+	err := sendMessage(ctx, device, recipientUuid, messageTimestamp, message, 0)
+	if err != nil {
+		return err
+	}
+	// If we have other devices, send to them too
+	FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
+	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
+		selfSendErr := sendMessage(ctx, device, device.Data.AciUuid, messageTimestamp, message, 0)
+		if selfSendErr != nil {
+			log.Printf("Failed to send to self: %v", selfSendErr)
+		}
+	}
+	return nil
 }
 
 func currentMessageTimestamp() uint64 {

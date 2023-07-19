@@ -308,7 +308,7 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	start = time.Now()
 	//msg, sender, extraMeta, err := portal.convertMatrixMessage(ctx, sender, evt)
 	msg := evt.Content.AsMessage().Body
-	recipientSignalID := portal.ChatID // TODO: this only works for 1:1 chats
+	recipientSignalID := portal.ChatID
 	timings.convert = time.Since(start)
 	//if msg == nil {
 	//	go ms.sendMessageMetrics(evt, err, "Error converting", true)

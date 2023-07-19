@@ -374,8 +374,18 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	switch incomingMessage.MessageType() {
 	case signalmeow.IncomingSignalMessageTypeText:
 		m := incomingMessage.(signalmeow.IncomingSignalMessageText)
-		log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
-		chatID := m.SenderUUID
+		var chatID string
+		var senderPuppet *Puppet
+		if m.SenderUUID == user.SignalID {
+			// This is a message sent by us on another device
+			log.Printf("Text message received to %s (group: %v) at %v: %s\n", m.RecipientUUID, m.GroupID, m.Timestamp, m.Content)
+			chatID = m.RecipientUUID
+			senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
+		} else {
+			log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
+			chatID = m.SenderUUID
+			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+		}
 		if m.GroupID != nil {
 			chatID = string(*m.GroupID)
 		}
@@ -384,27 +394,16 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			log.Printf("no portal found for chatID %s", chatID)
 			return errors.New("no portal found for chatID")
 		}
+
 		portalSignalMessage := portalSignalMessage{
 			user:   user,
 			msg:    m.Content,
-			sender: user.bridge.GetPuppetBySignalID(m.SenderUUID),
+			sender: senderPuppet,
 		}
 		portal.signalMessages <- portalSignalMessage
 	default:
 		log.Printf("Unknown message type received %v", incomingMessage.MessageType())
 	}
-
-	// Test fetching a profile
-	//user.log.Debug().Msgf("******************* Fetching profile for %s *******************", sender)
-	//ctx := context.Background()
-	//signalID := sender
-	//device := user.SignalDevice
-	//p, err := signalmeow.RetrieveProfileById(ctx, device, signalID)
-	//if err != nil {
-	//	user.log.Error().Err(err).Msg("Failed to fetch profile")
-	//} else {
-	//	user.log.Debug().Msgf("Fetched profile: %+v", p)
-	//}
 
 	return nil
 }

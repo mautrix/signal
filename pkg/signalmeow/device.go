@@ -9,9 +9,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
-// Note: right now, the parent `Device` struct is in store/store.go, since
-// it is so tied to storage and we don't want to have a circular dependency.
-
+// Note: right now, the parent `Device` struct is in store.go
 type DeviceData struct {
 	AciIdentityKeyPair *libsignalgo.IdentityKeyPair
 	PniIdentityKeyPair *libsignalgo.IdentityKeyPair

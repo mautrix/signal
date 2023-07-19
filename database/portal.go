@@ -105,9 +105,12 @@ func (p *Portal) Scan(row dbutil.Scannable) *Portal {
 		}
 		return nil
 	}
-	p.AvatarURL, err = id.ParseContentURI(avatarURL)
+	parsedAvatarURL, err := id.ParseContentURI(avatarURL)
 	if err != nil {
 		p.log.Warnfln("Error parsing avatar URL: %w", err)
+		p.AvatarURL = id.ContentURI{}
+	} else {
+		p.AvatarURL = parsedAvatarURL
 	}
 	return p
 }

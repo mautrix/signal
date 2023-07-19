@@ -117,7 +117,13 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					log.Printf("SealedSender messageType is CiphertextMessageTypePreKey")
 					result, err = prekeyDecrypt(*senderAddress, usmcContents, device, ctx)
 					if err != nil {
-						log.Printf("prekeyDecrypt error: %v", err)
+						if strings.Contains(err.Error(), "null pointer") {
+							// TODO: actually fix this, but ignoring for now because they just build up without a 200
+							responseCode = 200
+							log.Printf("sealed sender prekey decrypt null pointer error, ignoring")
+						} else {
+							log.Printf("prekeyDecrypt error: %v", err)
+						}
 					} else {
 						responseCode = 200
 					}
@@ -136,7 +142,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 						libsignalgo.NewCallbackContext(ctx),
 					)
 					if err != nil {
-						log.Printf("Whisper Decryption error: %v", err)
+						log.Printf("Sealed sender Whisper Decryption error: %v", err)
 					} else {
 						err = stripPadding(&decryptedText)
 						if err != nil {
@@ -168,7 +174,13 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					var err error
 					result, err = sealedSenderDecrypt(envelope, device, ctx)
 					if err != nil {
-						log.Printf("sealedSenderDecrypt error: %v", err)
+						if strings.Contains(err.Error(), "self send of a sealed sender message") {
+							// Message sent by us, ignore
+							responseCode = 200
+							log.Printf("Message sent by us, ignoring")
+						} else {
+							log.Printf("sealedSenderDecrypt error: %v", err)
+						}
 					} else {
 						log.Printf("-----> SealedSender decrypt result - address: %v, content: %v", result.SenderAddress, result.Content)
 						responseCode = 200
@@ -186,7 +198,13 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				}
 				result, err := prekeyDecrypt(*sender, envelope.Content, device, ctx)
 				if err != nil {
-					log.Printf("prekeyDecrypt error: %v", err)
+					if strings.Contains(err.Error(), "null pointer") {
+						// TODO: actually fix this, but ignoring for now because they just build up without a 200
+						responseCode = 200
+						log.Printf("prekey decrypt null pointer error, ignoring")
+					} else {
+						log.Printf("prekeyDecrypt error: %v", err)
+					}
 				} else {
 					log.Printf("-----> PreKey decrypt result -  address: %v, data: %v", result.SenderAddress, result.Content)
 					responseCode = 200
@@ -197,6 +215,40 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 			} else if *envelope.Type == signalpb.Envelope_CIPHERTEXT {
 				log.Printf("Received envelope type CIPHERTEXT, verb: %v, path: %v", *req.Verb, *req.Path)
+				message, err := libsignalgo.DeserializeMessage(envelope.Content)
+				if err != nil {
+					log.Printf("DeserializeMessage error: %v", err)
+				}
+				senderAddress, err := libsignalgo.NewAddress(
+					*envelope.SourceUuid,
+					uint(*envelope.SourceDevice),
+				)
+				decryptedText, err := libsignalgo.Decrypt(
+					message,
+					senderAddress,
+					device.SessionStore,
+					device.IdentityStore,
+					libsignalgo.NewCallbackContext(ctx),
+				)
+				if err != nil {
+					log.Printf("Whisper Decryption error: %v", err)
+				} else {
+					err = stripPadding(&decryptedText)
+					if err != nil {
+						return nil, fmt.Errorf("stripPadding error: %v", err)
+					}
+					content := signalpb.Content{}
+					err = proto.Unmarshal(decryptedText, &content)
+					if err != nil {
+						log.Printf("Unmarshal error: %v", err)
+					}
+					result = &DecryptionResult{
+						SenderAddress: *senderAddress,
+						Content:       &content,
+						SealedSender:  true,
+					}
+					responseCode = 200
+				}
 
 			} else if *envelope.Type == signalpb.Envelope_RECEIPT {
 				log.Printf("Received envelope type RECEIPT, verb: %v, path: %v", *req.Verb, *req.Path)
@@ -238,67 +290,31 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					}
 				}
 
-				if content.DataMessage != nil {
+				theirUuid, err := result.SenderAddress.Name()
+				if err != nil {
+					log.Printf("Name error: %v", err)
+					return nil, err
+				}
 
-					// If there's a profile key, save it
-					if content.DataMessage.ProfileKey != nil {
-						log.Printf("-----> profile key: %v", content.DataMessage.ProfileKey)
-						theirUuid, err := result.SenderAddress.Name()
-						if err != nil {
-							log.Printf("Name error: %v", err)
-							return nil, err
-						} else {
-							log.Printf("-----> their uuid: %v", theirUuid)
-						}
-						profileKey := libsignalgo.ProfileKey(content.DataMessage.ProfileKey)
-						err = device.ProfileKeyStore.StoreProfileKey(theirUuid, profileKey, ctx)
-						if err != nil {
-							log.Printf("StoreProfileKey error: %v", err)
-							return nil, err
+				// TODO: handle more sync messages
+				if content.SyncMessage != nil {
+					if content.SyncMessage.Sent != nil {
+						if content.SyncMessage.Sent.Message != nil {
+							senderUuid := content.SyncMessage.Sent.DestinationUuid
+							err = handleIncomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, theirUuid, *senderUuid)
+							if err != nil {
+								log.Printf("handleIncomingDataMessage error: %v", err)
+								return nil, err
+							}
 						}
 					}
+				}
 
-					if device.Connection.IncomingSignalMessageHandler != nil && content.DataMessage.Body != nil {
-						theirUuid, _ := result.SenderAddress.Name()
-						var groupID *GroupID
-						if content.DataMessage.GetGroupV2() != nil {
-							groupMasterKeyBytes := content.DataMessage.GetGroupV2().GetMasterKey()
-
-							// TODO: should we be using base64 masterkey as an ID????!?
-							groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
-							groupID = &groupIDValue
-
-							log.Printf("********* GROUP FETCH TEST *********")
-							// TODO: is this the best place to always fetch the group?
-							group, err := RetrieveGroupById(ctx, device, groupIDValue)
-							if err != nil {
-								log.Printf("RetrieveGroupById error: %v", err)
-								return nil, err
-							}
-							printGroup(group) // TODO: debug log
-						}
-						incomingMessage := IncomingSignalMessageText{
-							IncomingSignalMessageBase: IncomingSignalMessageBase{
-								SenderUUID: theirUuid,
-								GroupID:    groupID,
-							},
-							Timestamp: content.DataMessage.GetTimestamp(),
-							Content:   content.DataMessage.GetBody(),
-						}
-
-						device.Connection.IncomingSignalMessageHandler(incomingMessage)
-					} else {
-						// TODO: don't echo outside of debug mode
-						if content.DataMessage.Body != nil {
-							reply := "Hello from signalmeow: " + *content.DataMessage.Body
-							theirUuid, _ := result.SenderAddress.Name()
-							log.Printf("-----> sending reply to: %v", theirUuid)
-							err = SendMessage(ctx, device, theirUuid, reply)
-							if err != nil {
-								log.Printf("SendMessage error: %v", err)
-								return nil, err
-							}
-						}
+				if content.DataMessage != nil {
+					err = handleIncomingDataMessage(ctx, device, content.DataMessage, theirUuid, device.Data.AciUuid)
+					if err != nil {
+						log.Printf("handleIncomingDataMessage error: %v", err)
+						return nil, err
 					}
 				}
 			}
@@ -314,6 +330,50 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 		}, nil
 	}
 	return handler
+}
+
+func handleIncomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) error {
+	// If there's a profile key, save it
+	if dataMessage.ProfileKey != nil {
+		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
+		err := device.ProfileKeyStore.StoreProfileKey(senderUUID, profileKey, ctx)
+		if err != nil {
+			log.Printf("StoreProfileKey error: %v", err)
+			return err
+		}
+	}
+
+	if device.Connection.IncomingSignalMessageHandler != nil && dataMessage.Body != nil {
+		var groupID *GroupID
+		if dataMessage.GetGroupV2() != nil {
+			groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
+
+			// TODO: should we be using base64 masterkey as an ID????!?
+			groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
+			groupID = &groupIDValue
+
+			log.Printf("********* GROUP FETCH TEST *********")
+			// TODO: is this the best place to always fetch the group?
+			group, err := RetrieveGroupById(ctx, device, groupIDValue)
+			if err != nil {
+				log.Printf("RetrieveGroupById error: %v", err)
+				return err
+			}
+			printGroup(group) // TODO: debug log
+		}
+		incomingMessage := IncomingSignalMessageText{
+			IncomingSignalMessageBase: IncomingSignalMessageBase{
+				SenderUUID:    senderUUID,
+				RecipientUUID: recipientUUID,
+				GroupID:       groupID,
+			},
+			Timestamp: dataMessage.GetTimestamp(),
+			Content:   dataMessage.GetBody(),
+		}
+
+		device.Connection.IncomingSignalMessageHandler(incomingMessage)
+	}
+	return nil
 }
 
 type DecryptionResult struct {

@@ -84,7 +84,10 @@ func (puppet *Puppet) tryRelogin(cause error, action string) bool {
 	}
 	log.Info().Msg("Successfully relogined")
 	puppet.AccessToken = accessToken
-	puppet.Update()
+	err = puppet.Update()
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to update puppet")
+	}
 	return true
 }
 
@@ -102,7 +105,8 @@ func (puppet *Puppet) StartCustomMXID(reloginOnFail bool) error {
 
 	resp, err := intent.Whoami()
 	if err != nil {
-		if !reloginOnFail || (errors.Is(err, mautrix.MUnknownToken) && !puppet.tryRelogin(err, "initializing double puppeting")) {
+		tokenIsUnknownOrMissing := errors.Is(err, mautrix.MUnknownToken) || errors.Is(err, mautrix.MMissingToken)
+		if !reloginOnFail || (tokenIsUnknownOrMissing && !puppet.tryRelogin(err, "initializing double puppeting")) {
 			puppet.clearCustomMXID()
 			return err
 		}

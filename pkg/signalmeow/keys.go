@@ -194,7 +194,11 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 
 func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string, theirDeviceID int) error {
 	// Fetch prekey
-	path := "/v2/keys/" + theirUuid + "/" + fmt.Sprint(theirDeviceID)
+	deviceIDPath := "/*"
+	if theirDeviceID >= 0 {
+		deviceIDPath = "/" + fmt.Sprint(theirDeviceID)
+	}
+	path := "/v2/keys/" + theirUuid + deviceIDPath
 	username, password := device.Data.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest("GET", path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {

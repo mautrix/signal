@@ -87,7 +87,9 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 		req.SetBasicAuth(*opt.Username, *opt.Password)
 	}
 
+	log.Printf("Sending HTTP request: %v", req)
 	client := proxiedHTTPClient()
 	resp, err := client.Do(req)
+	log.Printf("Received HTTP response: %v", resp)
 	return resp, err
 }

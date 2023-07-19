@@ -88,7 +88,14 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 		}
 		return nil
 	}
-	p.AvatarURL, _ = id.ParseContentURI(avatarURL)
+	parsedAvatarURL, err := id.ParseContentURI(avatarURL)
+	if err != nil {
+		p.log.Warnfln("Error parsing avatar URL: %w", err)
+		p.AvatarURL = id.ContentURI{}
+	} else {
+		p.AvatarURL = parsedAvatarURL
+	}
+
 	p.CustomMXID = id.UserID(customMXID)
 	return p
 }
@@ -159,6 +166,10 @@ func (p *Puppet) Update() error {
 		custom_mxid=$11, access_token=$12, next_batch=$13, base_url=$14
 	WHERE uuid=$1
 	`
+	// check for db
+	if p.db == nil {
+		return fmt.Errorf("no database connection")
+	}
 	_, err := p.db.Exec(q, p.values()...)
 	if err != nil {
 		return fmt.Errorf("error updating puppet: %w", err)
@@ -177,26 +188,23 @@ const (
 func (pq *PuppetQuery) GetBySignalID(signalID string) *Puppet {
 	q := selectBase + " WHERE uuid=$1"
 	row := pq.db.QueryRow(q, signalID)
-	p := &Puppet{}
-	return p.Scan(row)
+	return pq.New().Scan(row)
 }
 
 func (pq *PuppetQuery) GetByNumber(number string) *Puppet {
 	q := selectBase + " WHERE number=$1"
 	row := pq.db.QueryRow(q, number)
-	p := &Puppet{}
-	return p.Scan(row)
+	return pq.New().Scan(row)
 }
 
 func (pq *PuppetQuery) GetByCustomMXID(mxid id.UserID) *Puppet {
 	q := selectBase + " WHERE custom_mxid=$1"
 	row := pq.db.QueryRow(q, mxid.String())
-	p := &Puppet{}
-	return p.Scan(row)
+	return pq.New().Scan(row)
 }
 
 func (pq *PuppetQuery) GetAllWithCustomMXID() ([]*Puppet, error) {
-	q := selectBase + " WHERE custom_mxid IS NOT NULL"
+	q := selectBase + " WHERE custom_mxid IS NOT NULL AND custom_mxid <> ''"
 	rows, err := pq.db.Query(q)
 	if err != nil {
 		return nil, fmt.Errorf("error getting all puppets with custom mxid: %w", err)
@@ -204,8 +212,8 @@ func (pq *PuppetQuery) GetAllWithCustomMXID() ([]*Puppet, error) {
 	defer rows.Close()
 	puppets := []*Puppet{}
 	for rows.Next() {
-		p := &Puppet{}
-		puppets = append(puppets, p.Scan(rows))
+		pq.New().Scan(rows)
+		puppets = append(puppets, pq.New().Scan(rows))
 	}
 	return puppets, nil
 }

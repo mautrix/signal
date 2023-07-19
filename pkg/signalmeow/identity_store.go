@@ -138,12 +138,6 @@ func (s *SQLStore) GetIdentityKey(address *libsignalgo.Address, ctx context.Cont
 		return nil, err
 	}
 	key, err := scanIdentityKey(s.db.QueryRow(getIdentityKeyQuery, s.AciUuid, theirUuid, deviceId))
-	// log identity key for theiruuid and deviceid
-	if key != nil {
-		log.Println("got identity key for theirUuid", theirUuid, "and deviceId", deviceId, ":", key)
-	} else {
-		log.Println("no identity key for theirUuid", theirUuid, "and deviceId", deviceId)
-	}
 	if err != nil {
 		log.Println("error getting identity key:", err)
 		return nil, err

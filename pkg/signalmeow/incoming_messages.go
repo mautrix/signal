@@ -53,6 +53,7 @@ func (IncomingSignalMessageReceipt) MessageType() IncomingSignalMessageType {
 
 type IncomingSignalMessageBase struct {
 	// When uniquely identifiying a chat, use GroupID if it is not nil, otherwise use SenderUUID.
-	SenderUUID string   // Always the UUID of the sender of the message
-	GroupID    *GroupID // Unique identifier for the group chat, or nil for 1:1 chats
+	SenderUUID    string   // Always the UUID of the sender of the message
+	RecipientUUID string   // Usually our UUID, unless this is a message we sent on another device
+	GroupID       *GroupID // Unique identifier for the group chat, or nil for 1:1 chats
 }
