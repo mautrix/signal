@@ -45,8 +45,9 @@ func (pk *PublicKey) Serialize() ([]byte, error) {
 }
 
 func (k *PublicKey) Destroy() error {
-	runtime.SetFinalizer(k, nil)
-	return wrapError(C.signal_publickey_destroy(k.ptr))
+	return nil
+	//runtime.SetFinalizer(k, nil)
+	//return wrapError(C.signal_publickey_destroy(k.ptr))
 }
 
 func (k *PublicKey) Compare(other *PublicKey) (int, error) {

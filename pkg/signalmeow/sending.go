@@ -106,25 +106,32 @@ func addPadding(version uint32, contents []byte) ([]byte, error) {
 	}
 }
 
+func checkForErrorWithSessions(err error, addresses []*libsignalgo.Address, sessionRecords []*libsignalgo.SessionRecord) error {
+	if err != nil {
+		return err
+	}
+	if addresses == nil || sessionRecords == nil {
+		return fmt.Errorf("Addresses or session records are nil")
+	}
+	if len(addresses) != len(sessionRecords) {
+		return fmt.Errorf("Mismatched number of addresses (%d) and session records (%d)", len(addresses), len(sessionRecords))
+	}
+	if len(addresses) == 0 || len(sessionRecords) == 0 {
+		return fmt.Errorf("No addresses or session records")
+	}
+	return nil
+}
+
 func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
 	messages := []MyMessage{}
 
-	recipients, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
+	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
+	err = checkForErrorWithSessions(err, addresses, sessionRecords)
 	if err != nil {
 		return nil, err
 	}
-	if recipients == nil || sessionRecords == nil {
-		return nil, fmt.Errorf("No sessions found for recipient %s", recipientUuid)
-	}
-	if len(recipients) != len(sessionRecords) {
-		return nil, fmt.Errorf("Mismatched number of recipients (%d) and session records (%d)", len(recipients), len(sessionRecords))
-	}
-	if len(recipients) == 0 || len(sessionRecords) == 0 {
-		return nil, fmt.Errorf("No sessions found for recipient %s", recipientUuid)
-	}
 
-	for i, recipient := range recipients {
-		// Encrypt our content in an sealed sender envelope
+	for i, recipientAddress := range addresses {
 		serializedMessage, err := proto.Marshal(content)
 		if err != nil {
 			return nil, err
@@ -133,7 +140,7 @@ func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalp
 		paddedMessage, err := addPadding(3, []byte(serializedMessage)) // TODO: figure out how to get actual version
 		cipherTextMessage, err := libsignalgo.Encrypt(
 			[]byte(paddedMessage),
-			recipient,
+			recipientAddress,
 			d.SessionStore,
 			d.IdentityStore,
 			libsignalgo.NewCallbackContext(ctx),
@@ -160,7 +167,7 @@ func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalp
 		if err != nil {
 			return nil, err
 		}
-		deviceID, err := recipient.DeviceID()
+		deviceID, err := recipientAddress.DeviceID()
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +185,7 @@ func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalp
 	return messages, nil
 }
 
-func buildSSMessagesToSend(d *Device, recipientUuid string, message *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
+func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
 	messages := []MyMessage{}
 
 	// Grab our sender cert
@@ -187,44 +194,34 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, message *signalpb.Co
 		return nil, err
 	}
 
-	for _, deviceId := range []uint{1, 2} { // TODO: get actual devices
-		// Make an address
-		recipient, err := libsignalgo.NewAddress(
-			recipientUuid,
-			deviceId,
-		)
+	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
+	err = checkForErrorWithSessions(err, addresses, sessionRecords)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, recipientAddress := range addresses {
+		sessionRecord := sessionRecords[i]
+
+		serializedMessage, err := proto.Marshal(content)
 		if err != nil {
 			return nil, err
-		}
-		// Encrypt our message in an sealed sender envelope
-		serializedMessage := message.String()
-		sessionRecord, err := d.SessionStore.LoadSession(recipient, ctx)
-		if err != nil {
-			return nil, err
-		} else if sessionRecord == nil {
-			return nil, fmt.Errorf("no session found for %v", recipient)
 		}
 		paddedMessage, err := addPadding(3, []byte(serializedMessage)) // TODO: figure out how to get actual version
 		encryptedPayload, err := libsignalgo.SealedSenderEncryptPlaintext(
 			[]byte(paddedMessage),
-			recipient,
+			recipientAddress,
 			cert,
 			d.SessionStore,
 			d.IdentityStore,
 			libsignalgo.NewCallbackContext(ctx),
 		)
 
-		session, err := d.SessionStore.LoadSession(recipient, ctx)
-		if err != nil {
-			return nil, err
-		} else if session == nil {
-			return nil, fmt.Errorf("no session found for %v", recipient)
-		}
-		destinationRegistrationID, err := session.GetRemoteRegistrationID()
+		destinationRegistrationID, err := sessionRecord.GetRemoteRegistrationID()
 		if err != nil {
 			return nil, err
 		}
-		deviceID, err := recipient.DeviceID()
+		deviceID, err := recipientAddress.DeviceID()
 		if err != nil {
 			return nil, err
 		}
@@ -322,8 +319,25 @@ func sendMessage(
 		content.DataMessage.Timestamp = &messageTimestamp
 	}
 
+	useUnidentifiedSender := true
+	profileKey, err := ProfileKeyForSignalID(ctx, d, recipientUuid)
+	if err != nil || profileKey == nil {
+		log.Printf("Error getting profile key: %v", err)
+		useUnidentifiedSender = false
+	}
+	accessKey, err := profileKey.DeriveAccessKey()
+	if err != nil {
+		log.Printf("Error deriving access key: %v", err)
+		useUnidentifiedSender = false
+	}
+
 	// Encrypt messages
-	messages, err := buildAuthedMessagesToSend(d, recipientUuid, content, ctx)
+	var messages []MyMessage
+	if useUnidentifiedSender {
+		messages, err = buildSSMessagesToSend(d, recipientUuid, content, ctx)
+	} else {
+		messages, err = buildAuthedMessagesToSend(d, recipientUuid, content, ctx)
+	}
 
 	outgoingMessages := MyMessages{
 		Timestamp: int64(messageTimestamp),
@@ -335,11 +349,19 @@ func sendMessage(
 	if err != nil {
 		return err
 	}
-	log.Printf("Sending content: %v", string(jsonBytes))
 	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
 	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil)
 
-	responseChan, err := d.Connection.AuthedWS.SendRequest(ctx, request)
+	var responseChan <-chan *signalpb.WebSocketResponseMessage
+	if useUnidentifiedSender {
+		log.Printf("Sending message to %v with unidentified sender", recipientUuid)
+		base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
+		request.Headers = append(request.Headers, "unidentified-access-key:"+base64AccessKey)
+		responseChan, err = d.Connection.UnauthedWS.SendRequest(ctx, request)
+	} else {
+		log.Printf("Sending message to %v with authed sender", recipientUuid)
+		responseChan, err = d.Connection.AuthedWS.SendRequest(ctx, request)
+	}
 	if err != nil {
 		return err
 	}
