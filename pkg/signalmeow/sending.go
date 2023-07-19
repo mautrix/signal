@@ -142,80 +142,15 @@ func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
 	return otherDevices
 }
 
-func buildAuthedMessagesToSend(d *Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
+func buildMessagesToSend(ctx context.Context, d *Device, recipientUuid string, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
 	messages := []MyMessage{}
 
 	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
-	err = checkForErrorWithSessions(err, addresses, sessionRecords)
-	if err != nil {
-		return nil, err
+	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
+		// No sessions, make one with prekey
+		FetchAndProcessPreKey(ctx, d, recipientUuid, -1)
+		addresses, sessionRecords, err = d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
 	}
-
-	for i, recipientAddress := range addresses {
-		recipientDeviceID, err := recipientAddress.DeviceID()
-		if err != nil {
-			return nil, err
-		}
-
-		// Marshal and encrypt the message
-		serializedMessage, err := proto.Marshal(content)
-		if err != nil {
-			return nil, err
-		}
-		session := sessionRecords[i]
-		paddedMessage, err := addPadding(3, []byte(serializedMessage)) // TODO: figure out how to get actual version
-		cipherTextMessage, err := libsignalgo.Encrypt(
-			[]byte(paddedMessage),
-			recipientAddress,
-			d.SessionStore,
-			d.IdentityStore,
-			libsignalgo.NewCallbackContext(ctx),
-		)
-		encryptedPayload, err := cipherTextMessage.Serialize()
-		if err != nil {
-			return nil, err
-		}
-
-		// OMG Signal are you serious why can't your magic numbers just align
-		cipherMessageType, _ := cipherTextMessage.MessageType()
-		var envelopeType = 0
-		if cipherMessageType == libsignalgo.CiphertextMessageTypePreKey { // 3 -> 3
-			envelopeType = int(signalpb.Envelope_PREKEY_BUNDLE)
-		} else if cipherMessageType == libsignalgo.CiphertextMessageTypeWhisper { // 2 -> 1
-			envelopeType = int(signalpb.Envelope_CIPHERTEXT)
-		} else {
-			return nil, fmt.Errorf("Unknown message type: %v", cipherMessageType)
-		}
-		log.Printf("Sending message type %v", envelopeType)
-
-		destinationRegistrationID, err := session.GetRemoteRegistrationID()
-		if err != nil {
-			return nil, err
-		}
-
-		// Build payload to send over websocket
-		outgoingMessage := MyMessage{
-			Type:                      envelopeType,
-			DestinationDeviceID:       int(recipientDeviceID),
-			DestinationRegistrationID: int(destinationRegistrationID),
-			Content:                   base64.StdEncoding.EncodeToString(encryptedPayload),
-		}
-		messages = append(messages, outgoingMessage)
-	}
-
-	return messages, nil
-}
-
-func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Content, ctx context.Context) ([]MyMessage, error) {
-	messages := []MyMessage{}
-
-	// Grab our sender cert
-	cert, err := senderCertificate(d)
-	if err != nil {
-		return nil, err
-	}
-
-	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
 	err = checkForErrorWithSessions(err, addresses, sessionRecords)
 	if err != nil {
 		return nil, err
@@ -233,21 +168,22 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Co
 			return nil, err
 		}
 		paddedMessage, err := addPadding(3, []byte(serializedMessage)) // TODO: figure out how to get actual version
-		encryptedPayload, err := libsignalgo.SealedSenderEncryptPlaintext(
-			[]byte(paddedMessage),
-			recipientAddress,
-			cert,
-			d.SessionStore,
-			d.IdentityStore,
-			libsignalgo.NewCallbackContext(ctx),
-		)
 		sessionRecord := sessionRecords[i]
+
+		var envelopeType int
+		var encryptedPayload []byte
+		if unauthenticated {
+			envelopeType, encryptedPayload, err = buildSSMessageToSend(ctx, d, recipientAddress, paddedMessage)
+		} else {
+			envelopeType, encryptedPayload, err = buildAuthedMessageToSend(ctx, d, recipientAddress, paddedMessage)
+		}
+
 		destinationRegistrationID, err := sessionRecord.GetRemoteRegistrationID()
 		if err != nil {
 			return nil, err
 		}
 		outgoingMessage := MyMessage{
-			Type:                      int(signalpb.Envelope_UNIDENTIFIED_SENDER),
+			Type:                      envelopeType,
 			DestinationDeviceID:       int(recipientDeviceID),
 			DestinationRegistrationID: int(destinationRegistrationID),
 			Content:                   base64.StdEncoding.EncodeToString(encryptedPayload),
@@ -256,6 +192,50 @@ func buildSSMessagesToSend(d *Device, recipientUuid string, content *signalpb.Co
 	}
 
 	return messages, nil
+}
+
+func buildAuthedMessageToSend(ctx context.Context, d *Device, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
+	cipherTextMessage, err := libsignalgo.Encrypt(
+		[]byte(paddedMessage),
+		recipientAddress,
+		d.SessionStore,
+		d.IdentityStore,
+		libsignalgo.NewCallbackContext(ctx),
+	)
+	encryptedPayload, err = cipherTextMessage.Serialize()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	// OMG Signal are you serious why can't your magic numbers just align
+	cipherMessageType, _ := cipherTextMessage.MessageType()
+	if cipherMessageType == libsignalgo.CiphertextMessageTypePreKey { // 3 -> 3
+		envelopeType = int(signalpb.Envelope_PREKEY_BUNDLE)
+	} else if cipherMessageType == libsignalgo.CiphertextMessageTypeWhisper { // 2 -> 1
+		envelopeType = int(signalpb.Envelope_CIPHERTEXT)
+	} else {
+		return 0, nil, fmt.Errorf("Unknown message type: %v", cipherMessageType)
+	}
+	log.Printf("Sending message type %v", envelopeType)
+	return envelopeType, encryptedPayload, nil
+}
+
+func buildSSMessageToSend(ctx context.Context, d *Device, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
+	cert, err := senderCertificate(d)
+	if err != nil {
+		return 0, nil, err
+	}
+	encryptedPayload, err = libsignalgo.SealedSenderEncryptPlaintext(
+		[]byte(paddedMessage),
+		recipientAddress,
+		cert,
+		d.SessionStore,
+		d.IdentityStore,
+		libsignalgo.NewCallbackContext(ctx),
+	)
+	envelopeType = int(signalpb.Envelope_UNIDENTIFIED_SENDER)
+
+	return envelopeType, encryptedPayload, nil
 }
 
 type SuccessfulSendResult struct {
@@ -460,10 +440,9 @@ func sendContent(
 
 	// Encrypt messages
 	var messages []MyMessage
-	if useUnidentifiedSender {
-		messages, err = buildSSMessagesToSend(d, recipientUuid, content, ctx)
-	} else {
-		messages, err = buildAuthedMessagesToSend(d, recipientUuid, content, ctx)
+	messages, err = buildMessagesToSend(ctx, d, recipientUuid, content, useUnidentifiedSender)
+	if err != nil {
+		return false, fmt.Errorf("Error building messages to send: %v", err)
 	}
 
 	outgoingMessages := MyMessages{
@@ -526,6 +505,7 @@ func sendContent(
 		}
 	} else if *response.Status != 200 {
 		log.Printf("Unexpected status code: %v", *response.Status)
+		log.Printf("Full request: %v", request)
 		log.Printf("Full response: %v", response)
 		return sentUnidentified, fmt.Errorf("Unexpected status code: %v", *response.Status)
 	}
