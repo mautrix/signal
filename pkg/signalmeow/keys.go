@@ -67,6 +67,10 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	signedId, err := signedPreKey.GetID()
 	err = device.PreKeyStoreExtras.MarkSignedPreKeysAsUploaded(uuidKind, signedId)
 
+	if err != nil {
+		log.Printf("Error marking prekeys as uploaded: %v", err)
+	}
+
 	return err
 }
 

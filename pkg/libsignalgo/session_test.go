@@ -28,9 +28,13 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	bobSignedPreKeyPublicSerialized, err := bobSignedPreKeyPublicKey.Serialize()
 	assert.NoError(t, err)
 
-	bobIdentityKey, err := bobStore.GetIdentityKeyPair(ctx)
+	bobIdentityKeyPair, err := bobStore.GetIdentityKeyPair(ctx)
 	assert.NoError(t, err)
-	bobSignedPreKeySignature, err := bobIdentityKey.GetPrivateKey().Sign(bobSignedPreKeyPublicSerialized)
+	bobSignedPreKeySignature, err := bobIdentityKeyPair.GetPrivateKey().Sign(bobSignedPreKeyPublicSerialized)
+	assert.NoError(t, err)
+
+	bobPublicIdentityKey := bobIdentityKeyPair.GetPublicKey()
+	bobIdentityKey, err := libsignalgo.NewIdentityKeyFromPublicKey(bobPublicIdentityKey)
 	assert.NoError(t, err)
 
 	var prekeyID uint32 = 4570
@@ -46,7 +50,7 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 		signedPreKeyID,
 		bobSignedPreKeyPublicKey,
 		bobSignedPreKeySignature,
-		bobIdentityKey.GetPublicKey(),
+		bobIdentityKey,
 	)
 	assert.NoError(t, err)
 

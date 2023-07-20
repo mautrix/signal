@@ -186,16 +186,16 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 	if br.Config.Bridge.Encryption.Default || encryptionEnabled {
 		_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: br.Bot.UserID})
 		if err != nil {
-			portal.log.Warn().Msgf("Failed to invite bridge bot to enable e2be:", err)
+			portal.log.Warn().Msgf("Failed to invite bridge bot to enable e2be: %v", err)
 		}
 		err = br.Bot.EnsureJoined(roomID)
 		if err != nil {
-			portal.log.Warn().Msgf("Failed to join as bridge bot to enable e2be:", err)
+			portal.log.Warn().Msgf("Failed to join as bridge bot to enable e2be: %v", err)
 		}
 		if !encryptionEnabled {
 			_, err = intent.SendStateEvent(roomID, event.StateEncryption, "", portal.getEncryptionEventContent())
 			if err != nil {
-				portal.log.Warn().Msgf("Failed to enable e2be:", err)
+				portal.log.Warn().Msgf("Failed to enable e2be: %v", err)
 			}
 		}
 		br.AS.StateStore.SetMembership(roomID, inviter.MXID, event.MembershipJoin)

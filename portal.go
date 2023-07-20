@@ -139,12 +139,12 @@ func (portal *Portal) UpdateBridgeInfo() {
 	stateKey, content := portal.getBridgeInfo()
 	_, err := portal.MainIntent().SendStateEvent(portal.MXID, event.StateBridge, stateKey, content)
 	if err != nil {
-		portal.log.Warn().Msgf("Failed to update m.bridge:", err)
+		portal.log.Warn().Msgf("Failed to update m.bridge: %v", err)
 	}
 	// TODO remove this once https://github.com/matrix-org/matrix-doc/pull/2346 is in spec
 	_, err = portal.MainIntent().SendStateEvent(portal.MXID, event.StateHalfShotBridge, stateKey, content)
 	if err != nil {
-		portal.log.Warn().Msgf("Failed to update uk.half-shot.bridge:", err)
+		portal.log.Warn().Msgf("Failed to update uk.half-shot.bridge: %v", err)
 	}
 }
 
