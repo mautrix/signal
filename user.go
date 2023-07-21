@@ -408,6 +408,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			log.Printf("no portal found for chatID %s", chatID)
 			return errors.New("no portal found for chatID")
 		}
+		updatePortal := false
 		if m.GroupID != nil {
 			group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
 			if err != nil {
@@ -416,29 +417,30 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			if portal.Name != group.Title || portal.Topic != group.Description {
 				portal.Name = group.Title
 				portal.Topic = group.Description
-				_, err = portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
-				if err != nil {
-					log.Printf("error setting room name: %v", err)
-				}
-				_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
-				if err != nil {
-					log.Printf("error setting room topic: %v", err)
-				}
+				updatePortal = true
 			}
-			portal.Name = group.Title
-			portal.Topic = group.Description
 		} else {
 			if portal.shouldSetDMRoomMetadata() {
+				portal.Name = senderPuppet.Name
 				_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
 				portal.NameSet = err == nil
 			}
 		}
-		err := portal.Update()
-		if err != nil {
-			log.Printf("error updating portal: %v", err)
+		if updatePortal {
+			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+			if err != nil {
+				log.Printf("error setting room name: %v", err)
+			}
+			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+			if err != nil {
+				log.Printf("error setting room topic: %v", err)
+			}
+			err = portal.Update()
+			if err != nil {
+				log.Printf("error updating portal: %v", err)
+			}
+			portal.UpdateBridgeInfo()
 		}
-		portal.UpdateBridgeInfo()
-
 		portalSignalMessage := portalSignalMessage{
 			user:   user,
 			msg:    m.Content,
