@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ca-certific
 
 WORKDIR /build
 # Copy all files needed for Go build, and no Rust files
-COPY *.go go.* *.yaml .
+COPY *.go go.* *.yaml ./
 COPY pkg/signalmeow/. pkg/signalmeow/.
 COPY pkg/libsignalgo/* pkg/libsignalgo/
 COPY pkg/libsignalgo/resources/. pkg/libsignalgo/resources/.
