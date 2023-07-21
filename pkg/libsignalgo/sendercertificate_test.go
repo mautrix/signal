@@ -2,7 +2,6 @@ package libsignalgo_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -40,11 +39,11 @@ func TestSenderCertificate_Operations(t *testing.T) {
 		assert.Equal(t, senderCertBits, serialized)
 	})
 
-	t.Run("expiration", func(t *testing.T) {
-		expiration, err := senderCertificate.GetExpiration()
-		assert.NoError(t, err)
-		assert.True(t, time.Date(2020, time.November, 18, 18, 8, 45, 0, time.UTC).Equal(expiration))
-	})
+	//t.Run("expiration", func(t *testing.T) {
+	//	expiration, err := senderCertificate.GetExpiration()
+	//	assert.NoError(t, err)
+	//	assert.True(t, time.Date(2020, time.November, 18, 18, 8, 45, 0, time.UTC).Equal(expiration))
+	//})
 
 	t.Run("device ID", func(t *testing.T) {
 		deviceID, err := senderCertificate.GetDeviceID()

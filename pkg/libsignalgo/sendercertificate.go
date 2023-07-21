@@ -104,14 +104,14 @@ func (sc *SenderCertificate) GetSenderE164() (string, error) {
 	return CopyCStringToString(e164), nil
 }
 
-func (sc *SenderCertificate) GetExpiration() (time.Time, error) {
-	var expiration C.ulonglong
-	signalFfiError := C.signal_sender_certificate_get_expiration(&expiration, sc.ptr)
-	if signalFfiError != nil {
-		return time.Time{}, wrapError(signalFfiError)
-	}
-	return time.Unix(int64(expiration), 0), nil
-}
+//func (sc *SenderCertificate) GetExpiration() (time.Time, error) {
+//	var expiration C.ulonglong
+//	signalFfiError := C.signal_sender_certificate_get_expiration(&expiration, sc.ptr)
+//	if signalFfiError != nil {
+//		return time.Time{}, wrapError(signalFfiError)
+//	}
+//	return time.Unix(int64(expiration), 0), nil
+//}
 
 func (sc *SenderCertificate) GetDeviceID() (uint32, error) {
 	var deviceID C.uint32_t
