@@ -20,4 +20,3 @@ clean:
 	rm -f ./$(LIBRARY_FILENAME)
 	cd $(RUST_DIR) && cargo clean
 	rm -f $(GO_BINARY)
-
