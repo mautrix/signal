@@ -390,6 +390,31 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			chatID = string(*m.GroupID)
 		}
 		portal := user.GetPortalByChatID(chatID)
+		if m.GroupID != nil {
+			group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
+			if err != nil {
+				log.Printf("error retrieving group: %v", err)
+			}
+			if portal.Name != group.Title || portal.Topic != group.Description {
+				portal.Name = group.Title
+				portal.Topic = group.Description
+				_, err = portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+				if err != nil {
+					log.Printf("error setting room name: %v", err)
+				}
+				_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+				if err != nil {
+					log.Printf("error setting room topic: %v", err)
+				}
+				err = portal.Update()
+				if err != nil {
+					log.Printf("error updating portal: %v", err)
+				}
+			}
+			portal.Name = group.Title
+			portal.Topic = group.Description
+		}
+
 		if portal == nil {
 			log.Printf("no portal found for chatID %s", chatID)
 			return errors.New("no portal found for chatID")

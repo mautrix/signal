@@ -231,7 +231,13 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					libsignalgo.NewCallbackContext(ctx),
 				)
 				if err != nil {
-					log.Printf("Whisper Decryption error: %v", err)
+					if strings.Contains(err.Error(), "message with old counter") {
+						// Duplicate message, ignore
+						responseCode = 200
+						log.Printf("Duplicate message, ignoring")
+					} else {
+						log.Printf("Whisper Decryption error: %v", err)
+					}
 				} else {
 					err = stripPadding(&decryptedText)
 					if err != nil {
@@ -364,7 +370,7 @@ func handleIncomingDataMessage(ctx context.Context, device *Device, dataMessage 
 
 			log.Printf("********* GROUP FETCH TEST *********")
 			// TODO: is this the best place to always fetch the group?
-			group, err := RetrieveGroupById(ctx, device, groupIDValue)
+			group, err := RetrieveGroupByID(ctx, device, groupIDValue)
 			if err != nil {
 				log.Printf("RetrieveGroupById error: %v", err)
 				return err

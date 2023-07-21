@@ -305,7 +305,7 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 }
 
 func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text string) (*GroupMessageSendResult, error) {
-	group, err := RetrieveGroupById(ctx, device, groupID)
+	group, err := RetrieveGroupByID(ctx, device, groupID)
 	if err != nil {
 		return nil, err
 	}

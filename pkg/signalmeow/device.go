@@ -34,6 +34,8 @@ type DeviceConnection struct {
 	// cached data (not persisted)
 	SenderCertificate *libsignalgo.SenderCertificate
 	GroupCredentials  *GroupCredentials
+	GroupCache        *GroupCache
+	ProfileCache      map[string]*Group
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket

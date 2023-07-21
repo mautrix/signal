@@ -285,7 +285,7 @@ func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
 	}
 }
 
-func RetrieveGroupById(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {
+func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {
 	masterKey := masterKeyFromGroupID(groupID)
 	groupAuth, err := GetAuthorizationForToday(ctx, d, masterKey)
 	if err != nil {
@@ -328,4 +328,33 @@ func RetrieveGroupById(ctx context.Context, d *Device, groupID GroupID) (*Group,
 		}
 	}
 	return group, nil
+}
+
+func RetrieveGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {
+	if d.Connection.GroupCache == nil {
+		d.Connection.GroupCache = &GroupCache{
+			groups:      make(map[string]*Group),
+			lastFetched: make(map[string]time.Time),
+		}
+	}
+
+	lastFetched, ok := d.Connection.GroupCache.lastFetched[string(groupID)]
+	if ok && time.Since(lastFetched) < 1*time.Hour {
+		group, ok := d.Connection.GroupCache.groups[string(groupID)]
+		if ok {
+			return group, nil
+		}
+	}
+	group, err := fetchGroupByID(ctx, d, groupID)
+	if err != nil {
+		return nil, err
+	}
+	d.Connection.GroupCache.groups[string(groupID)] = group
+	d.Connection.GroupCache.lastFetched[string(groupID)] = time.Now()
+	return group, nil
+}
+
+type GroupCache struct {
+	groups      map[string]*Group
+	lastFetched map[string]time.Time
 }
