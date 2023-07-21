@@ -1,3 +1,6 @@
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
 include:
 - project: 'mautrix/ci'
   file: '/python.yml'
