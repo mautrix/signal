@@ -3,14 +3,8 @@
 # Exit on error
 set -e
 
-# Check if libsignal directory is provided
-if [ "$#" -ne 1 ]; then
-    echo "Usage: $0 <path_to_libsignal_directory>"
-    exit 1
-fi
-
 # Store the libsignal directory path
-LIBSIGNAL_DIRECTORY="$1"
+LIBSIGNAL_DIRECTORY="libsignal"
 
 # Check if libsignal directory exists
 if [ ! -d "$LIBSIGNAL_DIRECTORY" ]; then
