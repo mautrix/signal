@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -20,9 +21,9 @@ type ProfileName struct {
 	FamilyName *string
 }
 type Profile struct {
-	Name       *string
-	About      *string
-	AboutEmoji *string
+	Name       string
+	About      string
+	AboutEmoji string
 }
 
 func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string) ([]byte, error) {
@@ -65,7 +66,36 @@ func ProfileKeyForSignalID(ctx context.Context, d *Device, signalId string) (*li
 	return profileKey, nil
 }
 
-func RetrieveProfileById(ctx context.Context, d *Device, signalID string) (*Profile, error) {
+func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
+	if d.Connection.ProfileCache == nil {
+		d.Connection.ProfileCache = &ProfileCache{
+			profiles:    make(map[string]*Profile),
+			lastFetched: make(map[string]time.Time),
+		}
+	}
+
+	lastFetched, ok := d.Connection.ProfileCache.lastFetched[string(signalID)]
+	if ok && time.Since(lastFetched) < 1*time.Hour {
+		group, ok := d.Connection.ProfileCache.profiles[string(signalID)]
+		if ok {
+			return group, nil
+		}
+	}
+	group, err := fetchProfileByID(ctx, d, signalID)
+	if err != nil {
+		return nil, err
+	}
+	d.Connection.ProfileCache.profiles[string(signalID)] = group
+	d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
+	return group, nil
+}
+
+type ProfileCache struct {
+	profiles    map[string]*Profile
+	lastFetched map[string]time.Time
+}
+
+func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
 	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID)
 	if err != nil {
 		log.Printf("ProfileKey error: %v", err)
@@ -145,34 +175,34 @@ func RetrieveProfileById(ctx context.Context, d *Device, signalID string) (*Prof
 		return nil, err
 	}
 	log.Printf("profile: %v", profile)
-	if profile.Name != nil {
-		base64Name, err := base64.StdEncoding.DecodeString(*profile.Name)
+	if profile.Name != "" {
+		base64Name, err := base64.StdEncoding.DecodeString(profile.Name)
 		decryptedName, err := decryptString(*profileKey, base64Name)
 		if err != nil {
 			log.Printf("error decrypting profile name: %v", err)
-			profile.Name = nil
+			profile.Name = ""
 		}
-		profile.Name = decryptedName
+		profile.Name = *decryptedName
 		log.Printf("decryptedName: %v", *decryptedName)
 	}
-	if profile.About != nil {
-		base64About, err := base64.StdEncoding.DecodeString(*profile.About)
+	if profile.About != "" {
+		base64About, err := base64.StdEncoding.DecodeString(profile.About)
 		decryptedAbout, err := decryptString(*profileKey, base64About)
 		if err != nil {
 			log.Printf("error decrypting profile about: %v", err)
-			profile.About = nil
+			profile.About = ""
 		}
-		profile.About = decryptedAbout
+		profile.About = *decryptedAbout
 		log.Printf("decryptedAbout: %v", *decryptedAbout)
 	}
-	if profile.AboutEmoji != nil {
-		base64AboutEmoji, err := base64.StdEncoding.DecodeString(*profile.AboutEmoji)
+	if profile.AboutEmoji != "" {
+		base64AboutEmoji, err := base64.StdEncoding.DecodeString(profile.AboutEmoji)
 		decryptedAboutEmoji, err := decryptString(*profileKey, base64AboutEmoji)
 		if err != nil {
 			log.Printf("error decrypting profile aboutEmoji: %v", err)
-			profile.AboutEmoji = nil
+			profile.AboutEmoji = ""
 		}
-		profile.AboutEmoji = decryptedAboutEmoji
+		profile.AboutEmoji = *decryptedAboutEmoji
 		log.Printf("decryptedAboutEmoji: %v", *decryptedAboutEmoji)
 	}
 

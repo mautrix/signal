@@ -360,13 +360,6 @@ func (user *User) Connect() error {
 	ctx := context.Background()
 	connectErr := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
 
-	// Test fetching a profile
-	user.log.Debug().Msg("****************** Fetching my profile ******************")
-	_, err = signalmeow.RetrieveProfileById(ctx, user.SignalDevice, user.SignalID)
-	if err != nil {
-		user.log.Error().Err(err).Msg("GetProfile error")
-	}
-
 	return connectErr
 }
 
@@ -376,6 +369,8 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		m := incomingMessage.(signalmeow.IncomingSignalMessageText)
 		var chatID string
 		var senderPuppet *Puppet
+
+		// Get and update the puppet for this message
 		if m.SenderUUID == user.SignalID {
 			// This is a message sent by us on another device
 			log.Printf("Text message received to %s (group: %v) at %v: %s\n", m.RecipientUUID, m.GroupID, m.Timestamp, m.Content)
@@ -385,11 +380,34 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
 			chatID = m.SenderUUID
 			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+			profile, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, m.SenderUUID)
+			if err != nil {
+				log.Printf("error retrieving profile: %v", err)
+			}
+			if profile.Name != senderPuppet.Name {
+				senderPuppet.Name = profile.Name
+				err = senderPuppet.DefaultIntent().SetDisplayName(profile.Name)
+				if err != nil {
+					log.Printf("error setting display name: %v", err)
+				} else {
+					senderPuppet.NameSet = true
+					err = senderPuppet.Update()
+					if err != nil {
+						log.Printf("error updating puppet: %v", err)
+					}
+				}
+			}
+			if m.GroupID != nil {
+				chatID = string(*m.GroupID)
+			}
 		}
-		if m.GroupID != nil {
-			chatID = string(*m.GroupID)
-		}
+
+		// Get and update the portal for this message
 		portal := user.GetPortalByChatID(chatID)
+		if portal == nil {
+			log.Printf("no portal found for chatID %s", chatID)
+			return errors.New("no portal found for chatID")
+		}
 		if m.GroupID != nil {
 			group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
 			if err != nil {
@@ -406,19 +424,20 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 				if err != nil {
 					log.Printf("error setting room topic: %v", err)
 				}
-				err = portal.Update()
-				if err != nil {
-					log.Printf("error updating portal: %v", err)
-				}
 			}
 			portal.Name = group.Title
 			portal.Topic = group.Description
+		} else {
+			if portal.shouldSetDMRoomMetadata() {
+				_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+				portal.NameSet = err == nil
+			}
 		}
-
-		if portal == nil {
-			log.Printf("no portal found for chatID %s", chatID)
-			return errors.New("no portal found for chatID")
+		err := portal.Update()
+		if err != nil {
+			log.Printf("error updating portal: %v", err)
 		}
+		portal.UpdateBridgeInfo()
 
 		portalSignalMessage := portalSignalMessage{
 			user:   user,
