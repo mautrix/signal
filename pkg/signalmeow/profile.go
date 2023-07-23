@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"strings"
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -184,6 +185,9 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 		}
 		profile.Name = *decryptedName
 		log.Printf("decryptedName: %v", *decryptedName)
+		// I've seen profile names come in with a null byte instead of a space
+		// between first and last names, so replace any null bytes with spaces
+		profile.Name = strings.Replace(profile.Name, "\x00", " ", -1)
 	}
 	if profile.About != "" {
 		base64About, err := base64.StdEncoding.DecodeString(profile.About)

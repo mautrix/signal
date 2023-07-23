@@ -486,6 +486,7 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 			return
 		} else {
 			portal.log.Info().Msgf("Created matrix room: %s", portal.MXID)
+			ensureGroupPuppetsAreJoinedToPortal(context.Background(), msg.user, portal)
 		}
 	}
 

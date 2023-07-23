@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
@@ -387,6 +388,40 @@ func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Pupp
 	return nil
 }
 
+func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal *Portal) error {
+	// Check if ChatID is a groupID (not a UUID), otherwise do nothing
+	// TODO: do better than passing around strings and seeing if they are UUIDs or not
+	if _, err := uuid.Parse(portal.ChatID); err == nil {
+		return nil
+	}
+	log.Printf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
+	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, signalmeow.GroupID(portal.ChatID))
+	if err != nil {
+		log.Printf("error retrieving group: %v", err)
+		return err
+	}
+	for _, member := range group.Members {
+		if member.UserId == user.SignalID {
+			continue
+		}
+		memberPuppet := portal.bridge.GetPuppetBySignalID(member.UserId)
+		if memberPuppet == nil {
+			log.Printf("no puppet found for signalID %s", member.UserId)
+			continue
+		}
+		err := updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
+		if err != nil {
+			log.Printf("error updating puppet while updating group: %v", err)
+		}
+		log.Printf("inviting %s to room %s", member.UserId, portal.MXID)
+		err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
+		if err != nil {
+			log.Printf("error ensuring joined: %v", err)
+		}
+	}
+	return nil
+}
+
 func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSignalMessage) error {
 	switch incomingMessage.MessageType() {
 	case signalmeow.IncomingSignalMessageTypeText:
@@ -432,31 +467,11 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			}
 
 			// ensure everyone is invited to the group
-			log.Printf("ensuring everyone is invited to room %s", portal.MXID)
-			for _, member := range group.Members {
-				if member.UserId == user.SignalID {
-					continue
-				}
-				memberPuppet := user.bridge.GetPuppetBySignalID(member.UserId)
-				if memberPuppet == nil {
-					log.Printf("no puppet found for signalID %s", member.UserId)
-					continue
-				}
-				err := updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
-				if err != nil {
-					log.Printf("error updating puppet while updating group: %v", err)
-				}
-				log.Printf("inviting %s to room %s", member.UserId, portal.MXID)
-				err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
-				if err != nil {
-					log.Printf("error ensuring joined: %v", err)
-				}
-			}
+			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
 		} else {
 			if portal.shouldSetDMRoomMetadata() {
 				portal.Name = senderPuppet.Name
-				_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
-				portal.NameSet = err == nil
+				updatePortal = true
 			}
 		}
 		if updatePortal {
@@ -464,6 +479,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			if err != nil {
 				log.Printf("error setting room name: %v", err)
 			}
+			portal.NameSet = err == nil
 			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
 			if err != nil {
 				log.Printf("error setting room topic: %v", err)
