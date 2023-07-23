@@ -25,9 +25,10 @@ import (
 )
 
 type portalSignalMessage struct {
-	msg    string
-	user   *User
-	sender *Puppet
+	msg       string
+	timestamp uint64 // Basically a message ID
+	user      *User
+	sender    *Puppet
 }
 
 type portalMatrixMessage struct {
@@ -88,8 +89,12 @@ func (portal *Portal) ReceiveMatrixEvent(user bridge.User, evt *event.Event) {
 }
 
 func (portal *Portal) IsPrivateChat() bool {
-	// Assuming that if the receiver is set, it's a private chat
-	return portal.Receiver != ""
+	// If ChatID is a UUID, it's a private chat,
+	// otherwise it's base64 and a group chat
+	if _, uuidErr := uuid.Parse(portal.ChatID); uuidErr == nil {
+		return true
+	}
+	return false
 }
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
@@ -491,7 +496,6 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 		return
 	}
 
-	timestamp := time.Now() //TODO get this from signal message
 	content := &event.MessageEventContent{
 		Body:    msg.msg,
 		MsgType: event.MsgText,
@@ -501,7 +505,7 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 		event.EventMessage,
 		content,
 		nil,
-		timestamp.UnixMilli(), // TODO: message timestamp from Signal
+		int64(msg.timestamp),
 	)
 	if err != nil {
 		portal.log.Error().Err(err).Msg("Failed to send message")
@@ -519,7 +523,7 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 	dbMessage.MXID = eventID
 	dbMessage.MXRoom = portal.MXID
 	dbMessage.Sender = msg.sender.SignalID
-	dbMessage.Timestamp = timestamp
+	dbMessage.Timestamp = time.Unix(int64(msg.timestamp), 0)
 	dbMessage.SignalChatID = portal.ChatID
 	dbMessage.SignalReceiver = portal.Receiver
 	dbMessage.Insert(nil)

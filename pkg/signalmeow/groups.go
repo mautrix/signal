@@ -354,6 +354,14 @@ func RetrieveGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group,
 	return group, nil
 }
 
+func InvalidateGroupCache(d *Device, groupID GroupID) {
+	if d.Connection.GroupCache == nil {
+		return
+	}
+	delete(d.Connection.GroupCache.groups, string(groupID))
+	delete(d.Connection.GroupCache.lastFetched, string(groupID))
+}
+
 type GroupCache struct {
 	groups      map[string]*Group
 	lastFetched map[string]time.Time

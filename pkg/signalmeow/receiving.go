@@ -317,9 +317,9 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								log.Printf("-----> sync message sent destination is nil")
 								return nil, fmt.Errorf("sync message sent destination is nil")
 							}
-							err = handleIncomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination)
+							err = incomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination)
 							if err != nil {
-								log.Printf("handleIncomingDataMessage error: %v", err)
+								log.Printf("incomingDataMessage error: %v", err)
 								return nil, err
 							}
 						}
@@ -327,9 +327,9 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				}
 
 				if content.DataMessage != nil {
-					err = handleIncomingDataMessage(ctx, device, content.DataMessage, theirUuid, device.Data.AciUuid)
+					err = incomingDataMessage(ctx, device, content.DataMessage, theirUuid, device.Data.AciUuid)
 					if err != nil {
-						log.Printf("handleIncomingDataMessage error: %v", err)
+						log.Printf("incomingDataMessage error: %v", err)
 						return nil, err
 					}
 				}
@@ -348,7 +348,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 	return handler
 }
 
-func handleIncomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) error {
+func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) error {
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
@@ -368,14 +368,20 @@ func handleIncomingDataMessage(ctx context.Context, device *Device, dataMessage 
 			groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
 			groupID = &groupIDValue
 
-			log.Printf("********* GROUP FETCH TEST *********")
-			// TODO: is this the best place to always fetch the group?
-			group, err := RetrieveGroupByID(ctx, device, groupIDValue)
-			if err != nil {
-				log.Printf("RetrieveGroupById error: %v", err)
-				return err
+			if dataMessage.GetGroupV2().GroupChange != nil {
+				// TODO: don't parse the change	for now, just invalidate our cache
+				log.Printf("Invalidating group %v due to change: %v", groupIDValue, dataMessage.GetGroupV2().GroupChange)
+				InvalidateGroupCache(device, groupIDValue)
+			} else if dataMessage.GetGroupV2().GetRevision() > 0 {
+				// Compare revision, and if it's newer, invalidate our cache
+				ourGroup, err := RetrieveGroupByID(ctx, device, groupIDValue)
+				if err != nil {
+					log.Printf("RetrieveGroupByID error: %v", err)
+				} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
+					log.Printf("Invalidating group %v due to new revision %v > our revision: %v", groupIDValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
+					InvalidateGroupCache(device, groupIDValue)
+				}
 			}
-			printGroup(group) // TODO: debug log
 		}
 		incomingMessage := IncomingSignalMessageText{
 			IncomingSignalMessageBase: IncomingSignalMessageBase{

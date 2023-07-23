@@ -363,6 +363,30 @@ func (user *User) Connect() error {
 	return connectErr
 }
 
+func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {
+	profile, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, puppet.SignalID)
+	if err != nil {
+		log.Printf("error retrieving profile: %v", err)
+		return err
+	}
+	if profile.Name != puppet.Name {
+		puppet.Name = profile.Name
+		err = puppet.DefaultIntent().SetDisplayName(profile.Name)
+		if err != nil {
+			log.Printf("error setting display name: %v", err)
+			return err
+		} else {
+			puppet.NameSet = true
+			err = puppet.Update()
+			if err != nil {
+				log.Printf("error updating puppet: %v", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSignalMessage) error {
 	switch incomingMessage.MessageType() {
 	case signalmeow.IncomingSignalMessageTypeText:
@@ -380,22 +404,9 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
 			chatID = m.SenderUUID
 			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
-			profile, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, m.SenderUUID)
+			err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
 			if err != nil {
-				log.Printf("error retrieving profile: %v", err)
-			}
-			if profile.Name != senderPuppet.Name {
-				senderPuppet.Name = profile.Name
-				err = senderPuppet.DefaultIntent().SetDisplayName(profile.Name)
-				if err != nil {
-					log.Printf("error setting display name: %v", err)
-				} else {
-					senderPuppet.NameSet = true
-					err = senderPuppet.Update()
-					if err != nil {
-						log.Printf("error updating puppet: %v", err)
-					}
-				}
+				log.Printf("error updating puppet: %v", err)
 			}
 			if m.GroupID != nil {
 				chatID = string(*m.GroupID)
@@ -418,6 +429,28 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 				portal.Name = group.Title
 				portal.Topic = group.Description
 				updatePortal = true
+			}
+
+			// ensure everyone is invited to the group
+			log.Printf("ensuring everyone is invited to room %s", portal.MXID)
+			for _, member := range group.Members {
+				if member.UserId == user.SignalID {
+					continue
+				}
+				memberPuppet := user.bridge.GetPuppetBySignalID(member.UserId)
+				if memberPuppet == nil {
+					log.Printf("no puppet found for signalID %s", member.UserId)
+					continue
+				}
+				err := updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
+				if err != nil {
+					log.Printf("error updating puppet while updating group: %v", err)
+				}
+				log.Printf("inviting %s to room %s", member.UserId, portal.MXID)
+				err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
+				if err != nil {
+					log.Printf("error ensuring joined: %v", err)
+				}
 			}
 		} else {
 			if portal.shouldSetDMRoomMetadata() {
@@ -442,9 +475,10 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			portal.UpdateBridgeInfo()
 		}
 		portalSignalMessage := portalSignalMessage{
-			user:   user,
-			msg:    m.Content,
-			sender: senderPuppet,
+			user:      user,
+			msg:       m.Content,
+			sender:    senderPuppet,
+			timestamp: m.Timestamp,
 		}
 		portal.signalMessages <- portalSignalMessage
 	default:
