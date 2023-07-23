@@ -3,7 +3,7 @@ module go.mau.fi/mautrix-signal
 go 1.20
 
 require (
-	maunium.net/go/mautrix v0.15.2
+	maunium.net/go/mautrix v0.15.4
 )
 
 require (
