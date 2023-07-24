@@ -10,8 +10,8 @@ import (
 	"net/url"
 )
 
-const proxyUrlStr = "http://localhost:8080"
-const caCertPath = "/Users/sweber/.mitmproxy/mitmproxy-ca-cert.pem"
+const proxyUrlStr = "" // Set this to proxy requests
+const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmproxy)
 
 const UrlHost = "chat.signal.org"
 const StorageUrlHost = "storage.signal.org"
@@ -38,9 +38,10 @@ func proxiedHTTPClient() *http.Client {
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 
-		tlsConfig.InsecureSkipVerify = true
 		tlsConfig.RootCAs = caCertPool
 	}
+	// TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
+	tlsConfig.InsecureSkipVerify = true
 
 	transport := &http.Transport{}
 	if proxyURL != nil {
