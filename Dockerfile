@@ -30,12 +30,12 @@ COPY --from=rust-builder /build/libsignal_ffi.a /build/libsignal_ffi.a
 RUN make build_go
 
 # -- Run mautrix-signal --
-FROM alpine:3.18
+FROM debian:bookworm-slim
 
 ENV UID=1337 \
     GID=1337
 
-RUN apk add --no-cache su-exec ca-certificates olm bash jq yq curl
+RUN apt-get update && apt-get install -y --no-install-recommends su-exec ca-certificates libolm-dev bash jq yq curl
 
 COPY --from=go-builder /build/mautrix-signal /usr/bin/mautrix-signal
 COPY --from=go-builder /build/example-config.yaml /opt/mautrix-signal/example-config.yaml
