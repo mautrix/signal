@@ -35,7 +35,7 @@ FROM debian:bookworm-slim
 ENV UID=1337 \
     GID=1337
 
-RUN apt-get update && apt-get install -y --no-install-recommends su-exec ca-certificates libolm-dev bash jq yq curl
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libolm-dev bash jq yq curl
 
 COPY --from=go-builder /build/mautrix-signal /usr/bin/mautrix-signal
 COPY --from=go-builder /build/example-config.yaml /opt/mautrix-signal/example-config.yaml
