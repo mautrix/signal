@@ -118,9 +118,9 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					result, err = prekeyDecrypt(*senderAddress, usmcContents, device, ctx)
 					if err != nil {
 						if strings.Contains(err.Error(), "null pointer") {
-							// TODO: actually fix this, but ignoring for now because they just build up without a 200
-							responseCode = 200
-							log.Printf("sealed sender prekey decrypt null pointer error, ignoring")
+							// Make sure we don't set responseCode to 200 if we got a null pointer error,
+							// since we want to fallback to sealedSenderDecrypt in this case
+							log.Printf("sealed sender prekey decrypt null pointer error: %v", err)
 						} else {
 							log.Printf("prekeyDecrypt error: %v", err)
 						}
@@ -199,9 +199,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				result, err := prekeyDecrypt(*sender, envelope.Content, device, ctx)
 				if err != nil {
 					if strings.Contains(err.Error(), "null pointer") {
-						// TODO: actually fix this, but ignoring for now because they just build up without a 200
-						responseCode = 200
-						log.Printf("prekey decrypt null pointer error, ignoring")
+						log.Printf("prekey decrypt null pointer error: %v", err)
 					} else {
 						log.Printf("prekeyDecrypt error: %v", err)
 					}
