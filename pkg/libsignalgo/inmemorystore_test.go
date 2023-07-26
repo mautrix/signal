@@ -128,18 +128,24 @@ func (ps *InMemorySignalProtocolStore) GetLocalRegistrationID(ctx context.Contex
 	return ps.registrationID, nil
 }
 
-func (ps *InMemorySignalProtocolStore) SaveIdentityKey(address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, ctx context.Context) error {
+func (ps *InMemorySignalProtocolStore) SaveIdentityKey(address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, ctx context.Context) (bool, error) {
 	log.Debug().Msg("SaveIdentityKey called")
 	name, err := address.Name()
 	if err != nil {
-		return err
+		return false, err
 	}
 	deviceID, err := address.DeviceID()
 	if err != nil {
-		return err
+		return false, err
+	}
+	replacing := false
+	oldKey := ps.identityKeyMap[AddressKey{name, deviceID}]
+	if oldKey != nil {
+		keysMatch, _ := oldKey.Equal(identityKey)
+		replacing = !keysMatch
 	}
 	ps.identityKeyMap[AddressKey{name, deviceID}] = identityKey
-	return err
+	return replacing, err
 }
 
 func (ps *InMemorySignalProtocolStore) GetIdentityKey(address *libsignalgo.Address, ctx context.Context) (*libsignalgo.IdentityKey, error) {
