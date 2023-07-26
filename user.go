@@ -409,11 +409,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 			log.Printf("no puppet found for signalID %s", member.UserId)
 			continue
 		}
-		err := updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
-		if err != nil {
-			log.Printf("error updating puppet while updating group: %v", err)
-		}
-		log.Printf("inviting %s to room %s", member.UserId, portal.MXID)
+		_ = updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
 		err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
 		if err != nil {
 			log.Printf("error ensuring joined: %v", err)

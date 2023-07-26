@@ -153,7 +153,7 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 			return
 		}
 		address, err := libsignalgo.NewAddress(device.Data.AciUuid, uint(device.Data.DeviceId))
-		err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
+		_, err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
 		if err != nil {
 			log.Printf("error saving identity key: %v", err)
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}

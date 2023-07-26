@@ -80,22 +80,19 @@ func SealedSenderDecryptToUSMC(
 	identityStore IdentityKeyStore,
 	ctx *CallbackContext,
 ) (*UnidentifiedSenderMessageContent, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
-	borrowedCiphertext := BytesToBuffer(ciphertext)
+	contextPtr := gopointer.Save(ctx)
+	defer gopointer.Unref(contextPtr)
 
 	var usmc *C.SignalUnidentifiedSenderMessageContent = nil
 	signalFfiError := C.signal_sealed_session_cipher_decrypt_to_usmc(
 		&usmc,
-		borrowedCiphertext,
+		BytesToBuffer(ciphertext),
 		wrapIdentityKeyStore(identityStore),
-		contextPointer,
+		contextPtr,
 	)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, wrapError(signalFfiError)
 	}
-
 	return wrapUnidentifiedSenderMessageContent(usmc), nil
 }
 

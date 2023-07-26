@@ -66,28 +66,41 @@ func (s *SQLStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
 	return uint32(regID.Int64), nil
 }
 
-func (s *SQLStore) SaveIdentityKey(address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, ctx context.Context) error {
+func (s *SQLStore) SaveIdentityKey(address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, ctx context.Context) (bool, error) {
 	trustLevel := "TRUSTED_UNVERIFIED" // TODO: this should be hard coded here
 	serialized, err := identityKey.Serialize()
 	if err != nil {
 		log.Println("error serializing identityKey:", err)
-		return err
+		return false, err
 	}
 	theirUuid, err := address.Name()
 	if err != nil {
 		log.Println("error getting theirUuid:", err)
-		return err
+		return false, err
 	}
 	deviceId, err := address.DeviceID()
 	if err != nil {
 		log.Println("error getting deviceId:", err)
-		return err
+		return false, err
+	}
+	oldKey, err := scanIdentityKey(s.db.QueryRow(getIdentityKeyQuery, s.AciUuid, theirUuid, deviceId))
+	if err != nil {
+		log.Println("error getting old identity key:", err)
+	}
+	replacing := false
+	if oldKey != nil {
+		equal, err := oldKey.Equal(identityKey)
+		if err != nil {
+			log.Println("error comparing old and new identity keys:", err)
+		}
+		// We are replacing the old key iff the old key exists and it is not equal to the new key
+		replacing = !equal
 	}
 	_, err = s.db.Exec(insertIdentityKeyQuery, s.AciUuid, theirUuid, deviceId, serialized, trustLevel)
 	if err != nil {
 		log.Println("error inserting identity:", err)
 	}
-	return err
+	return replacing, err
 }
 func (s *SQLStore) IsTrustedIdentity(
 	address *libsignalgo.Address,

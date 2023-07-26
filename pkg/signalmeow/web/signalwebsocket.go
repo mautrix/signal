@@ -194,20 +194,20 @@ func (s *SignalWebsocket) connectLoop(
 		go func() {
 			err := readLoop(loopCtx, ws, requestChan, &responseChannels)
 			if err != nil {
-				fmt.Printf("Error in readLoop: %v\n", err)
+				fmt.Printf("Error in readLoop (%s): %v\n", s.path, err)
 			}
 			loopCancel(err)
-			log.Printf("readLoop exited")
+			log.Printf("readLoop exited (%s)", s.path)
 		}()
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
 			err := writeLoop(loopCtx, ws, s.sendChannel, &responseChannels)
 			if err != nil {
-				fmt.Printf("Error in writeLoop: %v\n", err)
+				fmt.Printf("Error in writeLoop (%s): %v\n", s.path, err)
 			}
 			loopCancel(err)
-			log.Printf("writeLoop exited")
+			log.Printf("writeLoop exited (%s)", s.path)
 		}()
 
 		// Ping loop (send a keepalive Ping every 30s)
@@ -220,11 +220,11 @@ func (s *SignalWebsocket) connectLoop(
 				case <-ticker.C:
 					err := ws.Ping(loopCtx)
 					if err != nil {
-						log.Printf("Error sending keepalive: %v", err)
+						log.Printf("Error sending keepalive (%s): %v", s.path, err)
 						loopCancel(err)
 						return
 					}
-					log.Printf("Sent keepalive")
+					log.Printf("Sent keepalive (%s)", s.path)
 				case <-loopCtx.Done():
 					return
 				}
@@ -232,10 +232,10 @@ func (s *SignalWebsocket) connectLoop(
 		}()
 
 		// Wait for receive or write loop to exit (which means there was an error)
-		log.Printf("Waiting for read or write loop to exit")
+		log.Printf("Waiting for read or write loop to exit (%s)", s.path)
 		select {
 		case <-loopCtx.Done():
-			log.Printf("received loopCtx done")
+			log.Printf("received loopCtx done (%s)", s.path)
 			if context.Cause(loopCtx) != nil {
 				log.Printf("loopCtx error: %v", context.Cause(loopCtx))
 				errorChan <- &SignalWebsocketConnectError{
@@ -244,7 +244,7 @@ func (s *SignalWebsocket) connectLoop(
 				}
 			}
 		}
-		log.Printf("Read or write loop exited")
+		log.Printf("Read or write loop exited (%s)", s.path)
 
 		// Clean up
 		ws.Close(200, "Done")

@@ -13,6 +13,7 @@ extern int signal_store_session_callback(void *store_ctx, const_address *address
 import "C"
 import (
 	"context"
+	"log"
 	"unsafe"
 
 	gopointer "github.com/mattn/go-pointer"
@@ -26,6 +27,7 @@ type SessionStore interface {
 //export signal_load_session_callback
 func signal_load_session_callback(storeCtx unsafe.Pointer, recordp **C.SignalSessionRecord, address *C.const_address, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store SessionStore, ctx context.Context) error {
+		log.Printf("SessionStore: Loading session")
 		record, err := store.LoadSession(
 			&Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
 			ctx,
@@ -40,6 +42,7 @@ func signal_load_session_callback(storeCtx unsafe.Pointer, recordp **C.SignalSes
 //export signal_store_session_callback
 func signal_store_session_callback(storeCtx unsafe.Pointer, address *C.const_address, sessionRecord *C.const_session_record, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store SessionStore, ctx context.Context) error {
+		log.Printf("SessionStore: Storing session")
 		record := SessionRecord{ptr: (*C.SignalSessionRecord)(unsafe.Pointer(sessionRecord))}
 		cloned, err := record.Clone()
 		if err != nil {

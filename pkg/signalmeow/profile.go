@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -71,6 +72,7 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 	if d.Connection.ProfileCache == nil {
 		d.Connection.ProfileCache = &ProfileCache{
 			profiles:    make(map[string]*Profile),
+			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
 		}
 	}
@@ -81,9 +83,18 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 		if ok {
 			return group, nil
 		}
+		err, ok := d.Connection.ProfileCache.errors[string(signalID)]
+		if ok {
+			return nil, *err
+		}
 	}
 	group, err := fetchProfileByID(ctx, d, signalID)
 	if err != nil {
+		// If we get a 401 or 5xx error, we should not retry until the cache expires
+		if strings.HasPrefix(err.Error(), "401") || strings.HasPrefix(err.Error(), "5") {
+			d.Connection.ProfileCache.errors[string(signalID)] = &err
+			d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
+		}
 		return nil, err
 	}
 	d.Connection.ProfileCache.profiles[string(signalID)] = group
@@ -93,6 +104,7 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 
 type ProfileCache struct {
 	profiles    map[string]*Profile
+	errors      map[string]*error
 	lastFetched map[string]time.Time
 }
 
@@ -165,9 +177,9 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 	log.Printf("Waiting for profile response")
 	resp := <-respChan
 	log.Printf("Got profile response: %v", resp)
-	if *resp.Status != 200 {
-		log.Printf("resp.StatusCode: %v", resp.Status)
-		return nil, errors.New("bad status code")
+	if *resp.Status < 200 || *resp.Status >= 300 {
+		log.Printf("resp.StatusCode: %v", *resp.Status)
+		return nil, errors.New(fmt.Sprintf("%v (unsuccessful status code)", *resp.Status))
 	}
 	var profile Profile
 	err = json.Unmarshal(resp.Body, &profile)
