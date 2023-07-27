@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -132,7 +131,7 @@ func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
 	for _, address := range addresses {
 		deviceID, err := address.DeviceID()
 		if err != nil {
-			log.Printf("Error getting deviceID from address: %v", err)
+			zlog.Err(err).Msg("Error getting deviceID from address")
 			continue
 		}
 		if deviceID != uint(d.Data.DeviceId) {
@@ -216,7 +215,6 @@ func buildAuthedMessageToSend(ctx context.Context, d *Device, recipientAddress *
 	} else {
 		return 0, nil, fmt.Errorf("Unknown message type: %v", cipherMessageType)
 	}
-	log.Printf("Sending message type %v", envelopeType)
 	return envelopeType, encryptedPayload, nil
 }
 
@@ -334,13 +332,13 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 				RecipientUuid: member.UserId,
 				Error:         err,
 			})
-			log.Printf("Failed to send to %v: %v", member.UserId, err)
+			zlog.Err(err).Msgf("Failed to send to %v", member.UserId)
 		} else {
 			result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
 				RecipientUuid: member.UserId,
 				Unidentified:  sentUnidentified,
 			})
-			log.Printf("Successfully sent to %v", member.UserId)
+			zlog.Trace().Msgf("Successfully sent to %v", member.UserId)
 		}
 
 		// No need to send to ourselves if we don't have any other devices
@@ -348,7 +346,7 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 			syncContent := syncMessageFromGroupDataMessage(dataMessage, result.SuccessfullySentTo)
 			_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
 			if selfSendErr != nil {
-				log.Printf("Failed to send sync message to myself (%v): %v", member.UserId, selfSendErr)
+				zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
 			}
 		}
 	}
@@ -392,7 +390,7 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, text
 		syncContent := syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
 		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
 		if selfSendErr != nil {
-			log.Printf("Failed to send sync message to myself: %v", selfSendErr)
+			zlog.Err(selfSendErr).Msg("Failed to send sync message to myself")
 		}
 	}
 	return result
@@ -417,32 +415,35 @@ func sendContent(
 	//unidentifiedAccessKey := "a key" // TODO: derive key from their profile key
 
 	if retryCount > 3 {
-		return false, fmt.Errorf("Too many retries")
+		err := fmt.Errorf("Too many retries")
+		zlog.Err(err).Msgf("sendContent too many retries: %v", retryCount)
+		return false, err
 	}
 
 	useUnidentifiedSender := true
 	profileKey, err := ProfileKeyForSignalID(ctx, d, recipientUuid)
 	if err != nil || profileKey == nil {
-		log.Printf("Error getting profile key: %v", err)
+		zlog.Err(err).Msg("Error getting profile key")
 		useUnidentifiedSender = false
 	}
 	accessKey, err := profileKey.DeriveAccessKey()
 	if err != nil {
-		log.Printf("Error deriving access key: %v", err)
+		zlog.Err(err).Msg("Error deriving access key")
 		useUnidentifiedSender = false
 	}
 	// TODO: JUST FOR DEBUGGING
-	if content.DataMessage != nil {
-		if *content.DataMessage.Body == "UNSEAL" {
-			useUnidentifiedSender = false
-		}
-	}
+	//if content.DataMessage != nil {
+	//	if *content.DataMessage.Body == "UNSEAL" {
+	//		useUnidentifiedSender = false
+	//	}
+	//}
 
 	// Encrypt messages
 	var messages []MyMessage
 	messages, err = buildMessagesToSend(ctx, d, recipientUuid, content, useUnidentifiedSender)
 	if err != nil {
-		return false, fmt.Errorf("Error building messages to send: %v", err)
+		zlog.Err(err).Msg("Error building messages to send")
+		return false, err
 	}
 
 	outgoingMessages := MyMessages{
@@ -460,12 +461,12 @@ func sendContent(
 
 	var responseChan <-chan *signalpb.WebSocketResponseMessage
 	if useUnidentifiedSender {
-		log.Printf("Sending message to %v with unidentified sender", recipientUuid)
+		zlog.Trace().Msgf("Sending message to %v over unidentified WS", recipientUuid)
 		base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 		request.Headers = append(request.Headers, "unidentified-access-key:"+base64AccessKey)
 		responseChan, err = d.Connection.UnauthedWS.SendRequest(ctx, request)
 	} else {
-		log.Printf("Sending message to %v with authed sender", recipientUuid)
+		zlog.Trace().Msgf("Sending message to %v over authed WS", recipientUuid)
 		responseChan, err = d.Connection.AuthedWS.SendRequest(ctx, request)
 	}
 	sentUnidentified = useUnidentifiedSender
@@ -474,7 +475,7 @@ func sendContent(
 	}
 
 	response := <-responseChan
-	log.Printf("Received a RESPONSE! id: %v, code: %v", *response.Id, *response.Status)
+	zlog.Trace().Msgf("Received a response to a message send from: %v, id: %v, code: %v", recipientUuid, *response.Id, *response.Status)
 
 	retryableStatuses := []uint32{409, 428, 500, 503}
 
@@ -500,14 +501,13 @@ func sendContent(
 		// Try to send again (**RECURSIVELY**)
 		sentUnidentified, err = sendContent(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
 		if err != nil {
-			log.Printf("2nd try sendMessage error: %v", err)
+			zlog.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
 		}
 	} else if *response.Status != 200 {
-		log.Printf("Unexpected status code: %v", *response.Status)
-		log.Printf("Full request: %v", request)
-		log.Printf("Full response: %v", response)
-		return sentUnidentified, fmt.Errorf("Unexpected status code: %v", *response.Status)
+		err := fmt.Errorf("Unexpected status code while sending: %v", *response.Status)
+		zlog.Err(err).Msg("")
+		return sentUnidentified, err
 	}
 
 	return sentUnidentified, nil
@@ -519,23 +519,21 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
 	if err != nil {
-		log.Printf("Unmarshal error: %v", err)
+		zlog.Err(err).Msg("Unmarshal error")
 		return err
 	}
 	// check for missingDevices and extraDevices
 	if body["missingDevices"] != nil {
 		missingDevices := body["missingDevices"].([]interface{})
-		log.Printf("-----> missingDevices: %v", missingDevices)
+		zlog.Debug().Msgf("missing devices found in 409 response: %v", missingDevices)
 		// TODO: establish session with missing devices
 		for _, missingDevice := range missingDevices {
-			//do the thing
-			log.Printf("-----> missingDevice: %v", missingDevice)
 			FetchAndProcessPreKey(ctx, device, recipientUuid, int(missingDevice.(float64)))
 		}
 	}
 	if body["extraDevices"] != nil {
 		extraDevices := body["extraDevices"].([]interface{})
-		log.Printf("-----> extraDevices: %v", extraDevices)
+		zlog.Debug().Msgf("extra devices found in 409 response: %v", extraDevices)
 		for _, extraDevice := range extraDevices {
 			// Remove extra device from the sessionstore
 			recipient, err := libsignalgo.NewAddress(
@@ -543,12 +541,12 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 				uint(extraDevice.(float64)),
 			)
 			if err != nil {
-				log.Printf("NewAddress error: %v", err)
+				zlog.Err(err).Msg("NewAddress error")
 				return err
 			}
 			err = device.SessionStoreExtras.RemoveSession(recipient, ctx)
 			if err != nil {
-				log.Printf("RemoveSession error: %v", err)
+				zlog.Err(err).Msg("RemoveSession error")
 				return err
 			}
 		}
@@ -556,15 +554,15 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 	return err
 }
 
-// We got rate limited. We will try sending a "pushChallenge" response, but if that doesn't work
-// we just gotta wait.
+// We got rate limited.
+// We ~~will~~ could try sending a "pushChallenge" response, but if that doesn't work we just gotta wait.
 // TODO: explore captcha response
 func handle428(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
 	// Decode json body
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
 	if err != nil {
-		log.Printf("Unmarshal error: %v", err)
+		zlog.Err(err).Msg("Unmarshal error")
 		return err
 	}
 
@@ -579,41 +577,41 @@ func handle428(ctx context.Context, device *Device, recipientUuid string, respon
 		if key == "Retry-After" {
 			retryAfterSeconds, err = strconv.ParseUint(value, 10, 64)
 			if err != nil {
-				log.Printf("ParseUint error: %v", err)
+				zlog.Err(err).Msg("ParseUint error")
 			}
 		}
 	}
 	if retryAfterSeconds > 0 {
-		log.Printf("Got rate limited, need to wait %v seconds", retryAfterSeconds)
+		zlog.Warn().Msgf("Got rate limited, need to wait %v seconds", retryAfterSeconds)
 	}
-	if body["options"] != nil {
-		options := body["options"].([]interface{})
-		for _, option := range options {
-			// TODO: this currently doesn't work, server just returns 422
-			if option == "pushChallenge" {
-				log.Printf("Got pushChallenge, sending response")
-				token := body["token"].(string)
-				username, password := device.Data.BasicAuthCreds()
-				response, err := web.SendHTTPRequest(
-					"PUT",
-					"/v1/challenge",
-					&web.HTTPReqOpt{
-						Body:     []byte(fmt.Sprintf("{\"token\":\"%v\",\"type\":\"pushChallenge\"}", token)),
-						Username: &username,
-						Password: &password,
-					},
-				)
-				if err != nil {
-					log.Printf("SendHTTPRequest error: %v", err)
-					return err
-				}
-				log.Printf("Got response: %v", response)
-				if response.StatusCode != 200 {
-					log.Printf("Unexpected status code: %v", response.StatusCode)
-					return fmt.Errorf("Unexpected status code: %v", response.StatusCode)
-				}
-			}
-		}
-	}
+	// TODO: responding to a pushChallenge this way doesn't work, server just returns 422
+	// Luckily challenges seem rare when sending with sealed sender
+	//if body["options"] != nil {
+	//	options := body["options"].([]interface{})
+	//	for _, option := range options {
+	//		if option == "pushChallenge" {
+	//			zlog.Info().Msg("Got pushChallenge, sending response")
+	//			token := body["token"].(string)
+	//			username, password := device.Data.BasicAuthCreds()
+	//			response, err := web.SendHTTPRequest(
+	//				"PUT",
+	//				"/v1/challenge",
+	//				&web.HTTPReqOpt{
+	//					Body:     []byte(fmt.Sprintf("{\"token\":\"%v\",\"type\":\"pushChallenge\"}", token)),
+	//					Username: &username,
+	//					Password: &password,
+	//				},
+	//			)
+	//			if err != nil {
+	//				zlog.Err(err).Msg("SendHTTPRequest error")
+	//				return err
+	//			}
+	//			if response.StatusCode != 200 {
+	//				zlog.Info().Msg("Unexpected status code: %v", response.StatusCode)
+	//				return fmt.Errorf("Unexpected status code: %v", response.StatusCode)
+	//			}
+	//		}
+	//	}
+	//}
 	return nil
 }

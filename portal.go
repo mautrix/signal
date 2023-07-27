@@ -518,8 +518,6 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 		return
 	}
 
-	portal.log.Info().Msgf("**** sender: %v", msg.sender)
-	portal.log.Info().Msgf("**** sender.signalid: %v", msg.sender.SignalID)
 	dbMessage := portal.bridge.DB.Message.New()
 	dbMessage.MXID = eventID
 	dbMessage.MXRoom = portal.MXID
@@ -584,19 +582,14 @@ func (portal *Portal) sendMessage(intent *appservice.IntentAPI, eventType event.
 }
 
 func (portal *Portal) getMessagePuppet(user *User, senderUUID string) (puppet *Puppet) {
-	//if info.IsFromMe {
-	//return portal.bridge.GetPuppetBySignalID(user.SignalID)
 	if portal.IsPrivateChat() {
 		puppet = portal.bridge.GetPuppetBySignalID(portal.ChatID)
 	} else if senderUUID != "" {
 		puppet = portal.bridge.GetPuppetBySignalID(senderUUID)
 	}
 	if puppet == nil {
-		//	portal.log.Warnfln("Message %+v doesn't seem to have a valid sender (%s): puppet is nil", *info, info.Sender)
 		return nil
 	}
-	//user.EnqueuePortalResync(portal)
-	//puppet.SyncContact(user, true, true, "handling message")
 	return puppet
 }
 
@@ -638,7 +631,7 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		portal.log.Debug().Msg("Not creating room: already exists")
 		return nil
 	}
-	portal.log.Debug().Msg("Creating room")
+	portal.log.Debug().Msg("Creating matrix room")
 
 	//meta = portal.UpdateInfo(user, meta)
 	//if meta == nil {
@@ -766,7 +759,7 @@ var (
 func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.PortalKey) *Portal {
 	if dbPortal == nil {
 		if key == nil {
-			br.Log.Errorln("loadPortal called with nil dbPortal and nil key")
+			br.ZLog.Warn().Msg("loadPortal called with nil dbPortal and nil key")
 			return nil
 		}
 
@@ -774,7 +767,7 @@ func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.Port
 		dbPortal.SetPortalKey(*key)
 		err := dbPortal.Insert()
 		if err != nil {
-			br.Log.Errorln("Failed to insert new portal:", err)
+			br.ZLog.Err(err).Msg("Failed to insert new portal")
 			return nil
 		}
 	}

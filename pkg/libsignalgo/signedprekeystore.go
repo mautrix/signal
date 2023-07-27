@@ -12,7 +12,6 @@ extern int signal_store_signed_pre_key_callback(void *store_ctx, uint32_t id, co
 import "C"
 import (
 	"context"
-	"log"
 	"unsafe"
 
 	gopointer "github.com/mattn/go-pointer"
@@ -27,12 +26,6 @@ type SignedPreKeyStore interface {
 func signal_load_signed_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalSignedPreKeyRecord, id C.uint32_t, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store SignedPreKeyStore, ctx context.Context) error {
 		key, err := store.LoadSignedPreKey(uint32(id), ctx)
-		if err != nil {
-			log.Printf("SignedPreKeyStore: Error loading signed prekey: %s", err)
-		}
-		if key == nil {
-			log.Printf("SignedPreKeyStore: Signed prekey not found")
-		}
 		if err == nil && key != nil {
 			*keyp = key.ptr
 		}
@@ -43,7 +36,6 @@ func signal_load_signed_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.Signa
 //export signal_store_signed_pre_key_callback
 func signal_store_signed_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord *C.const_signed_pre_key_record, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store SignedPreKeyStore, ctx context.Context) error {
-		log.Printf("SignedPreKeyStore: Storing signed prekey")
 		record := SignedPreKeyRecord{ptr: (*C.SignalSignedPreKeyRecord)(unsafe.Pointer(preKeyRecord))}
 		cloned, err := record.Clone()
 		if err != nil {

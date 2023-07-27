@@ -5,9 +5,7 @@ import (
 	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"math/big"
 	mrand "math/rand"
 	"net/url"
@@ -65,7 +63,7 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		defer cancel()
 		ws, err := openProvisioningWebsocket(ctx)
 		if err != nil {
-			log.Printf("openProvisioningWebsocket error: %v", err)
+			zlog.Err(err).Msg("openProvisioningWebsocket error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -75,7 +73,12 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
 		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningUrl: provisioningUrl, Err: err}
 
-		provisioningMessage, _ := continueProvisioning(ctx, ws, provisioningCipher)
+		provisioningMessage, err := continueProvisioning(ctx, ws, provisioningCipher)
+		if err != nil {
+			zlog.Err(err).Msg("continueProvisioning error")
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
 		ws.Close(websocket.StatusNormalClosure, "")
 
 		aciPublicKey, _ := libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic())
@@ -86,21 +89,15 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
 		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
 
-		// log provisioningMessage
-		log.Printf("provisioningMessage: %v", provisioningMessage)
-		// log aciPrivateKey
-		log.Printf("provisioningMessage.GetAciIdentityKeyPrivate(): %v", provisioningMessage.GetAciIdentityKeyPrivate())
-		// log aciPublicKey
-		log.Printf("provisioningMessage.GetAciIdentityKeyPublic(): %v", provisioningMessage.GetAciIdentityKeyPublic())
-
-		privateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
-		publicKey, _ := privateKey.GetPublicKey()
-		privateBytes, _ := privateKey.Serialize()
-		publicBytes, _ := publicKey.Serialize()
-		aciBytes, _ := aciIdentityKeyPair.Serialize()
-		log.Printf("privateKeyBytes: %v", privateBytes)
-		log.Printf("publicKeyBytes: %v", publicBytes)
-		log.Printf("aciIdentityKeyPairBytes: %v", aciBytes)
+		// For debugging purposes
+		//privateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
+		//publicKey, _ := privateKey.GetPublicKey()
+		//privateBytes, _ := privateKey.Serialize()
+		//publicBytes, _ := publicKey.Serialize()
+		//aciBytes, _ := aciIdentityKeyPair.Serialize()
+		//zlog.Debug().Msg("privateKeyBytes: %v", privateBytes)
+		//zlog.Debug().Msg("publicKeyBytes: %v", publicBytes)
+		//zlog.Debug().Msg("aciIdentityKeyPairBytes: %v", aciBytes)
 
 		username := *provisioningMessage.Number
 		password, _ := generateRandomPassword(22)
@@ -109,7 +106,7 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		pniRegistrationId := mrand.Intn(16383) + 1
 		deviceResponse, err := confirmDevice(username, password, *code, registrationId, pniRegistrationId)
 		if err != nil {
-			log.Printf("confirmDevice error: %v", err)
+			zlog.Err(err).Msg("confirmDevice error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -134,13 +131,13 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		// Store the provisioning data
 		err = deviceStore.PutDevice(data)
 		if err != nil {
-			log.Printf("error storing new device: %v", err)
+			zlog.Err(err).Msg("error storing new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 		newDevice, err := deviceStore.DeviceByAci(data.AciUuid)
 		if err != nil {
-			log.Printf("error retrieving new device: %v", err)
+			zlog.Err(err).Msg("error retrieving new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -148,23 +145,22 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		// Store identity keys?
 		device, err := deviceStore.DeviceByAci(data.AciUuid)
 		if err != nil {
-			log.Printf("error retrieving new device: %v", err)
+			zlog.Err(err).Msg("error retrieving new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 		address, err := libsignalgo.NewAddress(device.Data.AciUuid, uint(device.Data.DeviceId))
 		_, err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
 		if err != nil {
-			log.Printf("error saving identity key: %v", err)
+			zlog.Err(err).Msg("error saving identity key")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 
 		// Store our profile key
-		log.Printf("storing profileKey: %v", profileKey)
 		err = device.ProfileKeyStore.StoreProfileKey(data.AciUuid, profileKey, ctx)
 		if err != nil {
-			log.Printf("error storing profile key: %v", err)
+			zlog.Err(err).Msg("error storing profile key")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -177,14 +173,12 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		err = GenerateAndRegisterPreKeys(newDevice, UUID_KIND_PNI)
 
 		if err != nil {
-			log.Printf("error generating and registering prekeys: %v", err)
+			zlog.Err(err).Msg("error generating and registering prekeys")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 
 		c <- ProvisioningResponse{State: StateProvisioningPreKeysRegistered}
-
-		log.Printf("my identity key: %v", newDevice.Data.AciIdentityKeyPair.GetIdentityKey())
 	}()
 	return c
 }
@@ -192,7 +186,7 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 func openProvisioningWebsocket(ctx context.Context) (*websocket.Conn, error) {
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketProvisioningPath)
 	if err != nil {
-		log.Printf("openWebsocket error, resp: %v", resp)
+		zlog.Err(err).Msgf("openWebsocket error, resp : %v", resp)
 		return nil, err
 	}
 	return ws, nil
@@ -207,6 +201,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
+		zlog.Err(err).Msg("error reading websocket message")
 		return "", err
 	}
 
@@ -225,12 +220,12 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		uuid := url.QueryEscape(*provisioningUuid.Uuid)
 		pubKey := url.QueryEscape(base64Key)
 		provisioningUrl = "sgnl://linkdevice?uuid=" + uuid + "&pub_key=" + pubKey
-		log.Printf("provisioningUrl: %s", provisioningUrl)
 
 		// Create and send response
 		response := web.CreateWSResponse(*msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
+			zlog.Err(err).Msg("error writing websocket message")
 			return "", err
 		}
 	}
@@ -242,6 +237,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
+		zlog.Err(err).Msg("error reading websocket message")
 		return nil, err
 	}
 
@@ -258,19 +254,26 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 		response := web.CreateWSResponse(*msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
+			zlog.Err(err).Msg("error writing websocket message")
 			return nil, err
 		}
 	} else {
-		return nil, errors.New("invalid provisioning message")
+		err = fmt.Errorf("invalid provisioning message, type: %v, verb: %v, path: %v", *msg.Type, *msg.Request.Verb, *msg.Request.Path)
+		zlog.Err(err).Msg("problem reading websocket message")
+		return nil, err
 	}
-	provisioningMessage := provisioningCipher.Decrypt(envelope)
-	return provisioningMessage, nil
+	provisioningMessage, err := provisioningCipher.Decrypt(envelope)
+	return provisioningMessage, err
 }
 
 func confirmDevice(username string, password string, code string, registrationId int, pniRegistrationId int) (*ConfirmDeviceResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
+	if err != nil {
+		zlog.Err(err).Msgf("openWebsocket error, resp : %v", resp)
+		return nil, err
+	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
 	data := map[string]interface{}{
@@ -292,7 +295,7 @@ func confirmDevice(username string, password string, code string, registrationId
 
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		log.Printf("failed to marshal json: %v", resp)
+		zlog.Err(err).Msgf("failed to marshal json: %v", resp)
 		return nil, err
 	}
 
@@ -307,14 +310,14 @@ func confirmDevice(username string, password string, code string, registrationId
 	}
 	err = wspb.Write(ctx, ws, message)
 	if err != nil {
-		log.Printf("failed on write %v", resp)
+		zlog.Err(err).Msgf("failed on write %v", resp)
 		return nil, err
 	}
 
 	receivedMsg := &signalpb.WebSocketMessage{}
 	err = wspb.Read(ctx, ws, receivedMsg)
 	if err != nil {
-		log.Printf("failed to read after devices call: %v", resp)
+		zlog.Err(err).Msgf("failed to read after devices call: %v", resp)
 		return nil, err
 	}
 
@@ -322,13 +325,14 @@ func confirmDevice(username string, password string, code string, registrationId
 	var body map[string]interface{}
 	err = json.Unmarshal(receivedMsg.Response.Body, &body)
 	if err != nil {
-		log.Printf("failed to unmarshal json: %v", resp)
+		zlog.Err(err).Msgf("failed to unmarshal json: %v", resp)
 		return nil, err
 	}
 	status := int(*receivedMsg.Response.Status)
 	if status < 200 || status >= 300 {
-		log.Printf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
-		return nil, fmt.Errorf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
+		err := fmt.Errorf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
+		zlog.Err(err).Msg("")
+		return nil, err
 	}
 
 	// Put body into struct
@@ -336,14 +340,26 @@ func confirmDevice(username string, password string, code string, registrationId
 	uuid, ok := body["uuid"].(string)
 	if ok {
 		deviceResp.uuid = uuid
+	} else {
+		err := fmt.Errorf("No uuid found in response")
+		zlog.Err(err).Msg("")
+		return nil, err
 	}
 	pni, ok := body[UUID_KIND_PNI].(string)
 	if ok {
 		deviceResp.pni = pni
+	} else {
+		err := fmt.Errorf("No pni found in response")
+		zlog.Err(err).Msg("")
+		return nil, err
 	}
 	deviceId, ok := body["deviceId"].(float64)
 	if ok {
 		deviceResp.deviceId = int(deviceId)
+	} else {
+		err := fmt.Errorf("No deviceId found in response")
+		zlog.Err(err).Msg("")
+		return nil, err
 	}
 
 	return &deviceResp, nil

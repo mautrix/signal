@@ -5,9 +5,10 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
+
+	"github.com/rs/zerolog"
 )
 
 const proxyUrlStr = "" // Set this to proxy requests
@@ -16,14 +17,21 @@ const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmprox
 const UrlHost = "chat.signal.org"
 const StorageUrlHost = "storage.signal.org"
 
-// TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
+// logging
+var zlog zerolog.Logger = zerolog.New(zerolog.ConsoleWriter{}).With().Timestamp().Logger()
+
+func SetLogger(l zerolog.Logger) {
+	zlog = l
+}
+
 func proxiedHTTPClient() *http.Client {
 	var proxyURL *url.URL
 	if proxyUrlStr != "" {
 		var err error
 		proxyURL, err = url.Parse(proxyUrlStr)
 		if err != nil {
-			log.Fatal("Error parsing proxy URL:", err)
+			zlog.Err(err).Msg("Error parsing proxy URL")
+			panic(err)
 		}
 	}
 
@@ -33,13 +41,15 @@ func proxiedHTTPClient() *http.Client {
 		var err error
 		caCert, err = ioutil.ReadFile(caCertPath)
 		if err != nil {
-			log.Fatal("Error reading CA certificate:", err)
+			zlog.Err(err).Msg("Error reading CA certificate")
+			panic(err)
 		}
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 
 		tlsConfig.RootCAs = caCertPool
 	}
+
 	// TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
 	tlsConfig.InsecureSkipVerify = true
 
@@ -63,6 +73,8 @@ type HTTPReqOpt struct {
 	Host      string
 }
 
+var httpReqCounter = 0
+
 func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Response, error) {
 	// Set defaults
 	if opt == nil {
@@ -75,22 +87,25 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	urlStr := "https://" + opt.Host + path
 	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(opt.Body))
 	if err != nil {
-		log.Fatalf("Error creating request: %v", err)
+		zlog.Err(err).Msg("Error creating request")
+		return nil, err
 	}
 	if opt.RequestPB {
 		req.Header.Set("Content-Type", "application/x-protobuf")
 	} else {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	// TODO: figure out what user agent to use
 	//req.Header.Set("User-Agent", "SignalBridge/0.1")
 	//req.Header.Set("X-Signal-Agent", "SignalBridge/0.1")
 	if opt.Username != nil && opt.Password != nil {
 		req.SetBasicAuth(*opt.Username, *opt.Password)
 	}
 
-	log.Printf("Sending HTTP request: %v", req)
+	httpReqCounter++
+	zlog.Debug().Msgf("Sending HTTP request %v, path: %s", httpReqCounter, path)
 	client := proxiedHTTPClient()
 	resp, err := client.Do(req)
-	log.Printf("Received HTTP response: %v", resp)
+	zlog.Debug().Msgf("Received HTTP response %v, status: %v", httpReqCounter, resp.StatusCode)
 	return resp, err
 }

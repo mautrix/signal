@@ -4,8 +4,6 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-	"runtime"
-	"strings"
 
 	"sync"
 
@@ -77,19 +75,11 @@ func (br *SignalBridge) Init() {
 	br.CommandProcessor = commands.NewProcessor(&br.Bridge)
 	br.RegisterCommands()
 
+	signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Logger().Level(zerolog.DebugLevel))
+	//signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Caller().Logger())
+
 	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
 	br.MeowStore = signalmeow.NewStoreWithDB(br.DB.RawDB, br.DB.Dialect.String())
-	//signalLog = br.ZLog.With().Str("component", "discordgo").Logger()
-
-	// TODO move this to mautrix-go?
-	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
-		files := strings.Split(file, "/")
-		file = files[len(files)-1]
-		name := runtime.FuncForPC(pc).Name()
-		fns := strings.Split(name, ".")
-		name = fns[len(fns)-1]
-		return fmt.Sprintf("%s:%d:%s()", file, line, name)
-	}
 }
 
 func (br *SignalBridge) Start() {

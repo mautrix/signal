@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"strings"
 	"time"
 
@@ -42,7 +40,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	// Register prekeys
 	identityKey, err := identityKeyPair.GetPublicKey().Serialize()
 	if err != nil {
-		log.Fatalf("Error serializing identity key: %v", err)
+		zlog.Err(err).Msg("Error serializing identity key")
 		return err
 	}
 	generatedPreKeys := GeneratedPreKeys{
@@ -57,7 +55,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	preKeyUsername = preKeyUsername + "." + fmt.Sprint(device.Data.DeviceId)
 	err = RegisterPreKeys(&generatedPreKeys, uuidKind, preKeyUsername, device.Data.Password)
 	if err != nil {
-		log.Printf("RegisterPreKeys error: %v", err)
+		zlog.Err(err).Msg("RegisterPreKeys error")
 		return err
 	}
 
@@ -68,7 +66,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	err = device.PreKeyStoreExtras.MarkSignedPreKeysAsUploaded(uuidKind, signedId)
 
 	if err != nil {
-		log.Printf("Error marking prekeys as uploaded: %v", err)
+		zlog.Err(err).Msg("Error marking prekeys as uploaded")
 	}
 
 	return err
@@ -79,11 +77,13 @@ func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind UUIDKind) *[]libs
 	for i := startKeyId; i < startKeyId+count; i++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
 		if err != nil {
-			log.Fatalf("Error generating private key: %v", err)
+			zlog.Err(err).Msg("Error generating private key")
+			panic(err)
 		}
 		preKey, err := libsignalgo.NewPreKeyRecordFromPrivateKey(i, privateKey)
 		if err != nil {
-			log.Fatalf("Error creating preKey record: %v", err)
+			zlog.Err(err).Msg("Error creating preKey record")
+			panic(err)
 		}
 		generatedPreKeys = append(generatedPreKeys, *preKey)
 	}
@@ -95,24 +95,29 @@ func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKe
 	// Generate a signed prekey
 	privateKey, err := libsignalgo.GeneratePrivateKey()
 	if err != nil {
-		log.Fatalf("Error generating private key: %v", err)
+		zlog.Err(err).Msg("Error generating private key")
+		panic(err)
 	}
 	timestamp := time.Now()
 	publicKey, err := privateKey.GetPublicKey()
 	if err != nil {
-		log.Fatalf("Error getting public key: %v", err)
+		zlog.Err(err).Msg("Error getting public key")
+		panic(err)
 	}
 	serialized_public_key, err := publicKey.Serialize()
 	if err != nil {
-		log.Fatalf("Error serializing public key: %v", err)
+		zlog.Err(err).Msg("Error serializing public key")
+		panic(err)
 	}
 	signature, err := identityKeyPair.GetPrivateKey().Sign(serialized_public_key)
 	if err != nil {
-		log.Fatalf("Error signing public key: %v", err)
+		zlog.Err(err).Msg("Error signing public key")
+		panic(err)
 	}
 	signedPreKey, err := libsignalgo.NewSignedPreKeyRecordFromPrivateKey(startSignedKeyId, timestamp, privateKey, signature)
 	if err != nil {
-		log.Fatalf("Error creating signed preKey record: %v", err)
+		zlog.Err(err).Msg("Error creating signed preKey record")
+		panic(err)
 	}
 
 	return signedPreKey
@@ -153,17 +158,20 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind UUIDKind, user
 	keysPath := "/v2/keys?identity=" + string(uuidKind)
 	jsonBytes, err := json.Marshal(register_json)
 	if err != nil {
-		log.Printf("Error marshalling register JSON: %v", err)
+		zlog.Err(err).Msg("Error marshalling register JSON")
 		return err
 	}
 	opts := &web.HTTPReqOpt{Body: jsonBytes, Username: &username, Password: &password}
 	resp, err := web.SendHTTPRequest("PUT", keysPath, opts)
 	if err != nil {
-		log.Fatalf("Error sending request: %v", err)
+		zlog.Err(err).Msg("Error sending request")
+		return err
 	}
 	// status code not 2xx
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Fatalf("Error registering prekeys: %v", resp.Status)
+		err := fmt.Errorf("Error registering prekeys: %v", resp.Status)
+		zlog.Err(err).Msg("Error registering prekeys")
+		return err
 	}
 	defer resp.Body.Close()
 	return err
@@ -206,37 +214,36 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 	username, password := device.Data.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest("GET", path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
-		log.Printf("Error sending request: %v", err)
+		zlog.Err(err).Msg("Error sending request")
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Printf("Error fetching prekeys: %v", resp.Status)
-		log.Printf("Request: %v", resp.Request)
-		log.Printf("Response: %v", resp)
-		return errors.New("Error fetching prekeys")
+		err = fmt.Errorf("Error fetching prekeys, status: %v", resp.Status)
+		zlog.Err(err).Msg("")
+		return err
 	}
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Printf("Error reading response body: %v", err)
+		zlog.Err(err).Msg("Error reading response body")
 		return err
 	}
-	log.Printf("Response body: %v", string(body))
 	var prekeyResponse prekeyResponse
 	err = json.Unmarshal(body, &prekeyResponse)
 	if err != nil {
-		log.Printf("Error unmarshalling response body: %v", err)
+		zlog.Err(err).Msg("Error unmarshalling response body")
 		return err
 	}
 
 	rawIdentityKey, err := addBase64PaddingAndDecode(prekeyResponse.IdentityKey)
 	identityKey, err := libsignalgo.DeserializeIdentityKey([]byte(rawIdentityKey))
 	if err != nil {
-		log.Printf("Error deserializing identity key: %v", err)
+		zlog.Err(err).Msg("Error deserializing identity key")
 		return err
 	}
 	if identityKey == nil {
-		log.Printf("Identity key is nil")
+		err := fmt.Errorf("Deserializing identity key returned nil with no error")
+		zlog.Err(err).Msg("")
 		return err
 	}
 
@@ -248,30 +255,30 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 			preKeyId = uint32(d.PreKey.KeyID)
 			rawPublicKey, err := addBase64PaddingAndDecode(d.PreKey.PublicKey)
 			if err != nil {
-				log.Printf("Error decoding public key: %v", err)
+				zlog.Err(err).Msg("Error decoding public key")
 				return err
 			}
 			publicKey, err = libsignalgo.DeserializePublicKey(rawPublicKey)
 			if err != nil {
-				log.Printf("Error deserializing public key: %v", err)
+				zlog.Err(err).Msg("Error deserializing public key")
 				return err
 			}
 		}
 
 		rawSignedPublicKey, err := addBase64PaddingAndDecode(d.SignedPreKey.PublicKey)
 		if err != nil {
-			log.Printf("Error decoding signed public key: %v", err)
+			zlog.Err(err).Msg("Error decoding signed public key")
 			return err
 		}
 		signedPublicKey, err := libsignalgo.DeserializePublicKey(rawSignedPublicKey)
 		if err != nil {
-			log.Printf("Error deserializing signed public key: %v", err)
+			zlog.Err(err).Msg("Error deserializing signed public key")
 			return err
 		}
 
 		rawSignature, err := addBase64PaddingAndDecode(d.SignedPreKey.Signature)
 		if err != nil {
-			log.Printf("Error decoding signature: %v", err)
+			zlog.Err(err).Msg("Error decoding signature")
 			return err
 		}
 
@@ -299,12 +306,12 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 			)
 		}
 		if err != nil {
-			log.Printf("Error creating prekey bundle: %v", err)
+			zlog.Err(err).Msg("Error creating prekey bundle")
 			return err
 		}
 		address, err := libsignalgo.NewAddress(theirUuid, uint(d.DeviceID))
 		if err != nil {
-			log.Printf("Error creating address: %v", err)
+			zlog.Err(err).Msg("Error creating address")
 			return err
 		}
 		err = libsignalgo.ProcessPreKeyBundle(
@@ -316,7 +323,7 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 		)
 
 		if err != nil {
-			log.Printf("Error processing prekey bundle: %v", err)
+			zlog.Err(err).Msg("Error processing prekey bundle")
 			return err
 		}
 	}

@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -110,7 +110,7 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 		dbUser.MXID = *mxid
 		err := dbUser.Insert()
 		if err != nil {
-			log.Printf("Error creating user %s: %s", mxid, err)
+			br.ZLog.Err(err).Msg("Error creating user %s")
 			return nil
 		}
 	}
@@ -131,10 +131,9 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 		newPuppet.CustomMXID = user.MXID
 		err := newPuppet.Update()
 		if err != nil {
-			log.Printf("Error updating puppet for user %s:", err)
+			br.ZLog.Err(err).Msg("Error updating puppet for user %s")
 		}
 	}
-	log.Printf("**** Loaded new puppet for %s: %v", user.MXID, newPuppet)
 	return user
 }
 
@@ -346,11 +345,11 @@ func (user *User) Connect() error {
 
 	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
 	if err != nil {
-		log.Printf("store.DeviceByAci error: %v", err)
+		user.log.Err(err).Msg("store.DeviceByAci error")
 		return err
 	}
 	if device == nil {
-		log.Printf("no device found for aci %s", user.SignalID)
+		user.log.Err(err).Msgf("no device found for aci %s", user.SignalID)
 		return err
 	}
 
@@ -367,20 +366,20 @@ func (user *User) Connect() error {
 func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {
 	profile, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, puppet.SignalID)
 	if err != nil {
-		log.Printf("error retrieving profile: %v", err)
+		user.log.Err(err).Msg("error retrieving profile")
 		return err
 	}
 	if profile.Name != puppet.Name {
 		puppet.Name = profile.Name
 		err = puppet.DefaultIntent().SetDisplayName(profile.Name)
 		if err != nil {
-			log.Printf("error setting display name: %v", err)
+			user.log.Err(err).Msg("error setting display name")
 			return err
 		} else {
 			puppet.NameSet = true
 			err = puppet.Update()
 			if err != nil {
-				log.Printf("error updating puppet: %v", err)
+				user.log.Err(err).Msg("error updating puppet")
 				return err
 			}
 		}
@@ -394,10 +393,10 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 	if _, err := uuid.Parse(portal.ChatID); err == nil {
 		return nil
 	}
-	log.Printf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
+	user.log.Info().Msgf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
 	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, signalmeow.GroupID(portal.ChatID))
 	if err != nil {
-		log.Printf("error retrieving group: %v", err)
+		user.log.Err(err).Msg("error retrieving group")
 		return err
 	}
 	for _, member := range group.Members {
@@ -406,13 +405,13 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		}
 		memberPuppet := portal.bridge.GetPuppetBySignalID(member.UserId)
 		if memberPuppet == nil {
-			log.Printf("no puppet found for signalID %s", member.UserId)
+			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserId)
 			continue
 		}
 		_ = updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
 		err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
 		if err != nil {
-			log.Printf("error ensuring joined: %v", err)
+			user.log.Err(err).Msg("error ensuring joined")
 		}
 	}
 	return nil
@@ -428,16 +427,16 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		// Get and update the puppet for this message
 		if m.SenderUUID == user.SignalID {
 			// This is a message sent by us on another device
-			log.Printf("Text message received to %s (group: %v) at %v: %s\n", m.RecipientUUID, m.GroupID, m.Timestamp, m.Content)
+			user.log.Debug().Msgf("Text message received to %s (group: %v) at %v: %s\n", m.RecipientUUID, m.GroupID, m.Timestamp, m.Content)
 			chatID = m.RecipientUUID
 			senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
 		} else {
-			log.Printf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
+			user.log.Debug().Msgf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
 			chatID = m.SenderUUID
 			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
 			err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
 			if err != nil {
-				log.Printf("error updating puppet: %v", err)
+				user.log.Err(err).Msg("error updating puppet")
 			}
 			if m.GroupID != nil {
 				chatID = string(*m.GroupID)
@@ -447,14 +446,15 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		// Get and update the portal for this message
 		portal := user.GetPortalByChatID(chatID)
 		if portal == nil {
-			log.Printf("no portal found for chatID %s", chatID)
-			return errors.New("no portal found for chatID")
+			err := fmt.Errorf("no portal found for chatID %s", chatID)
+			user.log.Err(err).Msg("error getting portal")
+			return err
 		}
 		updatePortal := false
 		if m.GroupID != nil {
 			group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
 			if err != nil {
-				log.Printf("error retrieving group: %v", err)
+				user.log.Err(err).Msg("error retrieving group")
 			}
 			if portal.Name != group.Title || portal.Topic != group.Description {
 				portal.Name = group.Title
@@ -473,16 +473,16 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		if updatePortal {
 			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
 			if err != nil {
-				log.Printf("error setting room name: %v", err)
+				user.log.Err(err).Msg("error setting room name")
 			}
 			portal.NameSet = err == nil
 			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
 			if err != nil {
-				log.Printf("error setting room topic: %v", err)
+				user.log.Err(err).Msg("error setting room topic")
 			}
 			err = portal.Update()
 			if err != nil {
-				log.Printf("error updating portal: %v", err)
+				user.log.Err(err).Msg("error updating portal")
 			}
 			portal.UpdateBridgeInfo()
 		}
@@ -494,7 +494,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		}
 		portal.signalMessages <- portalSignalMessage
 	default:
-		log.Printf("Unknown message type received %v", incomingMessage.MessageType())
+		user.log.Warn().Msgf("Unknown message type received %v", incomingMessage.MessageType())
 	}
 
 	return nil

@@ -7,7 +7,6 @@ package libsignalgo
 */
 import "C"
 import (
-	"log"
 	"unsafe"
 )
 
@@ -82,6 +81,5 @@ func CreateAuthCredentialWithPniPresentation(
 		return nil, wrapError(signalFfiError)
 	}
 	result := AuthCredentialPresentation(CopySignalOwnedBufferToBytes(c_result))
-	log.Printf("AuthCredentialPresentation len: %d", len(result))
 	return &result, nil
 }

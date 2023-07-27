@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
@@ -20,7 +19,6 @@ type DeviceStore interface {
 type StoreContainer struct {
 	db      *sql.DB
 	dialect string
-	log     log.Logger
 
 	DatabaseErrorHandler func(device *DeviceData, action string, attemptIndex int, err error) (retry bool)
 }
@@ -177,7 +175,6 @@ var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before acce
 
 // PutDevice stores the given device in this database.
 func (c *StoreContainer) PutDevice(device *DeviceData) error {
-	log.Printf("storing device %s", device.AciUuid)
 	// TODO: if storing with same ACI UUID and device id, update instead of insert
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet
@@ -185,7 +182,7 @@ func (c *StoreContainer) PutDevice(device *DeviceData) error {
 	aciIdentityKeyPair, err := device.AciIdentityKeyPair.Serialize()
 	pniIdentityKeyPair, err := device.PniIdentityKeyPair.Serialize()
 	if err != nil {
-		log.Printf("failed to serialize identity key pair: %v", err)
+		zlog.Err(err).Msg("failed to serialize identity key pair")
 		return err
 	}
 	_, err = c.db.Exec(insertDeviceQuery,
@@ -194,7 +191,7 @@ func (c *StoreContainer) PutDevice(device *DeviceData) error {
 		device.DeviceId, device.Number, device.Password,
 	)
 	if err != nil {
-		log.Printf("failed to insert device: %v", err)
+		zlog.Err(err).Msg("failed to insert device")
 	}
 	return err
 }

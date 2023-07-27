@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -65,26 +64,28 @@ func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*Group
 	authRequest := web.CreateWSRequest("GET", path, nil, nil, nil)
 	respChan, err := d.Connection.AuthedWS.SendRequest(ctx, authRequest)
 	if err != nil {
-		log.Printf("SendRequest error: %v", err)
+		zlog.Err(err).Msg("SendRequest error")
 		return nil, err
 	}
-	log.Printf("Waiting for auth credentials response")
+	zlog.Trace().Msg("Waiting for auth credentials response")
 	resp := <-respChan
 	if *resp.Status != 200 {
-		log.Printf("resp.StatusCode: %v", resp.Status)
-		return nil, errors.New("bad status code")
+		err := fmt.Errorf("bad status code: %d", *resp.Status)
+		zlog.Err(err).Msg("bad status code fetching group creds")
+		return nil, err
 	}
 
 	var creds GroupCredentials
 	err = json.Unmarshal(resp.Body, &creds)
 	if err != nil {
-		log.Printf("json.Unmarshal error: %v", err)
+		zlog.Err(err).Msg("json.Unmarshal error")
 		return nil, err
 	}
 	// make sure pni matches device pni
 	if creds.Pni != d.Data.PniUuid {
-		log.Printf("creds.Pni != d.PniUuid")
-		return nil, errors.New("creds.Pni != d.PniUuid")
+		err := fmt.Errorf("creds.Pni != d.PniUuid")
+		zlog.Err(err).Msg("creds.Pni != d.PniUuid")
+		return nil, err
 	}
 	return &creds, nil
 }
@@ -101,7 +102,7 @@ func getCachedAuthorizationForToday(d *Device, today time.Time) *GroupCredential
 			return &cred
 		}
 	}
-	log.Printf("No credential for today")
+	zlog.Info().Msg("No cached credential found for today")
 	return nil
 }
 
@@ -113,35 +114,36 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 	if todayCred == nil {
 		creds, err := fetchNewGroupCreds(ctx, d, today)
 		if err != nil {
-			log.Printf("fetchNewGroupCreds error: %v", err)
+			zlog.Err(err).Msg("fetchNewGroupCreds error")
 			return nil, err
 		}
 		d.Connection.GroupCredentials = creds
 		todayCred = getCachedAuthorizationForToday(d, today)
 	}
 	if todayCred == nil {
-		return nil, errors.New("Couldn't get credential for today")
+		err := errors.New("Couldn't get credential for today")
+		zlog.Err(err).Msg("GetAuthorizationForToday error")
+		return nil, err
 	}
-	log.Printf("todayCred: %v", todayCred)
 
 	//TODO: cache cred after unmarshalling
 	redemptionTime := uint64(todayCred.RedemptionTime)
 	credential := todayCred.Credential
 	authCredentialResponse, err := libsignalgo.NewAuthCredentialWithPniResponse(credential)
 	if err != nil {
-		log.Printf("NewAuthCredentialWithPniResponse error: %v", err)
+		zlog.Err(err).Msg("NewAuthCredentialWithPniResponse error")
 		return nil, err
 	}
 
 	// Receive the auth credential
 	aciUuidBytes, err := convertUUIDToByteUUID(d.Data.AciUuid)
 	if err != nil {
-		log.Printf("convertUUIDToBytes error: %v", err)
+		zlog.Err(err).Msg("aci convertUUIDToBytes error")
 		return nil, err
 	}
 	pniUuidBytes, err := convertUUIDToByteUUID(d.Data.PniUuid)
 	if err != nil {
-		log.Printf("convertUUIDToBytes error: %v", err)
+		zlog.Err(err).Msg("pni convertUUIDToBytes error")
 		return nil, err
 	}
 	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
@@ -152,14 +154,14 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 		*authCredentialResponse,
 	)
 	if err != nil {
-		log.Printf("ReceiveAuthCredentialWithPni error: %v", err)
+		zlog.Err(err).Msg("ReceiveAuthCredentialWithPni error")
 		return nil, err
 	}
 
 	// get auth presentation
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKey)
 	if err != nil {
-		log.Printf("DeriveGroupSecretParamsFromMasterKey error: %v", err)
+		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
 	}
 	randomness, err := libsignalgo.GenerateRandomness()
@@ -170,12 +172,12 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 		*authCredential,
 	)
 	if err != nil {
-		log.Printf("CreateAuthCredentialWithPniPresentation error: %v", err)
+		zlog.Err(err).Msg("CreateAuthCredentialWithPniPresentation error")
 		return nil, err
 	}
 	groupPublicParams, err := groupSecretParams.GetPublicParams()
 	if err != nil {
-		log.Printf("GetPublicParams error: %v", err)
+		zlog.Err(err).Msg("GetPublicParams error")
 		return nil, err
 	}
 
@@ -189,8 +191,8 @@ func masterKeyFromGroupID(groupID GroupID) libsignalgo.GroupMasterKey {
 	// We are very tricksy, groupID is just base64 encoded group master key :O
 	masterKeyBytes, err := base64.StdEncoding.DecodeString(string(groupID))
 	if err != nil {
-		log.Printf("We should always be able to decode groupID into masterKeyBytes")
-		panic(err)
+		zlog.Err(err).Msg("")
+		zlog.Fatal().Msg("We should always be able to decode groupID into masterKeyBytes")
 	}
 	return libsignalgo.GroupMasterKey(masterKeyBytes)
 }
@@ -206,23 +208,23 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyFromGroupID(groupID))
 	if err != nil {
-		log.Printf("DeriveGroupSecretParamsFromMasterKey error: %v", err)
+		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
 	}
 
 	title, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.Title)
 	if err != nil {
-		log.Printf("DecryptBlobWithPadding Title error: %v", err)
+		zlog.Err(err).Msg("DecryptBlobWithPadding Title error")
 		return nil, err
 	}
 	decryptedGroup.Title = string(title)
 
 	// TODO: Not sure how to decrypt avatar yet
 	//avatarBytes, err := base64.StdEncoding.DecodeString(encryptedGroup.Avatar)
-	//log.Printf("avatarBytes: %v", avatarBytes)
+	//zlog.Err(err).Msg("avatarBytes")
 	//decryptedAvatar, err := groupSecretParams.DecryptBlobWithPadding(avatarBytes)
 	//if err != nil {
-	//	log.Printf("DecryptBlobWithPadding Avatar error: %v", err)
+	//	zlog.Err(err).Msg("DecryptBlobWithPadding Avatar error")
 	//	//return nil, err
 	//}
 	//decryptedGroup.Avatar = string(decryptedAvatar)
@@ -236,13 +238,13 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 		encryptedUserID := libsignalgo.UUIDCiphertext(member.UserId)
 		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
 		if err != nil {
-			log.Printf("DecryptUUID UserId error: %v", err)
+			zlog.Err(err).Msg("DecryptUUID UserId error")
 			return nil, err
 		}
 		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(member.ProfileKey)
 		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, *userID)
 		if err != nil {
-			log.Printf("DecryptProfileKey ProfileKey error: %v", err)
+			zlog.Err(err).Msg("DecryptProfileKey ProfileKey error")
 			return nil, err
 		}
 		decryptedGroup.Members = append(decryptedGroup.Members, &GroupMember{
@@ -258,19 +260,19 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 
 func printGroupMember(member *GroupMember) {
 	if member == nil {
-		log.Printf("GroupMember is nil")
+		zlog.Debug().Msg("GroupMember is nil")
 		return
 	}
-	log.Printf("UserID: %v", member.UserId)
-	log.Printf("ProfileKey: %v", member.ProfileKey)
-	log.Printf("Role: %v", member.Role)
-	log.Printf("JoinedAtRevision: %v", member.JoinedAtRevision)
+	zlog.Debug().Msgf("UserID: %v", member.UserId)
+	zlog.Debug().Msgf("ProfileKey: %v", member.ProfileKey)
+	zlog.Debug().Msgf("Role: %v", member.Role)
+	zlog.Debug().Msgf("JoinedAtRevision: %v", member.JoinedAtRevision)
 }
 func printGroup(group *Group) {
-	log.Printf("GroupID: %v", group.GroupID)
-	log.Printf("Title: %v", group.Title)
-	log.Printf("Avatar: %v", group.Avatar)
-	log.Printf("Members len: %v", len(group.Members))
+	zlog.Debug().Msgf("GroupID: %v", group.GroupID)
+	zlog.Debug().Msgf("Title: %v", group.Title)
+	zlog.Debug().Msgf("Avatar: %v", group.Avatar)
+	zlog.Debug().Msgf("Members len: %v", len(group.Members))
 	for _, member := range group.Members {
 		printGroupMember(member)
 	}
@@ -294,28 +296,29 @@ func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, er
 	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, RequestPB: true, Host: web.StorageUrlHost}
 	response, err := web.SendHTTPRequest("GET", "/v1/groups", opts)
 	if err != nil {
-		log.Printf("RetrieveGroupById SendHTTPRequest error: %v", err)
+		zlog.Err(err).Msg("RetrieveGroupById SendHTTPRequest error")
 		return nil, err
 	}
 	if response.StatusCode != 200 {
-		log.Printf("RetrieveGroupById SendHTTPRequest bad status: %v", response.StatusCode)
-		return nil, errors.New(fmt.Sprintf("RetrieveGroupById SendHTTPRequest bad status: %v", response.StatusCode))
+		err := fmt.Errorf("RetrieveGroupById SendHTTPRequest bad status: %v", response.StatusCode)
+		zlog.Err(err).Msg("")
+		return nil, err
 	}
 	encryptedGroup := &signalpb.Group{}
 	groupBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		log.Printf("RetrieveGroupById ReadAll error: %v", err)
+		zlog.Err(err).Msg("RetrieveGroupById ReadAll error")
 		return nil, err
 	}
 	err = proto.Unmarshal(groupBytes, encryptedGroup)
 	if err != nil {
-		log.Printf("RetrieveGroupById Unmarshal error: %v", err)
+		zlog.Err(err).Msg("RetrieveGroupById Unmarshal error")
 		return nil, err
 	}
 
 	group, err := decryptGroup(encryptedGroup, groupID)
 	if err != nil {
-		log.Printf("RetrieveGroupById decryptGroup error: %v", err)
+		zlog.Err(err).Msg("RetrieveGroupById decryptGroup error")
 		return nil, err
 	}
 
@@ -323,7 +326,7 @@ func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, er
 	for _, member := range group.Members {
 		err = d.ProfileKeyStore.StoreProfileKey(member.UserId, member.ProfileKey, ctx)
 		if err != nil {
-			log.Printf("DecryptGroup StoreProfileKey error: %v", err)
+			zlog.Err(err).Msg("DecryptGroup StoreProfileKey error")
 			//return nil, err
 		}
 	}

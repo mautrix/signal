@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
@@ -35,7 +34,6 @@ type PreKeyStoreExtras interface {
 
 // libsignalgo.PreKeyStore implementation
 func (s *SQLStore) LoadPreKey(id uint32, ctx context.Context) (*libsignalgo.PreKeyRecord, error) {
-	log.Printf("LoadPreKey: %d", id)
 	return s.PreKey(UUID_KIND_ACI, int(id))
 }
 func (s *SQLStore) StorePreKey(id uint32, preKeyRecord *libsignalgo.PreKeyRecord, ctx context.Context) error {
@@ -71,7 +69,7 @@ func scanPreKey(row scannable) (*libsignalgo.PreKeyRecord, error) {
 	var record []byte
 	err := row.Scan(&id, &record)
 	if errors.Is(err, sql.ErrNoRows) {
-		log.Printf("scanPreKey: no rows")
+		zlog.Info().Msg("scanPreKey: no rows")
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -84,7 +82,7 @@ func scanSignedPreKey(row scannable) (*libsignalgo.SignedPreKeyRecord, error) {
 	var record []byte
 	err := row.Scan(&id, &record)
 	if errors.Is(err, sql.ErrNoRows) {
-		log.Printf("scanSignedPreKey: no rows")
+		zlog.Info().Msg("scanSignedPreKey: no rows")
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -102,30 +100,28 @@ func (s *SQLStore) SignedPreKey(uuidKind UUIDKind, preKeyId int) (*libsignalgo.S
 
 func (s *SQLStore) SavePreKey(uuidKind UUIDKind, preKey *libsignalgo.PreKeyRecord, markUploaded bool) error {
 	id, err := preKey.GetID()
-	log.Println("saving prekey id:", id)
 	serialized, err := preKey.Serialize()
 	if err != nil {
-		log.Println("error serializing prekey:", err)
+		zlog.Err(err).Msg("error serializing prekey")
 		return err
 	}
 	_, err = s.db.Exec(insertPreKeyQuery, s.AciUuid, id, uuidKind, false, serialized, markUploaded)
 	if err != nil {
-		log.Println("error inserting prekey:", err)
+		zlog.Err(err).Msg("error inserting prekey")
 	}
 	return err
 }
 
 func (s *SQLStore) SaveSignedPreKey(uuidKind UUIDKind, preKey *libsignalgo.SignedPreKeyRecord, markUploaded bool) error {
 	id, err := preKey.GetID()
-	log.Println("saving signed prekey id:", id)
 	serialized, err := preKey.Serialize()
 	if err != nil {
-		log.Println("error serializing signed prekey:", err)
+		zlog.Err(err).Msg("error serializing signed prekey")
 		return err
 	}
 	_, err = s.db.Exec(insertPreKeyQuery, s.AciUuid, id, uuidKind, true, serialized, markUploaded)
 	if err != nil {
-		log.Println("error inserting signed prekey:", err)
+		zlog.Err(err).Msg("error inserting signed prekey")
 	}
 	return err
 }

@@ -16,7 +16,6 @@ extern int signal_is_trusted_identity_callback(void *store_ctx, const_address *a
 import "C"
 import (
 	"context"
-	"log"
 	"unsafe"
 
 	gopointer "github.com/mattn/go-pointer"
@@ -40,20 +39,15 @@ type IdentityKeyStore interface {
 //export signal_get_identity_key_pair_callback
 func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp **C.SignalPrivateKey, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store IdentityKeyStore, ctx context.Context) error {
-		log.Printf("IdentityKeyStore: Getting identity key pair")
 		key, err := store.GetIdentityKeyPair(ctx)
 		if err != nil {
-			log.Printf("IdentityKeyStore: Error getting identity key pair: %s", err)
 			return err
 		}
 		if key == nil {
-			log.Printf("IdentityKeyStore: No identity key pair found")
 			*keyp = nil
 		} else {
-			log.Printf("IdentityKeyStore: Got identity key pair: %v", key)
 			clone, err := key.privateKey.Clone()
 			if err != nil {
-				log.Printf("IdentityKeyStore: Error cloning private key: %s", err)
 				return err
 			}
 			*keyp = clone.ptr
@@ -65,7 +59,6 @@ func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp **C.Sig
 //export signal_get_local_registration_id_callback
 func signal_get_local_registration_id_callback(storeCtx unsafe.Pointer, idp *C.uint32_t, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store IdentityKeyStore, ctx context.Context) error {
-		log.Printf("IdentityKeyStore: Getting local registration ID")
 		registrationID, err := store.GetLocalRegistrationID(ctx)
 		if err == nil {
 			*idp = C.uint32_t(registrationID)
@@ -85,7 +78,6 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const
 		}
 	}
 
-	log.Printf("IdentityKeyStore: Saving identity key")
 	publicKeyStruct := PublicKey{ptr: (*C.SignalPublicKey)(unsafe.Pointer(publicKey))}
 	cloned, err := publicKeyStruct.Clone()
 	if err != nil {
@@ -101,7 +93,6 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const
 		ctx.Error = err
 		return -1
 	}
-	log.Printf("IdentityKeyStore: Saved identity key, replaced: %v", replaced)
 	if replaced {
 		return 1
 	} else {
@@ -112,7 +103,6 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const
 //export signal_get_identity_key_callback
 func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.SignalPublicKey, address *C.const_address, ctxPtr unsafe.Pointer) C.int {
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store IdentityKeyStore, ctx context.Context) error {
-		log.Printf("IdentityKeyStore: Getting identity key")
 		key, err := store.GetIdentityKey(
 			&Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
 			ctx,
@@ -126,8 +116,6 @@ func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.S
 
 //export signal_is_trusted_identity_callback
 func signal_is_trusted_identity_callback(storeCtx unsafe.Pointer, address *C.const_address, public_key *C.const_public_key, direction C.uint, ctxPtr unsafe.Pointer) C.int {
-	log.Printf("IdentityKeyStore: Checking if identity is trusted")
-
 	// Can't use wrapStoreCallback, because we don't just return an error value in the int
 	store := gopointer.Restore(storeCtx).(IdentityKeyStore)
 	ctx := NewEmptyCallbackContext()

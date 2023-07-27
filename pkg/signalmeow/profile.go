@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -31,7 +30,7 @@ type Profile struct {
 func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string) ([]byte, error) {
 	profileKey, err := ProfileKeyForSignalID(ctx, d, signalId)
 	if err != nil {
-		log.Printf("ProfileKey error: %v", err)
+		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
 	}
 	uuid, err := convertUUIDToByteUUID(signalId)
@@ -43,13 +42,13 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string
 		*profileKey,
 	)
 	if err != nil {
-		log.Printf("CreateProfileKeyCredentialRequestContext error: %v", err)
+		zlog.Err(err).Msg("CreateProfileKeyCredentialRequestContext error")
 		return nil, err
 	}
 
 	request, err := requestContext.ProfileKeyCredentialRequestContextGetRequest()
 	if err != nil {
-		log.Printf("CreateProfileKeyCredentialRequest error: %v", err)
+		zlog.Err(err).Msg("CreateProfileKeyCredentialRequest error")
 		return nil, err
 	}
 
@@ -62,7 +61,7 @@ func ProfileKeyForSignalID(ctx context.Context, d *Device, signalId string) (*li
 	profileKeyStore := d.ProfileKeyStore
 	profileKey, err := profileKeyStore.LoadProfileKey(signalId, ctx)
 	if err != nil {
-		log.Printf("GetProfileKey error: %v", err)
+		zlog.Err(err).Msg("GetProfileKey error")
 		return nil, err
 	}
 	return profileKey, nil
@@ -111,44 +110,42 @@ type ProfileCache struct {
 func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
 	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID)
 	if err != nil {
-		log.Printf("ProfileKey error: %v", err)
+		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
 	}
 	if profileKey == nil {
-		log.Printf("profileKey is nil")
+		zlog.Err(err).Msg("profileKey is nil")
 		return nil, nil
 	}
-	log.Printf("profileKey: %v", profileKey)
 	uuid, err := convertUUIDToByteUUID(signalID)
 	if err != nil {
-		log.Printf("UUIDFromString error: %v", err)
+		zlog.Err(err).Msg("UUIDFromString error")
 		return nil, err
 	}
-	log.Printf("signalID: %v", signalID)
 
 	profileKeyVersion, err := profileKey.GetProfileKeyVersion(*uuid)
 	if err != nil {
-		log.Printf("profileKey error: %v", err)
+		zlog.Err(err).Msg("profileKey error")
 		return nil, err
 	}
 
 	accessKey, err := profileKey.DeriveAccessKey()
 	if err != nil {
-		log.Printf("DeriveAccessKey error: %v", err)
+		zlog.Err(err).Msg("DeriveAccessKey error")
 		return nil, err
 	}
 	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 
 	credentialRequest, err := ProfileKeyCredentialRequest(ctx, d, signalID)
 	if err != nil {
-		log.Printf("ProfileKeyCredentialRequest error: %v", err)
+		zlog.Err(err).Msg("ProfileKeyCredentialRequest error")
 		return nil, err
 	}
 
 	path := "/v1/profile/" + signalID
 	useUnidentified := profileKeyVersion != nil && accessKey != nil
 	if useUnidentified {
-		log.Printf("Using unidentified profile request with profileKeyVersion: %v, accessKey: %v", profileKeyVersion, accessKey)
+		zlog.Trace().Msgf("Using unidentified profile request with profileKeyVersion: %v", profileKeyVersion)
 		// Assuming we can just make the version bytes into a string
 		path += "/" + profileKeyVersion.String()
 	}
@@ -166,37 +163,34 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 	if useUnidentified {
 		profileRequest.Headers = append(profileRequest.Headers, "unidentified-access-key:"+base64AccessKey)
 		profileRequest.Headers = append(profileRequest.Headers, "accept-language:en-CA")
-		log.Printf("headers: %v", profileRequest.Headers)
 	}
-	log.Printf("Sending profileRequest: %v", profileRequest)
 	respChan, err := d.Connection.UnauthedWS.SendRequest(ctx, profileRequest)
 	if err != nil {
-		log.Printf("SendRequest error: %v", err)
+		zlog.Err(err).Msg("SendRequest error")
 		return nil, err
 	}
-	log.Printf("Waiting for profile response")
+	zlog.Trace().Msg("Waiting for profile response")
 	resp := <-respChan
-	log.Printf("Got profile response: %v", resp)
+	zlog.Trace().Msg("Got profile response")
 	if *resp.Status < 200 || *resp.Status >= 300 {
-		log.Printf("resp.StatusCode: %v", *resp.Status)
-		return nil, errors.New(fmt.Sprintf("%v (unsuccessful status code)", *resp.Status))
+		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", *resp.Status))
+		zlog.Err(err).Msg("profile response error")
+		return nil, err
 	}
 	var profile Profile
 	err = json.Unmarshal(resp.Body, &profile)
 	if err != nil {
-		log.Printf("json.Unmarshal error: %v", err)
+		zlog.Err(err).Msg("json.Unmarshal error")
 		return nil, err
 	}
-	log.Printf("profile: %v", profile)
 	if profile.Name != "" {
 		base64Name, err := base64.StdEncoding.DecodeString(profile.Name)
 		decryptedName, err := decryptString(*profileKey, base64Name)
 		if err != nil {
-			log.Printf("error decrypting profile name: %v", err)
+			zlog.Err(err).Msg("error decrypting profile name")
 			profile.Name = ""
 		}
 		profile.Name = *decryptedName
-		log.Printf("decryptedName: %v", *decryptedName)
 		// I've seen profile names come in with a null byte instead of a space
 		// between first and last names, so replace any null bytes with spaces
 		profile.Name = strings.Replace(profile.Name, "\x00", " ", -1)
@@ -205,21 +199,19 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 		base64About, err := base64.StdEncoding.DecodeString(profile.About)
 		decryptedAbout, err := decryptString(*profileKey, base64About)
 		if err != nil {
-			log.Printf("error decrypting profile about: %v", err)
+			zlog.Err(err).Msg("error decrypting profile about")
 			profile.About = ""
 		}
 		profile.About = *decryptedAbout
-		log.Printf("decryptedAbout: %v", *decryptedAbout)
 	}
 	if profile.AboutEmoji != "" {
 		base64AboutEmoji, err := base64.StdEncoding.DecodeString(profile.AboutEmoji)
 		decryptedAboutEmoji, err := decryptString(*profileKey, base64AboutEmoji)
 		if err != nil {
-			log.Printf("error decrypting profile aboutEmoji: %v", err)
+			zlog.Err(err).Msg("error decrypting profile aboutEmoji")
 			profile.AboutEmoji = ""
 		}
 		profile.AboutEmoji = *decryptedAboutEmoji
-		log.Printf("decryptedAboutEmoji: %v", *decryptedAboutEmoji)
 	}
 
 	return &profile, nil
