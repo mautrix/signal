@@ -35,6 +35,7 @@ type Device struct {
 	// libsignalgo store interfaces
 	PreKeyStore       libsignalgo.PreKeyStore
 	SignedPreKeyStore libsignalgo.SignedPreKeyStore
+	KyberPreKeyStore  libsignalgo.KyberPreKeyStore
 	IdentityStore     libsignalgo.IdentityKeyStore
 	SessionStore      libsignalgo.SessionStore
 	SenderKeyStore    libsignalgo.SenderKeyStore
@@ -121,6 +122,7 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 	device.PreKeyStore = innerStore
 	device.PreKeyStoreExtras = innerStore
 	device.SignedPreKeyStore = innerStore
+	device.KyberPreKeyStore = innerStore
 	device.IdentityStore = innerStore
 	device.SessionStore = innerStore
 	device.SessionStoreExtras = innerStore

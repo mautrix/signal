@@ -11,7 +11,7 @@ import (
 	gopointer "github.com/mattn/go-pointer"
 )
 
-func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, ctx *CallbackContext) ([]byte, error) {
+func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, kyberPreKeyStore KyberPreKeyStore, ctx *CallbackContext) ([]byte, error) {
 	contextPointer := gopointer.Save(ctx)
 	defer gopointer.Unref(contextPointer)
 
@@ -24,7 +24,7 @@ func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionSt
 		wrapIdentityKeyStore(identityStore),
 		wrapPreKeyStore(preKeyStore),
 		wrapSignedPreKeyStore(signedPreKeyStore),
-		nil, // TODO: support Kyber prekeys I guess
+		wrapKyberPreKeyStore(kyberPreKeyStore), // TODO: *actually* support Kyber prekeys I guess, this is a stub right now
 		contextPointer,
 	)
 	if signalFfiError != nil {

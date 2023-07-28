@@ -512,6 +512,7 @@ func prekeyDecrypt(sender libsignalgo.Address, encryptedContent []byte, device *
 		device.IdentityStore,
 		device.PreKeyStore,
 		device.SignedPreKeyStore,
+		device.KyberPreKeyStore,
 		libsignalgo.NewCallbackContext(ctx),
 	)
 	if err != nil {

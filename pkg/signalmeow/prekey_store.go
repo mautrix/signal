@@ -11,6 +11,7 @@ import (
 
 var _ libsignalgo.PreKeyStore = (*SQLStore)(nil)
 var _ libsignalgo.SignedPreKeyStore = (*SQLStore)(nil)
+var _ libsignalgo.KyberPreKeyStore = (*SQLStore)(nil)
 var _ PreKeyStoreExtras = (*SQLStore)(nil)
 
 // TODO: figure out how best to handle ACI vs PNI UUIDs
@@ -52,6 +53,18 @@ func (s *SQLStore) StoreSignedPreKey(id uint32, signedPreKeyRecord *libsignalgo.
 }
 func (s *SQLStore) RemoveSignedPreKey(id uint32, ctx context.Context) error {
 	return s.DeleteSignedPreKey(UUID_KIND_ACI, int(id))
+}
+
+// libsignalgo.KyberPreKeyStore implementation
+// TODO: implement this for reals
+func (s *SQLStore) LoadKyberPreKey(id uint32, ctx context.Context) (*libsignalgo.KyberPreKeyRecord, error) {
+	return nil, nil
+}
+func (s *SQLStore) StoreKyberPreKey(id uint32, preKeyRecord *libsignalgo.KyberPreKeyRecord, ctx context.Context) error {
+	return nil
+}
+func (s *SQLStore) MarkKyberPreKeyUsed(id uint32, ctx context.Context) error {
+	return nil
 }
 
 const (
