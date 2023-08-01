@@ -265,8 +265,9 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 				name, _ := result.SenderAddress.Name()
 				deviceId, _ := result.SenderAddress.DeviceID()
-				zlog.Trace().Msgf("Decrypted message from %v:%v", name, deviceId)
-				zlog.Debug().Msgf("Decrypted content fields: %v", contentFieldsString(content))
+				zlog.Debug().Msgf("Decrypted message from %v:%v", name, deviceId)
+				printMessage := fmt.Sprintf("Decrypted content fields (%v:%v)", name, deviceId)
+				printContentFieldString(content, printMessage)
 
 				// If there's a sender key distribution message, process it
 				if content.GetSenderKeyDistributionMessage() != nil {
@@ -364,6 +365,18 @@ func printStructFields(message protoreflect.Message, parent string, builder *str
 		}
 		return true
 	})
+}
+
+func printContentFieldString(c *signalpb.Content, message string) {
+	go func() {
+		// catch panic
+		defer func() {
+			if r := recover(); r != nil {
+				zlog.Err(fmt.Errorf("Panic in contentFieldsString: %v", r)).Msg("")
+			}
+		}()
+		zlog.Debug().Msgf("%v: %v", message, contentFieldsString(c))
+	}()
 }
 
 func contentFieldsString(c *signalpb.Content) string {
