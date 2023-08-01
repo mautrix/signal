@@ -213,3 +213,20 @@ type BadInMemorySignalProtocolStore struct {
 func (ps *BadInMemorySignalProtocolStore) LoadPreKey(id uint32, ctx context.Context) (*libsignalgo.PreKeyRecord, error) {
 	return nil, errors.New("Test error")
 }
+
+// Implementation of the KyberPreKeyStore interface
+// TODO: this is just stubs, not implemented yet
+
+func (ps *InMemorySignalProtocolStore) LoadKyberPreKey(id uint32, ctx context.Context) (*libsignalgo.KyberPreKeyRecord, error) {
+	return nil, nil //ps.kyberPreKeyMap[id], nil
+}
+
+func (ps *InMemorySignalProtocolStore) StoreKyberPreKey(id uint32, kyberPreKeyRecord *libsignalgo.KyberPreKeyRecord, ctx context.Context) error {
+	//ps.kyberPreKeyMap[id] = kyberPreKeyRecord
+	return nil
+}
+
+func (ps *InMemorySignalProtocolStore) MarkKyberPreKeyUsed(id uint32, ctx context.Context) error {
+	//ps.kyberPreKeyMap[id].MarkUsed()
+	return nil
+}

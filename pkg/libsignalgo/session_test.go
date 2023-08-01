@@ -108,7 +108,7 @@ func TestSessionCipher(t *testing.T) {
 	bobCiphertext, err := libsignalgo.DeserializePreKeyMessage(aliceCiphertextSerialized)
 	assert.NoError(t, err)
 
-	bobPlaintext, err := libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, ctx)
+	bobPlaintext, err := libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore, ctx)
 	assert.NoError(t, err)
 	assert.Equal(t, alicePlaintext, bobPlaintext)
 
@@ -154,7 +154,7 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 	assert.NoError(t, err)
 	bobCiphertext, err := libsignalgo.DeserializePreKeyMessage(aliceCiphertextSerialized)
 	assert.NoError(t, err)
-	_, err = libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, ctx)
+	_, err = libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore, ctx)
 	require.Error(t, err)
 	assert.Equal(t, "Test error", err.Error())
 }
