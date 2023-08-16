@@ -3,6 +3,7 @@ package libsignalgo_test
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"math/big"
 
@@ -27,7 +28,7 @@ type InMemorySignalProtocolStore struct {
 	identityKeyPair *libsignalgo.IdentityKeyPair
 	registrationID  uint32
 
-	identityKeyMap  map[AddressKey]*libsignalgo.IdentityKey
+	identityKeyMap  map[AddressKey][]byte
 	preKeyMap       map[uint32]*libsignalgo.PreKeyRecord
 	senderKeyMap    map[SenderKeyName]*libsignalgo.SenderKeyRecord
 	sessionMap      map[AddressKey]*libsignalgo.SessionRecord
@@ -49,7 +50,7 @@ func NewInMemorySignalProtocolStore() *InMemorySignalProtocolStore {
 		identityKeyPair: identityKeyPair,
 		registrationID:  uint32(registrationID.Uint64()),
 
-		identityKeyMap:  make(map[AddressKey]*libsignalgo.IdentityKey),
+		identityKeyMap:  make(map[AddressKey][]byte),
 		preKeyMap:       make(map[uint32]*libsignalgo.PreKeyRecord),
 		senderKeyMap:    make(map[SenderKeyName]*libsignalgo.SenderKeyRecord),
 		sessionMap:      make(map[AddressKey]*libsignalgo.SessionRecord),
@@ -139,13 +140,30 @@ func (ps *InMemorySignalProtocolStore) SaveIdentityKey(address *libsignalgo.Addr
 		return false, err
 	}
 	replacing := false
-	oldKey := ps.identityKeyMap[AddressKey{name, deviceID}]
-	if oldKey != nil {
-		keysMatch, _ := oldKey.Equal(identityKey)
-		replacing = !keysMatch
+	oldKeySerialized, ok := ps.identityKeyMap[AddressKey{name, deviceID}]
+	if ok {
+		oldKey, err := libsignalgo.DeserializeIdentityKey(oldKeySerialized)
+		if err != nil {
+			log.Error().Err(err).Interface("oldKey", oldKey).Msg("Error deserializing old identity key")
+		}
+		if oldKey != nil {
+			keysMatch, err := oldKey.Equal(identityKey)
+			if err != nil {
+				log.Error().Err(err).Interface("oldKey", oldKey).Interface("identityKey", identityKey).Msg("Error comparing identity keys")
+			}
+			replacing = !keysMatch
+		}
 	}
-	ps.identityKeyMap[AddressKey{name, deviceID}] = identityKey
-	return replacing, err
+	serializedIdentityKey, err := identityKey.Serialize()
+	if err != nil {
+		log.Error().Err(err).Interface("identityKey", identityKey).Msg("Error serializing identity key")
+	}
+
+	hexIdentityKey := hex.EncodeToString(serializedIdentityKey)
+	log.Debug().Str("hexIdentityKey", hexIdentityKey).Msg("SaveIdentityKey")
+
+	ps.identityKeyMap[AddressKey{name, deviceID}] = serializedIdentityKey
+	return replacing, nil
 }
 
 func (ps *InMemorySignalProtocolStore) GetIdentityKey(address *libsignalgo.Address, ctx context.Context) (*libsignalgo.IdentityKey, error) {
@@ -158,21 +176,31 @@ func (ps *InMemorySignalProtocolStore) GetIdentityKey(address *libsignalgo.Addre
 	if err != nil {
 		return nil, err
 	}
-	return ps.identityKeyMap[AddressKey{name, deviceID}], nil
+	serializedIdentityKey, ok := ps.identityKeyMap[AddressKey{name, deviceID}]
+	if !ok {
+		return nil, nil
+	}
+	return libsignalgo.DeserializeIdentityKey(serializedIdentityKey)
 }
 
 func (ps *InMemorySignalProtocolStore) IsTrustedIdentity(address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection, ctx context.Context) (bool, error) {
 	log.Debug().Msg("IsTrustedIdentity called")
 	name, err := address.Name()
 	if err != nil {
+		log.Error().Err(err).Msg("Error getting name")
 		return false, err
 	}
 	deviceID, err := address.DeviceID()
 	if err != nil {
+		log.Error().Err(err).Msg("Error getting deviceID")
 		return false, err
 	}
-	if ik, ok := ps.identityKeyMap[AddressKey{name, deviceID}]; ok {
-		return ik.Equal(identityKey)
+	if existingSerialized, ok := ps.identityKeyMap[AddressKey{name, deviceID}]; ok {
+		existingKey, err := libsignalgo.DeserializeIdentityKey(existingSerialized)
+		if err != nil {
+			log.Error().Err(err).Interface("existingKey", existingKey).Msg("Error deserializing existing identity key")
+		}
+		return existingKey.Equal(identityKey)
 	} else {
 		log.Trace().Msg("Trusting on first use")
 		return true, nil // Trust on first use

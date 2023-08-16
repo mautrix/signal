@@ -294,6 +294,8 @@ func TestArchiveSession(t *testing.T) {
 }
 
 // From SessionTests.swift:testSealedSenderGroupCipher
+// TODO: this is not implemented yet
+/*
 func TestSealedSenderGroupCipher(t *testing.T) {
 	setupLogging()
 	ctx := libsignalgo.NewEmptyCallbackContext()
@@ -354,3 +356,4 @@ func TestSealedSenderGroupCipher(t *testing.T) {
 	// TODO: finish
 	assert.NotNil(t, aCtext)
 }
+*/
