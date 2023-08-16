@@ -427,11 +427,11 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		// Get and update the puppet for this message
 		if m.SenderUUID == user.SignalID {
 			// This is a message sent by us on another device
-			user.log.Debug().Msgf("Text message received to %s (group: %v) at %v: %s\n", m.RecipientUUID, m.GroupID, m.Timestamp, m.Content)
+			user.log.Debug().Msgf("Text message received to %s (group: %v) at %v", m.RecipientUUID, m.GroupID, m.Timestamp)
 			chatID = m.RecipientUUID
 			senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
 		} else {
-			user.log.Debug().Msgf("Text message received from %s (group: %v) at %v: %s\n", m.SenderUUID, m.GroupID, m.Timestamp, m.Content)
+			user.log.Debug().Msgf("Text message received from %s (group: %v) at %v", m.SenderUUID, m.GroupID, m.Timestamp)
 			chatID = m.SenderUUID
 			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
 			err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
