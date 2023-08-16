@@ -15,7 +15,6 @@ import (
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
-	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/util"
@@ -236,17 +235,6 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	}
 }
 
-type messageTimings struct {
-	initReceive  time.Duration
-	decrypt      time.Duration
-	implicitRR   time.Duration
-	totalReceive time.Duration
-
-	preproc   time.Duration
-	convert   time.Duration
-	totalSend time.Duration
-}
-
 func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	evtTS := time.UnixMilli(evt.Timestamp)
 	timings := messageTimings{
@@ -260,23 +248,24 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	start := time.Now()
 
 	messageAge := timings.totalReceive
-	//origEvtID := evt.ID
-	//var dbMsg *database.Message
-	//if retryMeta := evt.Content.AsMessage().MessageSendRetry; retryMeta != nil {
-	//	origEvtID = retryMeta.OriginalEventID
-	//	dbMsg = portal.bridge.DB.Message.GetByMXID(origEvtID)
-	//	if dbMsg != nil && dbMsg.Sent {
-	//		portal.log.Debugfln("Ignoring retry request %s (#%d, age: %s) for %s/%s from %s as message was already sent", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, dbMsg.JID, evt.Sender)
-	//		go ms.sendMessageMetrics(evt, nil, "", true)
-	//		return
-	//	} else if dbMsg != nil {
-	//		portal.log.Debugfln("Got retry request %s (#%d, age: %s) for %s/%s from %s", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, dbMsg.JID, evt.Sender)
-	//	} else {
-	//		portal.log.Debugfln("Got retry request %s (#%d, age: %s) for %s from %s (original message not known)", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, evt.Sender)
-	//	}
-	//} else {
-	//	portal.log.Debugfln("Received message %s from %s (age: %s)", evt.ID, evt.Sender, messageAge)
-	//}
+	origEvtID := evt.ID
+	ms := metricSender{portal: portal, timings: &timings}
+	var dbMsg *database.Message
+	if retryMeta := evt.Content.AsMessage().MessageSendRetry; retryMeta != nil {
+		origEvtID = retryMeta.OriginalEventID
+		dbMsg = portal.bridge.DB.Message.GetByMXID(origEvtID)
+		if dbMsg != nil {
+			//portal.log.Debugfln("Ignoring retry request %s (#%d, age: %s) for %s/%s from %s as message was already sent", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, dbMsg.JID, evt.Sender)
+			go ms.sendMessageMetrics(evt, nil, "", true)
+			return
+		} else if dbMsg != nil {
+			//portal.log.Debugfln("Got retry request %s (#%d, age: %s) for %s/%s from %s", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, dbMsg.JID, evt.Sender)
+		} else {
+			//portal.log.Debugfln("Got retry request %s (#%d, age: %s) for %s from %s (original message not known)", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, evt.Sender)
+		}
+	} else {
+		//portal.log.Debugfln("Received message %s from %s (age: %s)", evt.ID, evt.Sender, messageAge)
+	}
 	portal.log.Debug().Msgf("Received message %s from %s (age: %s)", evt.ID, evt.Sender, messageAge)
 
 	errorAfter := portal.bridge.Config.Bridge.MessageHandlingTimeout.ErrorAfter
@@ -291,14 +280,14 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	if errorAfter > 0 {
 		remainingTime := errorAfter - messageAge
 		if remainingTime < 0 {
-			//go ms.sendMessageMetrics(evt, errTimeoutBeforeHandling, "Timeout handling", true)
+			go ms.sendMessageMetrics(evt, errTimeoutBeforeHandling, "Timeout handling", true)
 			return
 		} else if remainingTime < 1*time.Second {
 			portal.log.Warn().Msgf("Message %s was delayed before reaching the bridge, only have %s (of %s timeout) until delay warning", evt.ID, remainingTime, errorAfter)
 		}
 		go func() {
 			time.Sleep(remainingTime)
-			//ms.sendMessageMetrics(evt, errMessageTakingLong, "Timeout handling", false)
+			ms.sendMessageMetrics(evt, errMessageTakingLong, "Timeout handling", false)
 		}()
 	}
 
@@ -369,7 +358,7 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 		}
 	}
 	timings.totalSend = time.Since(start)
-	//go ms.sendMessageMetrics(evt, err, "Error sending", true)
+	go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
 		//dbMsg.MarkSent(resp.Timestamp)
 		dbMessage := portal.bridge.DB.Message.New()
@@ -380,101 +369,6 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 		dbMessage.SignalChatID = portal.ChatID
 		dbMessage.SignalReceiver = portal.Receiver
 		dbMessage.Insert(nil)
-	}
-}
-
-func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part string) {
-	//var msgType string
-	//switch evt.Type {
-	//case event.EventMessage, event.EventSticker:
-	//	msgType = "message"
-	//case event.EventReaction:
-	//	msgType = "reaction"
-	//case event.EventRedaction:
-	//	msgType = "redaction"
-	//default:
-	//	msgType = "unknown event"
-	//}
-	level := zerolog.DebugLevel
-	if err != nil && part != "Ignoring" {
-		level = zerolog.ErrorLevel
-	}
-	logEvt := portal.bridge.ZLog.WithLevel(level).
-		Str("action", "send matrix message metrics").
-		Str("event_type", evt.Type.Type).
-		Str("event_id", evt.ID.String()).
-		Str("sender", evt.Sender.String())
-	if evt.Type == event.EventRedaction {
-		logEvt.Str("redacts", evt.Redacts.String())
-	}
-	if err != nil {
-		logEvt.Err(err).
-			Str("result", fmt.Sprintf("%s event", part)).
-			Msg("Matrix event not handled")
-		//reason, statusCode, isCertain, sendNotice, humanMessage, checkpointErr := errorToStatusReason(err)
-		//if checkpointErr == nil {
-		//	checkpointErr = err
-		//}
-		//checkpointStatus := status.ReasonToCheckpointStatus(reason, statusCode)
-		//portal.bridge.SendMessageCheckpoint(evt, status.MsgStepRemote, checkpointErr, checkpointStatus, 0)
-		//if sendNotice {
-		//	if humanMessage == "" {
-		//		humanMessage = err.Error()
-		//	}
-		//	portal.sendErrorMessage(msgType, humanMessage, isCertain)
-		//}
-		//portal.sendStatusEvent(evt.ID, err)
-	} else {
-		logEvt.Err(err).Msg("Matrix event handled successfully")
-		portal.sendDeliveryReceipt(evt.ID)
-		portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, 0)
-		portal.sendStatusEvent(evt.ID, nil)
-	}
-}
-
-func (portal *Portal) sendDeliveryReceipt(eventID id.EventID) {
-	if portal.bridge.Config.Bridge.DeliveryReceipts {
-		err := portal.bridge.Bot.MarkRead(portal.MXID, eventID)
-		if err != nil {
-			portal.log.Warn().Err(err).
-				Str("event_id", eventID.String()).
-				Msg("Failed to send delivery receipt")
-		}
-	}
-}
-
-func (portal *Portal) sendStatusEvent(evtID id.EventID, err error) {
-	if !portal.bridge.Config.Bridge.MessageStatusEvents {
-		return
-	}
-	intent := portal.bridge.Bot
-	if !portal.Encrypted {
-		// Bridge bot isn't present in unencrypted DMs
-		intent = portal.MainIntent()
-	}
-	stateKey, _ := portal.getBridgeInfo()
-	content := event.BeeperMessageStatusEventContent{
-		Network: stateKey,
-		RelatesTo: event.RelatesTo{
-			Type:    event.RelReference,
-			EventID: evtID,
-		},
-		Status: event.MessageStatusSuccess,
-	}
-	if err == nil {
-		content.Status = event.MessageStatusSuccess
-	} else {
-		var checkpointErr error
-		//content.Reason, content.Status, _, _, content.Message, checkpointErr = errorToStatusReason(err)
-		if checkpointErr != nil {
-			content.Error = checkpointErr.Error()
-		} else {
-			content.Error = err.Error()
-		}
-	}
-	_, err = intent.SendMessageEvent(portal.MXID, event.BeeperMessageStatus, &content)
-	if err != nil {
-		portal.log.Err(err).Str("event_id", evtID.String()).Msg("Failed to send message status event")
 	}
 }
 
@@ -802,4 +696,8 @@ func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 		return br.loadPortal(br.DB.Portal.GetByChatID(key), &key)
 	}
 	return portal
+}
+
+func (portal *Portal) getBridgeInfoStateKey() string {
+	return fmt.Sprintf("net.maunium.signal://signal/%s", portal.ChatID)
 }
