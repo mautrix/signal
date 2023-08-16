@@ -340,14 +340,14 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 			})
 			zlog.Trace().Msgf("Successfully sent to %v", member.UserId)
 		}
+	}
 
-		// No need to send to ourselves if we don't have any other devices
-		if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
-			syncContent := syncMessageFromGroupDataMessage(dataMessage, result.SuccessfullySentTo)
-			_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
-			if selfSendErr != nil {
-				zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
-			}
+	// No need to send to ourselves if we don't have any other devices
+	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
+		syncContent := syncMessageFromGroupDataMessage(dataMessage, result.SuccessfullySentTo)
+		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+		if selfSendErr != nil {
+			zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
 		}
 	}
 
