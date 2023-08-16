@@ -477,7 +477,7 @@ func sendContent(
 	response := <-responseChan
 	zlog.Trace().Msgf("Received a response to a message send from: %v, id: %v, code: %v", recipientUuid, *response.Id, *response.Status)
 
-	retryableStatuses := []uint32{409, 428, 500, 503}
+	retryableStatuses := []uint32{409, 410, 428, 500, 503}
 
 	// Check to see if our status is retryable
 	needToRetry := false
@@ -492,6 +492,8 @@ func sendContent(
 		var err error
 		if *response.Status == 409 {
 			err = handle409(ctx, d, recipientUuid, response)
+		} else if *response.Status == 410 {
+			err = handle410(ctx, d, recipientUuid, response)
 		} else if *response.Status == 428 {
 			err = handle428(ctx, d, recipientUuid, response)
 		}
@@ -549,6 +551,35 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 				zlog.Err(err).Msg("RemoveSession error")
 				return err
 			}
+		}
+	}
+	return err
+}
+
+// A 410 means we have a stale device, so get rid of it
+func handle410(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
+	// Decode json body
+	var body map[string]interface{}
+	err := json.Unmarshal(response.Body, &body)
+	if err != nil {
+		zlog.Err(err).Msg("Unmarshal error")
+		return err
+	}
+	// check for staleDevices and make new sessions with them
+	if body["staleDevices"] != nil {
+		staleDevices := body["staleDevices"].([]interface{})
+		zlog.Debug().Msgf("stale devices found in 410 response: %v", staleDevices)
+		for _, staleDevice := range staleDevices {
+			recipient, err := libsignalgo.NewAddress(
+				recipientUuid,
+				uint(staleDevice.(float64)),
+			)
+			err = device.SessionStoreExtras.RemoveSession(recipient, ctx)
+			if err != nil {
+				zlog.Err(err).Msg("RemoveSession error")
+				return err
+			}
+			FetchAndProcessPreKey(ctx, device, recipientUuid, int(staleDevice.(float64)))
 		}
 	}
 	return err
