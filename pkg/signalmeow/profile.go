@@ -58,14 +58,15 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string
 }
 
 func ProfileKeyForSignalID(ctx context.Context, d *Device, signalId string) (*libsignalgo.ProfileKey, error) {
-	profileKeyStore := d.ProfileKeyStore
-	profileKey, err := profileKeyStore.LoadProfileKey(signalId, ctx)
+	profileKey, err := d.ProfileKeyStore.LoadProfileKey(signalId, ctx)
 	if err != nil {
 		zlog.Err(err).Msg("GetProfileKey error")
 		return nil, err
 	}
 	return profileKey, nil
 }
+
+var errProfileKeyNotFound = errors.New("profile key not found")
 
 func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
 	if d.Connection.ProfileCache == nil {
@@ -78,16 +79,16 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 
 	lastFetched, ok := d.Connection.ProfileCache.lastFetched[string(signalID)]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
-		group, ok := d.Connection.ProfileCache.profiles[string(signalID)]
+		profile, ok := d.Connection.ProfileCache.profiles[string(signalID)]
 		if ok {
-			return group, nil
+			return profile, nil
 		}
 		err, ok := d.Connection.ProfileCache.errors[string(signalID)]
 		if ok {
 			return nil, *err
 		}
 	}
-	group, err := fetchProfileByID(ctx, d, signalID)
+	profile, err := fetchProfileByID(ctx, d, signalID)
 	if err != nil {
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
 		if strings.HasPrefix(err.Error(), "401") || strings.HasPrefix(err.Error(), "5") {
@@ -96,9 +97,12 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 		}
 		return nil, err
 	}
-	d.Connection.ProfileCache.profiles[string(signalID)] = group
+	if profile == nil {
+		return nil, errProfileKeyNotFound
+	}
+	d.Connection.ProfileCache.profiles[string(signalID)] = profile
 	d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
-	return group, nil
+	return profile, nil
 }
 
 type ProfileCache struct {
