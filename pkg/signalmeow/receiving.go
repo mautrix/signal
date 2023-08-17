@@ -239,7 +239,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					result = &DecryptionResult{
 						SenderAddress: *senderAddress,
 						Content:       &content,
-						SealedSender:  true,
 					}
 					responseCode = 200
 				}

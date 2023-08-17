@@ -438,9 +438,9 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			if err != nil {
 				user.log.Err(err).Msg("error updating puppet")
 			}
-		}
-		if m.GroupID != nil {
-			chatID = string(*m.GroupID)
+			if m.GroupID != nil {
+				chatID = string(*m.GroupID)
+			}
 		}
 		if senderPuppet == nil {
 			err := fmt.Errorf("no puppet found for chatID %s", chatID)
