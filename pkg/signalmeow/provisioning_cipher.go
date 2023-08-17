@@ -5,6 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 
@@ -117,21 +118,40 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) (*signalpb
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
-	paddedInput := make([]byte, len(cipherText))
-	mode.CryptBlocks(paddedInput, cipherText)
+	decryptedWithPadding := make([]byte, len(cipherText))
+	mode.CryptBlocks(decryptedWithPadding, cipherText)
 
-	//input, err := pkcs7.Unpad(paddedInput)
-	//if err != nil {
-	//	return nil, errors.New("provisioning: CBC/Padding error: " + err.Error())
-	//}
-	input := paddedInput
+	decrypted, err := UnpadPKCS7(decryptedWithPadding)
+	if err != nil {
+		zlog.Err(err).Msg("Unable to unpad")
+	}
 
 	message := &signalpb.ProvisionMessage{}
-	err = proto.Unmarshal(input, message)
+	err = proto.Unmarshal(decrypted, message)
 	if err != nil {
 		zlog.Err(err).Msg("Unable to unmarshal ProvisionMessage")
 		return nil, err
 	}
 
 	return message, nil
+}
+
+func UnpadPKCS7(data []byte) ([]byte, error) {
+	if len(data) == 0 {
+		return nil, errors.New("data is empty")
+	}
+
+	paddingLen := int(data[len(data)-1])
+	if paddingLen == 0 || paddingLen > len(data) {
+		return nil, errors.New("invalid padding")
+	}
+
+	// Check that all the padding bytes are correct
+	for i := 0; i < paddingLen; i++ {
+		if data[len(data)-1-i] != byte(paddingLen) {
+			return nil, errors.New("invalid padding")
+		}
+	}
+
+	return data[:len(data)-paddingLen], nil
 }
