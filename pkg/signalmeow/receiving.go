@@ -190,7 +190,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				if err != nil {
 					return nil, fmt.Errorf("NewAddress error: %v", err)
 				}
-				result, err := prekeyDecrypt(*sender, envelope.Content, device, ctx)
+				result, err = prekeyDecrypt(*sender, envelope.Content, device, ctx)
 				if err != nil {
 					zlog.Err(err).Msg("prekeyDecrypt error")
 				} else {
