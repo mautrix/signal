@@ -7,7 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"strings"
 	"time"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -217,7 +218,8 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 		zlog.Err(err).Msg("DecryptBlobWithPadding Title error")
 		return nil, err
 	}
-	decryptedGroup.Title = string(title)
+	// strip \n and \t from start and end of title if it exists
+	decryptedGroup.Title = strings.TrimSpace(string(title))
 
 	// TODO: Not sure how to decrypt avatar yet
 	//avatarBytes, err := base64.StdEncoding.DecodeString(encryptedGroup.Avatar)
@@ -305,7 +307,7 @@ func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, er
 		return nil, err
 	}
 	encryptedGroup := &signalpb.Group{}
-	groupBytes, err := ioutil.ReadAll(response.Body)
+	groupBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		zlog.Err(err).Msg("RetrieveGroupById ReadAll error")
 		return nil, err
