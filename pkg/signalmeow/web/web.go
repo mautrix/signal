@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/rs/zerolog"
 )
@@ -39,7 +39,7 @@ func proxiedHTTPClient() *http.Client {
 	if caCertPath != "" {
 		var caCert []byte
 		var err error
-		caCert, err = ioutil.ReadFile(caCertPath)
+		caCert, err = os.ReadFile(caCertPath)
 		if err != nil {
 			zlog.Err(err).Msg("Error reading CA certificate")
 			panic(err)
