@@ -371,7 +371,7 @@ func printContentFieldString(c *signalpb.Content, message string) {
 		// catch panic
 		defer func() {
 			if r := recover(); r != nil {
-				zlog.Err(fmt.Errorf("Panic in contentFieldsString: %v", r)).Msg("")
+				zlog.Warn().Msgf("Panic in contentFieldsString: %v", r)
 			}
 		}()
 		zlog.Debug().Msgf("%v: %v", message, contentFieldsString(c))

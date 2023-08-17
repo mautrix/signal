@@ -430,10 +430,20 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			user.log.Debug().Msgf("Text message received to %s (group: %v) at %v", m.RecipientUUID, m.GroupID, m.Timestamp)
 			chatID = m.RecipientUUID
 			senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
+			if senderPuppet == nil {
+				err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
+				user.log.Err(err).Msg("error getting puppet")
+				//return err
+			}
 		} else {
 			user.log.Debug().Msgf("Text message received from %s (group: %v) at %v", m.SenderUUID, m.GroupID, m.Timestamp)
 			chatID = m.SenderUUID
 			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+			if senderPuppet == nil {
+				err := fmt.Errorf("no puppet found for sender: %s", m.SenderUUID)
+				user.log.Err(err).Msg("error getting puppet")
+				//return err
+			}
 			err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
 			if err != nil {
 				user.log.Err(err).Msg("error updating puppet")
@@ -441,11 +451,6 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			if m.GroupID != nil {
 				chatID = string(*m.GroupID)
 			}
-		}
-		if senderPuppet == nil {
-			err := fmt.Errorf("no puppet found for chatID %s", chatID)
-			user.log.Err(err).Msg("error getting puppet")
-			return err
 		}
 
 		// Get and update the portal for this message
