@@ -58,7 +58,7 @@ func (s *SignalWebsocket) Close() error {
 // a callback function and just printing errors
 func (s *SignalWebsocket) Connect(
 	ctx context.Context,
-	//requestChan chan *signalpb.WebSocketRequestMessage,
+	//incomingRequestChan chan *signalpb.WebSocketRequestMessage,
 	//errorChan chan *SignalWebsocketConnectError,
 	requestHandler *RequestHandlerFunc,
 ) {
@@ -68,14 +68,14 @@ func (s *SignalWebsocket) Connect(
 func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
 	requestHandler *RequestHandlerFunc,
-	//requestChan chan *signalpb.WebSocketRequestMessage,
+	//incomingRequestChan chan *signalpb.WebSocketRequestMessage,
 	//errorChan chan *SignalWebsocketConnectError,
 ) {
-	// TODO: pass in requestChan and errorChan instead of creating them here
-	requestChan := make(chan *signalpb.WebSocketRequestMessage)
+	// TODO: pass in incomingRequestChan and errorChan instead of creating them here
+	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 10000)
 	errorChan := make(chan *SignalWebsocketConnectError)
 	s.sendChannel = make(chan *SignalWebsocketSendMessage)
-	defer close(requestChan)
+	defer close(incomingRequestChan)
 	defer close(errorChan)
 	defer close(s.sendChannel)
 
@@ -112,9 +112,9 @@ func (s *SignalWebsocket) connectLoop(
 			case <-ctx.Done():
 				zlog.Info().Msg("ctx done, stopping request loop")
 				return
-			case request, ok := <-requestChan:
+			case request, ok := <-incomingRequestChan:
 				if !ok {
-					zlog.Fatal().Msg("requestChan closed, stopping request loop")
+					zlog.Fatal().Msg("incomingRequestChan closed, stopping request loop")
 				}
 				if request == nil {
 					errorChan <- &SignalWebsocketConnectError{
@@ -130,7 +130,10 @@ func (s *SignalWebsocket) connectLoop(
 					}
 					zlog.Fatal().Msg("Received request but no handler")
 				}
+
+				// Handle the request with the request handler function
 				response, err := (*requestHandler)(ctx, request)
+
 				if err != nil {
 					errorChan <- &SignalWebsocketConnectError{
 						Err:    errors.Wrap(err, "Error handling request"),
@@ -191,7 +194,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
-			err := readLoop(loopCtx, ws, s.name, requestChan, &responseChannels)
+			err := readLoop(loopCtx, ws, s.name, incomingRequestChan, &responseChannels)
 			if err != nil {
 				zlog.Err(err).Msgf("Error in readLoop (%s)", s.name)
 			}
@@ -237,10 +240,12 @@ func (s *SignalWebsocket) connectLoop(
 			zlog.Info().Msgf("received loopCtx done (%s)", s.name)
 			if context.Cause(loopCtx) != nil {
 				err := context.Cause(loopCtx)
-				zlog.Err(err).Msg("loopCtx error")
-				errorChan <- &SignalWebsocketConnectError{
-					Err:    err,
-					Status: 0,
+				if err != nil {
+					zlog.Err(err).Msg("loopCtx error")
+					errorChan <- &SignalWebsocketConnectError{
+						Err:    err,
+						Status: 0,
+					}
 				}
 			}
 		}
@@ -260,7 +265,7 @@ func readLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	name string,
-	requestChan chan *signalpb.WebSocketRequestMessage,
+	incomingRequestChan chan *signalpb.WebSocketRequestMessage,
 	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
 ) error {
 	for {
@@ -280,7 +285,7 @@ func readLoop(
 				return errors.New("Received request message with no request")
 			}
 			zlog.Debug().Msgf("Received WS request %v:%v, verb: %v, path: %v", name, *msg.Request.Id, *msg.Request.Verb, *msg.Request.Path)
-			requestChan <- msg.Request
+			incomingRequestChan <- msg.Request
 		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
 			if msg.Response == nil {
 				zlog.Fatal().Msg("Received response with no response")
