@@ -181,7 +181,10 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 	}
 	customPuppet := user.bridge.GetPuppetByCustomMXID(user.MXID)
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
+		user.log.Debug().Msgf("adding will_auto_accept for %s", user.MXID)
 		extraContent["fi.mau.will_auto_accept"] = true
+	} else {
+		user.log.Debug().Msgf("NOT adding will_auto_accept for %s", user.MXID)
 	}
 	_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
 	var httpErr mautrix.HTTPError
@@ -196,6 +199,7 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 	}
 
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
+		user.log.Debug().Msgf("ensuring joined for %s", user.MXID)
 		err = customPuppet.CustomIntent().EnsureJoined(roomID, appservice.EnsureJoinedParams{IgnoreCache: true})
 		if err != nil {
 			user.log.Warn().Err(err).Msgf("Failed to auto-join %s", roomID)
@@ -298,6 +302,8 @@ func (user *User) startupTryConnect(retryCount int) {
 		} else {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 		}
+	} else {
+		user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 	}
 }
 
@@ -349,12 +355,11 @@ func (user *User) Connect() error {
 		return err
 	}
 	if device == nil {
-		user.log.Err(err).Msgf("no device found for aci %s", user.SignalID)
-		return err
+		user.log.Err(ErrNotLoggedIn).Msgf("no device found for aci %s", user.SignalID)
+		return ErrNotLoggedIn
 	}
 
 	user.SignalDevice = device
-	// TODO: hook up remote-netework handlers here
 	device.Connection.IncomingSignalMessageHandler = user.incomingMessageHandler
 
 	ctx := context.Background()
