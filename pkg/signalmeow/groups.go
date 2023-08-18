@@ -10,6 +10,7 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -218,8 +219,17 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, erro
 		zlog.Err(err).Msg("DecryptBlobWithPadding Title error")
 		return nil, err
 	}
+	titleString := string(title)
+	// strip non-printable characters from the title
+	titleString = strings.Map(func(r rune) rune {
+		if unicode.IsGraphic(r) {
+			return r
+		}
+		return -1
+	}, titleString)
 	// strip \n and \t from start and end of title if it exists
-	decryptedGroup.Title = strings.TrimSpace(string(title))
+	titleString = strings.TrimSpace(titleString)
+	decryptedGroup.Title = titleString
 
 	// TODO: Not sure how to decrypt avatar yet
 	//avatarBytes, err := base64.StdEncoding.DecodeString(encryptedGroup.Avatar)
