@@ -286,7 +286,7 @@ func (br *SignalBridge) getAllLoggedInUsers() []*User {
 
 func (user *User) startupTryConnect(retryCount int) {
 	user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
-	err := user.Connect()
+	statusChan, err := user.Connect()
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
 		//closeErr := &websocket.CloseError{}
@@ -302,8 +302,29 @@ func (user *User) startupTryConnect(retryCount int) {
 		} else {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 		}
-	} else {
-		user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+	}
+	if statusChan != nil {
+		go func() {
+			for {
+				connectionStatus, ok := <-statusChan
+				if !ok {
+					user.log.Debug().Msg("connectionStatus channel closed")
+					return
+				}
+				err := connectionStatus.Err
+				switch connectionStatus.Event {
+				case signalmeow.SignalConnectionEventConnected:
+					user.log.Debug().Msg("Sending Connected BridgeState")
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+				case signalmeow.SignalConnectionEventDisconnected:
+					user.log.Debug().Msg("Sending TransientDisconnect BridgeState")
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Message: err.Error()})
+				case signalmeow.SignalConnectionEventError:
+					user.log.Debug().Msg("Sending UnknownError BridgeState")
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+				}
+			}
+		}()
 	}
 }
 
@@ -339,12 +360,12 @@ func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
 	return provChan, nil
 }
 
-func (user *User) Connect() error {
+func (user *User) Connect() (chan signalmeow.SignalConnectionStatus, error) {
 	user.Lock()
 	defer user.Unlock()
 
 	if user.SignalID == "" {
-		return ErrNotLoggedIn
+		return nil, ErrNotLoggedIn
 	}
 
 	user.log.Debug().Msg("(stub) Connecting to Signal")
@@ -352,20 +373,18 @@ func (user *User) Connect() error {
 	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
 	if err != nil {
 		user.log.Err(err).Msg("store.DeviceByAci error")
-		return err
+		return nil, err
 	}
 	if device == nil {
 		user.log.Err(ErrNotLoggedIn).Msgf("no device found for aci %s", user.SignalID)
-		return ErrNotLoggedIn
+		return nil, ErrNotLoggedIn
 	}
 
 	user.SignalDevice = device
 	device.Connection.IncomingSignalMessageHandler = user.incomingMessageHandler
 
 	ctx := context.Background()
-	connectErr := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
-
-	return connectErr
+	return signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
 }
 
 func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {

@@ -2,6 +2,7 @@ package signalmeow
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -43,9 +44,9 @@ type DeviceConnection struct {
 	IncomingSignalMessageHandler func(IncomingSignalMessage) error
 }
 
-func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData, requestHandler web.RequestHandlerFunc) error {
+func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData, requestHandler web.RequestHandlerFunc) (chan web.SignalWebsocketConnectionStatus, error) {
 	if d.AuthedWS != nil {
-		return nil
+		return nil, errors.New("authed websocket already connected")
 	}
 	username, password := data.BasicAuthCreds()
 	username = url.QueryEscape(username)
@@ -54,16 +55,17 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 		"?login=" + username +
 		"&password=" + password
 	authedWS := web.NewSignalWebsocket(ctx, "authed", path, &username, &password)
-	authedWS.Connect(ctx, &requestHandler)
+	statusChan := authedWS.Connect(ctx, &requestHandler)
 	d.AuthedWS = authedWS
-	return nil
+	return statusChan, nil
 }
-func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceData) error {
+func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceData) (chan web.SignalWebsocketConnectionStatus, error) {
 	if d.UnauthedWS != nil {
-		return nil
+		return nil, errors.New("unauthed websocket already connected")
 	}
 	unauthedWS := web.NewSignalWebsocket(ctx, "unauthed", web.WebsocketPath, nil, nil)
-	unauthedWS.Connect(ctx, nil)
+	statusChan := unauthedWS.Connect(ctx, nil)
 	d.UnauthedWS = unauthedWS
-	return nil
+
+	return statusChan, nil
 }

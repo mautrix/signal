@@ -21,11 +21,12 @@ type SimpleResponse struct {
 type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage) (*SimpleResponse, error)
 
 type SignalWebsocket struct {
-	ws          *websocket.Conn
-	name        string // Purely for logging
-	path        string
-	basicAuth   *string
-	sendChannel chan *SignalWebsocketSendMessage
+	ws            *websocket.Conn
+	name          string // Purely for logging
+	path          string
+	basicAuth     *string
+	sendChannel   chan SignalWebsocketSendMessage
+	statusChannel chan SignalWebsocketConnectionStatus
 }
 
 func NewSignalWebsocket(ctx context.Context, name string, path string, username *string, password *string) *SignalWebsocket {
@@ -35,16 +36,26 @@ func NewSignalWebsocket(ctx context.Context, name string, path string, username 
 		basicAuth = &b
 	}
 	return &SignalWebsocket{
-		name:        name,
-		path:        path,
-		basicAuth:   basicAuth,
-		sendChannel: make(chan *SignalWebsocketSendMessage),
+		name:          name,
+		path:          path,
+		basicAuth:     basicAuth,
+		sendChannel:   make(chan SignalWebsocketSendMessage),
+		statusChannel: make(chan SignalWebsocketConnectionStatus),
 	}
 }
 
-type SignalWebsocketConnectError struct {
-	Err    error
-	Status int
+type SignalWebsocketConnectionEvent int
+
+const (
+	SignalWebsocketConnectionEventConnecting SignalWebsocketConnectionEvent = iota // Implicit to catch default value (0), doesn't get sent
+	SignalWebsocketConnectionEventConnected
+	SignalWebsocketConnectionEventDisconnected
+	SignalWebsocketConnectionEventError
+)
+
+type SignalWebsocketConnectionStatus struct {
+	Event SignalWebsocketConnectionEvent
+	Err   error
 }
 
 func (s *SignalWebsocket) Close() error {
@@ -54,29 +65,19 @@ func (s *SignalWebsocket) Close() error {
 	return nil
 }
 
-// TODO: expose request and error channels instead of using
-// a callback function and just printing errors
-func (s *SignalWebsocket) Connect(
-	ctx context.Context,
-	//incomingRequestChan chan *signalpb.WebSocketRequestMessage,
-	//errorChan chan *SignalWebsocketConnectError,
-	requestHandler *RequestHandlerFunc,
-) {
+func (s *SignalWebsocket) Connect(ctx context.Context, requestHandler *RequestHandlerFunc) chan SignalWebsocketConnectionStatus {
 	go s.connectLoop(ctx, requestHandler)
+	return s.statusChannel
 }
 
 func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
 	requestHandler *RequestHandlerFunc,
-	//incomingRequestChan chan *signalpb.WebSocketRequestMessage,
-	//errorChan chan *SignalWebsocketConnectError,
 ) {
-	// TODO: pass in incomingRequestChan and errorChan instead of creating them here
 	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 10000)
-	errorChan := make(chan *SignalWebsocketConnectError)
-	s.sendChannel = make(chan *SignalWebsocketSendMessage)
+	s.sendChannel = make(chan SignalWebsocketSendMessage)
 	defer close(incomingRequestChan)
-	defer close(errorChan)
+	defer close(s.statusChannel)
 	defer close(s.sendChannel)
 
 	const backoffIncrement = 5 * time.Second
@@ -89,23 +90,8 @@ func (s *SignalWebsocket) connectLoop(
 	backoff := backoffIncrement
 	retrying := false
 
-	// First set up temporary error sink and request handler loop
-	// These exist outside of the connection loop because we want to
-	// maintain them across reconnections
-
-	// Sink errorChan so it doesn't block things
-	go func() {
-		for websocketError := range errorChan {
-			if ctx.Err() != nil {
-				zlog.Err(ctx.Err()).Msg("websocket ctx error, stopping error loop")
-				return
-			}
-			zlog.Err(websocketError.Err).Msgf("Received error from errorChan, status: %v", websocketError.Status)
-		}
-		zlog.Info().Msg("errorChan has been closed")
-	}()
-
-	// Request handling loop
+	// First set up request handler loop. This exists outside of the
+	// connection loops because we want to maintain it across reconnections
 	go func() {
 		for {
 			select {
@@ -114,20 +100,12 @@ func (s *SignalWebsocket) connectLoop(
 				return
 			case request, ok := <-incomingRequestChan:
 				if !ok {
-					zlog.Fatal().Msg("incomingRequestChan closed, stopping request loop")
+					zlog.Fatal().Msg("incomingRequestChan closed (this should never happen)")
 				}
 				if request == nil {
-					errorChan <- &SignalWebsocketConnectError{
-						Err:    errors.New("Received nil request"),
-						Status: 0,
-					}
 					zlog.Fatal().Msg("Received nil request")
 				}
 				if requestHandler == nil {
-					errorChan <- &SignalWebsocketConnectError{
-						Err:    errors.New("Received request but no handler"),
-						Status: 0,
-					}
 					zlog.Fatal().Msg("Received request but no handler")
 				}
 
@@ -135,15 +113,11 @@ func (s *SignalWebsocket) connectLoop(
 				response, err := (*requestHandler)(ctx, request)
 
 				if err != nil {
-					errorChan <- &SignalWebsocketConnectError{
-						Err:    errors.Wrap(err, "Error handling request"),
-						Status: 0,
-					}
 					zlog.Err(err).Msg("Error handling request")
 					continue
 				}
 				if response != nil {
-					s.sendChannel <- &SignalWebsocketSendMessage{
+					s.sendChannel <- SignalWebsocketSendMessage{
 						RequestMessage:  request,
 						ResponseMessage: response,
 					}
@@ -167,17 +141,25 @@ func (s *SignalWebsocket) connectLoop(
 		ws, resp, err := OpenWebsocket(ctx, s.path)
 		if err != nil || resp.StatusCode != 101 {
 			if err != nil {
-				errorChan <- &SignalWebsocketConnectError{
-					Err:    errors.Wrap(err, "Error opening websocket"),
-					Status: 0,
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventDisconnected,
+					Err:   errors.Wrap(err, "Error opening websocket"),
 				}
 			} else if resp.StatusCode != 101 {
-				errorChan <- &SignalWebsocketConnectError{
-					Err:    errors.Errorf("Bad status opening websocket: %v", resp.Status),
-					Status: resp.StatusCode,
-				}
-				if resp.StatusCode < 500 {
-					panic("Bad status opening websocket - status: " + resp.Status)
+				if resp.StatusCode >= 500 {
+					// We can try again if it's a 5xx
+					s.statusChannel <- SignalWebsocketConnectionStatus{
+						Event: SignalWebsocketConnectionEventDisconnected,
+						Err:   errors.Errorf("Bad status opening websocket: %v", resp.Status),
+					}
+				} else {
+					// Something is very wrong
+					s.statusChannel <- SignalWebsocketConnectionStatus{
+						Event: SignalWebsocketConnectionEventError,
+						Err:   errors.Errorf("Bad status opening websocket: %v", resp.Status),
+					}
+					ctx.Done()
+					return
 				}
 			}
 			retrying = true
@@ -185,6 +167,9 @@ func (s *SignalWebsocket) connectLoop(
 		}
 
 		// Succssfully connected
+		s.statusChannel <- SignalWebsocketConnectionStatus{
+			Event: SignalWebsocketConnectionEventConnected,
+		}
 		s.ws = ws
 		retrying = false
 		backoff = backoffIncrement
@@ -195,20 +180,14 @@ func (s *SignalWebsocket) connectLoop(
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
 			err := readLoop(loopCtx, ws, s.name, incomingRequestChan, &responseChannels)
-			if err != nil {
-				zlog.Err(err).Msgf("Error in readLoop (%s)", s.name)
-			}
-			loopCancel(err)
+			loopCancel(errors.Wrap(err, "Error in readLoop"))
 			zlog.Info().Msgf("readLoop exited (%s)", s.name)
 		}()
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
 			err := writeLoop(loopCtx, ws, s.name, s.sendChannel, &responseChannels)
-			if err != nil {
-				zlog.Err(err).Msgf("Error in writeLoop (%s)", s.name)
-			}
-			loopCancel(err)
+			loopCancel(errors.Wrap(err, "Error in writeLoop"))
 			zlog.Info().Msgf("writeLoop exited (%s)", s.name)
 		}()
 
@@ -222,8 +201,7 @@ func (s *SignalWebsocket) connectLoop(
 				case <-ticker.C:
 					err := ws.Ping(loopCtx)
 					if err != nil {
-						zlog.Err(err).Msgf("Error sending keepalive (%s)", s.name)
-						loopCancel(err)
+						loopCancel(errors.Wrap(err, "Error sending keepalive"))
 						return
 					}
 					zlog.Info().Msgf("Sent keepalive (%s)", s.name)
@@ -233,7 +211,7 @@ func (s *SignalWebsocket) connectLoop(
 			}
 		}()
 
-		// Wait for receive or write loop to exit (which means there was an error)
+		// Wait for read or write or ping loop to exit (which means there was an error)
 		zlog.Info().Msgf("Waiting for read or write loop to exit (%s)", s.name)
 		select {
 		case <-loopCtx.Done():
@@ -242,10 +220,10 @@ func (s *SignalWebsocket) connectLoop(
 				err := context.Cause(loopCtx)
 				if err != nil {
 					zlog.Err(err).Msg("loopCtx error")
-					errorChan <- &SignalWebsocketConnectError{
-						Err:    err,
-						Status: 0,
-					}
+				}
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventDisconnected,
+					Err:   err,
 				}
 			}
 		}
@@ -324,19 +302,19 @@ func writeLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	name string,
-	sendChannel chan *SignalWebsocketSendMessage,
+	sendChannel chan SignalWebsocketSendMessage,
 	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
 ) error {
 	for i := uint64(1); ; i++ {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			if ctx.Err() != nil && ctx.Err() != context.Canceled {
+				return ctx.Err()
+			}
+			return nil
 		case request, ok := <-sendChannel:
 			if !ok {
 				return errors.New("Send channel closed")
-			}
-			if request == nil {
-				return errors.New("Received nil request")
 			}
 			if request.RequestMessage != nil && request.ResponseChannel != nil {
 				msgType := signalpb.WebSocketMessage_REQUEST
@@ -382,7 +360,7 @@ func (s *SignalWebsocket) SendRequest(
 	if s.sendChannel == nil {
 		return nil, errors.New("Send channel not initialized")
 	}
-	s.sendChannel <- &SignalWebsocketSendMessage{
+	s.sendChannel <- SignalWebsocketSendMessage{
 		RequestMessage:  request,
 		ResponseChannel: responseChannel,
 	}

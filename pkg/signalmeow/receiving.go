@@ -15,17 +15,83 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-func StartReceiveLoops(ctx context.Context, d *Device) error {
+type SignalConnectionEvent int
+
+const (
+	SignalConnectionEventConnected SignalConnectionEvent = iota
+	SignalConnectionEventDisconnected
+	SignalConnectionEventError
+)
+
+type SignalConnectionStatus struct {
+	Event SignalConnectionEvent
+	Err   error
+}
+
+func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionStatus, error) {
 	handler := incomingRequestHandlerWithDevice(d)
-	err := d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
+	authChan, err := d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	err = d.Connection.ConnectUnauthedWS(ctx, d.Data)
+	zlog.Info().Msg("Authed websocket connecting")
+	unauthChan, err := d.Connection.ConnectUnauthedWS(ctx, d.Data)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	zlog.Info().Msg("Unauthed websocket connecting")
+	statusChan := make(chan SignalConnectionStatus)
+	go func() {
+		defer close(statusChan)
+		var currentStatus, lastAuthStatus, lastUnauthStatus web.SignalWebsocketConnectionStatus
+		for {
+			select {
+			case <-ctx.Done():
+				zlog.Info().Msg("Context done, exiting websocket status loop")
+				return
+			case status := <-authChan:
+				lastAuthStatus = status
+				currentStatus = status
+
+				if status.Event == web.SignalWebsocketConnectionEventConnected {
+					zlog.Info().Msg("Authed websocket connected")
+				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
+					zlog.Err(status.Err).Msg("Authed websocket disconnected")
+				} else if status.Event == web.SignalWebsocketConnectionEventError {
+					zlog.Err(status.Err).Msg("Authed websocket error")
+				}
+			case status := <-unauthChan:
+				lastUnauthStatus = status
+				currentStatus = status
+
+				if status.Event == web.SignalWebsocketConnectionEventConnected {
+					zlog.Info().Msg("Unauthed websocket connected")
+				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
+					zlog.Err(status.Err).Msg("Unauthed websocket disconnected")
+				} else if status.Event == web.SignalWebsocketConnectionEventError {
+					zlog.Err(status.Err).Msg("Unauthed websocket error")
+				}
+			}
+
+			if lastAuthStatus.Event == web.SignalWebsocketConnectionEventConnected && lastUnauthStatus.Event == web.SignalWebsocketConnectionEventConnected {
+				statusChan <- SignalConnectionStatus{
+					Event: SignalConnectionEventConnected,
+				}
+			} else if currentStatus.Event == web.SignalWebsocketConnectionEventDisconnected {
+				statusChan <- SignalConnectionStatus{
+					Event: SignalConnectionEventDisconnected,
+					Err:   currentStatus.Err,
+				}
+			} else if currentStatus.Event == web.SignalWebsocketConnectionEventError {
+				statusChan <- SignalConnectionStatus{
+					Event: SignalConnectionEventError,
+					Err:   currentStatus.Err,
+				}
+			}
+		}
+	}()
+
+	return statusChan, nil
 }
 
 // Returns a RequestHandlerFunc that can be used to handle incoming requests, with a device injected via closure.
