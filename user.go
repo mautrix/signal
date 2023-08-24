@@ -41,8 +41,6 @@ type User struct {
 
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
-	wasDisconnected bool
-	wasLoggedOut    bool
 }
 
 var _ bridge.User = (*User)(nil)
@@ -286,10 +284,11 @@ func (br *SignalBridge) getAllLoggedInUsers() []*User {
 
 func (user *User) startupTryConnect(retryCount int) {
 	user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
+
 	statusChan, err := user.Connect()
+
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
-		//closeErr := &websocket.CloseError{}
 		if errors.Is(err, ErrNotLoggedIn) {
 			user.log.Warn().Msg("Not logged in, skipping startup retry")
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut})
@@ -303,29 +302,52 @@ func (user *User) startupTryConnect(retryCount int) {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 		}
 	}
-	if statusChan != nil {
-		go func() {
-			for {
-				connectionStatus, ok := <-statusChan
-				if !ok {
-					user.log.Debug().Msg("connectionStatus channel closed")
-					return
-				}
-				err := connectionStatus.Err
-				switch connectionStatus.Event {
-				case signalmeow.SignalConnectionEventConnected:
-					user.log.Debug().Msg("Sending Connected BridgeState")
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
-				case signalmeow.SignalConnectionEventDisconnected:
-					user.log.Debug().Msg("Sending TransientDisconnect BridgeState")
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Message: err.Error()})
-				case signalmeow.SignalConnectionEventError:
-					user.log.Debug().Msg("Sending UnknownError BridgeState")
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
-				}
-			}
-		}()
+
+	if statusChan == nil {
+		user.log.Error().Msg("statusChan is nil after Connect")
+		return
 	}
+	// After Connect returns, all bridge states are triggered by events on the statusChan
+	go func() {
+		for {
+			connectionStatus, ok := <-statusChan
+			if !ok {
+				user.log.Debug().Msg("connectionStatus channel closed")
+				return
+			}
+			err := connectionStatus.Err
+			switch connectionStatus.Event {
+			case signalmeow.SignalConnectionEventConnected:
+				user.log.Debug().Msg("Sending Connected BridgeState")
+				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+
+			case signalmeow.SignalConnectionEventDisconnected:
+				user.log.Debug().Msg("Sending TransientDisconnect BridgeState")
+				if err == nil {
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
+				} else {
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+				}
+
+			case signalmeow.SignalConnectionEventLoggedOut:
+				user.log.Debug().Msg("Sending LoggedOut BridgeState")
+				if err == nil {
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut})
+				} else {
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut, Message: err.Error()})
+				}
+				// TODO: actually successfully logout (delete) user in mautrix land
+				//err := user.Logout()
+				//if err != nil {
+				//user.log.Err(err).Msg("Error disconnecting")
+				//}
+
+			case signalmeow.SignalConnectionEventError:
+				user.log.Debug().Msg("Sending UnknownError BridgeState")
+				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+			}
+		}
+	}()
 }
 
 func (br *SignalBridge) StartUsers() {
@@ -368,12 +390,12 @@ func (user *User) Connect() (chan signalmeow.SignalConnectionStatus, error) {
 		return nil, ErrNotLoggedIn
 	}
 
-	user.log.Debug().Msg("(stub) Connecting to Signal")
+	user.log.Debug().Msg("Connecting to Signal")
 
 	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
 	if err != nil {
-		user.log.Err(err).Msg("store.DeviceByAci error")
-		return nil, err
+		user.log.Err(ErrNotLoggedIn).Msgf("problem looking up aci %s", user.SignalID)
+		return nil, ErrNotLoggedIn
 	}
 	if device == nil {
 		user.log.Err(ErrNotLoggedIn).Msgf("no device found for aci %s", user.SignalID)
@@ -412,7 +434,14 @@ func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Pupp
 }
 
 func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal *Portal) error {
-	// Check if ChatID is a groupID (not a UUID), otherwise do nothing
+	// Ensure our puppet is joined to the room
+	err := portal.MainIntent().EnsureJoined(portal.MXID)
+	if err != nil {
+		user.log.Err(err).Msg("error ensuring joined")
+		return err
+	}
+
+	// Check if ChatID is a groupID (not a UUID), otherwise do nothing else
 	// TODO: do better than passing around strings and seeing if they are UUIDs or not
 	if _, err := uuid.Parse(portal.ChatID); err == nil {
 		return nil
@@ -542,21 +571,32 @@ func (user *User) GetPortalByChatID(signalID string) *Portal {
 	return user.bridge.GetPortalByChatID(pk)
 }
 
+func (user *User) disconnectNoLock() (*signalmeow.Device, error) {
+	if user.SignalDevice == nil {
+		return nil, ErrNotConnected
+	}
+
+	disconnectedDevice := user.SignalDevice
+	err := signalmeow.StopReceiveLoops(user.SignalDevice)
+	user.SignalDevice = nil
+	return disconnectedDevice, err
+}
 func (user *User) Disconnect() error {
 	user.Lock()
 	defer user.Unlock()
-	if user.SignalDevice == nil {
-		return ErrNotConnected
-	}
-
 	user.log.Info().Msg("Disconnecting session manually")
-	// TODO: don't reach in so far to disconnect user
-	err := user.SignalDevice.Connection.AuthedWS.Close()
-	if err != nil {
-		return err
-	}
-	user.SignalDevice = nil
-	return nil
+	_, err := user.disconnectNoLock()
+	return err
+}
+
+func (user *User) Logout() error {
+	user.Lock()
+	defer user.Unlock()
+	user.log.Info().Msg("Logging out of session")
+	loggedOutDevice, err := user.disconnectNoLock()
+	user.bridge.MeowStore.DeleteDevice(&loggedOutDevice.Data)
+	user.bridge.GetPuppetByCustomMXID(user.MXID).clearCustomMXID()
+	return err
 }
 
 // ** Misc Methods **

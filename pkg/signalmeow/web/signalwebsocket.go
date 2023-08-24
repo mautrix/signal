@@ -50,6 +50,7 @@ const (
 	SignalWebsocketConnectionEventConnecting SignalWebsocketConnectionEvent = iota // Implicit to catch default value (0), doesn't get sent
 	SignalWebsocketConnectionEventConnected
 	SignalWebsocketConnectionEventDisconnected
+	SignalWebsocketConnectionEventLoggedOut
 	SignalWebsocketConnectionEventError
 )
 
@@ -59,7 +60,12 @@ type SignalWebsocketConnectionStatus struct {
 }
 
 func (s *SignalWebsocket) Close() error {
-	if s.ws != nil {
+	defer func() {
+		if s != nil {
+			s.ws = nil
+		}
+	}()
+	if s != nil && s.ws != nil {
 		return s.ws.Close(websocket.StatusNormalClosure, "")
 	}
 	return nil
@@ -87,9 +93,6 @@ func (s *SignalWebsocket) connectLoop(
 		panic("Already connected")
 	}
 
-	backoff := backoffIncrement
-	retrying := false
-
 	// First set up request handler loop. This exists outside of the
 	// connection loops because we want to maintain it across reconnections
 	go func() {
@@ -100,7 +103,9 @@ func (s *SignalWebsocket) connectLoop(
 				return
 			case request, ok := <-incomingRequestChan:
 				if !ok {
-					zlog.Fatal().Msg("incomingRequestChan closed (this should never happen)")
+					// Main connection loop must have closed, so we should stop
+					zlog.Info().Msg("incomingRequestChan closed, stopping request loop")
+					return
 				}
 				if request == nil {
 					zlog.Fatal().Msg("Received nil request")
@@ -128,6 +133,8 @@ func (s *SignalWebsocket) connectLoop(
 
 	// Main connection loop - if there's a problem with anything just
 	// kill everything (including the websocket) and build it all up again
+	backoff := backoffIncrement
+	retrying := false
 	for {
 		if retrying {
 			if backoff > maxBackoff {
@@ -137,29 +144,58 @@ func (s *SignalWebsocket) connectLoop(
 			time.Sleep(backoff)
 			backoff += backoffIncrement
 		}
+		if ctx.Err() != nil {
+			zlog.Info().Msg("ctx done, stopping connection loop")
+			return
+		}
 
 		ws, resp, err := OpenWebsocket(ctx, s.path)
-		if err != nil || resp.StatusCode != 101 {
-			if err != nil {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventDisconnected,
-					Err:   errors.Wrap(err, "Error opening websocket"),
-				}
-			} else if resp.StatusCode != 101 {
+		if resp != nil {
+			if resp.StatusCode != 101 {
+				// Server didn't want to open websocket
 				if resp.StatusCode >= 500 {
 					// We can try again if it's a 5xx
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventDisconnected,
-						Err:   errors.Errorf("Bad status opening websocket: %v", resp.Status),
+						Err:   errors.Errorf("5xx opening websocket: %v", resp.Status),
 					}
-				} else {
-					// Something is very wrong
+				} else if resp.StatusCode == 403 {
+					// We are logged out, so we should stop trying to reconnect
+					s.statusChannel <- SignalWebsocketConnectionStatus{
+						Event: SignalWebsocketConnectionEventLoggedOut,
+						Err:   errors.Errorf("403 opening websocket, we are logged out"),
+					}
+					return // NOT RETRYING, KILLING THE CONNECTION LOOP
+				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
+					// Unexpected status code
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventError,
 						Err:   errors.Errorf("Bad status opening websocket: %v", resp.Status),
 					}
-					ctx.Done()
-					return
+					return // NOT RETRYING, KILLING THE CONNECTION LOOP
+				} else {
+					// Something is very wrong
+					s.statusChannel <- SignalWebsocketConnectionStatus{
+						Event: SignalWebsocketConnectionEventError,
+						Err:   errors.Errorf("Unexpected error opening websocket: %v", resp.Status),
+					}
+				}
+				// Retry the connection
+				retrying = true
+				continue
+			}
+		}
+		if err != nil {
+			// Unexpected error opening websocket
+			if backoff < maxBackoff {
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventDisconnected,
+					Err:   errors.Wrap(err, "Hopefully transient error opening websocket"),
+				}
+			} else {
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventError,
+					Err:   errors.Wrap(err, "Continuing error opening websocket"),
 				}
 			}
 			retrying = true
@@ -216,14 +252,14 @@ func (s *SignalWebsocket) connectLoop(
 		select {
 		case <-loopCtx.Done():
 			zlog.Info().Msgf("received loopCtx done (%s)", s.name)
+			s.statusChannel <- SignalWebsocketConnectionStatus{
+				Event: SignalWebsocketConnectionEventDisconnected,
+				Err:   err,
+			}
 			if context.Cause(loopCtx) != nil {
 				err := context.Cause(loopCtx)
 				if err != nil {
 					zlog.Err(err).Msg("loopCtx error")
-				}
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventDisconnected,
-					Err:   err,
 				}
 			}
 		}

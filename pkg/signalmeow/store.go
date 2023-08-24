@@ -198,7 +198,7 @@ func (c *StoreContainer) PutDevice(device *DeviceData) error {
 	return err
 }
 
-// DeleteDevice deletes the given device from this database. This should be called through Device.Delete()
+// DeleteDevice deletes the given device from this database
 func (c *StoreContainer) DeleteDevice(device *DeviceData) error {
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet

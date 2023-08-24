@@ -18,8 +18,10 @@ import (
 type SignalConnectionEvent int
 
 const (
-	SignalConnectionEventConnected SignalConnectionEvent = iota
+	SignalConnectionEventNone SignalConnectionEvent = iota
+	SignalConnectionEventConnected
 	SignalConnectionEventDisconnected
+	SignalConnectionEventLoggedOut
 	SignalConnectionEventError
 )
 
@@ -29,22 +31,33 @@ type SignalConnectionStatus struct {
 }
 
 func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionStatus, error) {
+	ctx, cancel := context.WithCancel(ctx)
 	handler := incomingRequestHandlerWithDevice(d)
 	authChan, err := d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	zlog.Info().Msg("Authed websocket connecting")
 	unauthChan, err := d.Connection.ConnectUnauthedWS(ctx, d.Data)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	zlog.Info().Msg("Unauthed websocket connecting")
-	statusChan := make(chan SignalConnectionStatus)
+	statusChan := make(chan SignalConnectionStatus, 10000)
+
+	// Combine both websocket status channels into a single, more generic "Signal" connection status channel
 	go func() {
 		defer close(statusChan)
+		defer cancel()
 		var currentStatus, lastAuthStatus, lastUnauthStatus web.SignalWebsocketConnectionStatus
+		var lastSentStatus SignalConnectionStatus
 		for {
+			if d == nil {
+				zlog.Info().Msg("Device is nil, exiting websocket status loop")
+				return
+			}
 			select {
 			case <-ctx.Done():
 				zlog.Info().Msg("Context done, exiting websocket status loop")
@@ -57,6 +70,10 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 					zlog.Info().Msg("Authed websocket connected")
 				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
 					zlog.Err(status.Err).Msg("Authed websocket disconnected")
+				} else if status.Event == web.SignalWebsocketConnectionEventLoggedOut {
+					zlog.Err(status.Err).Msg("Authed websocket logged out")
+					// TODO: Also make sure unauthed websocket is disconnected
+					//StopReceiveLoops(d)
 				} else if status.Event == web.SignalWebsocketConnectionEventError {
 					zlog.Err(status.Err).Msg("Authed websocket error")
 				}
@@ -68,30 +85,58 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 					zlog.Info().Msg("Unauthed websocket connected")
 				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
 					zlog.Err(status.Err).Msg("Unauthed websocket disconnected")
+				} else if status.Event == web.SignalWebsocketConnectionEventLoggedOut {
+					zlog.Err(status.Err).Msg("Unauthed websocket logged out ** THIS SHOULD BE IMPOSSIBLE **")
 				} else if status.Event == web.SignalWebsocketConnectionEventError {
 					zlog.Err(status.Err).Msg("Unauthed websocket error")
 				}
 			}
 
+			var statusToSend SignalConnectionStatus
 			if lastAuthStatus.Event == web.SignalWebsocketConnectionEventConnected && lastUnauthStatus.Event == web.SignalWebsocketConnectionEventConnected {
-				statusChan <- SignalConnectionStatus{
+				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventConnected,
 				}
 			} else if currentStatus.Event == web.SignalWebsocketConnectionEventDisconnected {
-				statusChan <- SignalConnectionStatus{
+				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventDisconnected,
 					Err:   currentStatus.Err,
 				}
+			} else if currentStatus.Event == web.SignalWebsocketConnectionEventLoggedOut {
+				statusToSend = SignalConnectionStatus{
+					Event: SignalConnectionEventLoggedOut,
+					Err:   currentStatus.Err,
+				}
 			} else if currentStatus.Event == web.SignalWebsocketConnectionEventError {
-				statusChan <- SignalConnectionStatus{
+				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventError,
 					Err:   currentStatus.Err,
 				}
+			}
+			if statusToSend.Event != 0 && statusToSend != lastSentStatus {
+				statusChan <- statusToSend
+				lastSentStatus = statusToSend
 			}
 		}
 	}()
 
 	return statusChan, nil
+}
+
+func StopReceiveLoops(d *Device) error {
+	defer func() {
+		d.Connection.AuthedWS = nil
+		d.Connection.UnauthedWS = nil
+	}()
+	authErr := d.Connection.AuthedWS.Close()
+	unauthErr := d.Connection.UnauthedWS.Close()
+	if authErr != nil {
+		return authErr
+	}
+	if unauthErr != nil {
+		return unauthErr
+	}
+	return nil
 }
 
 // Returns a RequestHandlerFunc that can be used to handle incoming requests, with a device injected via closure.

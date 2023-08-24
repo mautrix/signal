@@ -50,10 +50,13 @@ func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
 }
 
 func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
-	if puppet.customIntent == nil || portal.Key().ChatID == puppet.SignalID {
-		return puppet.DefaultIntent()
+	if puppet != nil {
+		if puppet.customIntent == nil || portal.Key().ChatID == puppet.SignalID {
+			return puppet.DefaultIntent()
+		}
+		return puppet.customIntent
 	}
-	return puppet.customIntent
+	return nil
 }
 
 // ** bridge.GhostWithProfile methods **
