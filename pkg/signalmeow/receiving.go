@@ -2,12 +2,19 @@ package signalmeow
 
 import (
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -452,26 +459,25 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 	return handler
 }
 
-//	func printStructFields(message protoreflect.Message, prefix string, builder *strings.Builder) {
-//		message.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-//			fieldName := string(fd.Name())
-//			builder.WriteString(fmt.Sprintf("%s%s (%s)\n", prefix, fieldName, fd.Kind().String()))
-//			if fd.Kind() == protoreflect.MessageKind && v.Message().IsValid() {
-//				printStructFields(v.Message(), prefix+"  ", builder)
-//			}
-//			return true
-//		})
-//	}
 func printStructFields(message protoreflect.Message, parent string, builder *strings.Builder) {
 	message.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		fieldName := string(fd.Name())
 		currentField := parent + fieldName
-		builder.WriteString(fmt.Sprintf("%s (%s) ", currentField, fd.Kind().String()))
-		if fd.Kind() == protoreflect.MessageKind && v.Message().IsValid() {
+		builder.WriteString(fmt.Sprintf("%s (%s), ", currentField, fd.Kind().String()))
+		//builder.WriteString(fmt.Sprintf("%s (%s): %s, ", currentField, fd.Kind().String(), v.String())) // DEBUG: printing value, don't commit
+		if fd.Kind() == protoreflect.MessageKind && !fd.IsList() && v.Message().IsValid() {
 			builder.WriteString("{ ")
-			//printStructFields(v.Message(), currentField+".", builder)
 			printStructFields(v.Message(), "", builder)
 			builder.WriteString("} ")
+		} else if fd.Kind() == protoreflect.MessageKind && fd.IsList() {
+			builder.WriteString("[ ")
+			for i := 0; i < v.List().Len(); i++ {
+				v := v.List().Get(i)
+				builder.WriteString("{ ")
+				printStructFields(v.Message(), "", builder)
+				builder.WriteString("} ")
+			}
+			builder.WriteString("] ")
 		}
 		return true
 	})
@@ -506,30 +512,76 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		}
 	}
 
-	if device.Connection.IncomingSignalMessageHandler != nil && dataMessage.Body != nil {
-		var groupID *GroupID
-		if dataMessage.GetGroupV2() != nil {
-			groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
+	// If it's a group message, get the ID and invalidate cache if necessary
+	var groupID *GroupID
+	if dataMessage.GetGroupV2() != nil {
+		groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
 
-			// TODO: should we be using base64 masterkey as an ID????!?
-			groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
-			groupID = &groupIDValue
+		// TODO: should we be using base64 masterkey as an ID????!?
+		groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
+		groupID = &groupIDValue
 
-			if dataMessage.GetGroupV2().GroupChange != nil {
-				// TODO: don't parse the change	for now, just invalidate our cache
-				zlog.Debug().Msgf("Invalidating group %v due to change: %v", groupIDValue, dataMessage.GetGroupV2().GroupChange)
+		if dataMessage.GetGroupV2().GroupChange != nil {
+			// TODO: don't parse the change	for now, just invalidate our cache
+			zlog.Debug().Msgf("Invalidating group %v due to change: %v", groupIDValue, dataMessage.GetGroupV2().GroupChange)
+			InvalidateGroupCache(device, groupIDValue)
+		} else if dataMessage.GetGroupV2().GetRevision() > 0 {
+			// Compare revision, and if it's newer, invalidate our cache
+			ourGroup, err := RetrieveGroupByID(ctx, device, groupIDValue)
+			if err != nil {
+				zlog.Err(err).Msg("RetrieveGroupByID error")
+			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
+				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", groupIDValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
 				InvalidateGroupCache(device, groupIDValue)
-			} else if dataMessage.GetGroupV2().GetRevision() > 0 {
-				// Compare revision, and if it's newer, invalidate our cache
-				ourGroup, err := RetrieveGroupByID(ctx, device, groupIDValue)
-				if err != nil {
-					zlog.Err(err).Msg("RetrieveGroupByID error")
-				} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
-					zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", groupIDValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
-					InvalidateGroupCache(device, groupIDValue)
-				}
 			}
 		}
+	}
+
+	var incomingMessages []IncomingSignalMessage
+
+	// If there's attachements, handle them (one at a time for now)
+	if dataMessage.Attachments != nil {
+		for _, attachmentPointer := range dataMessage.Attachments {
+			bytes, err := handleSingleAttachment(attachmentPointer)
+			if err != nil {
+				zlog.Err(err).Msg("handleSingleAttachment error")
+				continue
+			}
+			// TODO: right now this will be one message per image, each with the same caption
+			if strings.HasPrefix(attachmentPointer.GetContentType(), "image") {
+				incomingMessage := IncomingSignalMessageImage{
+					IncomingSignalMessageBase: IncomingSignalMessageBase{
+						SenderUUID:    senderUUID,
+						RecipientUUID: recipientUUID,
+						GroupID:       groupID,
+					},
+					Timestamp:   dataMessage.GetTimestamp(),
+					Image:       bytes,
+					Caption:     dataMessage.GetBody(),
+					Filename:    attachmentPointer.GetFileName(),
+					ContentType: attachmentPointer.GetContentType(),
+				}
+				incomingMessages = append(incomingMessages, incomingMessage)
+			} else {
+				// Unhandled attachment
+				zlog.Debug().Msgf("Unhandled attachment: %v", attachmentPointer)
+				incomingMessage := IncomingSignalMessageUnhandled{
+					IncomingSignalMessageBase: IncomingSignalMessageBase{
+						SenderUUID:    senderUUID,
+						RecipientUUID: recipientUUID,
+						GroupID:       groupID,
+					},
+					Timestamp: dataMessage.GetTimestamp(),
+					Type:      "attachment",
+					Notice:    fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
+				}
+				incomingMessages = append(incomingMessages, incomingMessage)
+			}
+		}
+	}
+
+	// If there's a body but no attachments, pass along as a text message
+	if dataMessage.Body != nil && dataMessage.Attachments == nil {
 		incomingMessage := IncomingSignalMessageText{
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
@@ -539,8 +591,13 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			Timestamp: dataMessage.GetTimestamp(),
 			Content:   dataMessage.GetBody(),
 		}
+		incomingMessages = append(incomingMessages, incomingMessage)
+	}
 
-		device.Connection.IncomingSignalMessageHandler(incomingMessage)
+	if device.Connection.IncomingSignalMessageHandler != nil {
+		for _, incomingMessage := range incomingMessages {
+			device.Connection.IncomingSignalMessageHandler(incomingMessage)
+		}
 	}
 	return nil
 }
@@ -670,4 +727,81 @@ func stripPadding(contents *[]byte) error {
 		}
 	}
 	return fmt.Errorf("Invalid ISO7816 padding, len(contents): %v", len(*contents))
+}
+
+// *** Attachments! ***
+
+// Attachment represents an attachment received from a peer
+type Attachment struct {
+	R        io.Reader
+	MimeType string
+	FileName string
+}
+
+func getAttachmentPath(id uint64, key string, cdnNumber uint32) (string, error) {
+	const (
+		attachmentKeyDownloadPath = "/attachments/%s"
+		attachmentIDDownloadPath  = "/attachments/%d"
+	)
+	if id != 0 {
+		return fmt.Sprintf(attachmentIDDownloadPath, id), nil
+	}
+	return fmt.Sprintf(attachmentKeyDownloadPath, key), nil
+}
+
+// ErrInvalidMACForAttachment signals that the downloaded attachment has an invalid MAC.
+var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
+
+func handleSingleAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
+	path, err := getAttachmentPath(a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber())
+	if err != nil {
+		return nil, err
+	}
+	resp, err := web.GetAttachment(path, a.GetCdnNumber(), nil)
+	if err != nil {
+		return nil, err
+	}
+	body := resp.Body
+	defer body.Close()
+
+	b, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+
+	l := len(b) - 32
+	if !verifyMAC(a.Key[32:], b[:l], b[l:]) {
+		return nil, ErrInvalidMACForAttachment
+	}
+
+	// TODO: verify digest?
+	return aesDecrypt(a.Key[:32], b[:l])
+}
+
+func verifyMAC(key, b, mac []byte) bool {
+	m := hmac.New(sha256.New, key)
+	m.Write(b)
+	return hmac.Equal(m.Sum(nil), mac)
+}
+
+func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(ciphertext)%aes.BlockSize != 0 {
+		length := len(ciphertext) % aes.BlockSize
+		log.Debug().Msgf("[textsecure] aesDecrypt ciphertext not multiple of AES blocksize: %v", length)
+		return nil, errors.New("ciphertext not multiple of AES blocksize")
+	}
+
+	iv := ciphertext[:aes.BlockSize]
+	mode := cipher.NewCBCDecrypter(block, iv)
+	mode.CryptBlocks(ciphertext, ciphertext)
+	pad := ciphertext[len(ciphertext)-1]
+	if pad > aes.BlockSize {
+		return nil, fmt.Errorf("pad value (%d) larger than AES blocksize (%d)", pad, aes.BlockSize)
+	}
+	return ciphertext[aes.BlockSize : len(ciphertext)-int(pad)], nil
 }

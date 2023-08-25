@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
+	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 	"maunium.net/go/mautrix/util"
@@ -24,10 +28,9 @@ import (
 )
 
 type portalSignalMessage struct {
-	msg       string
-	timestamp uint64 // Basically a message ID
-	user      *User
-	sender    *Puppet
+	message signalmeow.IncomingSignalMessage
+	user    *User
+	sender  *Puppet
 }
 
 type portalMatrixMessage struct {
@@ -372,35 +375,65 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	}
 }
 
-func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
+func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 	if portal.MXID == "" {
 		portal.log.Debug().Msg("Creating Matrix room from incoming message")
-		if err := portal.CreateMatrixRoom(msg.user, nil); err != nil {
+		if err := portal.CreateMatrixRoom(portalMessage.user, nil); err != nil {
 			portal.log.Error().Err(err).Msg("Failed to create portal room")
 			return
 		} else {
 			portal.log.Info().Msgf("Created matrix room: %s", portal.MXID)
-			ensureGroupPuppetsAreJoinedToPortal(context.Background(), msg.user, portal)
+			ensureGroupPuppetsAreJoinedToPortal(context.Background(), portalMessage.user, portal)
 		}
 	}
 
-	//intent := portal.getMessageIntent(msg.user, msg.sender)
-	intent := msg.sender.IntentFor(portal)
+	//intent := portal.getMessageIntent(portalMessage.user, portalMessage.sender)
+	intent := portalMessage.sender.IntentFor(portal)
 	if intent == nil {
 		portal.log.Error().Msg("Failed to get message intent")
 		return
 	}
 
-	content := &event.MessageEventContent{
-		Body:    msg.msg,
-		MsgType: event.MsgText,
+	var content *event.MessageEventContent
+	var timestamp int64
+	if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeText {
+		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
+		content = &event.MessageEventContent{
+			Body:    msg.Content,
+			MsgType: event.MsgText,
+		}
+		timestamp = int64(msg.Timestamp)
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeImage {
+		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageImage)
+		content = &event.MessageEventContent{
+			Body:    msg.Caption,
+			MsgType: event.MsgImage,
+			Info: &event.FileInfo{
+				MimeType: msg.ContentType,
+				//Size:     msg.Size,
+				//Width:    msg.Width,
+				//Height:   msg.Height,
+			},
+		}
+		timestamp = int64(msg.Timestamp)
+		err := portal.uploadMedia(intent, msg.Image, content)
+		if err != nil {
+			if errors.Is(err, mautrix.MTooLarge) {
+				//return portal.makeMediaBridgeFailureMessage(info, errors.New("homeserver rejected too large file"), converted, nil, "")
+			} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
+				//return portal.makeMediaBridgeFailureMessage(info, errors.New("proxy rejected too large file"), converted, nil, "")
+			} else {
+				//return portal.makeMediaBridgeFailureMessage(info, fmt.Errorf("failed to upload media: %w", err), converted, nil, "")
+			}
+			portal.log.Error().Err(err).Msg("Failed to upload media")
+		}
 	}
 	resp, err := portal.sendMessage(
 		intent,
 		event.EventMessage,
 		content,
 		nil,
-		int64(msg.timestamp),
+		timestamp,
 	)
 	if err != nil {
 		portal.log.Error().Err(err).Msg("Failed to send message")
@@ -415,8 +448,8 @@ func (portal *Portal) handleSignalMessages(msg portalSignalMessage) {
 	dbMessage := portal.bridge.DB.Message.New()
 	dbMessage.MXID = eventID
 	dbMessage.MXRoom = portal.MXID
-	dbMessage.Sender = msg.sender.SignalID
-	dbMessage.Timestamp = time.Unix(int64(msg.timestamp), 0)
+	dbMessage.Sender = portalMessage.sender.SignalID
+	dbMessage.Timestamp = time.Unix(timestamp, 0)
 	dbMessage.SignalChatID = portal.ChatID
 	dbMessage.SignalReceiver = portal.Receiver
 	dbMessage.Insert(nil)
@@ -457,6 +490,67 @@ func (portal *Portal) encrypt(intent *appservice.IntentAPI, content *event.Conte
 		return eventType, fmt.Errorf("failed to encrypt event: %w", err)
 	}
 	return event.EventEncrypted, nil
+}
+
+func (portal *Portal) encryptFileInPlace(data []byte, mimeType string) (string, *event.EncryptedFileInfo) {
+	if !portal.Encrypted {
+		return mimeType, nil
+	}
+
+	file := &event.EncryptedFileInfo{
+		EncryptedFile: *attachment.NewEncryptedFile(),
+		URL:           "",
+	}
+	file.EncryptInPlace(data)
+	return "application/octet-stream", file
+}
+
+func (portal *Portal) uploadMedia(intent *appservice.IntentAPI, data []byte, content *event.MessageEventContent) error {
+	uploadMimeType, file := portal.encryptFileInPlace(data, content.Info.MimeType)
+
+	req := mautrix.ReqUploadMedia{
+		ContentBytes: data,
+		ContentType:  uploadMimeType,
+	}
+	var mxc id.ContentURI
+	if portal.bridge.Config.Homeserver.AsyncMedia {
+		uploaded, err := intent.UploadAsync(req)
+		if err != nil {
+			return err
+		}
+		mxc = uploaded.ContentURI
+	} else {
+		uploaded, err := intent.UploadMedia(req)
+		if err != nil {
+			return err
+		}
+		mxc = uploaded.ContentURI
+	}
+
+	if file != nil {
+		file.URL = mxc.CUString()
+		content.File = file
+	} else {
+		content.URL = mxc.CUString()
+	}
+
+	content.Info.Size = len(data)
+	if content.Info.Width == 0 && content.Info.Height == 0 && strings.HasPrefix(content.Info.MimeType, "image/") {
+		cfg, _, _ := image.DecodeConfig(bytes.NewReader(data))
+		content.Info.Width, content.Info.Height = cfg.Width, cfg.Height
+	}
+
+	// This is a hack for bad clients like Element iOS that require a thumbnail (https://github.com/vector-im/element-ios/issues/4004)
+	if strings.HasPrefix(content.Info.MimeType, "image/") && content.Info.ThumbnailInfo == nil {
+		infoCopy := *content.Info
+		content.Info.ThumbnailInfo = &infoCopy
+		if content.File != nil {
+			content.Info.ThumbnailFile = file
+		} else {
+			content.Info.ThumbnailURL = content.URL
+		}
+	}
+	return nil
 }
 
 func (portal *Portal) sendMessage(intent *appservice.IntentAPI, eventType event.Type, content *event.MessageEventContent, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {

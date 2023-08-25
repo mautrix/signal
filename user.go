@@ -471,89 +471,97 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 }
 
 func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSignalMessage) error {
-	switch incomingMessage.MessageType() {
-	case signalmeow.IncomingSignalMessageTypeText:
-		m := incomingMessage.(signalmeow.IncomingSignalMessageText)
-		var chatID string
-		var senderPuppet *Puppet
+	// Handle things common to all message types
+	m := incomingMessage.Base()
+	var chatID string
+	var senderPuppet *Puppet
 
-		// Get and update the puppet for this message
-		if m.SenderUUID == user.SignalID {
-			// This is a message sent by us on another device
-			user.log.Debug().Msgf("Text message received to %s (group: %v) at %v", m.RecipientUUID, m.GroupID, m.Timestamp)
-			chatID = m.RecipientUUID
-			senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
-			if senderPuppet == nil {
-				err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
-				user.log.Err(err).Msg("error getting puppet")
-				//return err
-			}
-		} else {
-			user.log.Debug().Msgf("Text message received from %s (group: %v) at %v", m.SenderUUID, m.GroupID, m.Timestamp)
-			chatID = m.SenderUUID
-			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
-			if senderPuppet == nil {
-				err := fmt.Errorf("no puppet found for sender: %s", m.SenderUUID)
-				user.log.Err(err).Msg("error getting puppet")
-				//return err
-			}
-			err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
-			if err != nil {
-				user.log.Err(err).Msg("error updating puppet")
-			}
-			if m.GroupID != nil {
-				chatID = string(*m.GroupID)
-			}
+	// Get and update the puppet for this message
+	if m.SenderUUID == user.SignalID {
+		// This is a message sent by us on another device
+		user.log.Debug().Msgf("Message received to %s (group: %v)", m.RecipientUUID, m.GroupID)
+		chatID = m.RecipientUUID
+		senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
+		if senderPuppet == nil {
+			err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
+			user.log.Err(err).Msg("error getting puppet")
+			//return err
 		}
-
-		// Get and update the portal for this message
-		portal := user.GetPortalByChatID(chatID)
-		if portal == nil {
-			err := fmt.Errorf("no portal found for chatID %s", chatID)
-			user.log.Err(err).Msg("error getting portal")
-			return err
+	} else {
+		user.log.Debug().Msgf("Text message received from %s (group: %v)", m.SenderUUID, m.GroupID)
+		chatID = m.SenderUUID
+		senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+		if senderPuppet == nil {
+			err := fmt.Errorf("no puppet found for sender: %s", m.SenderUUID)
+			user.log.Err(err).Msg("error getting puppet")
+			//return err
 		}
-		updatePortal := false
+		err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
+		if err != nil {
+			user.log.Err(err).Msg("error updating puppet")
+		}
 		if m.GroupID != nil {
-			group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
-			if err != nil {
-				user.log.Err(err).Msg("error retrieving group")
-			}
-			if portal.Name != group.Title || portal.Topic != group.Description {
-				portal.Name = group.Title
-				portal.Topic = group.Description
-				updatePortal = true
-			}
+			chatID = string(*m.GroupID)
+		}
+	}
 
-			// ensure everyone is invited to the group
-			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
-		} else {
-			if portal.shouldSetDMRoomMetadata() {
-				portal.Name = senderPuppet.Name
-				updatePortal = true
-			}
+	// Get and update the portal for this message
+	portal := user.GetPortalByChatID(chatID)
+	if portal == nil {
+		err := fmt.Errorf("no portal found for chatID %s", chatID)
+		user.log.Err(err).Msg("error getting portal")
+		return err
+	}
+	updatePortal := false
+	if m.GroupID != nil {
+		group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
+		if err != nil {
+			user.log.Err(err).Msg("error retrieving group")
 		}
-		if updatePortal {
-			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room name")
-			}
-			portal.NameSet = err == nil
-			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room topic")
-			}
-			err = portal.Update()
-			if err != nil {
-				user.log.Err(err).Msg("error updating portal")
-			}
-			portal.UpdateBridgeInfo()
+		if portal.Name != group.Title || portal.Topic != group.Description {
+			portal.Name = group.Title
+			portal.Topic = group.Description
+			updatePortal = true
 		}
+
+		// ensure everyone is invited to the group
+		_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
+	} else {
+		if portal.shouldSetDMRoomMetadata() {
+			portal.Name = senderPuppet.Name
+			updatePortal = true
+		}
+	}
+	if updatePortal {
+		_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+		if err != nil {
+			user.log.Err(err).Msg("error setting room name")
+		}
+		portal.NameSet = err == nil
+		_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+		if err != nil {
+			user.log.Err(err).Msg("error setting room topic")
+		}
+		err = portal.Update()
+		if err != nil {
+			user.log.Err(err).Msg("error updating portal")
+		}
+		portal.UpdateBridgeInfo()
+	}
+
+	switch incomingMessage.MessageType() {
+	case signalmeow.IncomingSignalMessageTypeImage:
+		m := incomingMessage.(signalmeow.IncomingSignalMessageImage)
+		log := user.log.With().Str("filename", m.Filename).Logger()
+		log.Debug().Msgf("Image message received from %s (group: %v) at %v", m.SenderUUID, m.GroupID, m.Timestamp)
+		fallthrough
+
+	case signalmeow.IncomingSignalMessageTypeText:
+		//m := incomingMessage.(signalmeow.IncomingSignalMessageText)
 		portalSignalMessage := portalSignalMessage{
-			user:      user,
-			msg:       m.Content,
-			sender:    senderPuppet,
-			timestamp: m.Timestamp,
+			user:    user,
+			sender:  senderPuppet,
+			message: incomingMessage,
 		}
 		portal.signalMessages <- portalSignalMessage
 	default:
