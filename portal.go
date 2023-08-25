@@ -399,20 +399,22 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 	if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeText {
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
 		content = &event.MessageEventContent{
-			Body:    msg.Content,
 			MsgType: event.MsgText,
+			Body:    msg.Content,
 		}
 		timestamp = int64(msg.Timestamp)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeImage {
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageImage)
 		content = &event.MessageEventContent{
-			Body:    msg.Caption,
-			MsgType: event.MsgImage,
+			MsgType:  event.MsgImage,
+			Body:     msg.Caption,
+			FileName: msg.Filename,
 			Info: &event.FileInfo{
 				MimeType: msg.ContentType,
-				//Size:     msg.Size,
-				//Width:    msg.Width,
-				//Height:   msg.Height,
+				Size:     int(msg.Size),
+				Width:    int(msg.Width),
+				Height:   int(msg.Height),
+				// TODO: bridge blurhash! (needs mautrix-go update)
 			},
 		}
 		timestamp = int64(msg.Timestamp)

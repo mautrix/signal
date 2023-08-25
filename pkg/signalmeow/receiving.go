@@ -555,11 +555,15 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						RecipientUUID: recipientUUID,
 						GroupID:       groupID,
 					},
-					Timestamp:   dataMessage.GetTimestamp(),
 					Image:       bytes,
+					Timestamp:   dataMessage.GetTimestamp(),
 					Caption:     dataMessage.GetBody(),
 					Filename:    attachmentPointer.GetFileName(),
 					ContentType: attachmentPointer.GetContentType(),
+					Size:        uint64(attachmentPointer.GetSize()),
+					Width:       attachmentPointer.GetWidth(),
+					Height:      attachmentPointer.GetHeight(),
+					BlurHash:    attachmentPointer.GetBlurHash(),
 				}
 				incomingMessages = append(incomingMessages, incomingMessage)
 			} else {

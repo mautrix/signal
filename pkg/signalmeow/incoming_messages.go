@@ -68,6 +68,10 @@ type IncomingSignalMessageImage struct {
 	Image       []byte
 	Filename    string
 	ContentType string
+	Size        uint64
+	Width       uint32
+	Height      uint32
+	BlurHash    string
 }
 
 func (IncomingSignalMessageImage) MessageType() IncomingSignalMessageType {
