@@ -488,7 +488,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			//return err
 		}
 	} else {
-		user.log.Debug().Msgf("Text message received from %s (group: %v)", m.SenderUUID, m.GroupID)
+		user.log.Debug().Msgf("Message received from %s (group: %v)", m.SenderUUID, m.GroupID)
 		chatID = m.SenderUUID
 		senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
 		if senderPuppet == nil {
@@ -549,24 +549,13 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		portal.UpdateBridgeInfo()
 	}
 
-	switch incomingMessage.MessageType() {
-	case signalmeow.IncomingSignalMessageTypeImage:
-		m := incomingMessage.(signalmeow.IncomingSignalMessageImage)
-		log := user.log.With().Str("filename", m.Filename).Logger()
-		log.Debug().Msgf("Image message received from %s (group: %v) at %v", m.SenderUUID, m.GroupID, m.Timestamp)
-		fallthrough
-
-	case signalmeow.IncomingSignalMessageTypeText:
-		//m := incomingMessage.(signalmeow.IncomingSignalMessageText)
-		portalSignalMessage := portalSignalMessage{
-			user:    user,
-			sender:  senderPuppet,
-			message: incomingMessage,
-		}
-		portal.signalMessages <- portalSignalMessage
-	default:
-		user.log.Warn().Msgf("Unknown message type received %v", incomingMessage.MessageType())
+	// We've updated puppets and portals, now send the message along to the portal
+	portalSignalMessage := portalSignalMessage{
+		user:    user,
+		sender:  senderPuppet,
+		message: incomingMessage,
 	}
+	portal.signalMessages <- portalSignalMessage
 
 	return nil
 }

@@ -7,6 +7,7 @@ type IncomingSignalMessageBase struct {
 	SenderUUID    string   // Always the UUID of the sender of the message
 	RecipientUUID string   // Usually our UUID, unless this is a message we sent on another device
 	GroupID       *GroupID // Unique identifier for the group chat, or nil for 1:1 chats
+	Timestamp     uint64   // With SenderUUID, treated as a unique identifier for a specific Signal message
 }
 
 type IncomingSignalMessageType int
@@ -15,6 +16,7 @@ const (
 	IncomingSignalMessageTypeUnhandled IncomingSignalMessageType = iota
 	IncomingSignalMessageTypeText
 	IncomingSignalMessageTypeImage
+	IncomingSignalMessageTypeReaction
 	IncomingSignalMessageTypeTyping
 	IncomingSignalMessageTypeReceipt
 )
@@ -28,15 +30,15 @@ type IncomingSignalMessage interface {
 var _ IncomingSignalMessage = IncomingSignalMessageUnhandled{}
 var _ IncomingSignalMessage = IncomingSignalMessageText{}
 var _ IncomingSignalMessage = IncomingSignalMessageImage{}
+var _ IncomingSignalMessage = IncomingSignalMessageReaction{}
 var _ IncomingSignalMessage = IncomingSignalMessageTyping{}
 var _ IncomingSignalMessage = IncomingSignalMessageReceipt{}
 
 // ** IncomingSignalMessageUnhandled **
 type IncomingSignalMessageUnhandled struct {
 	IncomingSignalMessageBase
-	Timestamp uint64
-	Type      string
-	Notice    string
+	Type   string
+	Notice string
 }
 
 func (IncomingSignalMessageUnhandled) MessageType() IncomingSignalMessageType {
@@ -49,8 +51,7 @@ func (i IncomingSignalMessageUnhandled) Base() IncomingSignalMessageBase {
 // ** IncomingSignalMessageText **
 type IncomingSignalMessageText struct {
 	IncomingSignalMessageBase
-	Timestamp uint64
-	Content   string
+	Content string
 }
 
 func (IncomingSignalMessageText) MessageType() IncomingSignalMessageType {
@@ -63,7 +64,6 @@ func (i IncomingSignalMessageText) Base() IncomingSignalMessageBase {
 // ** IncomingSignalMessageImage **
 type IncomingSignalMessageImage struct {
 	IncomingSignalMessageBase
-	Timestamp   uint64
 	Caption     string
 	Image       []byte
 	Filename    string
@@ -81,11 +81,26 @@ func (i IncomingSignalMessageImage) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 
+// ** IncomingSignalMessageReaction **
+type IncomingSignalMessageReaction struct {
+	IncomingSignalMessageBase
+	Emoji                  string
+	Remove                 bool
+	TargetAuthorUUID       string
+	TargetMessageTimestamp uint64
+}
+
+func (IncomingSignalMessageReaction) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeReaction
+}
+func (i IncomingSignalMessageReaction) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
 // ** IncomingSignalMessageTyping **
 type IncomingSignalMessageTyping struct {
 	IncomingSignalMessageBase
-	Timestamp uint64
-	IsTyping  bool
+	IsTyping bool
 }
 
 func (IncomingSignalMessageTyping) MessageType() IncomingSignalMessageType {

@@ -394,89 +394,123 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		return
 	}
 
-	var content *event.MessageEventContent
-	var timestamp int64
+	var eventID id.EventID
+	var redacted bool = false
+	var err error
 	if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeText {
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
-		content = &event.MessageEventContent{
-			MsgType: event.MsgText,
-			Body:    msg.Content,
+		eventID, err = portal.handleSignalTextMessage(msg, intent)
+		if err != nil || eventID == "" {
+			portal.log.Error().Err(err).Msg("Failed to handle text message")
+			return
 		}
-		timestamp = int64(msg.Timestamp)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeImage {
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageImage)
-		content = &event.MessageEventContent{
-			MsgType:  event.MsgImage,
-			Body:     msg.Caption,
-			FileName: msg.Filename,
-			Info: &event.FileInfo{
-				MimeType: msg.ContentType,
-				Size:     int(msg.Size),
-				Width:    int(msg.Width),
-				Height:   int(msg.Height),
-				// TODO: bridge blurhash! (needs mautrix-go update)
-			},
+		eventID, err = portal.handleSignalImageMessage(msg, intent)
+		if err != nil || eventID == "" {
+			portal.log.Error().Err(err).Msg("Failed to handle image message")
+			return
 		}
-		timestamp = int64(msg.Timestamp)
-		err := portal.uploadMedia(intent, msg.Image, content)
-		if err != nil {
-			if errors.Is(err, mautrix.MTooLarge) {
-				//return portal.makeMediaBridgeFailureMessage(info, errors.New("homeserver rejected too large file"), converted, nil, "")
-			} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-				//return portal.makeMediaBridgeFailureMessage(info, errors.New("proxy rejected too large file"), converted, nil, "")
-			} else {
-				//return portal.makeMediaBridgeFailureMessage(info, fmt.Errorf("failed to upload media: %w", err), converted, nil, "")
-			}
-			portal.log.Error().Err(err).Msg("Failed to upload media")
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeReaction {
+		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageReaction)
+		eventID, redacted, err = portal.handleSignalReactionMessage(msg, intent)
+		if err != nil || eventID == "" {
+			portal.log.Error().Err(err).Msg("Failed to handle reaction message")
+			return
 		}
-	}
-	resp, err := portal.sendMessage(
-		intent,
-		event.EventMessage,
-		content,
-		nil,
-		timestamp,
-	)
-	if err != nil {
-		portal.log.Error().Err(err).Msg("Failed to send message")
-		return
-	}
-	eventID := resp.EventID
-	if eventID == "" {
-		portal.log.Error().Err(err).Msg("Failed to send message, no event ID")
+	} else {
+		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
 	}
 
-	dbMessage := portal.bridge.DB.Message.New()
-	dbMessage.MXID = eventID
-	dbMessage.MXRoom = portal.MXID
-	dbMessage.Sender = portalMessage.sender.SignalID
-	dbMessage.Timestamp = time.Unix(timestamp, 0)
-	dbMessage.SignalChatID = portal.ChatID
-	dbMessage.SignalReceiver = portal.Receiver
-	dbMessage.Insert(nil)
+	if !redacted {
+		timestamp := int64(portalMessage.message.Base().Timestamp)
+		dbMessage := portal.bridge.DB.Message.New()
+		dbMessage.MXID = eventID
+		dbMessage.MXRoom = portal.MXID
+		dbMessage.Sender = portalMessage.sender.SignalID
+		dbMessage.Timestamp = time.UnixMilli(timestamp)
+		dbMessage.SignalChatID = portal.ChatID
+		dbMessage.SignalReceiver = portal.Receiver
+		dbMessage.Insert(nil)
+	}
 
 	// TODO: send receipt
 	// TODO: expire if it's an expiring message
+}
 
-	//switch convertedMsg := msg.msg.(type) {
-	//case *discordgo.MessageCreate:
-	//		portal.handleDiscordMessageCreate(msg.user, convertedMsg.Message, msg.thread)
-	//case *discordgo.MessageUpdate:
-	//		portal.handleDiscordMessageUpdate(msg.user, convertedMsg.Message)
-	//case *discordgo.MessageDelete:
-	//		portal.handleDiscordMessageDelete(msg.user, convertedMsg.Message)
-	//case *discordgo.MessageReactionAdd:
-	//		portal.handleDiscordReaction(msg.user, convertedMsg.MessageReaction, true, msg.thread, convertedMsg.Member)
-	//case *discordgo.MessageReactionRemove:
-	//		portal.handleDiscordReaction(msg.user, convertedMsg.MessageReaction, false, msg.thread, nil)
-	//default:
-	//		portal.log.Warnln("unknown message type")
-	//}
+func (portal *Portal) handleSignalTextMessage(msg signalmeow.IncomingSignalMessageText, intent *appservice.IntentAPI) (id.EventID, error) {
+	content := &event.MessageEventContent{
+		MsgType: event.MsgText,
+		Body:    msg.Content,
+	}
+	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
+	return resp.EventID, err
+}
+
+func (portal *Portal) handleSignalImageMessage(msg signalmeow.IncomingSignalMessageImage, intent *appservice.IntentAPI) (id.EventID, error) {
+	content := &event.MessageEventContent{
+		MsgType:  event.MsgImage,
+		Body:     msg.Caption,
+		FileName: msg.Filename,
+		Info: &event.FileInfo{
+			MimeType: msg.ContentType,
+			Size:     int(msg.Size),
+			Width:    int(msg.Width),
+			Height:   int(msg.Height),
+			// TODO: bridge blurhash! (needs mautrix-go update)
+		},
+	}
+	err := portal.uploadMedia(intent, msg.Image, content)
+	if err != nil {
+		if errors.Is(err, mautrix.MTooLarge) {
+			//return portal.makeMediaBridgeFailureMessage(info, errors.New("homeserver rejected too large file"), converted, nil, "")
+		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
+			//return portal.makeMediaBridgeFailureMessage(info, errors.New("proxy rejected too large file"), converted, nil, "")
+		} else {
+			//return portal.makeMediaBridgeFailureMessage(info, fmt.Errorf("failed to upload media: %w", err), converted, nil, "")
+		}
+		portal.log.Error().Err(err).Msg("Failed to upload media")
+	}
+	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
+	return resp.EventID, err
+}
+
+func (portal *Portal) handleSignalReactionMessage(msg signalmeow.IncomingSignalMessageReaction, intent *appservice.IntentAPI) (id.EventID, bool, error) {
+	portal.log.Debug().Msgf("Reaction message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
+	portal.log.Debug().Msgf("Reaction: %s, remove: %v, target author: %v, target timestamp: %d", msg.Emoji, msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+	// Find the event ID of the message that was reacted to
+	targetTimestamp := time.UnixMilli(int64(msg.TargetMessageTimestamp))
+	dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(msg.TargetAuthorUUID, targetTimestamp)
+	if dbMessage == nil {
+		portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+		return "", false, fmt.Errorf("couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+	}
+	var resp *mautrix.RespSendEvent
+	var err error
+	if !msg.Remove {
+		// Create a new message event with the reaction
+		content := &event.ReactionEventContent{
+			RelatesTo: event.RelatesTo{
+				Type:    event.RelAnnotation,
+				Key:     msg.Emoji,
+				EventID: dbMessage.MXID,
+			},
+		}
+		resp, err = portal.sendMatrixReaction(intent, event.EventReaction, content, nil, 0)
+		return resp.EventID, false, err
+	} else {
+		// Send a new redaction to redact the reaction
+		// TODO: right now this is redacting the reaction's target message :(
+		//resp, err = intent.RedactEvent(portal.MXID, dbMessage.MXID)
+		//dbMessage.Delete(nil)
+		//return resp.EventID, true, err
+		return "", true, nil
+	}
 }
 
 func (portal *Portal) sendMainIntentMessage(content *event.MessageEventContent) (*mautrix.RespSendEvent, error) {
-	return portal.sendMessage(portal.MainIntent(), event.EventMessage, content, nil, 0)
+	return portal.sendMatrixMessage(portal.MainIntent(), event.EventMessage, content, nil, 0)
 }
 
 func (portal *Portal) encrypt(intent *appservice.IntentAPI, content *event.Content, eventType event.Type) (event.Type, error) {
@@ -555,7 +589,14 @@ func (portal *Portal) uploadMedia(intent *appservice.IntentAPI, data []byte, con
 	return nil
 }
 
-func (portal *Portal) sendMessage(intent *appservice.IntentAPI, eventType event.Type, content *event.MessageEventContent, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {
+// Boilerplate to send different event types with a modicum of type safety
+func (portal *Portal) sendMatrixMessage(intent *appservice.IntentAPI, eventType event.Type, content *event.MessageEventContent, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {
+	return portal.sendMatrixEventContent(intent, eventType, content, extraContent, timestamp)
+}
+func (portal *Portal) sendMatrixReaction(intent *appservice.IntentAPI, eventType event.Type, content *event.ReactionEventContent, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {
+	return portal.sendMatrixEventContent(intent, eventType, content, extraContent, timestamp)
+}
+func (portal *Portal) sendMatrixEventContent(intent *appservice.IntentAPI, eventType event.Type, content interface{}, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {
 	wrappedContent := event.Content{Parsed: content, Raw: extraContent}
 	var err error
 	eventType, err = portal.encrypt(intent, &wrappedContent, eventType)

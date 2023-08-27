@@ -554,9 +554,9 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						SenderUUID:    senderUUID,
 						RecipientUUID: recipientUUID,
 						GroupID:       groupID,
+						Timestamp:     dataMessage.GetTimestamp(),
 					},
 					Image:       bytes,
-					Timestamp:   dataMessage.GetTimestamp(),
 					Caption:     dataMessage.GetBody(),
 					Filename:    attachmentPointer.GetFileName(),
 					ContentType: attachmentPointer.GetContentType(),
@@ -574,10 +574,10 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						SenderUUID:    senderUUID,
 						RecipientUUID: recipientUUID,
 						GroupID:       groupID,
+						Timestamp:     dataMessage.GetTimestamp(),
 					},
-					Timestamp: dataMessage.GetTimestamp(),
-					Type:      "attachment",
-					Notice:    fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
+					Type:   "attachment",
+					Notice: fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
 				}
 				incomingMessages = append(incomingMessages, incomingMessage)
 			}
@@ -591,9 +591,26 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				SenderUUID:    senderUUID,
 				RecipientUUID: recipientUUID,
 				GroupID:       groupID,
+				Timestamp:     dataMessage.GetTimestamp(),
 			},
-			Timestamp: dataMessage.GetTimestamp(),
-			Content:   dataMessage.GetBody(),
+			Content: dataMessage.GetBody(),
+		}
+		incomingMessages = append(incomingMessages, incomingMessage)
+	}
+
+	// Pass along reactions
+	if dataMessage.Reaction != nil {
+		incomingMessage := IncomingSignalMessageReaction{
+			IncomingSignalMessageBase: IncomingSignalMessageBase{
+				SenderUUID:    senderUUID,
+				RecipientUUID: recipientUUID,
+				GroupID:       groupID,
+				Timestamp:     dataMessage.GetTimestamp(),
+			},
+			Emoji:                  dataMessage.GetReaction().GetEmoji(),
+			Remove:                 dataMessage.GetReaction().GetRemove(),
+			TargetAuthorUUID:       dataMessage.GetReaction().GetTargetAuthorUuid(),
+			TargetMessageTimestamp: dataMessage.GetReaction().GetTargetSentTimestamp(),
 		}
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}
