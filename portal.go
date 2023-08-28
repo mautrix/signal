@@ -498,6 +498,14 @@ func (portal *Portal) handleSignalReactionMessage(msg signalmeow.IncomingSignalM
 	portal.log.Debug().Msgf("Reaction message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
 	portal.log.Debug().Msgf("Reaction: %s, remove: %v, target author: %v, target timestamp: %d", msg.Emoji, msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
 
+	// Get existing reaction, if it exists
+	dbReaction := portal.bridge.DB.Reaction.GetBySignalID(
+		portal.ChatID,
+		portal.Receiver,
+		msg.SenderUUID,
+		msg.TargetAuthorUUID,
+		msg.TargetMessageTimestamp,
+	)
 	if !msg.Remove {
 		// Find the event ID of the message that was reacted to
 		dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
@@ -514,17 +522,19 @@ func (portal *Portal) handleSignalReactionMessage(msg signalmeow.IncomingSignalM
 			},
 		}
 		resp, err := portal.sendMatrixReaction(intent, event.EventReaction, content, nil, 0)
+
+		// If there's an existing reaction, delete it
+		if dbReaction != nil {
+			portal.log.Debug().Msgf("Deleting existing reaction with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+			// Send a redaction to redact the existing reaction
+			_, err := intent.RedactEvent(portal.MXID, dbReaction.MXID)
+			if err != nil {
+				portal.log.Warn().Msgf("Failed to redact existing reaction: %v", err)
+			}
+			dbReaction.Delete(nil)
+		}
 		return resp.EventID, false, err
 	} else {
-		// Find the event ID of the reaction that we're redacting
-		// log all params
-		dbReaction := portal.bridge.DB.Reaction.GetBySignalID(
-			portal.ChatID,
-			portal.Receiver,
-			msg.SenderUUID,
-			msg.TargetAuthorUUID,
-			msg.TargetMessageTimestamp,
-		)
 		if dbReaction == nil {
 			portal.log.Warn().Msgf("Couldn't find reaction with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
 			return "", false, fmt.Errorf("couldn't find reaction with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
