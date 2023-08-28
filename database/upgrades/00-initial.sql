@@ -58,3 +58,33 @@ CREATE TABLE message (
     FOREIGN KEY (sender) REFERENCES puppet(uuid) ON DELETE CASCADE,
     UNIQUE (mxid, mx_room)
 );
+
+CREATE TABLE reaction (
+    mxid            TEXT   NOT NULL,
+    mx_room         TEXT   NOT NULL,
+
+    signal_chat_id  TEXT   NOT NULL,
+    signal_receiver TEXT   NOT NULL,
+
+    author          UUID   NOT NULL,
+    msg_author      UUID   NOT NULL,
+    msg_timestamp   BIGINT NOT NULL,
+    emoji           TEXT   NOT NULL,
+
+    PRIMARY KEY (signal_chat_id, signal_receiver, msg_author, msg_timestamp, author),
+    CONSTRAINT reaction_message_fkey
+    FOREIGN KEY (msg_author, msg_timestamp, signal_chat_id, signal_receiver)
+    REFERENCES message(sender, timestamp, signal_chat_id, signal_receiver)
+    ON DELETE CASCADE,
+    FOREIGN KEY (author) REFERENCES puppet(uuid) ON DELETE CASCADE,
+    UNIQUE (mxid, mx_room)
+);
+
+CREATE TABLE disappearing_message (
+    room_id             TEXT,
+    mxid                TEXT,
+    expiration_seconds  BIGINT,
+    expiration_ts       BIGINT,
+
+    PRIMARY KEY (room_id, mxid)
+);

@@ -368,7 +368,7 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 		dbMessage.MXID = evt.ID
 		dbMessage.MXRoom = portal.MXID
 		dbMessage.Sender = sender.SignalID
-		dbMessage.Timestamp = start // TODO: get timestamp from signal
+		dbMessage.Timestamp = uint64(start.UnixMilli()) // TODO: get timestamp from signal
 		dbMessage.SignalChatID = portal.ChatID
 		dbMessage.SignalReceiver = portal.Receiver
 		dbMessage.Insert(nil)
@@ -394,8 +394,8 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		return
 	}
 
+	timestamp := portalMessage.message.Base().Timestamp
 	var eventID id.EventID
-	var redacted bool = false
 	var err error
 	if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeText {
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
@@ -404,6 +404,7 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle text message")
 			return
 		}
+		portal.storeMessageInDB(eventID, portalMessage.sender.SignalID, timestamp)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeImage {
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageImage)
 		eventID, err = portal.handleSignalImageMessage(msg, intent)
@@ -411,32 +412,49 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle image message")
 			return
 		}
+		portal.storeMessageInDB(eventID, portalMessage.sender.SignalID, timestamp)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeReaction {
+		var redacted bool = false
 		msg := (portalMessage.message).(signalmeow.IncomingSignalMessageReaction)
 		eventID, redacted, err = portal.handleSignalReactionMessage(msg, intent)
 		if err != nil || eventID == "" {
 			portal.log.Error().Err(err).Msg("Failed to handle reaction message")
 			return
 		}
+		if !redacted {
+			portal.storeReactionInDB(eventID, portalMessage.sender.SignalID, msg)
+		} else {
+		}
 	} else {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
 	}
-
-	if !redacted {
-		timestamp := int64(portalMessage.message.Base().Timestamp)
-		dbMessage := portal.bridge.DB.Message.New()
-		dbMessage.MXID = eventID
-		dbMessage.MXRoom = portal.MXID
-		dbMessage.Sender = portalMessage.sender.SignalID
-		dbMessage.Timestamp = time.UnixMilli(timestamp)
-		dbMessage.SignalChatID = portal.ChatID
-		dbMessage.SignalReceiver = portal.Receiver
-		dbMessage.Insert(nil)
-	}
-
 	// TODO: send receipt
 	// TODO: expire if it's an expiring message
+}
+
+func (portal *Portal) storeMessageInDB(eventID id.EventID, senderSignalID string, timestamp uint64) {
+	dbMessage := portal.bridge.DB.Message.New()
+	dbMessage.MXID = eventID
+	dbMessage.MXRoom = portal.MXID
+	dbMessage.Sender = senderSignalID
+	dbMessage.Timestamp = timestamp
+	dbMessage.SignalChatID = portal.ChatID
+	dbMessage.SignalReceiver = portal.Receiver
+	dbMessage.Insert(nil)
+}
+
+func (portal *Portal) storeReactionInDB(eventID id.EventID, senderSignalID string, msg signalmeow.IncomingSignalMessageReaction) {
+	dbReaction := portal.bridge.DB.Reaction.New()
+	dbReaction.MXID = eventID
+	dbReaction.MXRoom = portal.MXID
+	dbReaction.SignalChatID = portal.ChatID
+	dbReaction.SignalReceiver = portal.Receiver
+	dbReaction.Author = senderSignalID
+	dbReaction.MsgAuthor = msg.TargetAuthorUUID
+	dbReaction.MsgTimestamp = msg.TargetMessageTimestamp
+	dbReaction.Emoji = msg.Emoji
+	dbReaction.Insert(nil)
 }
 
 func (portal *Portal) handleSignalTextMessage(msg signalmeow.IncomingSignalMessageText, intent *appservice.IntentAPI) (id.EventID, error) {
@@ -479,16 +497,14 @@ func (portal *Portal) handleSignalImageMessage(msg signalmeow.IncomingSignalMess
 func (portal *Portal) handleSignalReactionMessage(msg signalmeow.IncomingSignalMessageReaction, intent *appservice.IntentAPI) (id.EventID, bool, error) {
 	portal.log.Debug().Msgf("Reaction message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
 	portal.log.Debug().Msgf("Reaction: %s, remove: %v, target author: %v, target timestamp: %d", msg.Emoji, msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-	// Find the event ID of the message that was reacted to
-	targetTimestamp := time.UnixMilli(int64(msg.TargetMessageTimestamp))
-	dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(msg.TargetAuthorUUID, targetTimestamp)
-	if dbMessage == nil {
-		portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-		return "", false, fmt.Errorf("couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-	}
-	var resp *mautrix.RespSendEvent
-	var err error
+
 	if !msg.Remove {
+		// Find the event ID of the message that was reacted to
+		dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+		if dbMessage == nil {
+			portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+			return "", false, fmt.Errorf("couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+		}
 		// Create a new message event with the reaction
 		content := &event.ReactionEventContent{
 			RelatesTo: event.RelatesTo{
@@ -497,15 +513,27 @@ func (portal *Portal) handleSignalReactionMessage(msg signalmeow.IncomingSignalM
 				EventID: dbMessage.MXID,
 			},
 		}
-		resp, err = portal.sendMatrixReaction(intent, event.EventReaction, content, nil, 0)
+		resp, err := portal.sendMatrixReaction(intent, event.EventReaction, content, nil, 0)
 		return resp.EventID, false, err
 	} else {
-		// Send a new redaction to redact the reaction
-		// TODO: right now this is redacting the reaction's target message :(
-		//resp, err = intent.RedactEvent(portal.MXID, dbMessage.MXID)
-		//dbMessage.Delete(nil)
-		//return resp.EventID, true, err
-		return "", true, nil
+		// Find the event ID of the reaction that we're redacting
+		// log all params
+		dbReaction := portal.bridge.DB.Reaction.GetBySignalID(
+			portal.ChatID,
+			portal.Receiver,
+			msg.SenderUUID,
+			msg.TargetAuthorUUID,
+			msg.TargetMessageTimestamp,
+		)
+		if dbReaction == nil {
+			portal.log.Warn().Msgf("Couldn't find reaction with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+			return "", false, fmt.Errorf("couldn't find reaction with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+		}
+
+		// Send a redaction to redact the reaction
+		resp, err := intent.RedactEvent(portal.MXID, dbReaction.MXID)
+		dbReaction.Delete(nil)
+		return resp.EventID, true, err
 	}
 }
 

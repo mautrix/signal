@@ -3,7 +3,6 @@ package database
 import (
 	"database/sql"
 	"errors"
-	"time"
 
 	log "maunium.net/go/maulogger/v2"
 	"maunium.net/go/mautrix/id"
@@ -29,7 +28,7 @@ type Message struct {
 	MXID           id.EventID
 	MXRoom         id.RoomID
 	Sender         string
-	Timestamp      time.Time
+	Timestamp      uint64
 	SignalChatID   string
 	SignalReceiver string
 }
@@ -67,8 +66,8 @@ func (msg *Message) Insert(txn dbutil.Execable) {
 		INSERT INTO message (mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`,
-		msg.MXID.String(), msg.MXRoom, msg.Sender, msg.Timestamp.UnixMilli(), msg.SignalChatID, msg.SignalReceiver)
-	msg.log.Debugfln("Inserting message", msg.MXID, msg.MXRoom, msg.Sender, msg.Timestamp.UnixMilli(), msg.SignalChatID, msg.SignalReceiver)
+		msg.MXID.String(), msg.MXRoom, msg.Sender, msg.Timestamp, msg.SignalChatID, msg.SignalReceiver)
+	msg.log.Debugfln("Inserting message", msg.MXID, msg.MXRoom, msg.Sender, msg.Timestamp, msg.SignalChatID, msg.SignalReceiver)
 	if err != nil {
 		msg.log.Warnfln("Failed to insert %s, %s: %v", msg.SignalChatID, msg.MXID, err)
 	}
@@ -82,23 +81,19 @@ func (msg *Message) Delete(txn dbutil.Execable) {
         DELETE FROM message
         WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
 	`,
-		msg.Sender, msg.Timestamp.UnixMilli(), msg.SignalChatID, msg.SignalReceiver)
+		msg.Sender, msg.Timestamp, msg.SignalChatID, msg.SignalReceiver)
 	if err != nil {
 		msg.log.Warnfln("Failed to delete %s, %s: %v", msg.SignalChatID, msg.MXID, err)
 	}
 }
 
 func (msg *Message) Scan(row dbutil.Scannable) *Message {
-	var ts int64
-	err := row.Scan(&msg.MXID, &msg.MXRoom, &msg.Sender, &ts, &msg.SignalChatID, &msg.SignalReceiver)
+	err := row.Scan(&msg.MXID, &msg.MXRoom, &msg.Sender, &msg.Timestamp, &msg.SignalChatID, &msg.SignalReceiver)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			msg.log.Errorln("Database scan failed:", err)
 		}
 		return nil
-	}
-	if ts != 0 {
-		msg.Timestamp = time.UnixMilli(ts)
 	}
 	return msg
 }
@@ -134,11 +129,11 @@ func (mq *MessageQuery) GetByMXID(mxid id.EventID) *Message {
 	return mq.maybeScan(mq.db.QueryRow(getMessageByMXIDQuery, mxid))
 }
 
-func (mq *MessageQuery) GetBySignalID(sender string, timestamp time.Time, chatID string, receiver string) *Message {
-	return mq.maybeScan(mq.db.QueryRow(getMessagesBySignalIDQuery, sender, timestamp.UnixMilli(), chatID, receiver))
+func (mq *MessageQuery) GetBySignalID(sender string, timestamp uint64, chatID string, receiver string) *Message {
+	return mq.maybeScan(mq.db.QueryRow(getMessagesBySignalIDQuery, sender, timestamp, chatID, receiver))
 }
 
-func (mq *MessageQuery) FindByTimestamps(timestamps []time.Time) []*Message {
+func (mq *MessageQuery) FindByTimestamps(timestamps []uint64) []*Message {
 	var messages []*Message
 	var rows dbutil.Rows
 	var err error
@@ -167,10 +162,10 @@ func (mq *MessageQuery) FindByTimestamps(timestamps []time.Time) []*Message {
 	return messages
 }
 
-func (mq *MessageQuery) FindBySenderAndTimestamp(sender string, timestamp time.Time) *Message {
-	return mq.New().Scan(mq.db.QueryRow(findBySenderAndTimestampQuery, sender, timestamp.UnixMilli()))
+func (mq *MessageQuery) FindBySenderAndTimestamp(sender string, timestamp uint64) *Message {
+	return mq.New().Scan(mq.db.QueryRow(findBySenderAndTimestampQuery, sender, timestamp))
 }
 
-func (mq *MessageQuery) GetFirstBefore(room string, timestamp time.Time) *Message {
-	return mq.maybeScan(mq.db.QueryRow(getFirstBeforeQuery, room, timestamp.UnixMilli()))
+func (mq *MessageQuery) GetFirstBefore(room string, timestamp uint64) *Message {
+	return mq.maybeScan(mq.db.QueryRow(getFirstBeforeQuery, room, timestamp))
 }

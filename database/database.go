@@ -15,10 +15,11 @@ import (
 type Database struct {
 	*dbutil.Database
 
-	User    *UserQuery
-	Portal  *PortalQuery
-	Puppet  *PuppetQuery
-	Message *MessageQuery
+	User     *UserQuery
+	Portal   *PortalQuery
+	Puppet   *PuppetQuery
+	Message  *MessageQuery
+	Reaction *ReactionQuery
 }
 
 func New(baseDB *dbutil.Database, log maulogger.Logger) *Database {
@@ -39,6 +40,10 @@ func New(baseDB *dbutil.Database, log maulogger.Logger) *Database {
 	db.Message = &MessageQuery{
 		db:  db,
 		log: log.Sub("Message"),
+	}
+	db.Reaction = &ReactionQuery{
+		db:  db,
+		log: log.Sub("Reaction"),
 	}
 	return db
 }
