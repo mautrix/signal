@@ -35,11 +35,11 @@ type Message struct {
 
 const (
 	getAllMessagesQuery = `
-		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver
+		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
 		WHERE signal_chat_id=$1 AND signal_receiver=$2
 	`
 	getMessageByMXIDQuery = `
-		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver
+		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
 		WHERE mxid=$1
 	`
 	getMessagesBySignalIDQuery = `

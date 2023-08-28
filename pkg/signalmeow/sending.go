@@ -18,6 +18,9 @@ import (
 
 // Sending
 
+// We don't want to couple library users to signalpb, so just alias it
+type DataMessage signalpb.DataMessage
+
 func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
 		// TODO: check for expired certificate
@@ -254,12 +257,6 @@ type GroupMessageSendResult struct {
 	FailedToSendTo     []FailedSendResult
 }
 
-func dataMessageFromText(text string, timestamp uint64) *signalpb.DataMessage {
-	return &signalpb.DataMessage{
-		Body:      proto.String(text),
-		Timestamp: &timestamp,
-	}
-}
 func contentFromDataMessage(dataMessage *signalpb.DataMessage) *signalpb.Content {
 	return &signalpb.Content{
 		DataMessage: dataMessage,
@@ -302,15 +299,36 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 	}
 }
 
-func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text string) (*GroupMessageSendResult, error) {
+func DataMessageFromText(text string) *DataMessage {
+	timestamp := currentMessageTimestamp()
+	return &DataMessage{
+		Body:      proto.String(text),
+		Timestamp: &timestamp,
+	}
+}
+
+func DataMessageFromReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *DataMessage {
+	timestamp := currentMessageTimestamp()
+	return &DataMessage{
+		Timestamp: &timestamp,
+		Reaction: &signalpb.DataMessage_Reaction{
+			Emoji:               proto.String(reaction),
+			Remove:              proto.Bool(removing),
+			TargetAuthorUuid:    proto.String(targetMessageSender),
+			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
+		},
+	}
+}
+
+func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, message *DataMessage) (*GroupMessageSendResult, error) {
 	group, err := RetrieveGroupByID(ctx, device, groupID)
 	if err != nil {
 		return nil, err
 	}
 
 	// Assemble the content to send
-	messageTimestamp := currentMessageTimestamp()
-	dataMessage := dataMessageFromText(text, messageTimestamp)
+	dataMessage := (*signalpb.DataMessage)(message)
+	messageTimestamp := *dataMessage.Timestamp
 	dataMessage.GroupV2 = groupMetadataForDataMessage(*group)
 	content := &signalpb.Content{
 		DataMessage: dataMessage,
@@ -354,10 +372,10 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, text
 	return result, nil
 }
 
-func SendMessage(ctx context.Context, device *Device, recipientUuid string, text string) SendMessageResult {
+func SendMessage(ctx context.Context, device *Device, recipientUuid string, message *DataMessage) SendMessageResult {
 	// Assemble the content to send
-	messageTimestamp := currentMessageTimestamp()
-	dataMessage := dataMessageFromText(text, messageTimestamp)
+	dataMessage := (*signalpb.DataMessage)(message)
+	messageTimestamp := *dataMessage.Timestamp
 	content := &signalpb.Content{
 		DataMessage: dataMessage,
 	}
