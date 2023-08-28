@@ -285,7 +285,7 @@ func (br *SignalBridge) getAllLoggedInUsers() []*User {
 func (user *User) startupTryConnect(retryCount int) {
 	user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 
-	statusChan, err := user.Connect()
+	statusChan, err := user.doConnect()
 
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
@@ -355,7 +355,7 @@ func (br *SignalBridge) StartUsers() {
 
 	usersWithToken := br.getAllLoggedInUsers()
 	for _, u := range usersWithToken {
-		go u.startupTryConnect(0)
+		go u.Connect()
 	}
 	if len(usersWithToken) == 0 {
 		br.SendGlobalBridgeState(status.BridgeState{StateEvent: status.StateUnconfigured}.Fill(nil))
@@ -382,7 +382,11 @@ func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
 	return provChan, nil
 }
 
-func (user *User) Connect() (chan signalmeow.SignalConnectionStatus, error) {
+func (user *User) Connect() {
+	user.startupTryConnect(0)
+}
+
+func (user *User) doConnect() (chan signalmeow.SignalConnectionStatus, error) {
 	user.Lock()
 	defer user.Unlock()
 
