@@ -474,6 +474,12 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle reaction message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeDelete {
+		err := portal.handleSignalDeleteMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle redaction message")
+			return
+		}
 	} else {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
@@ -626,6 +632,26 @@ func (portal *Portal) handleSignalReactionMessage(portalMessage portalSignalMess
 		dbReaction.Delete(nil)
 		return true, err
 	}
+}
+
+func (portal *Portal) handleSignalDeleteMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageDelete)
+	portal.log.Debug().Msgf("Delete message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
+
+	// Find the event ID of the message to delete
+	dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(msg.SenderUUID, msg.TargetMessageTimestamp)
+	if dbMessage == nil {
+		portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", msg.SenderUUID, msg.TargetMessageTimestamp)
+		return fmt.Errorf("couldn't find message with Signal ID %s/%d", msg.SenderUUID, msg.TargetMessageTimestamp)
+	}
+	_, err := intent.RedactEvent(portal.MXID, dbMessage.MXID)
+	if err != nil {
+		portal.log.Warn().Msgf("Failed to redact existing reaction: %v", err)
+		return err
+	}
+	dbMessage.Delete(nil)
+
+	return nil
 }
 
 func (portal *Portal) sendMainIntentMessage(content *event.MessageEventContent) (*mautrix.RespSendEvent, error) {

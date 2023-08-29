@@ -17,6 +17,7 @@ const (
 	IncomingSignalMessageTypeText
 	IncomingSignalMessageTypeImage
 	IncomingSignalMessageTypeReaction
+	IncomingSignalMessageTypeDelete
 	IncomingSignalMessageTypeTyping
 	IncomingSignalMessageTypeReceipt
 )
@@ -31,6 +32,7 @@ var _ IncomingSignalMessage = IncomingSignalMessageUnhandled{}
 var _ IncomingSignalMessage = IncomingSignalMessageText{}
 var _ IncomingSignalMessage = IncomingSignalMessageImage{}
 var _ IncomingSignalMessage = IncomingSignalMessageReaction{}
+var _ IncomingSignalMessage = IncomingSignalMessageDelete{}
 var _ IncomingSignalMessage = IncomingSignalMessageTyping{}
 var _ IncomingSignalMessage = IncomingSignalMessageReceipt{}
 
@@ -94,6 +96,19 @@ func (IncomingSignalMessageReaction) MessageType() IncomingSignalMessageType {
 	return IncomingSignalMessageTypeReaction
 }
 func (i IncomingSignalMessageReaction) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageDelete **
+type IncomingSignalMessageDelete struct {
+	IncomingSignalMessageBase
+	TargetMessageTimestamp uint64
+}
+
+func (IncomingSignalMessageDelete) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeDelete
+}
+func (i IncomingSignalMessageDelete) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 

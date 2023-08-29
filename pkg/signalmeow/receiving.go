@@ -615,6 +615,20 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}
 
+	// Pass along deletions
+	if dataMessage.Delete != nil {
+		incomingMessage := IncomingSignalMessageDelete{
+			IncomingSignalMessageBase: IncomingSignalMessageBase{
+				SenderUUID:    senderUUID,
+				RecipientUUID: recipientUUID,
+				GroupID:       groupID,
+				Timestamp:     dataMessage.GetTimestamp(),
+			},
+			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),
+		}
+		incomingMessages = append(incomingMessages, incomingMessage)
+	}
+
 	if device.Connection.IncomingSignalMessageHandler != nil {
 		for _, incomingMessage := range incomingMessages {
 			device.Connection.IncomingSignalMessageHandler(incomingMessage)
