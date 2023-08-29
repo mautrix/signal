@@ -18,6 +18,7 @@ import (
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
+	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -331,6 +332,7 @@ func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
 		portal.log.Info().Msgf("Could not find original reaction for redaction %s", evt.ID)
 	}
 	if dbMessage == nil && dbReaction == nil {
+		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message or reaction"))
 		portal.log.Error().Msgf("Could not find original message or reaction for redaction %s", evt.ID)
 		return
 	}
@@ -340,6 +342,7 @@ func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
 		msg := signalmeow.DataMessageForDelete(dbMessage.Timestamp)
 		err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 		if err != nil {
+			portal.sendMessageStatusCheckpointFailed(evt, err)
 			portal.log.Error().Msgf("Failed to send redaction %s", evt.ID)
 			return
 		}
@@ -351,11 +354,14 @@ func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
 		msg := signalmeow.DataMessageForReaction(dbReaction.Emoji, dbReaction.MsgAuthor, dbReaction.MsgTimestamp, true)
 		err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 		if err != nil {
+			portal.sendMessageStatusCheckpointFailed(evt, err)
 			portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
 			return
 		}
 		dbReaction.Delete(nil)
 	}
+
+	portal.sendMessageStatusCheckpointSuccess(evt)
 }
 
 func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
@@ -363,6 +369,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	relatedEventID := evt.Content.AsReaction().RelatesTo.EventID
 	dbMessage := portal.bridge.DB.Message.GetByMXID(relatedEventID)
 	if dbMessage == nil {
+		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message for reaction"))
 		portal.log.Error().Msgf("Could not find original message for reaction %s", evt.ID)
 		return
 	}
@@ -372,6 +379,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	msg := signalmeow.DataMessageForReaction(emoji, targetAuthorUUID, targetTimestamp, false)
 	err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 	if err != nil {
+		portal.sendMessageStatusCheckpointFailed(evt, err)
 		portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
 		return
 	}
@@ -391,6 +399,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 		intent := portal.MainIntent()
 		_, err := intent.RedactEvent(portal.MXID, dbReaction.MXID)
 		if err != nil {
+			portal.sendMessageStatusCheckpointFailed(evt, err)
 			portal.log.Warn().Msgf("Failed to redact existing reaction: %v", err)
 		}
 		dbReaction.Delete(nil)
@@ -398,6 +407,8 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 
 	// Store our new reaction in the database
 	portal.storeReactionInDB(evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, emoji)
+
+	portal.sendMessageStatusCheckpointSuccess(evt)
 }
 
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.DataMessage, sender *User, evtID id.EventID) error {
@@ -434,6 +445,18 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.Dat
 		}
 	}
 	return err
+}
+
+func (portal *Portal) sendMessageStatusCheckpointSuccess(evt *event.Event) {
+	portal.sendDeliveryReceipt(evt.ID)
+	portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, 0)
+	portal.sendStatusEvent(evt.ID, "", nil)
+}
+
+func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err error) {
+	portal.sendDeliveryReceipt(evt.ID)
+	portal.bridge.SendMessageErrorCheckpoint(evt, status.MsgStepRemote, err, true, 0)
+	portal.sendStatusEvent(evt.ID, "", nil)
 }
 
 func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
