@@ -375,7 +375,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 		return
 	}
 	emoji := evt.Content.AsReaction().RelatesTo.Key
-	signalEmoji := variationselector.Remove(emoji) // Signal doesn't seem to use variation selectors at all
+	signalEmoji := variationselector.FullyQualify(emoji) // Signal seems to require fully qualified emojis
 	targetAuthorUUID := dbMessage.Sender
 	targetTimestamp := dbMessage.Timestamp
 	msg := signalmeow.DataMessageForReaction(signalEmoji, targetAuthorUUID, targetTimestamp, false)
