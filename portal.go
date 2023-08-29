@@ -337,7 +337,13 @@ func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
 
 	// If this is a message redaction, send a redaction to Signal
 	if dbMessage != nil {
-		// TODO: send a redaction to signal
+		msg := signalmeow.DataMessageForDelete(dbMessage.Timestamp)
+		err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
+		if err != nil {
+			portal.log.Error().Msgf("Failed to send redaction %s", evt.ID)
+			return
+		}
+		dbMessage.Delete(nil)
 	}
 
 	// If this is a reaction redaction, send a reaction to Signal with remove == true

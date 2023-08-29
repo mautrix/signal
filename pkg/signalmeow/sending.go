@@ -320,6 +320,16 @@ func DataMessageForReaction(reaction string, targetMessageSender string, targetM
 	}
 }
 
+func DataMessageForDelete(targetMessageTimestamp uint64) *DataMessage {
+	timestamp := currentMessageTimestamp()
+	return &DataMessage{
+		Timestamp: &timestamp,
+		Delete: &signalpb.DataMessage_Delete{
+			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
+		},
+	}
+}
+
 func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, message *DataMessage) (*GroupMessageSendResult, error) {
 	group, err := RetrieveGroupByID(ctx, device, groupID)
 	if err != nil {
