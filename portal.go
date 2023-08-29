@@ -26,6 +26,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/util/variationselector"
 )
 
 type portalSignalMessage struct {
@@ -374,9 +375,10 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 		return
 	}
 	emoji := evt.Content.AsReaction().RelatesTo.Key
+	signalEmoji := variationselector.Remove(emoji) // Signal doesn't seem to use variation selectors at all
 	targetAuthorUUID := dbMessage.Sender
 	targetTimestamp := dbMessage.Timestamp
-	msg := signalmeow.DataMessageForReaction(emoji, targetAuthorUUID, targetTimestamp, false)
+	msg := signalmeow.DataMessageForReaction(signalEmoji, targetAuthorUUID, targetTimestamp, false)
 	err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(evt, err)
@@ -406,7 +408,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	}
 
 	// Store our new reaction in the database
-	portal.storeReactionInDB(evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, emoji)
+	portal.storeReactionInDB(evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, signalEmoji)
 
 	portal.sendMessageStatusCheckpointSuccess(evt)
 }
@@ -601,6 +603,8 @@ func (portal *Portal) handleSignalReactionMessage(portalMessage portalSignalMess
 	portal.log.Debug().Msgf("Reaction message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
 	portal.log.Debug().Msgf("Reaction: %s, remove: %v, target author: %v, target timestamp: %d", msg.Emoji, msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
 
+	matrixEmoji := variationselector.Add(msg.Emoji) // Add variation selector for Matrix
+
 	// Get existing reaction, if it exists
 	dbReaction := portal.bridge.DB.Reaction.GetBySignalID(
 		portal.ChatID,
@@ -620,7 +624,7 @@ func (portal *Portal) handleSignalReactionMessage(portalMessage portalSignalMess
 		content := &event.ReactionEventContent{
 			RelatesTo: event.RelatesTo{
 				Type:    event.RelAnnotation,
-				Key:     msg.Emoji,
+				Key:     matrixEmoji,
 				EventID: dbMessage.MXID,
 			},
 		}
@@ -642,7 +646,7 @@ func (portal *Portal) handleSignalReactionMessage(portalMessage portalSignalMess
 			portalMessage.sender.SignalID,
 			msg.TargetAuthorUUID,
 			msg.TargetMessageTimestamp,
-			msg.Emoji,
+			msg.Emoji, // Store without variation selector, as they come from Signal
 		)
 		return false, err
 	} else {
