@@ -164,6 +164,12 @@ func buildMessagesToSend(ctx context.Context, d *Device, recipientUuid string, c
 			return nil, err
 		}
 
+		// Don't send to this device that we are sending from
+		if recipientUuid == d.Data.AciUuid && recipientDeviceID == uint(d.Data.DeviceId) {
+			zlog.Debug().Msgf("Not sending to the device I'm sending from (%v:%v)", recipientUuid, recipientDeviceID)
+			continue
+		}
+
 		// Build message payload
 		serializedMessage, err := proto.Marshal(content)
 		if err != nil {
@@ -449,6 +455,10 @@ func sendContent(
 	}
 
 	useUnidentifiedSender := true
+	// Don't use unauthed websocket to send a payload to my own other devices
+	if recipientUuid == d.Data.AciUuid {
+		useUnidentifiedSender = false
+	}
 	profileKey, err := ProfileKeyForSignalID(ctx, d, recipientUuid)
 	if err != nil || profileKey == nil {
 		zlog.Err(err).Msg("Error getting profile key")
