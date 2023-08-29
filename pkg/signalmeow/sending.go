@@ -299,7 +299,7 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 	}
 }
 
-func DataMessageFromText(text string) *DataMessage {
+func DataMessageForText(text string) *DataMessage {
 	timestamp := currentMessageTimestamp()
 	return &DataMessage{
 		Body:      proto.String(text),
@@ -307,7 +307,7 @@ func DataMessageFromText(text string) *DataMessage {
 	}
 }
 
-func DataMessageFromReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *DataMessage {
+func DataMessageForReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *DataMessage {
 	timestamp := currentMessageTimestamp()
 	return &DataMessage{
 		Timestamp: &timestamp,

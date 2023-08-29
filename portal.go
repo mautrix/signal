@@ -230,7 +230,7 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	case event.EventMessage: //, event.EventSticker:
 		portal.handleMatrixMessage(msg.user, msg.evt)
 	case event.EventRedaction:
-		//portal.handleMatrixRedaction(msg.user, msg.evt)
+		portal.handleMatrixRedaction(msg.user, msg.evt)
 	case event.EventReaction:
 		portal.handleMatrixReaction(msg.user, msg.evt)
 	default:
@@ -305,7 +305,7 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	start = time.Now()
 	//msg, sender, extraMeta, err := portal.convertMatrixMessage(ctx, sender, evt)
 	msgText := evt.Content.AsMessage().Body
-	msg := signalmeow.DataMessageFromText(msgText)
+	msg := signalmeow.DataMessageForText(msgText)
 	timings.convert = time.Since(start)
 	start = time.Now()
 
@@ -316,6 +316,39 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	if err == nil {
 		//dbMsg.MarkSent(resp.Timestamp)
 		portal.storeMessageInDB(evt.ID, sender.SignalID, uint64(start.UnixMilli()))
+	}
+}
+
+func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
+	// Find the original signal message based on eventID
+	dbMessage := portal.bridge.DB.Message.GetByMXID(evt.Redacts)
+	if dbMessage == nil {
+		portal.log.Info().Msgf("Could not find original message for redaction %s", evt.ID)
+	}
+	// Might be a reaction redaction, find the original message for the reaction
+	dbReaction := portal.bridge.DB.Reaction.GetByMXID(evt.Redacts, evt.RoomID)
+	if dbReaction == nil {
+		portal.log.Info().Msgf("Could not find original reaction for redaction %s", evt.ID)
+	}
+	if dbMessage == nil && dbReaction == nil {
+		portal.log.Error().Msgf("Could not find original message or reaction for redaction %s", evt.ID)
+		return
+	}
+
+	// If this is a message redaction, send a redaction to Signal
+	if dbMessage != nil {
+		// TODO: send a redaction to signal
+	}
+
+	// If this is a reaction redaction, send a reaction to Signal with remove == true
+	if dbReaction != nil {
+		msg := signalmeow.DataMessageForReaction(dbReaction.Emoji, dbReaction.MsgAuthor, dbReaction.MsgTimestamp, true)
+		err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
+		if err != nil {
+			portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
+			return
+		}
+		dbReaction.Delete(nil)
 	}
 }
 
@@ -330,7 +363,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	emoji := evt.Content.AsReaction().RelatesTo.Key
 	targetAuthorUUID := dbMessage.Sender
 	targetTimestamp := dbMessage.Timestamp
-	msg := signalmeow.DataMessageFromReaction(emoji, targetAuthorUUID, targetTimestamp, false)
+	msg := signalmeow.DataMessageForReaction(emoji, targetAuthorUUID, targetTimestamp, false)
 	err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 	if err != nil {
 		portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
