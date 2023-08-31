@@ -305,7 +305,12 @@ func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, er
 	if err != nil {
 		return nil, err
 	}
-	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, RequestPB: true, Host: web.StorageUrlHost}
+	opts := &web.HTTPReqOpt{
+		Username:    &groupAuth.Username,
+		Password:    &groupAuth.Password,
+		ContentType: web.ContentTypeProtobuf,
+		Host:        web.StorageUrlHost,
+	}
 	response, err := web.SendHTTPRequest("GET", "/v1/groups", opts)
 	if err != nil {
 		zlog.Err(err).Msg("RetrieveGroupById SendHTTPRequest error")

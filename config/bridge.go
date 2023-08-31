@@ -35,6 +35,7 @@ type BridgeConfig struct {
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 
+	BridgeNotices               bool `yaml:"bridge_notices"`
 	DeliveryReceipts            bool `yaml:"delivery_receipts"`
 	MessageStatusEvents         bool `yaml:"message_status_events"`
 	MessageErrorNotices         bool `yaml:"message_error_notices"`

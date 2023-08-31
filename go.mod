@@ -4,7 +4,10 @@ go 1.20
 
 require maunium.net/go/mautrix v0.15.4
 
-require go.mau.fi/util v0.0.0-20230805171708-199bf3eec776 // indirect
+require (
+	github.com/chai2010/webp v1.1.1 // indirect
+	go.mau.fi/util v0.0.0-20230805171708-199bf3eec776 // indirect
+)
 
 require (
 	github.com/lib/pq v1.10.9 // indirect

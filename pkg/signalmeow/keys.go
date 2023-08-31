@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"strings"
 	"time"
 
@@ -217,21 +216,10 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 		zlog.Err(err).Msg("Error sending request")
 		return err
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err = fmt.Errorf("Error fetching prekeys, status: %v", resp.Status)
-		zlog.Err(err).Msg("")
-		return err
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		zlog.Err(err).Msg("Error reading response body")
-		return err
-	}
 	var prekeyResponse prekeyResponse
-	err = json.Unmarshal(body, &prekeyResponse)
+	err = web.DecodeHTTPResponseBody(&prekeyResponse, resp)
 	if err != nil {
-		zlog.Err(err).Msg("Error unmarshalling response body")
+		zlog.Err(err).Msg("Fetching prekeys, error with response body")
 		return err
 	}
 

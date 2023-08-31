@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,12 +20,14 @@ const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmprox
 const (
 	UrlHost        = "chat.signal.org"
 	StorageUrlHost = "storage.signal.org"
+	CDNUrlHost     = "cdn.signal.org"
+	CDN2UrlHost    = "cdn2.signal.org"
 )
 
 var CDNHosts = []string{
-	"cdn.signal.org",
-	"cdn.signal.org",
-	"cdn2.signal.org",
+	CDNUrlHost,
+	CDNUrlHost,
+	CDN2UrlHost,
 }
 
 // logging
@@ -74,12 +78,22 @@ func proxiedHTTPClient() *http.Client {
 	return client
 }
 
+type ContentType string
+
+const (
+	ContentTypeJSON        ContentType = "application/json"
+	ContentTypeProtobuf    ContentType = "application/x-protobuf"
+	ContentTypeOctetStream ContentType = "application/octet-stream"
+)
+
 type HTTPReqOpt struct {
-	Body      []byte
-	Username  *string
-	Password  *string
-	RequestPB bool
-	Host      string
+	Body        []byte
+	Username    *string
+	Password    *string
+	ContentType ContentType
+	Host        string
+	Headers     map[string]string
+	OverrideURL string // Override the full URL, if set ignores path and Host
 }
 
 var httpReqCounter = 0
@@ -92,18 +106,27 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	if opt.Host == "" {
 		opt.Host = UrlHost
 	}
-
 	urlStr := "https://" + opt.Host + path
+	if opt.OverrideURL != "" {
+		urlStr = opt.OverrideURL
+	}
+
 	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(opt.Body))
 	if err != nil {
 		zlog.Err(err).Msg("Error creating request")
 		return nil, err
 	}
-	if opt.RequestPB {
-		req.Header.Set("Content-Type", "application/x-protobuf")
-	} else {
-		req.Header.Set("Content-Type", "application/json")
+	if opt.Headers != nil {
+		for k, v := range opt.Headers {
+			req.Header.Add(k, v)
+		}
 	}
+	if opt.ContentType != "" {
+		req.Header.Set("Content-Type", string(opt.ContentType))
+	} else {
+		req.Header.Set("Content-Type", string(ContentTypeJSON))
+	}
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(opt.Body)))
 	// TODO: figure out what user agent to use
 	//req.Header.Set("User-Agent", "SignalBridge/0.1")
 	//req.Header.Set("X-Signal-Agent", "SignalBridge/0.1")
@@ -117,6 +140,24 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	resp, err := client.Do(req)
 	zlog.Debug().Msgf("Received HTTP response %v, status: %v", httpReqCounter, resp.StatusCode)
 	return resp, err
+}
+
+// DecodeHTTPResponseBody checks status code, reads an http.Response's Body and decodes it into the provided interface.
+func DecodeHTTPResponseBody(out interface{}, resp *http.Response) error {
+	defer resp.Body.Close()
+
+	// Check if status code indicates success
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("Unexpected status code: %d %s", resp.StatusCode, resp.Status)
+	}
+	log.Debug().Msgf("Response body: %v", resp.Body)
+
+	decoder := json.NewDecoder(resp.Body)
+	if err := decoder.Decode(&out); err != nil {
+		return fmt.Errorf("JSON decoding failed: %w", err)
+	}
+
+	return nil
 }
 
 // Download an attachment from the CDN
@@ -153,3 +194,6 @@ func GetAttachment(path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Respon
 
 	return resp, err
 }
+
+// Upload an attachment to the CDN
+//func PutAttachment(

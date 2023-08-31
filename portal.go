@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"image/color"
+	"image/png"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/chai2010/webp"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
@@ -26,6 +29,8 @@ import (
 
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/util/exerrors"
+	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/variationselector"
 )
 
@@ -305,13 +310,20 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 
 	timings.preproc = time.Since(start)
 	start = time.Now()
-	//msg, sender, extraMeta, err := portal.convertMatrixMessage(ctx, sender, evt)
-	msgText := evt.Content.AsMessage().Body
-	msg := signalmeow.DataMessageForText(msgText)
+
+	//msgText := evt.Content.AsMessage().Body
+	//msg := signalmeow.DataMessageForText(msgText)
+	msg, err := portal.convertMatrixMessage(ctx, sender, evt)
+	if err != nil {
+		portal.log.Error().Msgf("Error converting message %s: %v", evt.ID, err)
+		go ms.sendMessageMetrics(evt, err, "Error converting", true)
+		return
+	}
+
 	timings.convert = time.Since(start)
 	start = time.Now()
 
-	err := portal.sendSignalMessage(ctx, msg, sender, evt.ID)
+	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 
 	timings.totalSend = time.Since(start)
 	go ms.sendMessageMetrics(evt, err, "Error sending", true)
@@ -411,6 +423,303 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	portal.storeReactionInDB(evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, signalEmoji)
 
 	portal.sendMessageStatusCheckpointSuccess(evt)
+}
+
+func (portal *Portal) downloadAndDecryptMatrixMedia(ctx context.Context, content *event.MessageEventContent) ([]byte, error) {
+	var file *event.EncryptedFileInfo
+	rawMXC := content.URL
+	if content.File != nil {
+		file = content.File
+		rawMXC = file.URL
+	}
+	mxc, err := rawMXC.Parse()
+	if err != nil {
+		return nil, err
+	}
+	data, err := portal.MainIntent().DownloadBytesContext(ctx, mxc)
+	if err != nil {
+		return nil, exerrors.NewDualError(errMediaDownloadFailed, err)
+	}
+	if file != nil {
+		err = file.DecryptInPlace(data)
+		if err != nil {
+			return nil, exerrors.NewDualError(errMediaDecryptFailed, err)
+		}
+	}
+	return data, nil
+}
+
+func (portal *Portal) convertWebPtoPNG(webpImage []byte) ([]byte, error) {
+	webpDecoded, err := webp.Decode(bytes.NewReader(webpImage))
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode webp image: %w", err)
+	}
+
+	var pngBuffer bytes.Buffer
+	if err = png.Encode(&pngBuffer, webpDecoded); err != nil {
+		return nil, fmt.Errorf("failed to encode png image: %w", err)
+	}
+
+	return pngBuffer.Bytes(), nil
+}
+
+type PaddedImage struct {
+	image.Image
+	Size    int
+	OffsetX int
+	OffsetY int
+}
+
+func (img *PaddedImage) Bounds() image.Rectangle {
+	return image.Rect(0, 0, img.Size, img.Size)
+}
+
+func (img *PaddedImage) At(x, y int) color.Color {
+	return img.Image.At(x+img.OffsetX, y+img.OffsetY)
+}
+
+func (portal *Portal) convertToWebPSticker(img []byte) ([]byte, error) {
+	decodedImg, _, err := image.Decode(bytes.NewReader(img))
+	if err != nil {
+		return img, fmt.Errorf("failed to decode image: %w", err)
+	}
+
+	bounds := decodedImg.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	if width != height {
+		paddedImg := &PaddedImage{
+			Image:   decodedImg,
+			OffsetX: bounds.Min.Y,
+			OffsetY: bounds.Min.X,
+		}
+		if width > height {
+			paddedImg.Size = width
+			paddedImg.OffsetY -= (paddedImg.Size - height) / 2
+		} else {
+			paddedImg.Size = height
+			paddedImg.OffsetX -= (paddedImg.Size - width) / 2
+		}
+		decodedImg = paddedImg
+	}
+
+	var webpBuffer bytes.Buffer
+	if err = webp.Encode(&webpBuffer, decodedImg, nil); err != nil {
+		return img, fmt.Errorf("failed to encode webp image: %w", err)
+	}
+
+	return webpBuffer.Bytes(), nil
+}
+
+func (portal *Portal) convertImage(ctx context.Context, mimeType string, image []byte) (string, []byte, error) {
+	var outMimeType string
+	var outImage []byte
+	var err error
+	switch mimeType {
+	case "image/jpeg", "image/png", "image/gif":
+		// Allowed
+		outMimeType = mimeType
+		outImage = image
+	case "image/webp":
+		outMimeType = "image/png"
+		outImage, err = portal.convertWebPtoPNG(image)
+	default:
+		return "", nil, fmt.Errorf("%w %q", errMediaUnsupportedType, mimeType)
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, outMimeType)
+	}
+	return outMimeType, outImage, nil
+}
+
+func (portal *Portal) convertSticker(ctx context.Context, mimeType string, sticker []byte, width, height int) (string, []byte, error) {
+	var outMimeType string = mimeType
+	var outSticker []byte = sticker
+	var err error
+	if mimeType != "image/webp" || width != height {
+		outSticker, err = portal.convertToWebPSticker(sticker)
+		outMimeType = "image/webp"
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, outMimeType)
+	}
+	return outMimeType, outSticker, nil
+}
+
+func (portal *Portal) convertVideo(ctx context.Context, mimeType string, video []byte) (string, []byte, error) {
+	var outMimeType string
+	var outVideo []byte
+	var err error
+	switch mimeType {
+	case "video/mp4", "video/3gpp":
+		// Allowed
+		outMimeType = mimeType
+		outVideo = video
+	case "video/webm":
+		outMimeType = "video/mp4"
+		outVideo, err = ffmpeg.ConvertBytes(ctx, video, ".mp4", []string{"-f", "webm"}, []string{
+			"-pix_fmt", "yuv420p", "-c:v", "libx264",
+		}, mimeType)
+	default:
+		return "", nil, fmt.Errorf("%w %q in video message", errMediaUnsupportedType, mimeType)
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, outMimeType)
+	}
+	return outMimeType, outVideo, nil
+}
+
+func (portal *Portal) convertAudio(ctx context.Context, mimeType string, audio []byte) (string, []byte, error) {
+	var outMimeType string
+	var outAudio []byte
+	var err error
+	switch mimeType {
+	case "audio/aac", "audio/mp4", "audio/amr", "audio/mpeg", "audio/ogg; codecs=opus":
+		// Allowed
+		outMimeType = mimeType
+		outAudio = audio
+	case "audio/ogg":
+		// Hopefully it's opus already
+		outMimeType = "audio/ogg; codecs=opus"
+		outAudio = audio
+	default:
+		return "", nil, fmt.Errorf("%w %q in audio message", errMediaUnsupportedType, mimeType)
+	}
+	if err != nil {
+		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, "video/mp4")
+	}
+	return outMimeType, outAudio, nil
+}
+
+func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, evt *event.Event) (*signalmeow.DataMessage, error) {
+	content, ok := evt.Content.Parsed.(*event.MessageEventContent)
+	if !ok {
+		return nil, fmt.Errorf("%w %T", errUnexpectedParsedContentType, evt.Content.Parsed)
+	}
+
+	if evt.Type == event.EventSticker {
+		content.MsgType = event.MessageType(event.EventSticker.Type)
+	}
+
+	switch content.MsgType {
+	case event.MsgText, event.MsgEmote, event.MsgNotice:
+		text := content.Body
+		if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
+			return nil, errMNoticeDisabled
+		}
+		if content.Format == event.FormatHTML {
+			//text, ctxInfo.MentionedJid = portal.bridge.Formatter.ParseMatrix(content.FormattedBody, content.Mentions)
+		}
+		if content.MsgType == event.MsgEmote {
+			text = "/me " + text
+		}
+		//hasPreview := portal.convertURLPreviewToWhatsApp(ctx, sender, evt, msg.ExtendedTextMessage)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return signalmeow.DataMessageForText(text), nil
+	case event.MsgImage:
+		fileName := content.Body
+		var caption string
+		if content.FileName != "" && content.Body != content.FileName {
+			fileName = content.FileName
+			caption = content.Body
+		}
+		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
+		if err != nil {
+			return nil, err
+		}
+		newMimeType, convertedImage, err := portal.convertImage(ctx, content.GetInfo().MimeType, image)
+		if err != nil {
+			return nil, err
+		}
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedImage, newMimeType, fileName)
+		if err != nil {
+			return nil, err
+		}
+		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+
+	case event.MessageType(event.EventSticker.Type):
+		fileName := content.Body
+		var caption string
+		if content.FileName != "" && content.Body != content.FileName {
+			fileName = content.FileName
+			caption = content.Body
+		}
+		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
+		if err != nil {
+			return nil, err
+		}
+		newMimeType, convertedSticker, err := portal.convertSticker(ctx, content.GetInfo().MimeType, image, content.GetInfo().Width, content.GetInfo().Height)
+		if err != nil {
+			return nil, err
+		}
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedSticker, newMimeType, fileName)
+		if err != nil {
+			return nil, err
+		}
+		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+	case event.MsgVideo:
+		fileName := content.Body
+		var caption string
+		if content.FileName != "" && content.Body != content.FileName {
+			fileName = content.FileName
+			caption = content.Body
+		}
+		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
+		if err != nil {
+			return nil, err
+		}
+		newMimeType, convertedVideo, err := portal.convertVideo(ctx, content.GetInfo().MimeType, image)
+		if err != nil {
+			return nil, err
+		}
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedVideo, newMimeType, fileName)
+		if err != nil {
+			return nil, err
+		}
+		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+
+	case event.MsgAudio:
+		fileName := content.Body
+		var caption string
+		if content.FileName != "" && content.Body != content.FileName {
+			fileName = content.FileName
+			caption = content.Body
+		}
+		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
+		if err != nil {
+			return nil, err
+		}
+		newMimeType, convertedAudio, err := portal.convertAudio(ctx, content.GetInfo().MimeType, image)
+		if err != nil {
+			return nil, err
+		}
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedAudio, newMimeType, fileName)
+		if err != nil {
+			return nil, err
+		}
+		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+	case event.MsgFile:
+		fileName := content.Body
+		var caption string
+		if content.FileName != "" && content.Body != content.FileName {
+			fileName = content.FileName
+			caption = content.Body
+		}
+		file, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
+		if err != nil {
+			return nil, err
+		}
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, file, content.GetInfo().MimeType, fileName)
+		if err != nil {
+			return nil, err
+		}
+		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+	case event.MsgLocation:
+		fallthrough
+	default:
+		return nil, fmt.Errorf("%w %q", errUnknownMsgType, content.MsgType)
+	}
 }
 
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.DataMessage, sender *User, evtID id.EventID) error {

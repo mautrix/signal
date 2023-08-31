@@ -2,19 +2,12 @@ package signalmeow
 
 import (
 	"context"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/hmac"
-	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -542,9 +535,9 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
 		for _, attachmentPointer := range dataMessage.Attachments {
-			bytes, err := handleSingleAttachment(attachmentPointer)
+			bytes, err := fetchAndDecryptAttachment(attachmentPointer)
 			if err != nil {
-				zlog.Err(err).Msg("handleSingleAttachment error")
+				zlog.Err(err).Msg("fetchAndDecryptAttachment error")
 				continue
 			}
 			// TODO: right now this will be one message per image, each with the same caption
@@ -762,81 +755,4 @@ func stripPadding(contents *[]byte) error {
 		}
 	}
 	return fmt.Errorf("Invalid ISO7816 padding, len(contents): %v", len(*contents))
-}
-
-// *** Attachments! ***
-
-// Attachment represents an attachment received from a peer
-type Attachment struct {
-	R        io.Reader
-	MimeType string
-	FileName string
-}
-
-func getAttachmentPath(id uint64, key string, cdnNumber uint32) (string, error) {
-	const (
-		attachmentKeyDownloadPath = "/attachments/%s"
-		attachmentIDDownloadPath  = "/attachments/%d"
-	)
-	if id != 0 {
-		return fmt.Sprintf(attachmentIDDownloadPath, id), nil
-	}
-	return fmt.Sprintf(attachmentKeyDownloadPath, key), nil
-}
-
-// ErrInvalidMACForAttachment signals that the downloaded attachment has an invalid MAC.
-var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
-
-func handleSingleAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
-	path, err := getAttachmentPath(a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber())
-	if err != nil {
-		return nil, err
-	}
-	resp, err := web.GetAttachment(path, a.GetCdnNumber(), nil)
-	if err != nil {
-		return nil, err
-	}
-	body := resp.Body
-	defer body.Close()
-
-	b, err := io.ReadAll(body)
-	if err != nil {
-		return nil, err
-	}
-
-	l := len(b) - 32
-	if !verifyMAC(a.Key[32:], b[:l], b[l:]) {
-		return nil, ErrInvalidMACForAttachment
-	}
-
-	// TODO: verify digest?
-	return aesDecrypt(a.Key[:32], b[:l])
-}
-
-func verifyMAC(key, b, mac []byte) bool {
-	m := hmac.New(sha256.New, key)
-	m.Write(b)
-	return hmac.Equal(m.Sum(nil), mac)
-}
-
-func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(ciphertext)%aes.BlockSize != 0 {
-		length := len(ciphertext) % aes.BlockSize
-		log.Debug().Msgf("[textsecure] aesDecrypt ciphertext not multiple of AES blocksize: %v", length)
-		return nil, errors.New("ciphertext not multiple of AES blocksize")
-	}
-
-	iv := ciphertext[:aes.BlockSize]
-	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(ciphertext, ciphertext)
-	pad := ciphertext[len(ciphertext)-1]
-	if pad > aes.BlockSize {
-		return nil, fmt.Errorf("pad value (%d) larger than AES blocksize (%d)", pad, aes.BlockSize)
-	}
-	return ciphertext[aes.BlockSize : len(ciphertext)-int(pad)], nil
 }

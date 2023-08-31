@@ -20,6 +20,7 @@ import (
 
 // We don't want to couple library users to signalpb, so just alias it
 type DataMessage signalpb.DataMessage
+type AttachmentPointer signalpb.AttachmentPointer
 
 func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
@@ -27,25 +28,22 @@ func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 		return d.Connection.SenderCertificate, nil
 	}
 
-	username, password := d.Data.BasicAuthCreds()
-	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest("GET", "/v1/certificate/delivery", opts)
-	defer resp.Body.Close()
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP error: %v", resp.StatusCode)
-	}
-
 	type response struct {
 		Base64Certificate string `json:"certificate"`
 	}
 	var r response
-	err = json.NewDecoder(resp.Body).Decode(&r)
+
+	username, password := d.Data.BasicAuthCreds()
+	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
+	resp, err := web.SendHTTPRequest("GET", "/v1/certificate/delivery", opts)
 	if err != nil {
 		return nil, err
 	}
+	err = web.DecodeHTTPResponseBody(&r, resp)
+	if err != nil {
+		return nil, err
+	}
+
 	rawCertificate, err := base64.StdEncoding.DecodeString(r.Base64Certificate)
 	if err != nil {
 		return nil, err
@@ -313,6 +311,20 @@ func DataMessageForText(text string) *DataMessage {
 	}
 }
 
+func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption string) *DataMessage {
+	ap := (*signalpb.AttachmentPointer)(attachmentPointer) // Cast back to signalpb, this is okay AttachmentPointer is an alias
+	timestamp := currentMessageTimestamp()
+	dm := &DataMessage{
+		Timestamp:   &timestamp,
+		Attachments: []*signalpb.AttachmentPointer{},
+	}
+	if caption != "" {
+		ap.Caption = proto.String(caption)
+	}
+	dm.Attachments = append(dm.Attachments, ap)
+	return dm
+}
+
 func DataMessageForReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *DataMessage {
 	timestamp := currentMessageTimestamp()
 	return &DataMessage{
@@ -334,6 +346,11 @@ func DataMessageForDelete(targetMessageTimestamp uint64) *DataMessage {
 			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
 		},
 	}
+}
+
+func UploadAttachment(d *Device, image []byte, mimeType string, filename string) (*AttachmentPointer, error) {
+	ap, err := encryptAndUploadAttachment(d, image, mimeType, filename)
+	return (*AttachmentPointer)(ap), err
 }
 
 func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, message *DataMessage) (*GroupMessageSendResult, error) {
@@ -390,7 +407,7 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, mess
 
 func SendMessage(ctx context.Context, device *Device, recipientUuid string, message *DataMessage) SendMessageResult {
 	// Assemble the content to send
-	dataMessage := (*signalpb.DataMessage)(message)
+	dataMessage := (*signalpb.DataMessage)(message) // Cast back to signalpb, this is okay DataMessage is an alias
 	messageTimestamp := *dataMessage.Timestamp
 	content := &signalpb.Content{
 		DataMessage: dataMessage,
