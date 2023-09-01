@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -22,9 +23,11 @@ type ProfileName struct {
 	FamilyName *string
 }
 type Profile struct {
-	Name       string
-	About      string
-	AboutEmoji string
+	Name        string
+	About       string
+	AboutEmoji  string
+	Avatar      string
+	AvatarImage []byte
 }
 
 func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string) ([]byte, error) {
@@ -217,8 +220,60 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 		}
 		profile.AboutEmoji = *decryptedAboutEmoji
 	}
+	if profile.Avatar != "" {
+		username, password := d.Data.BasicAuthCreds()
+		opts := &web.HTTPReqOpt{
+			Host:     web.CDNUrlHost, // I guess don't use CDN2 for profiles?
+			Username: &username,
+			Password: &password,
+		}
+		resp, err := web.SendHTTPRequest("GET", profile.Avatar, opts)
+		if err != nil {
+			zlog.Err(err).Msg("error fetching profile avatar")
+			profile.Avatar = ""
+		}
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
+			zlog.Err(err).Msg("error fetching profile avatar")
+			profile.Avatar = ""
+		}
+		encryptedAvatar, err := io.ReadAll(resp.Body)
+		if err != nil {
+			zlog.Err(err).Msg("error reading profile avatar")
+			profile.Avatar = ""
+		}
+		avatar, err := decryptBytes(*profileKey, encryptedAvatar)
+		if err != nil {
+			zlog.Err(err).Msg("error decrypting profile avatar")
+			profile.Avatar = ""
+		}
+		profile.AvatarImage = avatar
+	}
 
 	return &profile, nil
+}
+
+func decryptBytes(key libsignalgo.ProfileKey, encryptedBytes []byte) ([]byte, error) {
+	if len(encryptedBytes) < NONCE_LENGTH+16+1 {
+		return nil, errors.New("invalid encryptedBytes length")
+	}
+	nonce := encryptedBytes[:NONCE_LENGTH]
+	ciphertext := encryptedBytes[NONCE_LENGTH:]
+	keyBytes := key[:]
+	padded, err := AesgcmDecrypt(keyBytes, nonce, ciphertext, []byte{})
+	if err != nil {
+		return nil, err
+	}
+	paddedLength := len(padded)
+	plaintextLength := 0
+	for i := paddedLength - 1; i >= 0; i-- {
+		if padded[i] != byte(0) {
+			plaintextLength = i + 1
+			break
+		}
+	}
+	returnString := padded[:plaintextLength]
+	return returnString, nil
 }
 
 func decryptString(key libsignalgo.ProfileKey, encryptedText []byte) (*string, error) {

@@ -106,6 +106,9 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	if opt.Host == "" {
 		opt.Host = UrlHost
 	}
+	if path[0] != '/' {
+		path = "/" + path
+	}
 	urlStr := "https://" + opt.Host + path
 	if opt.OverrideURL != "" {
 		urlStr = opt.OverrideURL
@@ -138,8 +141,12 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	zlog.Debug().Msgf("Sending HTTP request %v, url: %s", httpReqCounter, urlStr)
 	client := proxiedHTTPClient()
 	resp, err := client.Do(req)
+	if err != nil {
+		zlog.Err(err).Msg("Error sending request")
+		return nil, err
+	}
 	zlog.Debug().Msgf("Received HTTP response %v, status: %v", httpReqCounter, resp.StatusCode)
-	return resp, err
+	return resp, nil
 }
 
 // DecodeHTTPResponseBody checks status code, reads an http.Response's Body and decodes it into the provided interface.

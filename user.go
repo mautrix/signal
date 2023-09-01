@@ -434,6 +434,29 @@ func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Pupp
 			}
 		}
 	}
+	if puppet.AvatarURL.IsEmpty() {
+		// upload puppet avatar
+		avatarImage := profile.AvatarImage
+		if avatarImage != nil {
+			avatarURL, err := puppet.DefaultIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
+			if err != nil {
+				user.log.Err(err).Msg("error uploading avatar")
+				return err
+			}
+			puppet.AvatarURL = avatarURL.ContentURI
+			err = puppet.DefaultIntent().SetAvatarURL(avatarURL.ContentURI)
+			if err != nil {
+				user.log.Err(err).Msg("error setting avatar url")
+				return err
+			} else {
+				err = puppet.Update()
+				if err != nil {
+					user.log.Err(err).Msg("error updating puppet")
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 

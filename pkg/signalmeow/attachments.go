@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -163,21 +162,6 @@ func encryptAndUploadAttachment(device *Device, body []byte, mimeType, filename 
 	}
 
 	return attachmentPointer, nil
-}
-
-func justHost(url string) string {
-	parts := strings.Split(url, "/")
-	if len(parts) < 3 {
-		return ""
-	}
-	return parts[2]
-}
-func relativePath(url string) string {
-	parts := strings.Split(url, "/")
-	if len(parts) < 4 {
-		return ""
-	}
-	return "/" + strings.Join(parts[3:], "/")
 }
 
 func verifyMAC(key, body, mac []byte) bool {
