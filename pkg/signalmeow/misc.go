@@ -97,5 +97,7 @@ func convertByteUUIDToUUID(uuidBytes libsignalgo.UUID) string {
 		hex.EncodeToString(uuidBytes[6:8]) + "-" +
 		hex.EncodeToString(uuidBytes[8:10]) + "-" +
 		hex.EncodeToString(uuidBytes[10:])
+	// ensure uuid is lowercase
+	uuid = strings.ToLower(uuid)
 	return uuid
 }

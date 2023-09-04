@@ -414,7 +414,7 @@ func (user *User) doConnect() (chan signalmeow.SignalConnectionStatus, error) {
 }
 
 func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {
-	profile, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, puppet.SignalID)
+	profile, avatarImage, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, puppet.SignalID)
 	if err != nil {
 		user.log.Err(err).Msg("error retrieving profile")
 		return err
@@ -434,10 +434,11 @@ func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Pupp
 			}
 		}
 	}
-	if puppet.AvatarURL.IsEmpty() {
-		// upload puppet avatar
-		avatarImage := profile.AvatarImage
+
+	// If avatar is set, we must have a new avatar image, so update it
+	if avatarImage != nil {
 		if avatarImage != nil {
+			user.log.Debug().Msg("Uploading new avatar")
 			avatarURL, err := puppet.DefaultIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
 			if err != nil {
 				user.log.Err(err).Msg("error uploading avatar")

@@ -22,12 +22,27 @@ type ProfileName struct {
 	GivenName  string
 	FamilyName *string
 }
+
+type ProfileResponse struct {
+	Name       string
+	About      string
+	AboutEmoji string
+	Avatar     string
+}
+
 type Profile struct {
-	Name        string
-	About       string
-	AboutEmoji  string
-	Avatar      string
-	AvatarImage []byte
+	Name       string
+	About      string
+	AboutEmoji string
+	AvatarPath string
+	Key        libsignalgo.ProfileKey
+}
+
+type ProfileCache struct {
+	profiles    map[string]*Profile
+	errors      map[string]*error
+	lastFetched map[string]time.Time
+	avatarPaths map[string]string
 }
 
 func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string) ([]byte, error) {
@@ -71,26 +86,31 @@ func ProfileKeyForSignalID(ctx context.Context, d *Device, signalId string) (*li
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
+func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, []byte, error) {
 	if d.Connection.ProfileCache == nil {
 		d.Connection.ProfileCache = &ProfileCache{
 			profiles:    make(map[string]*Profile),
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
+			avatarPaths: make(map[string]string),
 		}
 	}
 
+	// Check if we have a cached profile that is less than an hour old
+	// or if we have a cached error that is less than an hour old
 	lastFetched, ok := d.Connection.ProfileCache.lastFetched[string(signalID)]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
 		profile, ok := d.Connection.ProfileCache.profiles[string(signalID)]
 		if ok {
-			return profile, nil
+			return profile, nil, nil
 		}
 		err, ok := d.Connection.ProfileCache.errors[string(signalID)]
 		if ok {
-			return nil, *err
+			return nil, nil, *err
 		}
 	}
+
+	// If we get here, we don't have a cached profile, so fetch it
 	profile, err := fetchProfileByID(ctx, d, signalID)
 	if err != nil {
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
@@ -98,20 +118,30 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 			d.Connection.ProfileCache.errors[string(signalID)] = &err
 			d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	if profile == nil {
-		return nil, errProfileKeyNotFound
+		return nil, nil, errProfileKeyNotFound
 	}
+
+	// If there is an avatarPath, and it's different from the cached one, fetch it
+	// (we only return the avatar if it's different from the cached one)
+	var avatarImage []byte
+	cachedAvatarPath, ok := d.Connection.ProfileCache.avatarPaths[string(signalID)]
+	if profile.AvatarPath != "" && cachedAvatarPath != profile.AvatarPath {
+		avatarImage, err = fetchAndDecryptAvatarImage(d, profile.AvatarPath, &profile.Key)
+		if err != nil {
+			zlog.Err(err).Msg("error fetching profile avatarImage")
+			return nil, nil, err
+		}
+	}
+	d.Connection.ProfileCache.avatarPaths[string(signalID)] = profile.AvatarPath
+
+	// If we get here, we have a valid profile, so cache it
 	d.Connection.ProfileCache.profiles[string(signalID)] = profile
 	d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
-	return profile, nil
-}
 
-type ProfileCache struct {
-	profiles    map[string]*Profile
-	errors      map[string]*error
-	lastFetched map[string]time.Time
+	return profile, avatarImage, nil
 }
 
 func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
@@ -184,73 +214,75 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 		zlog.Err(err).Msg("profile response error")
 		return nil, err
 	}
+	var profileResponse ProfileResponse
 	var profile Profile
-	err = json.Unmarshal(resp.Body, &profile)
+	err = json.Unmarshal(resp.Body, &profileResponse)
 	if err != nil {
 		zlog.Err(err).Msg("json.Unmarshal error")
 		return nil, err
 	}
-	if profile.Name != "" {
-		base64Name, err := base64.StdEncoding.DecodeString(profile.Name)
+	if profileResponse.Name != "" {
+		base64Name, err := base64.StdEncoding.DecodeString(profileResponse.Name)
 		decryptedName, err := decryptString(*profileKey, base64Name)
 		if err != nil {
 			zlog.Err(err).Msg("error decrypting profile name")
-			profile.Name = ""
 		}
 		profile.Name = *decryptedName
 		// I've seen profile names come in with a null byte instead of a space
 		// between first and last names, so replace any null bytes with spaces
 		profile.Name = strings.Replace(profile.Name, "\x00", " ", -1)
 	}
-	if profile.About != "" {
-		base64About, err := base64.StdEncoding.DecodeString(profile.About)
+	if profileResponse.About != "" {
+		base64About, err := base64.StdEncoding.DecodeString(profileResponse.About)
 		decryptedAbout, err := decryptString(*profileKey, base64About)
 		if err != nil {
 			zlog.Err(err).Msg("error decrypting profile about")
-			profile.About = ""
 		}
 		profile.About = *decryptedAbout
 	}
-	if profile.AboutEmoji != "" {
-		base64AboutEmoji, err := base64.StdEncoding.DecodeString(profile.AboutEmoji)
+	if profileResponse.AboutEmoji != "" {
+		base64AboutEmoji, err := base64.StdEncoding.DecodeString(profileResponse.AboutEmoji)
 		decryptedAboutEmoji, err := decryptString(*profileKey, base64AboutEmoji)
 		if err != nil {
 			zlog.Err(err).Msg("error decrypting profile aboutEmoji")
-			profile.AboutEmoji = ""
 		}
 		profile.AboutEmoji = *decryptedAboutEmoji
 	}
-	if profile.Avatar != "" {
-		username, password := d.Data.BasicAuthCreds()
-		opts := &web.HTTPReqOpt{
-			Host:     web.CDNUrlHost, // I guess don't use CDN2 for profiles?
-			Username: &username,
-			Password: &password,
-		}
-		resp, err := web.SendHTTPRequest("GET", profile.Avatar, opts)
-		if err != nil {
-			zlog.Err(err).Msg("error fetching profile avatar")
-			profile.Avatar = ""
-		}
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
-			zlog.Err(err).Msg("error fetching profile avatar")
-			profile.Avatar = ""
-		}
-		encryptedAvatar, err := io.ReadAll(resp.Body)
-		if err != nil {
-			zlog.Err(err).Msg("error reading profile avatar")
-			profile.Avatar = ""
-		}
-		avatar, err := decryptBytes(*profileKey, encryptedAvatar)
-		if err != nil {
-			zlog.Err(err).Msg("error decrypting profile avatar")
-			profile.Avatar = ""
-		}
-		profile.AvatarImage = avatar
-	}
+	profile.AvatarPath = profileResponse.Avatar
+	profile.Key = *profileKey
 
 	return &profile, nil
+}
+
+func fetchAndDecryptAvatarImage(d *Device, avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
+	username, password := d.Data.BasicAuthCreds()
+	opts := &web.HTTPReqOpt{
+		Host:     web.CDNUrlHost, // I guess don't use CDN2 for profiles?
+		Username: &username,
+		Password: &password,
+	}
+	zlog.Info().Msgf("Fetching profile avatar from %v", avatarPath)
+	resp, err := web.SendHTTPRequest("GET", avatarPath, opts)
+	if err != nil {
+		zlog.Err(err).Msg("error fetching profile avatar")
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
+		zlog.Err(err).Msg("error fetching profile avatar")
+		return nil, err
+	}
+	encryptedAvatar, err := io.ReadAll(resp.Body)
+	if err != nil {
+		zlog.Err(err).Msg("error reading profile avatar")
+		return nil, err
+	}
+	avatar, err := decryptBytes(*profileKey, encryptedAvatar)
+	if err != nil {
+		zlog.Err(err).Msg("error decrypting profile avatar")
+		return nil, err
+	}
+	return avatar, nil
 }
 
 func decryptBytes(key libsignalgo.ProfileKey, encryptedBytes []byte) ([]byte, error) {
