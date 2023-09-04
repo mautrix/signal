@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/http"
@@ -435,6 +437,18 @@ func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Pupp
 		}
 	}
 
+	if profile.AvatarPath == "" {
+		puppet.AvatarSet = false
+		puppet.AvatarURL = id.ContentURI{}
+		puppet.AvatarHash = ""
+		err = puppet.Update()
+		if err != nil {
+			user.log.Err(err).Msg("error updating puppet")
+			return err
+		}
+		return nil
+	}
+
 	// If avatar is set, we must have a new avatar image, so update it
 	if avatarImage != nil {
 		if avatarImage != nil {
@@ -445,6 +459,10 @@ func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Pupp
 				return err
 			}
 			puppet.AvatarURL = avatarURL.ContentURI
+			puppet.AvatarSet = true
+			hash := sha256.Sum256(avatarImage)
+			puppet.AvatarHash = hex.EncodeToString(hash[:])
+
 			err = puppet.DefaultIntent().SetAvatarURL(avatarURL.ContentURI)
 			if err != nil {
 				user.log.Err(err).Msg("error setting avatar url")
