@@ -600,6 +600,8 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		content.MsgType = event.MessageType(event.EventSticker.Type)
 	}
 
+	var outgoingMessage *signalmeow.DataMessage
+
 	switch content.MsgType {
 	case event.MsgText, event.MsgEmote, event.MsgNotice:
 		text := content.Body
@@ -616,7 +618,8 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return signalmeow.DataMessageForText(text), nil
+		outgoingMessage = signalmeow.DataMessageForText(text)
+
 	case event.MsgImage:
 		fileName := content.Body
 		var caption string
@@ -636,7 +639,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
 
 	case event.MessageType(event.EventSticker.Type):
 		fileName := content.Body
@@ -657,7 +660,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
 	case event.MsgVideo:
 		fileName := content.Body
 		var caption string
@@ -677,7 +680,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
 
 	case event.MsgAudio:
 		fileName := content.Body
@@ -698,7 +701,8 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+
 	case event.MsgFile:
 		fileName := content.Body
 		var caption string
@@ -714,12 +718,28 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		return signalmeow.DataMessageForAttachment(attachmentPointer, caption), nil
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+
 	case event.MsgLocation:
 		fallthrough
 	default:
 		return nil, fmt.Errorf("%w %q", errUnknownMsgType, content.MsgType)
 	}
+
+	// Include a quote if this is a reply
+	replyID := content.RelatesTo.GetReplyTo()
+	if replyID != "" {
+		originalMessage := portal.bridge.DB.Message.GetByMXID(replyID)
+		if originalMessage == nil {
+			return nil, fmt.Errorf("%v %s", "Reply not found", replyID)
+		}
+		signalmeow.AddQuoteToDataMessage(
+			outgoingMessage,
+			originalMessage.Sender,
+			originalMessage.Timestamp,
+		)
+	}
+	return outgoingMessage, nil
 }
 
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.DataMessage, sender *User, evtID id.EventID) error {
@@ -854,13 +874,20 @@ func (portal *Portal) storeReactionInDB(
 
 func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *signalmeow.IncomingSignalMessageQuoteData) {
 	if quote != nil {
-		eventID := portal.bridge.DB.Message.FindBySenderAndTimestamp(quote.QuotedSender, quote.QuotedTimestamp).MXID
+		originalMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(quote.QuotedSender, quote.QuotedTimestamp)
+		if originalMessage == nil {
+			portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
+			return
+		}
+		eventID := originalMessage.MXID
 		if eventID != "" {
 			content.RelatesTo = &event.RelatesTo{
 				InReplyTo: &event.InReplyTo{
 					EventID: eventID,
 				},
 			}
+		} else {
+			portal.log.Warn().Msgf("Couldn't find event ID for message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
 		}
 	}
 }

@@ -348,6 +348,17 @@ func DataMessageForDelete(targetMessageTimestamp uint64) *DataMessage {
 	}
 }
 
+func AddQuoteToDataMessage(dm *DataMessage, quotedMessageSender string, quotedMessageTimestamp uint64) {
+	// Note: We're supposed to send the quoted message content too as a fallback,
+	// but it only seems to be necessary to quote image messages on iOS and Desktop.
+	// Android seems to render every quote fine, and iOS and Desktop render text quotes fine.
+	dm.Quote = &signalpb.DataMessage_Quote{
+		AuthorUuid: proto.String(quotedMessageSender),
+		Id:         proto.Uint64(quotedMessageTimestamp),
+		Type:       signalpb.DataMessage_Quote_NORMAL.Enum(),
+	}
+}
+
 func UploadAttachment(d *Device, image []byte, mimeType string, filename string) (*AttachmentPointer, error) {
 	ap, err := encryptAndUploadAttachment(d, image, mimeType, filename)
 	return (*AttachmentPointer)(ap), err
@@ -464,6 +475,8 @@ func sendContent(
 	// TODO: function returns before message is sent - need async status to caller
 
 	//unidentifiedAccessKey := "a key" // TODO: derive key from their profile key
+
+	printContentFieldString(content, "Outgoing message")
 
 	if retryCount > 3 {
 		err := fmt.Errorf("Too many retries")
