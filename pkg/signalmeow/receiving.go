@@ -541,6 +541,29 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		}
 	}
 
+	// If there's mentions, add them
+	// TODO: also parse out styles here
+	var mentions []IncomingSignalMessageMentionData
+	if dataMessage.BodyRanges != nil {
+		for _, bodyRange := range dataMessage.BodyRanges {
+			mention := IncomingSignalMessageMentionData{
+				Start:  *bodyRange.Start,
+				Length: *bodyRange.Length,
+			}
+			if mentionUUID := bodyRange.GetMentionUuid(); mentionUUID != "" {
+				mention.MentionedUUID = mentionUUID
+				// Get name from profile db table
+				profile, err := RetrieveProfileByID(ctx, device, mentionUUID)
+				if err != nil {
+					zlog.Err(err).Msg("RetrieveProfileByID error")
+				} else {
+					mention.MentionedName = profile.Name
+				}
+			}
+			mentions = append(mentions, mention)
+		}
+	}
+
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
 		for _, attachmentPointer := range dataMessage.Attachments {
@@ -558,6 +581,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						GroupID:       groupID,
 						Timestamp:     dataMessage.GetTimestamp(),
 						Quote:         quoteData,
+						Mentions:      mentions,
 					},
 					Image:       bytes,
 					Caption:     dataMessage.GetBody(),
@@ -579,6 +603,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						GroupID:       groupID,
 						Timestamp:     dataMessage.GetTimestamp(),
 						Quote:         quoteData,
+						Mentions:      mentions,
 					},
 					Type:   "attachment",
 					Notice: fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
@@ -597,6 +622,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				GroupID:       groupID,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
+				Mentions:      mentions,
 			},
 			Content: dataMessage.GetBody(),
 		}
@@ -612,6 +638,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				GroupID:       groupID,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
+				Mentions:      mentions,
 			},
 			Emoji:                  dataMessage.GetReaction().GetEmoji(),
 			Remove:                 dataMessage.GetReaction().GetRemove(),
@@ -630,6 +657,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				GroupID:       groupID,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
+				Mentions:      mentions,
 			},
 			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),
 		}

@@ -416,7 +416,7 @@ func (user *User) doConnect() (chan signalmeow.SignalConnectionStatus, error) {
 }
 
 func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {
-	profile, avatarImage, err := signalmeow.RetrieveProfileByID(context.Background(), user.SignalDevice, puppet.SignalID)
+	profile, avatarImage, err := signalmeow.RetrieveProfileAndAvatarByID(context.Background(), user.SignalDevice, puppet.SignalID)
 	if err != nil {
 		user.log.Err(err).Msg("error retrieving profile")
 		return err

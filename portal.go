@@ -892,6 +892,40 @@ func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *
 	}
 }
 
+func ReplaceSubstr(s, replaceWith string, start, length int) string {
+	// Convert the original string and the string to replace with to slices of runes
+	runes := []rune(s)
+	replaceRunes := []rune(replaceWith)
+
+	// Check for invalid index or length
+	if start < 0 || start >= len(runes) || start+length > len(runes) {
+		return s
+	}
+
+	// Construct the new slice of runes
+	newRunes := append(runes[:start], replaceRunes...)
+	newRunes = append(newRunes, runes[start+length:]...)
+
+	// Convert the slice of runes back to a string
+	return string(newRunes)
+}
+
+func (portal *Portal) addMentionsToBody(content *event.MessageEventContent, mentions []signalmeow.IncomingSignalMessageMentionData) {
+	// TODO: handle formatted body to highlight mention in content body
+	matrixMentions := event.Mentions{
+		UserIDs: []id.UserID{},
+	}
+	for _, mention := range mentions {
+		// replace substring at start, length with mention name
+		content.Body = ReplaceSubstr(content.Body, mention.MentionedName, int(mention.Start), int(mention.Length))
+		mxID := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID).MXID
+		matrixMentions.UserIDs = append(matrixMentions.UserIDs, mxID)
+	}
+	if len(matrixMentions.UserIDs) > 0 {
+		content.Mentions = &matrixMentions
+	}
+}
+
 func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
@@ -900,6 +934,7 @@ func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage,
 		Body:    msg.Content,
 	}
 	portal.addSignalQuote(content, msg.Quote)
+	portal.addMentionsToBody(content, msg.Mentions)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {
 		return err
@@ -927,6 +962,7 @@ func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage
 		},
 	}
 	portal.addSignalQuote(content, msg.Quote)
+	portal.addMentionsToBody(content, msg.Mentions)
 	err := portal.uploadMediaToMatrix(intent, msg.Image, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {

@@ -86,7 +86,7 @@ func ProfileKeyForSignalID(ctx context.Context, d *Device, signalId string) (*li
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, []byte, error) {
+func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Profile, error) {
 	if d.Connection.ProfileCache == nil {
 		d.Connection.ProfileCache = &ProfileCache{
 			profiles:    make(map[string]*Profile),
@@ -102,11 +102,11 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 	if ok && time.Since(lastFetched) < 1*time.Hour {
 		profile, ok := d.Connection.ProfileCache.profiles[string(signalID)]
 		if ok {
-			return profile, nil, nil
+			return profile, nil
 		}
 		err, ok := d.Connection.ProfileCache.errors[string(signalID)]
 		if ok {
-			return nil, nil, *err
+			return nil, *err
 		}
 	}
 
@@ -118,16 +118,29 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 			d.Connection.ProfileCache.errors[string(signalID)] = &err
 			d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
 		}
-		return nil, nil, err
+		return nil, err
 	}
 	if profile == nil {
-		return nil, nil, errProfileKeyNotFound
+		return nil, errProfileKeyNotFound
+	}
+
+	// If we get here, we have a valid profile, so cache it
+	d.Connection.ProfileCache.profiles[string(signalID)] = profile
+	d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
+
+	return profile, nil
+}
+
+func RetrieveProfileAndAvatarByID(ctx context.Context, d *Device, signalID string) (*Profile, []byte, error) {
+	profile, err := RetrieveProfileByID(ctx, d, signalID)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// If there is an avatarPath, and it's different from the cached one, fetch it
 	// (we only return the avatar if it's different from the cached one)
 	var avatarImage []byte
-	cachedAvatarPath, ok := d.Connection.ProfileCache.avatarPaths[string(signalID)]
+	cachedAvatarPath, _ := d.Connection.ProfileCache.avatarPaths[string(signalID)]
 	if profile.AvatarPath != "" && cachedAvatarPath != profile.AvatarPath {
 		avatarImage, err = fetchAndDecryptAvatarImage(d, profile.AvatarPath, &profile.Key)
 		if err != nil {
@@ -136,10 +149,6 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID string) (*Prof
 		}
 	}
 	d.Connection.ProfileCache.avatarPaths[string(signalID)] = profile.AvatarPath
-
-	// If we get here, we have a valid profile, so cache it
-	d.Connection.ProfileCache.profiles[string(signalID)] = profile
-	d.Connection.ProfileCache.lastFetched[string(signalID)] = time.Now()
 
 	return profile, avatarImage, nil
 }
