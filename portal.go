@@ -852,6 +852,19 @@ func (portal *Portal) storeReactionInDB(
 	dbReaction.Insert(nil)
 }
 
+func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *signalmeow.IncomingSignalMessageQuoteData) {
+	if quote != nil {
+		eventID := portal.bridge.DB.Message.FindBySenderAndTimestamp(quote.QuotedSender, quote.QuotedTimestamp).MXID
+		if eventID != "" {
+			content.RelatesTo = &event.RelatesTo{
+				InReplyTo: &event.InReplyTo{
+					EventID: eventID,
+				},
+			}
+		}
+	}
+}
+
 func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
@@ -859,6 +872,7 @@ func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage,
 		MsgType: event.MsgText,
 		Body:    msg.Content,
 	}
+	portal.addSignalQuote(content, msg.Quote)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {
 		return err
@@ -885,6 +899,7 @@ func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage
 			// TODO: bridge blurhash! (needs mautrix-go update)
 		},
 	}
+	portal.addSignalQuote(content, msg.Quote)
 	err := portal.uploadMediaToMatrix(intent, msg.Image, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {

@@ -532,6 +532,15 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 
 	var incomingMessages []IncomingSignalMessage
 
+	// Grab quote (reply) info if it exists
+	var quoteData *IncomingSignalMessageQuoteData
+	if dataMessage.Quote != nil {
+		quoteData = &IncomingSignalMessageQuoteData{
+			QuotedSender:    dataMessage.GetQuote().GetAuthorUuid(),
+			QuotedTimestamp: dataMessage.GetQuote().GetId(),
+		}
+	}
+
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
 		for _, attachmentPointer := range dataMessage.Attachments {
@@ -548,6 +557,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						RecipientUUID: recipientUUID,
 						GroupID:       groupID,
 						Timestamp:     dataMessage.GetTimestamp(),
+						Quote:         quoteData,
 					},
 					Image:       bytes,
 					Caption:     dataMessage.GetBody(),
@@ -568,6 +578,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						RecipientUUID: recipientUUID,
 						GroupID:       groupID,
 						Timestamp:     dataMessage.GetTimestamp(),
+						Quote:         quoteData,
 					},
 					Type:   "attachment",
 					Notice: fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
@@ -585,6 +596,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				RecipientUUID: recipientUUID,
 				GroupID:       groupID,
 				Timestamp:     dataMessage.GetTimestamp(),
+				Quote:         quoteData,
 			},
 			Content: dataMessage.GetBody(),
 		}
@@ -599,6 +611,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				RecipientUUID: recipientUUID,
 				GroupID:       groupID,
 				Timestamp:     dataMessage.GetTimestamp(),
+				Quote:         quoteData,
 			},
 			Emoji:                  dataMessage.GetReaction().GetEmoji(),
 			Remove:                 dataMessage.GetReaction().GetRemove(),
@@ -616,6 +629,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				RecipientUUID: recipientUUID,
 				GroupID:       groupID,
 				Timestamp:     dataMessage.GetTimestamp(),
+				Quote:         quoteData,
 			},
 			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),
 		}
