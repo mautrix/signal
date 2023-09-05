@@ -106,7 +106,7 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	if opt.Host == "" {
 		opt.Host = UrlHost
 	}
-	if path[0] != '/' {
+	if len(path) > 0 && path[0] != '/' {
 		path = "/" + path
 	}
 	urlStr := "https://" + opt.Host + path
