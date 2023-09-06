@@ -64,13 +64,11 @@ func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*Group
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
 	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d", today.Unix(), sevenDaysOut.Unix())
 	authRequest := web.CreateWSRequest("GET", path, nil, nil, nil)
-	respChan, err := d.Connection.AuthedWS.SendRequest(ctx, authRequest)
+	resp, err := d.Connection.AuthedWS.SendRequest(ctx, authRequest)
 	if err != nil {
 		zlog.Err(err).Msg("SendRequest error")
 		return nil, err
 	}
-	zlog.Trace().Msg("Waiting for auth credentials response")
-	resp := <-respChan
 	if *resp.Status != 200 {
 		err := fmt.Errorf("bad status code: %d", *resp.Status)
 		zlog.Err(err).Msg("bad status code fetching group creds")

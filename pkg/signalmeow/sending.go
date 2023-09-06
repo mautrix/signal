@@ -413,6 +413,11 @@ func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, mess
 		}
 	}
 
+	if len(result.SuccessfullySentTo) == 0 {
+		lastError := result.FailedToSendTo[len(result.FailedToSendTo)-1].Error
+		return nil, fmt.Errorf("Failed to send to any group members: %v", lastError)
+	}
+
 	return result, nil
 }
 
@@ -527,22 +532,20 @@ func sendContent(
 	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
 	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil)
 
-	var responseChan <-chan *signalpb.WebSocketResponseMessage
+	var response *signalpb.WebSocketResponseMessage
 	if useUnidentifiedSender {
 		zlog.Trace().Msgf("Sending message to %v over unidentified WS", recipientUuid)
 		base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 		request.Headers = append(request.Headers, "unidentified-access-key:"+base64AccessKey)
-		responseChan, err = d.Connection.UnauthedWS.SendRequest(ctx, request)
+		response, err = d.Connection.UnauthedWS.SendRequest(ctx, request)
 	} else {
 		zlog.Trace().Msgf("Sending message to %v over authed WS", recipientUuid)
-		responseChan, err = d.Connection.AuthedWS.SendRequest(ctx, request)
+		response, err = d.Connection.AuthedWS.SendRequest(ctx, request)
 	}
 	sentUnidentified = useUnidentifiedSender
 	if err != nil {
 		return sentUnidentified, err
 	}
-
-	response := <-responseChan
 	zlog.Trace().Msgf("Received a response to a message send from: %v, id: %v, code: %v", recipientUuid, *response.Id, *response.Status)
 
 	retryableStatuses := []uint32{409, 410, 428, 500, 503}

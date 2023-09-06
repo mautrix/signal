@@ -761,6 +761,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.Dat
 		result, err := signalmeow.SendGroupMessage(ctx, sender.SignalDevice, groupID, msg)
 		if err != nil {
 			portal.log.Error().Msgf("Error sending event %s to Signal group %s: %s", evtID, recipientSignalID, err)
+			return err
 		}
 		totalRecipients := len(result.FailedToSendTo) + len(result.SuccessfullySentTo)
 		if len(result.FailedToSendTo) > 0 {

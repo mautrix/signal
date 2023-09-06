@@ -210,13 +210,11 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 		profileRequest.Headers = append(profileRequest.Headers, "unidentified-access-key:"+base64AccessKey)
 		profileRequest.Headers = append(profileRequest.Headers, "accept-language:en-CA")
 	}
-	respChan, err := d.Connection.UnauthedWS.SendRequest(ctx, profileRequest)
+	resp, err := d.Connection.UnauthedWS.SendRequest(ctx, profileRequest)
 	if err != nil {
 		zlog.Err(err).Msg("SendRequest error")
 		return nil, err
 	}
-	zlog.Trace().Msg("Waiting for profile response")
-	resp := <-respChan
 	zlog.Trace().Msg("Got profile response")
 	if *resp.Status < 200 || *resp.Status >= 300 {
 		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", *resp.Status))

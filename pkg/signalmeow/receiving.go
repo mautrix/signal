@@ -142,7 +142,7 @@ func StopReceiveLoops(d *Device) error {
 // Returns a RequestHandlerFunc that can be used to handle incoming requests, with a device injected via closure.
 func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 	handler := func(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
-		responseCode := 400
+		responseCode := 200
 		if *req.Verb == "PUT" && *req.Path == "/api/v1/message" {
 			envelope := &signalpb.Envelope{}
 			err := proto.Unmarshal(req.Body, envelope)
@@ -200,8 +200,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					)
 					if err != nil {
 						if strings.Contains(err.Error(), "message with old counter") {
-							// Duplicate message, ignore
-							responseCode = 200
 							zlog.Warn().Msg("Duplicate message, ignoring")
 						} else {
 							zlog.Err(err).Msg("GroupDecrypt error")
@@ -221,7 +219,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 							Content:       &content,
 							SealedSender:  true,
 						}
-						responseCode = 200
 					}
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePreKey {
@@ -229,8 +226,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					result, err = prekeyDecrypt(*senderAddress, usmcContents, device, ctx)
 					if err != nil {
 						zlog.Err(err).Msg("prekeyDecrypt error")
-					} else {
-						responseCode = 200
 					}
 
 				} else if messageType == libsignalgo.CiphertextMessageTypeWhisper {
@@ -263,7 +258,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 							Content:       &content,
 							SealedSender:  true,
 						}
-						responseCode = 200
 					}
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePlaintext {
@@ -280,15 +274,12 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					result, err = sealedSenderDecrypt(envelope, device, ctx)
 					if err != nil {
 						if strings.Contains(err.Error(), "self send of a sealed sender message") {
-							// Message sent by us, ignore
-							responseCode = 200
 							zlog.Debug().Msg("Message sent by us, ignoring")
 						} else {
 							zlog.Err(err).Msg("sealedSenderDecrypt error")
 						}
 					} else {
 						zlog.Trace().Msgf("SealedSender decrypt result - address: %v, content: %v", result.SenderAddress, result.Content)
-						responseCode = 200
 					}
 				}
 
@@ -306,7 +297,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					zlog.Err(err).Msg("prekeyDecrypt error")
 				} else {
 					zlog.Trace().Msgf("prekey decrypt result -  address: %v, data: %v", result.SenderAddress, result.Content)
-					responseCode = 200
 				}
 
 			} else if *envelope.Type == signalpb.Envelope_PLAINTEXT_CONTENT {
@@ -331,8 +321,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				)
 				if err != nil {
 					if strings.Contains(err.Error(), "message with old counter") {
-						// Duplicate message, ignore
-						responseCode = 200
 						zlog.Info().Msg("Duplicate message, ignoring")
 					} else {
 						zlog.Err(err).Msg("Whisper Decryption error")
@@ -351,22 +339,23 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 						SenderAddress: *senderAddress,
 						Content:       &content,
 					}
-					responseCode = 200
 				}
 
 			} else if *envelope.Type == signalpb.Envelope_RECEIPT {
 				zlog.Debug().Msgf("Received envelope type RECEIPT, verb: %v, path: %v", *req.Verb, *req.Path)
 				// TODO: handle receipt
-				responseCode = 200
 
 			} else if *envelope.Type == signalpb.Envelope_KEY_EXCHANGE {
 				zlog.Debug().Msgf("Received envelope type KEY_EXCHANGE, verb: %v, path: %v", *req.Verb, *req.Path)
+				responseCode = 400
 
 			} else if *envelope.Type == signalpb.Envelope_UNKNOWN {
 				zlog.Warn().Msgf("Received envelope type UNKNOWN, verb: %v, path: %v", *req.Verb, *req.Path)
+				responseCode = 400
 
 			} else {
 				zlog.Warn().Msgf("Received actual unknown envelope type, verb: %v, path: %v", *req.Verb, *req.Path)
+				responseCode = 400
 			}
 
 			// Handle content that is now decrypted

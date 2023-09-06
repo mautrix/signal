@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -327,6 +328,7 @@ func readLoop(
 
 type SignalWebsocketSendMessage struct {
 	// Populate if we're sending a request:
+	RequestTime     time.Time
 	ResponseChannel chan *signalpb.WebSocketResponseMessage
 	// Populate if we're sending a response:
 	ResponseMessage *SimpleResponse
@@ -364,10 +366,21 @@ func writeLoop(
 				if len(path) > 30 {
 					path = path[:40]
 				}
-				zlog.Debug().Msgf("Sending WS request %v:%v, verb: %v, path: %v", name, i, *request.RequestMessage.Verb, path)
+				if request.RequestTime != (time.Time{}) {
+					elapsed := time.Since(request.RequestTime)
+					if elapsed > 1*time.Minute {
+						return errors.Errorf("Took too long, not sending (elapsed: %v)", elapsed)
+					} else if elapsed > 10*time.Second {
+						zlog.Warn().Msgf("Sending WS request %v:%v, verb: %v, path: %v, elapsed: %v", name, i, *request.RequestMessage.Verb, path, elapsed)
+					} else {
+						zlog.Debug().Msgf("Sending WS request %v:%v, verb: %v, path: %v, elapsed: %v", name, i, *request.RequestMessage.Verb, path, elapsed)
+					}
+				}
 				err := wspb.Write(ctx, ws, message)
 				if err != nil {
-					close(request.ResponseChannel)
+					if ctx.Err() != nil && ctx.Err() != context.Canceled {
+						return ctx.Err()
+					}
 					return errors.Wrap(err, "Error writing request message")
 				}
 			} else if request.RequestMessage != nil && request.ResponseMessage != nil {
@@ -387,8 +400,17 @@ func writeLoop(
 func (s *SignalWebsocket) SendRequest(
 	ctx context.Context,
 	request *signalpb.WebSocketRequestMessage,
-) (<-chan *signalpb.WebSocketResponseMessage, error) {
-	//request.Headers = append(request.Headers, "Content-Type: application/json")
+) (*signalpb.WebSocketResponseMessage, error) {
+	startTime := time.Now()
+	return s.sendRequestInternal(ctx, request, startTime, 0)
+}
+
+func (s *SignalWebsocket) sendRequestInternal(
+	ctx context.Context,
+	request *signalpb.WebSocketRequestMessage,
+	startTime time.Time,
+	retryCount int,
+) (*signalpb.WebSocketResponseMessage, error) {
 	if s.basicAuth != nil {
 		request.Headers = append(request.Headers, "authorization:Basic "+*s.basicAuth)
 	}
@@ -399,8 +421,30 @@ func (s *SignalWebsocket) SendRequest(
 	s.sendChannel <- SignalWebsocketSendMessage{
 		RequestMessage:  request,
 		ResponseChannel: responseChannel,
+		RequestTime:     startTime,
 	}
-	return responseChannel, nil
+	response := <-responseChannel
+
+	if response == nil {
+		// If out of retries, return error no matter what
+		if retryCount >= 3 {
+			// TODO: I think error isn't getting passed in this context (as it's not the one in writeLoop)
+			if ctx.Err() != nil {
+				return nil, errors.Wrap(ctx.Err(), "Retried 3 times, giving up")
+			} else {
+				return nil, errors.New("Retried 3 times, giving up")
+			}
+		}
+		if ctx.Err() != nil {
+			// if error contains "Took too long" don't retry
+			if strings.Contains(ctx.Err().Error(), "Took too long") {
+				return nil, ctx.Err()
+			}
+		}
+		zlog.Warn().Msgf("Received nil response, retrying recursively (%v)", retryCount)
+		return s.sendRequestInternal(ctx, request, startTime, retryCount+1)
+	}
+	return response, nil
 }
 
 func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
