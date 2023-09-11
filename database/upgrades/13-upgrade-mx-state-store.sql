@@ -12,3 +12,5 @@ UPDATE mx_user_profile SET avatar_url='' WHERE avatar_url IS NULL;
 CREATE TABLE mx_registrations (
 	user_id TEXT PRIMARY KEY
 );
+
+UPDATE mx_version SET version=5;
