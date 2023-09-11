@@ -1,4 +1,4 @@
--- v0 -> v1: Latest revision
+-- v0 -> v12: Latest revision
 
 CREATE TABLE portal (
     chat_id     TEXT,
