@@ -225,7 +225,7 @@ func main() {
 		Version:      "0.1.0",
 		ProtocolName: "Signal",
 
-		CryptoPickleKey: "maunium.net/go/mautrix-signal",
+		CryptoPickleKey: "mautrix.bridge.e2ee",
 
 		ConfigUpgrader: &configupgrade.StructUpgrader{
 			SimpleUpgrader: configupgrade.SimpleUpgrader(config.DoUpgrade),
