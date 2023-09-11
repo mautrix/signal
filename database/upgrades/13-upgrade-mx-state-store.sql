@@ -1,4 +1,4 @@
--- v12: Switch mx_room_state from Python to Go format
+-- v13: Switch mx_room_state from Python to Go format
 ALTER TABLE mx_room_state DROP COLUMN is_encrypted;
 ALTER TABLE mx_room_state DROP COLUMN has_full_member_list;
 
