@@ -81,14 +81,14 @@ func (p *Portal) Scan(row dbutil.Scannable) *Portal {
 		p.log.Debugln("nil row passed to Portal.Scan")
 		return nil
 	}
-	var avatarURL string
+	var chatID, receiver, mxid, name, topic, avatarHash, avatarURL sql.NullString
 	err := row.Scan(
-		&p.ChatID,
-		&p.Receiver,
-		&p.MXID,
-		&p.Name,
-		&p.Topic,
-		&p.AvatarHash,
+		&chatID,
+		&receiver,
+		&mxid,
+		&name,
+		&topic,
+		&avatarHash,
 		&avatarURL,
 		&p.NameSet,
 		&p.AvatarSet,
@@ -105,7 +105,13 @@ func (p *Portal) Scan(row dbutil.Scannable) *Portal {
 		}
 		return nil
 	}
-	parsedAvatarURL, err := id.ParseContentURI(avatarURL)
+	p.ChatID = chatID.String
+	p.Receiver = receiver.String
+	p.MXID = id.RoomID(mxid.String)
+	p.Name = name.String
+	p.Topic = topic.String
+	p.AvatarHash = avatarHash.String
+	parsedAvatarURL, err := id.ParseContentURI(avatarURL.String)
 	if err != nil {
 		p.log.Warnfln("Error parsing avatar URL: %w", err)
 		p.AvatarURL = id.ContentURI{}

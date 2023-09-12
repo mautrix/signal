@@ -88,13 +88,25 @@ func (msg *Message) Delete(txn dbutil.Execable) {
 }
 
 func (msg *Message) Scan(row dbutil.Scannable) *Message {
-	err := row.Scan(&msg.MXID, &msg.MXRoom, &msg.Sender, &msg.Timestamp, &msg.SignalChatID, &msg.SignalReceiver)
+	var timestamp sql.NullInt64
+	var signalChatID, signalReceiver sql.NullString
+	err := row.Scan(
+		&msg.MXID,
+		&msg.MXRoom,
+		&msg.Sender,
+		&timestamp,
+		&signalChatID,
+		&signalReceiver,
+	)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			msg.log.Errorln("Database scan failed:", err)
 		}
 		return nil
 	}
+	msg.Timestamp = uint64(timestamp.Int64)
+	msg.SignalChatID = signalChatID.String
+	msg.SignalReceiver = signalReceiver.String
 	return msg
 }
 

@@ -65,22 +65,22 @@ func (p *Puppet) values() []interface{} {
 }
 
 func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
-	var avatarURL, customMXID string
+	var number, name, avatarHash, avatarURL, customMXID, accessToken, nextBatch, baseURL sql.NullString
 	err := row.Scan(
 		&p.SignalID,
-		&p.Number,
-		&p.Name,
+		&number,
+		&name,
 		&p.NameQuality,
-		&p.AvatarHash,
+		&avatarHash,
 		&avatarURL,
 		&p.NameSet,
 		&p.AvatarSet,
 		&p.ContactInfoSet,
 		&p.IsRegistered,
 		&customMXID,
-		&p.AccessToken,
-		&p.NextBatch,
-		&p.BaseURL,
+		&accessToken,
+		&nextBatch,
+		&baseURL,
 	)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -88,7 +88,7 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 		}
 		return nil
 	}
-	parsedAvatarURL, err := id.ParseContentURI(avatarURL)
+	parsedAvatarURL, err := id.ParseContentURI(avatarURL.String)
 	if err != nil {
 		p.log.Warnfln("Error parsing avatar URL: %w", err)
 		p.AvatarURL = id.ContentURI{}
@@ -96,7 +96,13 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 		p.AvatarURL = parsedAvatarURL
 	}
 
-	p.CustomMXID = id.UserID(customMXID)
+	p.Number = &number.String
+	p.Name = name.String
+	p.AvatarHash = avatarHash.String
+	p.CustomMXID = id.UserID(customMXID.String)
+	p.AccessToken = accessToken.String
+	p.NextBatch = nextBatch.String
+	p.BaseURL = baseURL.String
 	return p
 }
 

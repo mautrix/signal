@@ -45,13 +45,23 @@ func (u *User) Update() error {
 }
 
 func (u *User) Scan(row dbutil.Scannable) *User {
-	err := row.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.ManagementRoom, &u.NoticeRoom)
+	var username, managementRoom, noticeRoom sql.NullString
+	err := row.Scan(
+		&u.MXID,
+		&username,
+		&u.SignalID,
+		&managementRoom,
+		&noticeRoom,
+	)
 	if err != nil {
 		if err != sql.ErrNoRows {
 			u.log.Errorln("Database scan failed:", err)
 		}
 		return nil
 	}
+	u.SignalUsername = username.String
+	u.ManagementRoom = id.RoomID(managementRoom.String)
+	u.NoticeRoom = id.RoomID(noticeRoom.String)
 	return u
 }
 
