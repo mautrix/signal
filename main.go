@@ -219,11 +219,13 @@ func main() {
 		puppetsByNumber:     make(map[string]*Puppet),
 	}
 	br.Bridge = bridge.Bridge{
-		Name:         "mautrix-signal",
-		URL:          "https://github.com/mautrix/signalgo",
-		Description:  "A Matrix-Signal puppeting bridge.",
-		Version:      "0.1.0",
-		ProtocolName: "Signal",
+		Name:              "mautrix-signal",
+		URL:               "https://github.com/mautrix/signalgo",
+		Description:       "A Matrix-Signal puppeting bridge.",
+		Version:           "0.1.0",
+		ProtocolName:      "Signal",
+		BeeperServiceName: "signal",
+		BeeperNetworkName: "signal",
 
 		CryptoPickleKey: "mautrix.bridge.e2ee",
 

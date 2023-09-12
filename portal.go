@@ -97,13 +97,16 @@ func (portal *Portal) ReceiveMatrixEvent(user bridge.User, evt *event.Event) {
 	}
 }
 
-func (portal *Portal) IsPrivateChat() bool {
-	// If ChatID is a UUID, it's a private chat,
-	// otherwise it's base64 and a group chat
-	if _, uuidErr := uuid.Parse(portal.ChatID); uuidErr == nil {
+func isUUID(s string) bool {
+	if _, uuidErr := uuid.Parse(s); uuidErr == nil {
 		return true
 	}
 	return false
+}
+
+func (portal *Portal) IsPrivateChat() bool {
+	// If ChatID is a UUID, it's a private chat, otherwise it's base64 and a group chat
+	return isUUID(portal.ChatID)
 }
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
@@ -1388,6 +1391,10 @@ func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
 func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 	br.portalsLock.Lock()
 	defer br.portalsLock.Unlock()
+	// If this PortalKey is for a group, Receiver should be empty
+	if !isUUID(key.ChatID) {
+		key.Receiver = ""
+	}
 	portal, ok := br.portalsByID[key]
 	if !ok {
 		return br.loadPortal(br.DB.Portal.GetByChatID(key), &key)
