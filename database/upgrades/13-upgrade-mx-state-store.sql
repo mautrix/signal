@@ -6,6 +6,8 @@ ALTER TABLE mx_room_state DROP COLUMN has_full_member_list;
 ALTER TABLE mx_room_state ALTER COLUMN power_levels TYPE jsonb;
 ALTER TABLE mx_room_state ALTER COLUMN encryption TYPE jsonb;
 
+ALTER TABLE "user" ADD COLUMN management_room TEXT;
+
 UPDATE mx_user_profile SET displayname='' WHERE displayname IS NULL;
 UPDATE mx_user_profile SET avatar_url='' WHERE avatar_url IS NULL;
 
