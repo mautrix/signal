@@ -401,8 +401,14 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 							destination := content.SyncMessage.Sent.DestinationUuid
 							if content.SyncMessage.Sent.Message.GroupV2 != nil {
 								zlog.Debug().Msgf("sync message sent group: %v", content.SyncMessage.Sent.Message.GroupV2)
-								masterKey := libsignalgo.GroupMasterKey(content.SyncMessage.Sent.Message.GroupV2.MasterKey)
-								g := string(groupIDFromMasterKey(masterKey))
+								masterKeyBytes := libsignalgo.GroupMasterKey(content.SyncMessage.Sent.Message.GroupV2.MasterKey)
+								masterKey := masterKeyFromBytes(masterKeyBytes)
+								gid, err := StoreMasterKey(ctx, device, masterKey)
+								if err != nil {
+									zlog.Err(err).Msg("StoreMasterKey error")
+									return nil, err
+								}
+								g := string(gid)
 								destination = &g
 							}
 							if destination == nil {
@@ -495,26 +501,30 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	}
 
 	// If it's a group message, get the ID and invalidate cache if necessary
-	var groupID *GroupID
+	var gidPointer *GroupIdentifier
 	if dataMessage.GetGroupV2() != nil {
+		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
 		groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
-
-		// TODO: should we be using base64 masterkey as an ID????!?
-		groupIDValue := groupIDFromMasterKey(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
-		groupID = &groupIDValue
+		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
+		gidValue, err := StoreMasterKey(ctx, device, masterKey)
+		if err != nil {
+			zlog.Err(err).Msg("StoreMasterKey error")
+			return err
+		}
+		gidPointer = &gidValue
 
 		if dataMessage.GetGroupV2().GroupChange != nil {
 			// TODO: don't parse the change	for now, just invalidate our cache
-			zlog.Debug().Msgf("Invalidating group %v due to change: %v", groupIDValue, dataMessage.GetGroupV2().GroupChange)
-			InvalidateGroupCache(device, groupIDValue)
+			zlog.Debug().Msgf("Invalidating group %v due to change: %v", gidValue, dataMessage.GetGroupV2().GroupChange)
+			InvalidateGroupCache(device, gidValue)
 		} else if dataMessage.GetGroupV2().GetRevision() > 0 {
 			// Compare revision, and if it's newer, invalidate our cache
-			ourGroup, err := RetrieveGroupByID(ctx, device, groupIDValue)
+			ourGroup, err := RetrieveGroupByID(ctx, device, gidValue)
 			if err != nil {
 				zlog.Err(err).Msg("RetrieveGroupByID error")
 			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
-				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", groupIDValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
-				InvalidateGroupCache(device, groupIDValue)
+				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", gidValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
+				InvalidateGroupCache(device, gidValue)
 			}
 		}
 	}
@@ -567,7 +577,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					IncomingSignalMessageBase: IncomingSignalMessageBase{
 						SenderUUID:    senderUUID,
 						RecipientUUID: recipientUUID,
-						GroupID:       groupID,
+						GroupID:       gidPointer,
 						Timestamp:     dataMessage.GetTimestamp(),
 						Quote:         quoteData,
 						Mentions:      mentions,
@@ -589,7 +599,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					IncomingSignalMessageBase: IncomingSignalMessageBase{
 						SenderUUID:    senderUUID,
 						RecipientUUID: recipientUUID,
-						GroupID:       groupID,
+						GroupID:       gidPointer,
 						Timestamp:     dataMessage.GetTimestamp(),
 						Quote:         quoteData,
 						Mentions:      mentions,
@@ -608,7 +618,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
 				RecipientUUID: recipientUUID,
-				GroupID:       groupID,
+				GroupID:       gidPointer,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
 				Mentions:      mentions,
@@ -624,7 +634,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
 				RecipientUUID: recipientUUID,
-				GroupID:       groupID,
+				GroupID:       gidPointer,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
 				Mentions:      mentions,
@@ -643,7 +653,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
 				RecipientUUID: recipientUUID,
-				GroupID:       groupID,
+				GroupID:       gidPointer,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
 				Mentions:      mentions,

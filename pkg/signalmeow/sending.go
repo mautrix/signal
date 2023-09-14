@@ -364,8 +364,8 @@ func UploadAttachment(d *Device, image []byte, mimeType string, filename string)
 	return (*AttachmentPointer)(ap), err
 }
 
-func SendGroupMessage(ctx context.Context, device *Device, groupID GroupID, message *DataMessage) (*GroupMessageSendResult, error) {
-	group, err := RetrieveGroupByID(ctx, device, groupID)
+func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, message *DataMessage) (*GroupMessageSendResult, error) {
+	group, err := RetrieveGroupByID(ctx, device, gid)
 	if err != nil {
 		return nil, err
 	}

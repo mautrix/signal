@@ -493,7 +493,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		return nil
 	}
 	user.log.Info().Msgf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
-	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, signalmeow.GroupID(portal.ChatID))
+	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, signalmeow.GroupIdentifier(portal.ChatID))
 	if err != nil {
 		user.log.Err(err).Msg("error retrieving group")
 		return err

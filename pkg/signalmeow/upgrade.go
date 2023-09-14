@@ -10,7 +10,7 @@ type upgradeFunc func(*sql.Tx, *StoreContainer) error
 //
 // This may be of use if you want to manage the database fully manually, but in most cases you
 // should just call StoreContainer.Upgrade to let the library handle everything.
-var Upgrades = [...]upgradeFunc{upgradeV1}
+var Upgrades = [...]upgradeFunc{upgradeV1, upgradeV2}
 
 func (c *StoreContainer) getVersion() (int, error) {
 	_, err := c.db.Exec("CREATE TABLE IF NOT EXISTS signalmeow_version (version INTEGER)")
@@ -149,6 +149,20 @@ func upgradeV1(tx *sql.Tx, _ *StoreContainer) error {
 
 		PRIMARY KEY (our_aci_uuid, sender_uuid, sender_device_id, distribution_id),
 		FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device(aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+	)`)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func upgradeV2(tx *sql.Tx, _ *StoreContainer) error {
+	_, err := tx.Exec(`CREATE TABLE signalmeow_groups (
+		our_aci_uuid        TEXT    NOT NULL,
+		group_identifier    TEXT    NOT NULL,
+		master_key          TEXT    NOT NULL,
+
+		PRIMARY KEY (our_aci_uuid, group_identifier)
 	)`)
 	if err != nil {
 		return err

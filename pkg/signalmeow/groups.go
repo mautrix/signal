@@ -35,7 +35,8 @@ type GroupMember struct {
 	//Presentation     []byte
 }
 type Group struct {
-	GroupID GroupID
+	groupMasterKey  SerializedGroupMasterKey // We should keep this relatively private
+	GroupIdentifier GroupIdentifier          // This is what we should use to identify a group outside this file
 
 	Title             string
 	Avatar            string
@@ -57,8 +58,11 @@ type GroupAuth struct {
 	Password string
 }
 
-// Shhhh this is just base64 encoded group master key
-type GroupID string
+// This is just base64 encoded group master key
+type SerializedGroupMasterKey string
+
+// This is some public identifier derived from the group master key
+type GroupIdentifier string
 
 func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*GroupCredentials, error) {
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
@@ -187,30 +191,60 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 	}, nil
 }
 
-func masterKeyFromGroupID(groupID GroupID) libsignalgo.GroupMasterKey {
-	// We are very tricksy, groupID is just base64 encoded group master key :O
-	masterKeyBytes, err := base64.StdEncoding.DecodeString(string(groupID))
+func masterKeyToBytes(groupMasterKey SerializedGroupMasterKey) libsignalgo.GroupMasterKey {
+	// We are very tricksy, groupMasterKey is just base64 encoded group master key :O
+	masterKeyBytes, err := base64.StdEncoding.DecodeString(string(groupMasterKey))
 	if err != nil {
-		zlog.Err(err).Msg("")
-		zlog.Fatal().Msg("We should always be able to decode groupID into masterKeyBytes")
+		//zlog.Err(err).Msg("")
+		zlog.Fatal().Err(err).Msg("We should always be able to decode groupMasterKey into masterKeyBytes")
 	}
 	return libsignalgo.GroupMasterKey(masterKeyBytes)
 }
 
-func groupIDFromMasterKey(masterKey libsignalgo.GroupMasterKey) GroupID {
-	return GroupID(base64.StdEncoding.EncodeToString(masterKey[:]))
+func masterKeyFromBytes(masterKey libsignalgo.GroupMasterKey) SerializedGroupMasterKey {
+	return SerializedGroupMasterKey(base64.StdEncoding.EncodeToString(masterKey[:]))
 }
 
-func decryptGroup(encryptedGroup *signalpb.Group, groupID GroupID) (*Group, error) {
+func groupIdentifierFromMasterKey(masterKey SerializedGroupMasterKey) (GroupIdentifier, error) {
+	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(masterKey))
+	if err != nil {
+		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
+		return "", err
+	}
+	// Get the "group identifier" that isn't just the master key
+	groupPublicParams, err := groupSecretParams.GetPublicParams()
+	if err != nil {
+		zlog.Err(err).Msg("GetPublicParams error")
+		return "", err
+	}
+	groupIdentifier, err := libsignalgo.GetGroupIdentifier(*groupPublicParams)
+	if err != nil {
+		zlog.Err(err).Msg("GetGroupIdentifier error")
+		return "", err
+	}
+	base64GroupIdentifier := base64.StdEncoding.EncodeToString(groupIdentifier[:])
+	gid := GroupIdentifier(base64GroupIdentifier)
+	return gid, nil
+}
+
+func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroupMasterKey) (*Group, error) {
 	decryptedGroup := &Group{
-		GroupID: groupID,
+		groupMasterKey: groupMasterKey,
 	}
 
-	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyFromGroupID(groupID))
+	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(groupMasterKey))
 	if err != nil {
 		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
 	}
+
+	gid, err := groupIdentifierFromMasterKey(groupMasterKey)
+	if err != nil {
+		zlog.Err(err).Msg("groupIdentifierFromMasterKey error")
+		return nil, err
+	}
+	zlog.Debug().Msgf("masterKey: %v, groupIdentifier: %v", groupMasterKey, gid)
+	decryptedGroup.GroupIdentifier = gid
 
 	title, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.Title)
 	if err != nil {
@@ -279,7 +313,7 @@ func printGroupMember(member *GroupMember) {
 	zlog.Debug().Msgf("JoinedAtRevision: %v", member.JoinedAtRevision)
 }
 func printGroup(group *Group) {
-	zlog.Debug().Msgf("GroupID: %v", group.GroupID)
+	zlog.Debug().Msgf("GroupIdentifier: %v", group.GroupIdentifier)
 	zlog.Debug().Msgf("Title: %v", group.Title)
 	zlog.Debug().Msgf("Avatar: %v", group.Avatar)
 	zlog.Debug().Msgf("Members len: %v", len(group.Members))
@@ -289,7 +323,7 @@ func printGroup(group *Group) {
 }
 
 func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
-	masterKey := masterKeyFromGroupID(group.GroupID)
+	masterKey := masterKeyToBytes(group.groupMasterKey)
 	masterKeyBytes := masterKey[:]
 	return &signalpb.GroupContextV2{
 		MasterKey: masterKeyBytes,
@@ -297,9 +331,19 @@ func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
 	}
 }
 
-func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {
-	masterKey := masterKeyFromGroupID(groupID)
-	groupAuth, err := GetAuthorizationForToday(ctx, d, masterKey)
+func fetchGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, error) {
+	groupMasterKey, err := d.GroupStore.MasterKeyFromGroupIdentifier(gid, ctx)
+	if err != nil {
+		zlog.Err(err).Msg("Failed to get group master key")
+		return nil, err
+	}
+	if groupMasterKey == "" {
+		err := fmt.Errorf("No group master key found for group identifier: %v", gid)
+		zlog.Err(err).Msg("")
+		return nil, err
+	}
+	masterKeyBytes := masterKeyToBytes(groupMasterKey)
+	groupAuth, err := GetAuthorizationForToday(ctx, d, masterKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -331,7 +375,7 @@ func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, er
 		return nil, err
 	}
 
-	group, err := decryptGroup(encryptedGroup, groupID)
+	group, err := decryptGroup(encryptedGroup, groupMasterKey)
 	if err != nil {
 		zlog.Err(err).Msg("RetrieveGroupById decryptGroup error")
 		return nil, err
@@ -348,39 +392,56 @@ func fetchGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, er
 	return group, nil
 }
 
-func RetrieveGroupByID(ctx context.Context, d *Device, groupID GroupID) (*Group, error) {
+func RetrieveGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, error) {
 	if d.Connection.GroupCache == nil {
 		d.Connection.GroupCache = &GroupCache{
-			groups:      make(map[string]*Group),
-			lastFetched: make(map[string]time.Time),
+			groups:      make(map[GroupIdentifier]*Group),
+			lastFetched: make(map[GroupIdentifier]time.Time),
 		}
 	}
 
-	lastFetched, ok := d.Connection.GroupCache.lastFetched[string(groupID)]
+	lastFetched, ok := d.Connection.GroupCache.lastFetched[gid]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
-		group, ok := d.Connection.GroupCache.groups[string(groupID)]
+		group, ok := d.Connection.GroupCache.groups[gid]
 		if ok {
 			return group, nil
 		}
 	}
-	group, err := fetchGroupByID(ctx, d, groupID)
+	group, err := fetchGroupByID(ctx, d, gid)
 	if err != nil {
 		return nil, err
 	}
-	d.Connection.GroupCache.groups[string(groupID)] = group
-	d.Connection.GroupCache.lastFetched[string(groupID)] = time.Now()
+	d.Connection.GroupCache.groups[gid] = group
+	d.Connection.GroupCache.lastFetched[gid] = time.Now()
 	return group, nil
 }
 
-func InvalidateGroupCache(d *Device, groupID GroupID) {
+func InvalidateGroupCache(d *Device, gid GroupIdentifier) {
 	if d.Connection.GroupCache == nil {
 		return
 	}
-	delete(d.Connection.GroupCache.groups, string(groupID))
-	delete(d.Connection.GroupCache.lastFetched, string(groupID))
+	delete(d.Connection.GroupCache.groups, gid)
+	delete(d.Connection.GroupCache.lastFetched, gid)
+}
+
+// We should store the group master key in the group store as soon as we see it,
+// then use the group identifier to refer to groups. As a convenience, we return
+// the group identifier, which is derived from the group master key.
+func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGroupMasterKey) (GroupIdentifier, error) {
+	groupIdentifier, err := groupIdentifierFromMasterKey(groupMasterKey)
+	if err != nil {
+		zlog.Err(err).Msg("groupIdentifierFromMasterKey error")
+		return "", err
+	}
+	err = d.GroupStore.StoreMasterKey(groupIdentifier, groupMasterKey, ctx)
+	if err != nil {
+		zlog.Err(err).Msg("StoreMasterKey error")
+		return "", err
+	}
+	return groupIdentifier, nil
 }
 
 type GroupCache struct {
-	groups      map[string]*Group
-	lastFetched map[string]time.Time
+	groups      map[GroupIdentifier]*Group
+	lastFetched map[GroupIdentifier]time.Time
 }

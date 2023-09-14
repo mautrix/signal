@@ -21,6 +21,7 @@ func GenerateRandomness() (Randomness, error) {
 type GroupMasterKey [C.SignalGROUP_MASTER_KEY_LEN]byte
 type GroupSecretParams [C.SignalGROUP_SECRET_PARAMS_LEN]byte
 type GroupPublicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]byte
+type GroupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]byte
 
 type UUIDCiphertext [C.SignalUUID_CIPHERTEXT_LEN]byte
 type ProfileKeyCiphertext [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]byte
@@ -64,6 +65,17 @@ func (gsp *GroupSecretParams) GetPublicParams() (*GroupPublicParams, error) {
 	var groupPublicParams GroupPublicParams
 	copy(groupPublicParams[:], C.GoBytes(unsafe.Pointer(&publicParams), C.int(C.SignalGROUP_PUBLIC_PARAMS_LEN)))
 	return &groupPublicParams, nil
+}
+
+func GetGroupIdentifier(groupPublicParams GroupPublicParams) (*GroupIdentifier, error) {
+	var groupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]C.uchar
+	signalFfiError := C.signal_group_public_params_get_group_identifier(&groupIdentifier, (*[C.SignalGROUP_PUBLIC_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(&groupPublicParams)))
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	var result GroupIdentifier
+	copy(result[:], C.GoBytes(unsafe.Pointer(&groupIdentifier), C.int(C.SignalGROUP_IDENTIFIER_LEN)))
+	return &result, nil
 }
 
 func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error) {

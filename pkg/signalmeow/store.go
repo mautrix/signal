@@ -44,6 +44,7 @@ type Device struct {
 	PreKeyStoreExtras  PreKeyStoreExtras
 	SessionStoreExtras SessionStoreExtras
 	ProfileKeyStore    ProfileKeyStore
+	GroupStore         GroupStore
 }
 
 // New connects to the given SQL database and wraps it in a StoreContainer.
@@ -128,6 +129,7 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 	device.SessionStoreExtras = innerStore
 	device.ProfileKeyStore = innerStore
 	device.SenderKeyStore = innerStore
+	device.GroupStore = innerStore
 
 	return &device, nil
 }

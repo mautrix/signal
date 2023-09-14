@@ -760,7 +760,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.Dat
 		}
 	} else {
 		// this is a group chat
-		groupID := signalmeow.GroupID(recipientSignalID)
+		groupID := signalmeow.GroupIdentifier(recipientSignalID)
 		result, err := signalmeow.SendGroupMessage(ctx, sender.SignalDevice, groupID, msg)
 		if err != nil {
 			portal.log.Error().Msgf("Error sending event %s to Signal group %s: %s", evtID, recipientSignalID, err)
