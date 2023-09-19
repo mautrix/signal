@@ -34,6 +34,7 @@ const (
 	IncomingSignalMessageTypeDelete
 	IncomingSignalMessageTypeTyping
 	IncomingSignalMessageTypeReceipt
+	IncomingSignalMessageTypeSticker
 )
 
 type IncomingSignalMessage interface {
@@ -94,6 +95,25 @@ func (IncomingSignalMessageImage) MessageType() IncomingSignalMessageType {
 	return IncomingSignalMessageTypeImage
 }
 func (i IncomingSignalMessageImage) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageSticker
+type IncomingSignalMessageSticker struct {
+	IncomingSignalMessageBase
+	ContentType string
+	Width       uint32
+	Height      uint32
+	Sticker     []byte
+	Filename    string
+	Emoji       string
+}
+
+func (i IncomingSignalMessageSticker) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeSticker
+}
+
+func (i IncomingSignalMessageSticker) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 

@@ -838,6 +838,12 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle redaction message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeSticker {
+		err := portal.handleSignalStickerMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle sticker message")
+			return
+		}
 	} else {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
@@ -940,6 +946,38 @@ func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage,
 	portal.addSignalQuote(content, msg.Quote)
 	portal.addMentionsToBody(content, msg.Mentions)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
+	if err != nil {
+		return err
+	}
+	if resp.EventID == "" {
+		return errors.New("Didn't receive event ID from Matrix")
+	}
+	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
+	return err
+}
+
+func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	timestamp := portalMessage.message.Base().Timestamp
+	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageSticker)
+	content := &event.MessageEventContent{
+		MsgType:  event.MessageType(event.EventSticker.Type),
+		Body:     msg.Emoji,
+		FileName: msg.Filename,
+		Info: &event.FileInfo{
+			MimeType: msg.ContentType,
+			Width:    int(msg.Width),
+			Height:   int(msg.Height),
+		},
+	}
+
+	portal.addSignalQuote(content, msg.Quote)
+	portal.addMentionsToBody(content, msg.Mentions)
+	err := portal.uploadMediaToMatrix(intent, msg.Sticker, content)
+	if err != nil {
+		portal.log.Error().Err(err).Msg("Failed to upload media")
+	}
+
+	resp, err := portal.sendMatrixMessage(intent, event.EventSticker, content, nil, 0)
 	if err != nil {
 		return err
 	}
