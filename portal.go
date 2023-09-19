@@ -763,6 +763,10 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.Dat
 		groupID := signalmeow.GroupIdentifier(recipientSignalID)
 		result, err := signalmeow.SendGroupMessage(ctx, sender.SignalDevice, groupID, msg)
 		if err != nil {
+			// check the start of the error string, see if it starts with "No group master key found for group identifier"
+			if strings.HasPrefix(err.Error(), "No group master key found for group identifier") {
+				portal.MainIntent().SendNotice(portal.MXID, "Missing group key. Please try again after receiving a message in this group, or sending a message to this group from Signal.")
+			}
 			portal.log.Error().Msgf("Error sending event %s to Signal group %s: %s", evtID, recipientSignalID, err)
 			return err
 		}
