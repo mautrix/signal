@@ -1,8 +1,10 @@
 package signalmeow
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"strings"
 	"time"
@@ -46,6 +48,8 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 	}
 	zlog.Info().Msg("Unauthed websocket connecting")
 	statusChan := make(chan SignalConnectionStatus, 10000)
+
+	initialConnectChan := make(chan struct{})
 
 	// Combine both websocket status channels into a single, more generic "Signal" connection status channel
 	go func() {
@@ -97,6 +101,10 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventConnected,
 				}
+				if initialConnectChan != nil {
+					close(initialConnectChan)
+					initialConnectChan = nil
+				}
 			} else if currentStatus.Event == web.SignalWebsocketConnectionEventDisconnected {
 				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventDisconnected,
@@ -116,6 +124,25 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 			if statusToSend.Event != 0 && statusToSend != lastSentStatus {
 				statusChan <- statusToSend
 				lastSentStatus = statusToSend
+			}
+		}
+	}()
+
+	// Send sync message once both websockets are connected
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-initialConnectChan:
+				zlog.Info().Msg("Both websockets connected, sending contacts sync request")
+				groupRequest := syncMessageForContactRequest()
+				currentUnixTime := time.Now().Unix()
+				_, selfSendErr := sendContent(ctx, d, d.Data.AciUuid, uint64(currentUnixTime), groupRequest, 0)
+				if selfSendErr != nil {
+					zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
+				}
+				return
 			}
 		}
 	}()
@@ -422,6 +449,32 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								return nil, err
 							}
 						}
+					} else if content.SyncMessage.Contacts != nil {
+						zlog.Debug().Msgf("Recieved sync message contacts")
+						blob := content.SyncMessage.Contacts.Blob
+						if blob != nil {
+							contactsBytes, err := fetchAndDecryptAttachment(blob)
+							if err != nil {
+								zlog.Err(err).Msg("Contacts Sync fetchAndDecryptAttachment error")
+							}
+							// unmarshall contacts
+							contacts, _, err := unmarshalContactDetailsMessages(contactsBytes)
+							if err != nil {
+								zlog.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
+							}
+							// TODO: actually use contacts and avatars
+							// store profile keys
+							for _, contact := range contacts {
+								if contact.ProfileKey != nil {
+									profileKey := libsignalgo.ProfileKey(contact.ProfileKey)
+									err = device.ProfileKeyStore.StoreProfileKey(*contact.Uuid, profileKey, ctx)
+									if err != nil {
+										zlog.Err(err).Msg("StoreProfileKey error")
+										return nil, err
+									}
+								}
+							}
+						}
 					}
 				}
 
@@ -445,6 +498,55 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 		}, nil
 	}
 	return handler
+}
+
+// UnmarshalContactDetailsMessages unmarshals a slice of ContactDetails messages from a byte buffer.
+func unmarshalContactDetailsMessages(byteStream []byte) ([]*signalpb.ContactDetails, [][]byte, error) {
+	var contactDetailsList []*signalpb.ContactDetails
+	var avatarList [][]byte
+	buf := bytes.NewBuffer(byteStream)
+
+	for {
+		// If no more bytes are left to read, break the loop
+		if buf.Len() == 0 {
+			break
+		}
+
+		// Read the length prefix (varint) of the next Protobuf message
+		msgLen, err := binary.ReadUvarint(buf)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed to read message length: %v", err)
+		}
+
+		// If no more bytes are left to read, break the loop
+		if buf.Len() == 0 {
+			break
+		}
+
+		// Read the Protobuf message using the length obtained
+		msgBytes := buf.Next(int(msgLen))
+
+		// Unmarshal the Protobuf message into a ContactDetails object
+		contactDetails := &signalpb.ContactDetails{}
+		if err := proto.Unmarshal(msgBytes, contactDetails); err != nil {
+			return nil, nil, fmt.Errorf("Failed to unmarshal ContactDetails: %v", err)
+		}
+
+		// Append the ContactDetails object to the result slice
+		contactDetailsList = append(contactDetailsList, contactDetails)
+
+		// If the ContactDetails object has an avatar, read it into a byte slice
+		if contactDetails.Avatar != nil {
+			avatarBytes := buf.Next(int(*contactDetails.Avatar.Length))
+			avatarBytesCopy := make([]byte, len(avatarBytes))
+			avatarList = append(avatarList, avatarBytesCopy)
+		} else {
+			// If there isn't, append nil so the indicies line up
+			avatarList = append(avatarList, nil)
+		}
+	}
+
+	return contactDetailsList, avatarList, nil
 }
 
 func printStructFields(message protoreflect.Message, parent string, builder *strings.Builder) {

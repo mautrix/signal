@@ -303,6 +303,16 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 	}
 }
 
+func syncMessageForContactRequest() *signalpb.Content {
+	return &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Request: &signalpb.SyncMessage_Request{
+				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
+			},
+		},
+	}
+}
+
 func DataMessageForText(text string) *DataMessage {
 	timestamp := currentMessageTimestamp()
 	return &DataMessage{
