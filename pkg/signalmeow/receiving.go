@@ -628,6 +628,32 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}
 
+	// if a sticker and has data, send it
+	if dataMessage.Sticker != nil && dataMessage.Sticker.Data != nil {
+		bytes, err := fetchAndDecryptAttachment(dataMessage.Sticker.Data)
+		if err != nil {
+			zlog.Error().Err(err).Msgf("failed to decrypt sticker: %v", dataMessage.Sticker.Data)
+		} else {
+			incomingMessage := IncomingSignalMessageSticker{
+				IncomingSignalMessageBase: IncomingSignalMessageBase{
+					SenderUUID:    senderUUID,
+					RecipientUUID: recipientUUID,
+					GroupID:       gidPointer,
+					Timestamp:     dataMessage.GetTimestamp(),
+					Quote:         quoteData,
+					Mentions:      mentions,
+				},
+				Width:       *dataMessage.Sticker.Data.Width,
+				Height:      *dataMessage.Sticker.Data.Height,
+				ContentType: *dataMessage.Sticker.Data.ContentType,
+				Filename:    dataMessage.Sticker.Data.GetFileName(),
+				Sticker:     bytes,
+				Emoji:       dataMessage.GetSticker().GetEmoji(),
+			}
+			incomingMessages = append(incomingMessages, incomingMessage)
+		}
+	}
+
 	// Pass along reactions
 	if dataMessage.Reaction != nil {
 		incomingMessage := IncomingSignalMessageReaction{
