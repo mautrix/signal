@@ -313,6 +313,16 @@ func syncMessageForContactRequest() *signalpb.Content {
 	}
 }
 
+func sendContactSyncRequest(ctx context.Context, d *Device) error {
+	groupRequest := syncMessageForContactRequest()
+	currentUnixTime := time.Now().Unix()
+	_, err := sendContent(ctx, d, d.Data.AciUuid, uint64(currentUnixTime), groupRequest, 0)
+	if err != nil {
+		zlog.Err(err).Msg("Failed to send contact sync request message to myself (%v)")
+	}
+	return err
+}
+
 func DataMessageForText(text string) *DataMessage {
 	timestamp := currentMessageTimestamp()
 	return &DataMessage{
@@ -508,11 +518,16 @@ func sendContent(
 	if err != nil || profileKey == nil {
 		zlog.Err(err).Msg("Error getting profile key")
 		useUnidentifiedSender = false
+		// Try to self heal by requesting contact sync, though this is slow and not guaranteed to help
+		sendContactSyncRequest(ctx, d)
 	}
-	accessKey, err := profileKey.DeriveAccessKey()
-	if err != nil {
-		zlog.Err(err).Msg("Error deriving access key")
-		useUnidentifiedSender = false
+	var accessKey *libsignalgo.AccessKey
+	if profileKey != nil {
+		accessKey, err = profileKey.DeriveAccessKey()
+		if err != nil {
+			zlog.Err(err).Msg("Error deriving access key")
+			useUnidentifiedSender = false
+		}
 	}
 	// TODO: JUST FOR DEBUGGING
 	//if content.DataMessage != nil {

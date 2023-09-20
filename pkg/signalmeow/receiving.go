@@ -136,12 +136,7 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 				return
 			case <-initialConnectChan:
 				zlog.Info().Msg("Both websockets connected, sending contacts sync request")
-				groupRequest := syncMessageForContactRequest()
-				currentUnixTime := time.Now().Unix()
-				_, selfSendErr := sendContent(ctx, d, d.Data.AciUuid, uint64(currentUnixTime), groupRequest, 0)
-				if selfSendErr != nil {
-					zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
-				}
+				sendContactSyncRequest(ctx, d)
 				return
 			}
 		}

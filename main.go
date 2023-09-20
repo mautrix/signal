@@ -38,7 +38,7 @@ type SignalBridge struct {
 	DB        *database.Database
 	MeowStore *signalmeow.StoreContainer
 
-	//provisioning *ProvisioningAPI
+	provisioning *ProvisioningAPI
 
 	usersByMXID     map[id.UserID]*User
 	usersBySignalID map[string]*User
@@ -80,6 +80,11 @@ func (br *SignalBridge) Init() {
 
 	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
 	br.MeowStore = signalmeow.NewStoreWithDB(br.DB.RawDB, br.DB.Dialect.String())
+
+	ss := br.Config.Bridge.Provisioning.SharedSecret
+	if len(ss) > 0 && ss != "disable" {
+		br.provisioning = &ProvisioningAPI{bridge: br, log: br.ZLog.With().Str("component", "provisioning").Logger()}
+	}
 }
 
 func (br *SignalBridge) Start() {
@@ -87,6 +92,10 @@ func (br *SignalBridge) Start() {
 	if err != nil {
 		br.Log.Fatalln("Failed to upgrade signalmeow database: %v", err)
 		os.Exit(15)
+	}
+	if br.provisioning != nil {
+		br.Log.Debugln("Initializing provisioning API")
+		br.provisioning.Init()
 	}
 	go br.StartUsers()
 }
