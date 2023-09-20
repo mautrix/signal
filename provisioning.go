@@ -307,20 +307,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 
 func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	//user := r.Context().Value("user").(*User)
-	body := struct {
-		SessionID  string `json:"session_id"`
-		DeviceName string `json:"device_name"`
-	}{}
-	err := json.NewDecoder(r.Body).Decode(&body)
-	if err != nil {
-		prov.log.Err(err).Msg("Error decoding JSON body")
-		jsonResponse(w, http.StatusBadRequest, Error{
-			Success: false,
-			Error:   "Error decoding JSON body",
-			ErrCode: "M_BAD_JSON",
-		})
-		return
-	}
+
 	// For now do nothing - we need this API to return 200 to be compatible with
 	// the old Signal bridge, which needed a call to Logout before allowing LinkNew
 	// to be called, but we don't actually want to logout, we want to allow a reconnect.
