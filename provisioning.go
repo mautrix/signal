@@ -89,10 +89,16 @@ type Error struct {
 }
 
 type Response struct {
-	Success   bool   `json:"success"`
-	Status    string `json:"status"`
+	Success bool   `json:"success"`
+	Status  string `json:"status"`
+
+	// For response in LinkNew
 	SessionID string `json:"session_id,omitempty"`
 	URI       string `json:"uri,omitempty"`
+
+	// For response in LinkWaitForAccount
+	UUID   string `json:"uuid,omitempty"`
+	Number string `json:"number,omitempty"`
 }
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
@@ -280,6 +286,8 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 		jsonResponse(w, http.StatusOK, Response{
 			Success: true,
 			Status:  "prekeys_registered",
+			UUID:    user.SignalID,
+			Number:  user.SignalUsername,
 		})
 
 		// Connect to Signal!!
