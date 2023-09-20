@@ -31,6 +31,7 @@ type PreKeyStoreExtras interface {
 	GetUnuploadedSignedPreKeys(uuidKind UUIDKind) ([]*libsignalgo.SignedPreKeyRecord, error)
 	GetUploadedPreKeyCount(uuidKind UUIDKind) (int, error)
 	GetUploadedSignedPreKeyCount(uuidKind UUIDKind) (int, error)
+	DeleteAllPreKeys() error
 }
 
 // libsignalgo.PreKeyStore implementation
@@ -221,4 +222,9 @@ func (s *SQLStore) GetUploadedPreKeyCount(uuidKind UUIDKind) (count int, err err
 func (s *SQLStore) GetUploadedSignedPreKeyCount(uuidKind UUIDKind) (count int, err error) {
 	err = s.db.QueryRow(getUploadedPreKeyCountQuery, s.AciUuid, uuidKind, true).Scan(&count)
 	return count, err
+}
+
+func (s *SQLStore) DeleteAllPreKeys() error {
+	_, err := s.db.Exec("DELETE FROM signalmeow_pre_keys WHERE aci_uuid=$1", s.AciUuid)
+	return err
 }

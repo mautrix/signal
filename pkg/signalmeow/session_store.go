@@ -23,6 +23,8 @@ type SessionStoreExtras interface {
 	AllSessionsForUUID(theirUuid string, ctx context.Context) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error)
 	// RemoveSession removes the session for the given address.
 	RemoveSession(address *libsignalgo.Address, ctx context.Context) error
+	// RemoveAllSessions removes all sessions for our ACI UUID
+	RemoveAllSessions(ctx context.Context) error
 }
 
 func scanRecord(row scannable) (int, *libsignalgo.SessionRecord, error) {
@@ -111,5 +113,10 @@ func (s *SQLStore) StoreSession(address *libsignalgo.Address, record *libsignalg
 		return err
 	}
 	err = tx.Commit()
+	return err
+}
+
+func (s *SQLStore) RemoveAllSessions(ctx context.Context) error {
+	_, err := s.db.Exec("DELETE FROM signalmeow_sessions WHERE our_aci_uuid=$1", s.AciUuid)
 	return err
 }

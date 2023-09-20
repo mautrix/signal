@@ -1,6 +1,7 @@
 package signalmeow
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -170,6 +171,15 @@ const (
 			device_id, number, password
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (aci_uuid) DO UPDATE SET
+			aci_identity_key_pair=excluded.aci_identity_key_pair,
+			registration_id=excluded.registration_id,
+			pni_uuid=excluded.pni_uuid,
+			pni_identity_key_pair=excluded.pni_identity_key_pair,
+			pni_registration_id=excluded.pni_registration_id,
+			device_id=excluded.device_id,
+			number=excluded.number,
+			password=excluded.password
 	`
 	deleteDeviceQuery = `DELETE FROM signalmeow_device WHERE aci_uuid=$1`
 )
@@ -206,6 +216,13 @@ func (c *StoreContainer) DeleteDevice(device *DeviceData) error {
 		return ErrDeviceIDMustBeSet
 	}
 	_, err := c.db.Exec(deleteDeviceQuery, device.AciUuid)
+	return err
+}
+
+func (d *Device) ClearDeviceKeys() error {
+	// We need to clear out keys associated with the Signal device that no longer has valid credentials
+	err := d.PreKeyStoreExtras.DeleteAllPreKeys()
+	err = d.SessionStoreExtras.RemoveAllSessions(context.Background())
 	return err
 }
 

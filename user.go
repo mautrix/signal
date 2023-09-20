@@ -290,7 +290,8 @@ func (user *User) startupTryConnect(retryCount int) {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
 		if errors.Is(err, ErrNotLoggedIn) {
 			user.log.Warn().Msg("Not logged in, skipping startup retry")
-			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut})
+			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials})
+			user.clearMyKeys()
 		} else if retryCount < 6 {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 			retryInSeconds := 2 << retryCount
@@ -329,17 +330,13 @@ func (user *User) startupTryConnect(retryCount int) {
 				}
 
 			case signalmeow.SignalConnectionEventLoggedOut:
-				user.log.Debug().Msg("Sending LoggedOut BridgeState")
+				user.log.Debug().Msg("Sending BadCredentials BridgeState")
 				if err == nil {
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut})
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials})
 				} else {
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateLoggedOut, Message: err.Error()})
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
-				// TODO: actually successfully logout (delete) user in mautrix land
-				//err := user.Logout()
-				//if err != nil {
-				//user.log.Err(err).Msg("Error disconnecting")
-				//}
+				user.clearMyKeys()
 
 			case signalmeow.SignalConnectionEventError:
 				user.log.Debug().Msg("Sending UnknownError BridgeState")
@@ -347,6 +344,15 @@ func (user *User) startupTryConnect(retryCount int) {
 			}
 		}
 	}()
+}
+
+func (user *User) clearMyKeys() {
+	// We need to clear out keys associated with the Signal device that no longer has valid credentials
+	user.log.Debug().Msg("Clearing out Signal device keys")
+	err := user.SignalDevice.ClearDeviceKeys()
+	if err != nil {
+		user.log.Err(err).Msg("Error clearing device keys")
+	}
 }
 
 func (br *SignalBridge) StartUsers() {
