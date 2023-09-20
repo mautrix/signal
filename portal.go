@@ -237,7 +237,7 @@ func (portal *Portal) messageLoop() {
 
 func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	switch msg.evt.Type {
-	case event.EventMessage: //, event.EventSticker:
+	case event.EventMessage, event.EventSticker:
 		portal.handleMatrixMessage(msg.user, msg.evt)
 	case event.EventRedaction:
 		portal.handleMatrixRedaction(msg.user, msg.evt)
