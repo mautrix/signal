@@ -13,9 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/chai2010/webp"
+	cwebp "github.com/chai2010/webp"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"golang.org/x/image/webp"
 
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
@@ -506,7 +507,7 @@ func (portal *Portal) convertToWebPSticker(img []byte) ([]byte, error) {
 	}
 
 	var webpBuffer bytes.Buffer
-	if err = webp.Encode(&webpBuffer, decodedImg, nil); err != nil {
+	if err = cwebp.Encode(&webpBuffer, decodedImg, nil); err != nil {
 		return img, fmt.Errorf("failed to encode webp image: %w", err)
 	}
 

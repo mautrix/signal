@@ -7,6 +7,7 @@ require maunium.net/go/mautrix v0.15.4
 require (
 	github.com/chai2010/webp v1.1.1 // indirect
 	go.mau.fi/util v0.0.0-20230805171708-199bf3eec776 // indirect
+	golang.org/x/image v0.0.0-20211028202545-6944b10bf410 // indirect
 )
 
 require (
