@@ -255,10 +255,7 @@ func (user *User) GetRemoteID() string {
 }
 
 func (user *User) GetRemoteName() string {
-	//if user.Session != nil && user.Session.State != nil && user.Session.State.User != nil {
-	//return fmt.Sprintf("%s#%s", user.Session.State.User.Username, user.Session.State.User.Discriminator)
-	//}
-	return user.SignalID
+	return user.SignalUsername
 }
 
 // ** Startup, connection and shutdown methods **
