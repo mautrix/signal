@@ -17,9 +17,9 @@
 package config
 
 import (
+	up "go.mau.fi/util/configupgrade"
+	"go.mau.fi/util/random"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
-	"maunium.net/go/mautrix/util"
-	up "maunium.net/go/mautrix/util/configupgrade"
 )
 
 func DoUpgrade(helper *up.Helper) {
@@ -71,7 +71,7 @@ func DoUpgrade(helper *up.Helper) {
 
 	helper.Copy(up.Str, "bridge", "provisioning", "prefix")
 	if secret, ok := helper.Get(up.Str, "bridge", "provisioning", "shared_secret"); !ok || secret == "generate" {
-		sharedSecret := util.RandomString(64)
+		sharedSecret := random.String(64)
 		helper.Set(up.Str, sharedSecret, "bridge", "provisioning", "shared_secret")
 	} else {
 		helper.Copy(up.Str, "bridge", "provisioning", "shared_secret")

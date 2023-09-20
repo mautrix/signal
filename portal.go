@@ -26,7 +26,6 @@ import (
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
-	"maunium.net/go/mautrix/util"
 
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
@@ -57,8 +56,6 @@ type Portal struct {
 
 	signalMessages chan portalSignalMessage
 	matrixMessages chan portalMatrixMessage
-
-	recentMessages *util.RingBuffer[string, *signalmeow.Message]
 
 	currentlyTyping     []id.UserID
 	currentlyTypingLock sync.Mutex
@@ -213,7 +210,6 @@ func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
 		signalMessages: make(chan portalSignalMessage, br.Config.Bridge.PortalMessageBuffer),
 		matrixMessages: make(chan portalMatrixMessage, br.Config.Bridge.PortalMessageBuffer),
 
-		//recentMessages: util.NewRingBuffer[string, *discordgo.Message](recentMessageBufferSize),
 		//commands: make(map[string]*discordgo.ApplicationCommand),
 	}
 

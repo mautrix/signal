@@ -291,7 +291,7 @@ func (user *User) startupTryConnect(retryCount int) {
 		if errors.Is(err, ErrNotLoggedIn) {
 			user.log.Warn().Msg("Not logged in, skipping startup retry")
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials})
-			user.clearMyKeys()
+			user.clearMySignalKeys()
 		} else if retryCount < 6 {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 			retryInSeconds := 2 << retryCount
@@ -336,7 +336,7 @@ func (user *User) startupTryConnect(retryCount int) {
 				} else {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
-				user.clearMyKeys()
+				user.clearMySignalKeys()
 
 			case signalmeow.SignalConnectionEventError:
 				user.log.Debug().Msg("Sending UnknownError BridgeState")
@@ -346,7 +346,7 @@ func (user *User) startupTryConnect(retryCount int) {
 	}()
 }
 
-func (user *User) clearMyKeys() {
+func (user *User) clearMySignalKeys() {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
 	user.log.Debug().Msg("Clearing out Signal device keys")
 	err := user.SignalDevice.ClearDeviceKeys()
@@ -641,7 +641,7 @@ func (user *User) Logout() error {
 	user.log.Info().Msg("Logging out of session")
 	loggedOutDevice, err := user.disconnectNoLock()
 	user.bridge.MeowStore.DeleteDevice(&loggedOutDevice.Data)
-	user.bridge.GetPuppetByCustomMXID(user.MXID).clearCustomMXID()
+	user.bridge.GetPuppetByCustomMXID(user.MXID).ClearCustomMXID()
 	return err
 }
 

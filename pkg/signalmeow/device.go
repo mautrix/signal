@@ -59,6 +59,7 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 	d.AuthedWS = authedWS
 	return statusChan, nil
 }
+
 func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceData) (chan web.SignalWebsocketConnectionStatus, error) {
 	if d.UnauthedWS != nil {
 		return nil, errors.New("unauthed websocket already connected")
