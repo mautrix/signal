@@ -96,7 +96,11 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 		p.AvatarURL = parsedAvatarURL
 	}
 
-	p.Number = &number.String
+	if number.Valid {
+		p.Number = &number.String
+	} else {
+		p.Number = nil
+	}
 	p.Name = name.String
 	p.AvatarHash = avatarHash.String
 	p.CustomMXID = id.UserID(customMXID.String)
