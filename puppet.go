@@ -130,15 +130,15 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 				return nil
 			}
 		}
-
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
-		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		if puppet.CustomMXID != "" {
+			br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		}
 		if puppet.Number != nil {
 			br.puppetsByNumber[*puppet.Number] = puppet
 		}
 	}
-
 	return puppet
 }
 
@@ -155,12 +155,13 @@ func (br *SignalBridge) GetPuppetByNumber(number string) *Puppet {
 
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
-		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		if puppet.CustomMXID != "" {
+			br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
+		}
 		if puppet.Number != nil {
 			br.puppetsByNumber[*puppet.Number] = puppet
 		}
 	}
-
 	return puppet
 }
 
@@ -182,13 +183,10 @@ func (br *SignalBridge) GetPuppetByCustomMXID(mxid id.UserID) *Puppet {
 			br.puppetsByNumber[*puppet.Number] = puppet
 		}
 	}
-
 	return puppet
 }
 
 func (br *SignalBridge) GetAllPuppetsWithCustomMXID() []*Puppet {
-	br.puppetsLock.Lock()
-	defer br.puppetsLock.Unlock()
 	puppets, err := br.DB.Puppet.GetAllWithCustomMXID()
 	if err != nil {
 		br.ZLog.Error().Err(err).Msg("Failed to get all puppets with custom MXID")
@@ -196,10 +194,6 @@ func (br *SignalBridge) GetAllPuppetsWithCustomMXID() []*Puppet {
 	}
 	return br.dbPuppetsToPuppets(puppets)
 }
-
-//func (br *SignalBridge) GetAllPuppets() []*Puppet {
-//	return br.dbPuppetsToPuppets(br.DB.Puppet.GetAll())
-//}
 
 func (br *SignalBridge) FormatPuppetMXID(did string) id.UserID {
 	return id.NewUserID(
@@ -209,15 +203,14 @@ func (br *SignalBridge) FormatPuppetMXID(did string) id.UserID {
 }
 
 func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Puppet {
-	//br.puppetsLock.Lock()
-	//defer br.puppetsLock.Unlock()
+	br.puppetsLock.Lock()
+	defer br.puppetsLock.Unlock()
 
 	output := make([]*Puppet, len(dbPuppets))
 	for index, dbPuppet := range dbPuppets {
 		if dbPuppet == nil {
 			continue
 		}
-
 		puppet, ok := br.puppets[dbPuppet.SignalID]
 		if !ok {
 			puppet = br.NewPuppet(dbPuppet)
@@ -225,14 +218,11 @@ func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Pupp
 			if dbPuppet.Number != nil {
 				br.puppetsByNumber[*dbPuppet.Number] = puppet
 			}
-
 			if dbPuppet.CustomMXID != "" {
 				br.puppetsByCustomMXID[dbPuppet.CustomMXID] = puppet
 			}
 		}
-
 		output[index] = puppet
 	}
-
 	return output
 }

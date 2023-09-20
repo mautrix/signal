@@ -927,9 +927,17 @@ func (portal *Portal) addMentionsToBody(content *event.MessageEventContent, ment
 		UserIDs: []id.UserID{},
 	}
 	for _, mention := range mentions {
-		// replace substring at start, length with mention name
-		content.Body = ReplaceSubstr(content.Body, mention.MentionedName, int(mention.Start), int(mention.Length))
-		mxID := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID).MXID
+		puppet := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID)
+		mxID := puppet.MXID
+		mentionName := mention.MentionedName
+		if puppet.CustomMXID != "" {
+			mxID = puppet.CustomMXID
+			matrixName, err := portal.MainIntent().GetDisplayName(mxID)
+			if err == nil {
+				mentionName = matrixName.DisplayName
+			}
+		}
+		content.Body = strings.Replace(content.Body, "\uFFFC", mentionName, 1)
 		matrixMentions.UserIDs = append(matrixMentions.UserIDs, mxID)
 	}
 	if len(matrixMentions.UserIDs) > 0 {
