@@ -50,6 +50,7 @@ var _ IncomingSignalMessage = IncomingSignalMessageReaction{}
 var _ IncomingSignalMessage = IncomingSignalMessageDelete{}
 var _ IncomingSignalMessage = IncomingSignalMessageTyping{}
 var _ IncomingSignalMessage = IncomingSignalMessageReceipt{}
+var _ IncomingSignalMessage = IncomingSignalMessageSticker{}
 
 // ** IncomingSignalMessageUnhandled **
 type IncomingSignalMessageUnhandled struct {

@@ -921,7 +921,7 @@ func ReplaceSubstr(s, replaceWith string, start, length int) string {
 	return string(newRunes)
 }
 
-func (portal *Portal) addMentionsToBody(content *event.MessageEventContent, mentions []signalmeow.IncomingSignalMessageMentionData) {
+func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent, mentions []signalmeow.IncomingSignalMessageMentionData) {
 	// TODO: handle formatted body to highlight mention in content body
 	matrixMentions := event.Mentions{
 		UserIDs: []id.UserID{},
@@ -929,7 +929,9 @@ func (portal *Portal) addMentionsToBody(content *event.MessageEventContent, ment
 	for _, mention := range mentions {
 		puppet := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID)
 		mxID := puppet.MXID
+
 		mentionName := mention.MentionedName
+		// If the mention is us, make sure we use our Matrix display name to make the client actually ping us
 		if puppet.CustomMXID != "" {
 			mxID = puppet.CustomMXID
 			matrixName, err := portal.MainIntent().GetDisplayName(mxID)
@@ -937,7 +939,10 @@ func (portal *Portal) addMentionsToBody(content *event.MessageEventContent, ment
 				mentionName = matrixName.DisplayName
 			}
 		}
+		htmlMentionName := fmt.Sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>", mxID, mentionName)
+
 		content.Body = strings.Replace(content.Body, "\uFFFC", mentionName, 1)
+		content.FormattedBody = strings.Replace(content.FormattedBody, "\uFFFC", htmlMentionName, 1)
 		matrixMentions.UserIDs = append(matrixMentions.UserIDs, mxID)
 	}
 	if len(matrixMentions.UserIDs) > 0 {
@@ -949,11 +954,13 @@ func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage,
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
 	content := &event.MessageEventContent{
-		MsgType: event.MsgText,
-		Body:    msg.Content,
+		MsgType:       event.MsgText,
+		Body:          msg.Content,
+		Format:        event.FormatHTML,
+		FormattedBody: msg.Content,
 	}
 	portal.addSignalQuote(content, msg.Quote)
-	portal.addMentionsToBody(content, msg.Mentions)
+	portal.addMentionsToMatrixBody(content, msg.Mentions)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {
 		return err
@@ -980,7 +987,7 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 	}
 
 	portal.addSignalQuote(content, msg.Quote)
-	portal.addMentionsToBody(content, msg.Mentions)
+	portal.addMentionsToMatrixBody(content, msg.Mentions)
 	err := portal.uploadMediaToMatrix(intent, msg.Sticker, content)
 	if err != nil {
 		portal.log.Error().Err(err).Msg("Failed to upload media")
@@ -1013,7 +1020,7 @@ func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage
 		},
 	}
 	portal.addSignalQuote(content, msg.Quote)
-	portal.addMentionsToBody(content, msg.Mentions)
+	portal.addMentionsToMatrixBody(content, msg.Mentions)
 	err := portal.uploadMediaToMatrix(intent, msg.Image, content)
 	if err != nil {
 		if errors.Is(err, mautrix.MTooLarge) {
