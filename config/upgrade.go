@@ -25,30 +25,16 @@ import (
 func DoUpgrade(helper *up.Helper) {
 	bridgeconfig.Upgrader.DoUpgrade(helper)
 
-	helper.Copy(up.Str|up.Null, "homeserver", "public_address")
-
 	helper.Copy(up.Str, "bridge", "username_template")
 	helper.Copy(up.Str, "bridge", "displayname_template")
-	helper.Copy(up.Str, "bridge", "channel_name_template")
-	helper.Copy(up.Bool, "bridge", "private_chat_portal_meta")
-	helper.Copy(up.Int, "bridge", "startup_private_channel_create_limit")
+	helper.Copy(up.Str, "bridge", "private_chat_portal_meta")
 	helper.Copy(up.Int, "bridge", "portal_message_buffer")
 	helper.Copy(up.Bool, "bridge", "delivery_receipts")
 	helper.Copy(up.Bool, "bridge", "message_status_events")
 	helper.Copy(up.Bool, "bridge", "message_error_notices")
-	helper.Copy(up.Bool, "bridge", "restricted_rooms")
-	helper.Copy(up.Bool, "bridge", "autojoin_thread_on_open")
-	helper.Copy(up.Bool, "bridge", "embed_fields_as_tables")
-	helper.Copy(up.Bool, "bridge", "mute_channels_on_create")
 	helper.Copy(up.Bool, "bridge", "sync_direct_chat_list")
 	helper.Copy(up.Bool, "bridge", "resend_bridge_info")
-	helper.Copy(up.Bool, "bridge", "custom_emoji_reactions")
-	helper.Copy(up.Bool, "bridge", "delete_portal_on_channel_delete")
 	helper.Copy(up.Bool, "bridge", "federate_rooms")
-	helper.Copy(up.Str, "bridge", "animated_sticker", "target")
-	helper.Copy(up.Int, "bridge", "animated_sticker", "args", "width")
-	helper.Copy(up.Int, "bridge", "animated_sticker", "args", "height")
-	helper.Copy(up.Int, "bridge", "animated_sticker", "args", "fps")
 	helper.Copy(up.Map, "bridge", "double_puppet_server_map")
 	helper.Copy(up.Bool, "bridge", "double_puppet_allow_discovery")
 	helper.Copy(up.Map, "bridge", "login_shared_secret_map")
@@ -78,9 +64,6 @@ func DoUpgrade(helper *up.Helper) {
 	}
 
 	helper.Copy(up.Map, "bridge", "permissions")
-	//helper.Copy(up.Bool, "bridge", "relay", "enabled")
-	//helper.Copy(up.Bool, "bridge", "relay", "admin_only")
-	//helper.Copy(up.Map, "bridge", "relay", "message_formats")
 }
 
 var SpacedBlocks = [][]string{
@@ -96,6 +79,5 @@ var SpacedBlocks = [][]string{
 	{"bridge", "encryption"},
 	{"bridge", "provisioning"},
 	{"bridge", "permissions"},
-	//{"bridge", "relay"},
 	{"logging"},
 }

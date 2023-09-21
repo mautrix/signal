@@ -2,9 +2,6 @@
 homeserver:
     # The address that this appservice can use to connect to the homeserver.
     address: https://matrix.example.com
-    # Publicly accessible base URL for media, used for avatars in relay mode.
-    # If not set, the connection address above will be used.
-    public_address: null
     # The domain of the homeserver (also known as server_name, used for MXIDs, etc).
     domain: example.com
 
@@ -19,6 +16,13 @@ homeserver:
     message_send_checkpoint_endpoint: null
     # Does the homeserver support https://github.com/matrix-org/matrix-spec-proposals/pull/2246?
     async_media: false
+
+    # Should the bridge use a websocket for connecting to the homeserver?
+    # The server side is currently not documented anywhere and is only implemented by mautrix-wsproxy,
+    # mautrix-asmux (deprecated), and hungryserv (proprietary).
+    websocket: false
+    # How often should the websocket be pinged? Pinging will be disabled if this is zero.
+    ping_interval_seconds: 0
 
 # Application service host/registration related details.
 # Changing these values requires regeneration of the registration.
@@ -78,30 +82,22 @@ bridge:
     # {{.}} is replaced with the internal ID of the Signal user.
     username_template: signal_{{.}}
     # Displayname template for Signal users. This is also used as the room name in DMs if private_chat_portal_meta is enabled.
-    # Available variables:
-    #   .ID - Internal user ID
-    #   .Username - User's displayname on Signal
-    #   .Bot - Whether the user is a bot
-    #   .System - Whether the user is an official system user
-    displayname_template: '{{.Username}}{{if .Bot}} (bot){{end}}'
-    # Should the bridge explicitly set the avatar and room name for DM portal rooms?
-    # This is implicitly enabled in encrypted rooms.
-    private_chat_portal_meta: false
+    # Available variables: TODO
+    displayname_template: '{{.ProfileName}} (Signal)'
+    # Whether to explicitly set the avatar and room name for private chat portal rooms.
+    # If set to `default`, this will be enabled in encrypted rooms and disabled in unencrypted rooms.
+    # If set to `always`, all DM rooms will have explicit names and avatars set.
+    # If set to `never`, DM rooms will never have names and avatars set.
+    private_chat_portal_meta: default
 
     portal_message_buffer: 128
 
-    # Number of private channel portals to create on bridge startup.
-    # Other portals will be created when receiving messages.
-    startup_private_channel_create_limit: 5
     # Should the bridge send a read receipt from the bridge bot when a message has been sent to Signal?
     delivery_receipts: false
     # Whether the bridge should send the message status as a custom com.beeper.message_send_status event.
     message_status_events: false
     # Whether the bridge should send error notices via m.notice events when a message fails to bridge.
     message_error_notices: true
-    # Should the bridge use space-restricted join rules instead of invite-only for guild rooms?
-    # This can avoid unnecessary invite events in guild rooms when members are synced in.
-    restricted_rooms: true
     # Should the bridge update the m.direct account data event when double puppeting is enabled.
     # Note that updating the m.direct event is not atomic (except with mautrix-asmux)
     # and is therefore prone to race conditions.
@@ -109,29 +105,9 @@ bridge:
     # Set this to true to tell the bridge to re-send m.bridge events to all rooms on the next run.
     # This field will automatically be changed back to false after it, except if the config file is not writable.
     resend_bridge_info: false
-    # Should incoming custom emoji reactions be bridged as mxc:// URIs?
-    # If set to false, custom emoji reactions will be bridged as the shortcode instead, and the image won't be available.
-    custom_emoji_reactions: true
-    # Should the bridge attempt to completely delete portal rooms when a channel is deleted on Signal?
-    # If true, the bridge will try to kick Matrix users from the room. Otherwise, the bridge only makes ghosts leave.
-    delete_portal_on_channel_delete: false
     # Whether or not created rooms should have federation enabled.
     # If false, created portal rooms will never be federated.
     federate_rooms: true
-    # Settings for converting animated stickers.
-    animated_sticker:
-        # Format to which animated stickers should be converted.
-        # disable - No conversion, send as-is (lottie JSON)
-        # png - converts to non-animated png (fastest)
-        # gif - converts to animated gif
-        # webm - converts to webm video, requires ffmpeg executable with vp9 codec and webm container support
-        # webp - converts to animated webp, requires ffmpeg executable with webp codec/container support
-        target: webp
-        # Arguments for converter. All converters take width and height.
-        args:
-            width: 320
-            height: 320
-            fps: 25 # only for webm, webp and gif (2, 5, 10, 20 or 25 recommended)
     # Servers to always allow double puppeting from
     double_puppet_server_map:
         example.com: https://example.com

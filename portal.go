@@ -68,7 +68,7 @@ func init() {
 	event.TypeMap[event.StateHalfShotBridge] = reflect.TypeOf(CustomBridgeInfoContent{})
 }
 
-//** Interfaces that Portal implements **
+// ** Interfaces that Portal implements **
 
 var _ bridge.Portal = (*Portal)(nil)
 
@@ -1258,7 +1258,9 @@ func (portal *Portal) getEncryptionEventContent() (evt *event.EncryptionEventCon
 }
 
 func (portal *Portal) shouldSetDMRoomMetadata() bool {
-	return !portal.IsPrivateChat() || portal.bridge.Config.Bridge.PrivateChatPortalMeta
+	return !portal.IsPrivateChat() ||
+		portal.bridge.Config.Bridge.PrivateChatPortalMeta == "always" ||
+		(portal.IsEncrypted() && portal.bridge.Config.Bridge.PrivateChatPortalMeta != "never")
 }
 
 func (portal *Portal) ensureUserInvited(user *User) bool {

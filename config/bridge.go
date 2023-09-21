@@ -29,26 +29,20 @@ import (
 type BridgeConfig struct {
 	UsernameTemplate          string `yaml:"username_template"`
 	DisplaynameTemplate       string `yaml:"displayname_template"`
-	ChannelNameTemplate       string `yaml:"channel_name_template"`
-	PrivateChatPortalMeta     bool   `yaml:"private_chat_portal_meta"`
+	PrivateChatPortalMeta     string `yaml:"private_chat_portal_meta"`
 	PrivateChannelCreateLimit int    `yaml:"startup_private_channel_create_limit"`
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 
 	DoublePuppetConfig bridgeconfig.DoublePuppetConfig `yaml:",inline"`
 
-	BridgeNotices               bool `yaml:"bridge_notices"`
-	DeliveryReceipts            bool `yaml:"delivery_receipts"`
-	MessageStatusEvents         bool `yaml:"message_status_events"`
-	MessageErrorNotices         bool `yaml:"message_error_notices"`
-	RestrictedRooms             bool `yaml:"restricted_rooms"`
-	AutojoinThreadOnOpen        bool `yaml:"autojoin_thread_on_open"`
-	MuteChannelsOnCreate        bool `yaml:"mute_channels_on_create"`
-	SyncDirectChatList          bool `yaml:"sync_direct_chat_list"`
-	ResendBridgeInfo            bool `yaml:"resend_bridge_info"`
-	CustomEmojiReactions        bool `yaml:"custom_emoji_reactions"`
-	DeletePortalOnChannelDelete bool `yaml:"delete_portal_on_channel_delete"`
-	FederateRooms               bool `yaml:"federate_rooms"`
+	BridgeNotices       bool `yaml:"bridge_notices"`
+	DeliveryReceipts    bool `yaml:"delivery_receipts"`
+	MessageStatusEvents bool `yaml:"message_status_events"`
+	MessageErrorNotices bool `yaml:"message_error_notices"`
+	SyncDirectChatList  bool `yaml:"sync_direct_chat_list"`
+	ResendBridgeInfo    bool `yaml:"resend_bridge_info"`
+	FederateRooms       bool `yaml:"federate_rooms"`
 
 	MessageHandlingTimeout struct {
 		ErrorAfterStr string `yaml:"error_after"`
@@ -72,8 +66,6 @@ type BridgeConfig struct {
 
 	usernameTemplate    *template.Template `yaml:"-"`
 	displaynameTemplate *template.Template `yaml:"-"`
-	channelNameTemplate *template.Template `yaml:"-"`
-	guildNameTemplate   *template.Template `yaml:"-"`
 }
 
 func (bc *BridgeConfig) GetResendBridgeInfo() bool {
@@ -121,10 +113,6 @@ func (bc *BridgeConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return fmt.Errorf("username template is missing user ID placeholder")
 	}
 	bc.displaynameTemplate, err = template.New("displayname").Parse(bc.DisplaynameTemplate)
-	if err != nil {
-		return err
-	}
-	bc.channelNameTemplate, err = template.New("channel_name").Parse(bc.ChannelNameTemplate)
 	if err != nil {
 		return err
 	}
