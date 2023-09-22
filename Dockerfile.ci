@@ -1,0 +1,14 @@
+FROM debian:12-slim
+
+ENV UID=1337 \
+    GID=1337
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates bash jq yq curl gosu && rm -rf /var/lib/apt/lists/*
+
+ARG EXECUTABLE=./mautrix-signal
+COPY $EXECUTABLE /usr/bin/mautrix-signal
+COPY ./example-config.yaml /opt/mautrix-signal/example-config.yaml
+COPY ./docker-run.sh /docker-run.sh
+VOLUME /data
+
+CMD ["/docker-run.sh"]

@@ -30,17 +30,16 @@ COPY --from=rust-builder /build/libsignal_ffi.a /build/libsignal_ffi.a
 RUN make build_go
 
 # -- Run mautrix-signal --
-FROM debian:bookworm-slim
+FROM debian:12-slim
 
 ENV UID=1337 \
     GID=1337
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libolm-dev bash jq yq curl
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libolm-dev bash jq yq curl gosu && rm -rf /var/li/apt/lists/*
 
 COPY --from=go-builder /build/mautrix-signal /usr/bin/mautrix-signal
 COPY --from=go-builder /build/example-config.yaml /opt/mautrix-signal/example-config.yaml
 COPY --from=go-builder /build/docker-run.sh /docker-run.sh
-RUN chmod +x /docker-run.sh
 VOLUME /data
 
 CMD ["/docker-run.sh"]

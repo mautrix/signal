@@ -33,5 +33,4 @@ fi
 
 cd /data
 fixperms
-#exec su-exec $UID:$GID /usr/bin/mautrix-signal
-exec su -c /usr/bin/mautrix-signal $UID:$GID
+exec gosu $UID:$GID /usr/bin/mautrix-signal
