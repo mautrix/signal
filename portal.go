@@ -930,14 +930,19 @@ func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent
 		puppet := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID)
 		mxID := puppet.MXID
 
-		mentionName := mention.MentionedName
-		// If the mention is us, make sure we use our Matrix display name to make the client actually ping us
+		// If the mention is us, make sure we use our Matrix display name to make the client actually pings us
 		if puppet.CustomMXID != "" {
 			mxID = puppet.CustomMXID
-			matrixName, err := portal.MainIntent().GetDisplayName(mxID)
-			if err == nil {
-				mentionName = matrixName.DisplayName
-			}
+		}
+
+		// Prefer matrix display name if it exists
+		mentionName := mention.MentionedName
+		matrixName, err := portal.MainIntent().GetDisplayName(mxID)
+		if err != nil {
+			portal.log.Warn().Err(err).Msgf("Failed to get display name for %s", mxID)
+		}
+		if matrixName.DisplayName != "" {
+			mentionName = matrixName.DisplayName
 		}
 		htmlMentionName := fmt.Sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>", mxID, mentionName)
 
