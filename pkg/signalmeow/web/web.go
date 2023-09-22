@@ -138,7 +138,7 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	}
 
 	httpReqCounter++
-	zlog.Debug().Msgf("Sending HTTP request %v, url: %s", httpReqCounter, urlStr)
+	zlog.Debug().Msgf("Sending HTTP request %v, %v url: %s", httpReqCounter, method, urlStr)
 	client := proxiedHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
@@ -155,9 +155,13 @@ func DecodeHTTPResponseBody(out interface{}, resp *http.Response) error {
 
 	// Check if status code indicates success
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		// Read the whole body and log it
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		body := buf.String()
+		log.Debug().Msgf("Response body: %v", body)
 		return fmt.Errorf("Unexpected status code: %d %s", resp.StatusCode, resp.Status)
 	}
-	log.Debug().Msgf("Response body: %v", resp.Body)
 
 	decoder := json.NewDecoder(resp.Body)
 	if err := decoder.Decode(&out); err != nil {
