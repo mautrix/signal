@@ -221,6 +221,10 @@ func (c *StoreContainer) DeleteDevice(device *DeviceData) error {
 
 func (d *Device) ClearDeviceKeys() error {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
+	if d == nil {
+		zlog.Warn().Msg("ClearDeviceKeys called with nil device")
+		return nil
+	}
 	err := d.PreKeyStoreExtras.DeleteAllPreKeys()
 	err = d.SessionStoreExtras.RemoveAllSessions(context.Background())
 	return err

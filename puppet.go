@@ -83,9 +83,11 @@ func (br *SignalBridge) ParsePuppetMXID(mxid id.UserID) (string, bool) {
 	if userIDRegex == nil {
 		pattern := fmt.Sprintf(
 			"^@%s:%s$",
-			br.Config.Bridge.FormatUsername("([0-9]+)"),
+			// The "SignalID" portion of the MXID is a (lowercase) UUID
+			br.Config.Bridge.FormatUsername("([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"),
 			br.Config.Homeserver.Domain,
 		)
+		br.ZLog.Debug().Str("pattern", pattern).Msg("Compiling userIDRegex")
 
 		userIDRegex = regexp.MustCompile(pattern)
 	}

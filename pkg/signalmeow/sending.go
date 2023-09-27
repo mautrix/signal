@@ -379,6 +379,33 @@ func AddQuoteToDataMessage(dm *DataMessage, quotedMessageSender string, quotedMe
 	}
 }
 
+func AddMentionsToDataMessage(dm *DataMessage, mentions []string) {
+	dm.BodyRanges = []*signalpb.BodyRange{}
+	// Iterate over the body string, and add a BodyRange for each Unicode replacement character
+	bodyString := *dm.Body
+	mentionIndex := 0
+	runePosition := 0
+	for i, c := range bodyString {
+		if c == '\uFFFC' {
+			if mentionIndex >= len(mentions) {
+				zlog.Warn().Msgf("No mention for replacement character at position %v", i)
+				continue
+			}
+			start := uint32(runePosition)
+			length := uint32(1)
+			dm.BodyRanges = append(dm.BodyRanges, &signalpb.BodyRange{
+				Start:  &start,
+				Length: &length,
+				AssociatedValue: &signalpb.BodyRange_MentionUuid{
+					MentionUuid: mentions[mentionIndex],
+				},
+			})
+			mentionIndex++
+		}
+		runePosition++
+	}
+}
+
 func UploadAttachment(d *Device, image []byte, mimeType string, filename string) (*AttachmentPointer, error) {
 	ap, err := encryptAndUploadAttachment(d, image, mimeType, filename)
 	return (*AttachmentPointer)(ap), err

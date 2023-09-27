@@ -25,6 +25,7 @@ import (
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
@@ -604,12 +605,16 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 
 	switch content.MsgType {
 	case event.MsgText, event.MsgEmote, event.MsgNotice:
-		text := content.Body
+		var text string
+		var mentions []string
+		if content.Format == event.FormatHTML {
+			text, mentions = portal.parseMentionsFromMatrixBody(content)
+		} else {
+			text = content.Body
+			mentions = nil
+		}
 		if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
 			return nil, errMNoticeDisabled
-		}
-		if content.Format == event.FormatHTML {
-			//text, ctxInfo.MentionedJid = portal.bridge.Formatter.ParseMatrix(content.FormattedBody, content.Mentions)
 		}
 		if content.MsgType == event.MsgEmote {
 			text = "/me " + text
@@ -619,6 +624,9 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 			return nil, ctx.Err()
 		}
 		outgoingMessage = signalmeow.DataMessageForText(text)
+		if mentions != nil && len(mentions) > 0 {
+			signalmeow.AddMentionsToDataMessage(outgoingMessage, mentions)
+		}
 
 	case event.MsgImage:
 		fileName := content.Body
@@ -903,26 +911,7 @@ func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *
 	}
 }
 
-func ReplaceSubstr(s, replaceWith string, start, length int) string {
-	// Convert the original string and the string to replace with to slices of runes
-	runes := []rune(s)
-	replaceRunes := []rune(replaceWith)
-
-	// Check for invalid index or length
-	if start < 0 || start >= len(runes) || start+length > len(runes) {
-		return s
-	}
-
-	// Construct the new slice of runes
-	newRunes := append(runes[:start], replaceRunes...)
-	newRunes = append(newRunes, runes[start+length:]...)
-
-	// Convert the slice of runes back to a string
-	return string(newRunes)
-}
-
 func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent, mentions []signalmeow.IncomingSignalMessageMentionData) {
-	// TODO: handle formatted body to highlight mention in content body
 	matrixMentions := event.Mentions{
 		UserIDs: []id.UserID{},
 	}
@@ -953,6 +942,73 @@ func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent
 	if len(matrixMentions.UserIDs) > 0 {
 		content.Mentions = &matrixMentions
 	}
+}
+
+const mentionedSignalIDsContextKey = "fi.mau.signal.mentioned_ids"
+
+func (portal *Portal) parseMentionsFromMatrixBody(content *event.MessageEventContent) (string, []string) {
+	var allowedMentions map[string]bool = nil
+	var mentionedSignalIDs []string
+
+	// If the matrix event has explicit mentions, we only want to allow parsing mentions from those
+	if content.Mentions != nil {
+		allowedMentions = make(map[string]bool, len(content.Mentions.UserIDs))
+		mentionedSignalIDs = make([]string, 0, len(content.Mentions.UserIDs))
+		for _, userID := range content.Mentions.UserIDs {
+			var signalID string
+			if puppet := portal.bridge.GetPuppetByMXID(userID); puppet != nil {
+				signalID = puppet.SignalID
+				mentionedSignalIDs = append(mentionedSignalIDs, puppet.SignalID)
+			}
+			if signalID != "" && !allowedMentions[signalID] {
+				allowedMentions[signalID] = true
+				mentionedSignalIDs = append(mentionedSignalIDs, signalID)
+			}
+		}
+	}
+
+	// Parse what mentions we can find out of the HTML, and replace with unicode replacement character
+	matrixHTMLParser := &format.HTMLParser{
+		TabsToSpaces: 4,
+		Newline:      "\n",
+
+		PillConverter: func(displayname, mxid, eventID string, ctx format.Context) string {
+			if mxid[0] == '@' {
+				var signalID string
+				if puppet := portal.bridge.GetPuppetByMXID(id.UserID(mxid)); puppet != nil {
+					signalID = puppet.SignalID
+				}
+				if signalID != "" && (allowedMentions == nil || allowedMentions[signalID]) {
+					if allowedMentions == nil {
+						ids, ok := ctx.ReturnData[mentionedSignalIDsContextKey].([]string)
+						if !ok {
+							ctx.ReturnData[mentionedSignalIDsContextKey] = []string{signalID}
+						} else {
+							ctx.ReturnData[mentionedSignalIDsContextKey] = append(ids, signalID)
+						}
+					}
+					// Signal needs the Unicode replacement character, then it will add the name itself
+					return "\uFFFC"
+				}
+			}
+			return displayname
+		},
+		BoldConverter:           func(text string, _ format.Context) string { return fmt.Sprintf("*%s*", text) },
+		ItalicConverter:         func(text string, _ format.Context) string { return fmt.Sprintf("_%s_", text) },
+		StrikethroughConverter:  func(text string, _ format.Context) string { return fmt.Sprintf("~%s~", text) },
+		MonospaceConverter:      func(text string, _ format.Context) string { return fmt.Sprintf("```%s```", text) },
+		MonospaceBlockConverter: func(text, language string, _ format.Context) string { return fmt.Sprintf("```%s```", text) },
+	}
+
+	formatContext := format.NewContext()
+	parsedBody := matrixHTMLParser.Parse(content.FormattedBody, formatContext)
+
+	// If we didn't have any explicit mentions, we can use the ones we parsed from the HTML
+	if content.Mentions == nil {
+		mentionedSignalIDs, _ = formatContext.ReturnData[mentionedSignalIDsContextKey].([]string)
+	}
+
+	return parsedBody, mentionedSignalIDs
 }
 
 func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
@@ -1051,7 +1107,7 @@ func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage
 func (portal *Portal) handleSignalReactionMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) (bool, error) {
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageReaction)
 	portal.log.Debug().Msgf("Reaction message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
-	portal.log.Debug().Msgf("Reaction: %s, remove: %v, target author: %v, target timestamp: %d", msg.Emoji, msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+	portal.log.Debug().Msgf("Incoming Reaction details: remove: %v, target author: %v, target timestamp: %d", msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
 
 	matrixEmoji := variationselector.Add(msg.Emoji) // Add variation selector for Matrix
 

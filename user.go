@@ -289,7 +289,7 @@ func (user *User) startupTryConnect(retryCount int) {
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
 		if errors.Is(err, ErrNotLoggedIn) {
-			user.log.Warn().Msg("Not logged in, skipping startup retry")
+			user.log.Warn().Msg("Not logged in, clearing Signal device keys")
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials})
 			user.clearMySignalKeys()
 		} else if retryCount < 6 {
