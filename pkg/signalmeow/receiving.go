@@ -25,6 +25,7 @@ const (
 	SignalConnectionEventDisconnected
 	SignalConnectionEventLoggedOut
 	SignalConnectionEventError
+	SignalConnectionCleanShutdown
 )
 
 type SignalConnectionStatus struct {
@@ -80,6 +81,8 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 					//StopReceiveLoops(d)
 				} else if status.Event == web.SignalWebsocketConnectionEventError {
 					zlog.Err(status.Err).Msg("Authed websocket error")
+				} else if status.Event == web.SignalWebsocketConnectionEventCleanShutdown {
+					zlog.Info().Msg("Authed websocket clean shutdown")
 				}
 			case status := <-unauthChan:
 				lastUnauthStatus = status
@@ -93,6 +96,8 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 					zlog.Err(status.Err).Msg("Unauthed websocket logged out ** THIS SHOULD BE IMPOSSIBLE **")
 				} else if status.Event == web.SignalWebsocketConnectionEventError {
 					zlog.Err(status.Err).Msg("Unauthed websocket error")
+				} else if status.Event == web.SignalWebsocketConnectionEventCleanShutdown {
+					zlog.Info().Msg("Unauthed websocket clean shutdown")
 				}
 			}
 
@@ -119,6 +124,10 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventError,
 					Err:   currentStatus.Err,
+				}
+			} else if currentStatus.Event == web.SignalWebsocketConnectionEventCleanShutdown {
+				statusToSend = SignalConnectionStatus{
+					Event: SignalConnectionCleanShutdown,
 				}
 			}
 			if statusToSend.Event != 0 && statusToSend != lastSentStatus {

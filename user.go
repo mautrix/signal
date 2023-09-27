@@ -341,6 +341,9 @@ func (user *User) startupTryConnect(retryCount int) {
 			case signalmeow.SignalConnectionEventError:
 				user.log.Debug().Msg("Sending UnknownError BridgeState")
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+
+			case signalmeow.SignalConnectionCleanShutdown:
+				user.log.Debug().Msg("Clean Shutdown - sending no BridgeState")
 			}
 		}
 	}()

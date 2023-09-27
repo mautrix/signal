@@ -53,6 +53,7 @@ const (
 	SignalWebsocketConnectionEventDisconnected
 	SignalWebsocketConnectionEventLoggedOut
 	SignalWebsocketConnectionEventError
+	SignalWebsocketConnectionEventCleanShutdown
 )
 
 type SignalWebsocketConnectionStatus struct {
@@ -253,13 +254,21 @@ func (s *SignalWebsocket) connectLoop(
 		select {
 		case <-loopCtx.Done():
 			zlog.Info().Msgf("received loopCtx done (%s)", s.name)
-			s.statusChannel <- SignalWebsocketConnectionStatus{
-				Event: SignalWebsocketConnectionEventDisconnected,
-				Err:   err,
+			zlog.Debug().Msgf("loopCtx error: %v", loopCtx.Err())
+			zlog.Debug().Msgf("loopCtx cause: %v", context.Cause(loopCtx))
+			if context.Cause(loopCtx) != nil && context.Cause(loopCtx) == context.Canceled {
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventCleanShutdown,
+				}
+			} else {
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventDisconnected,
+					Err:   err,
+				}
 			}
 			if context.Cause(loopCtx) != nil {
 				err := context.Cause(loopCtx)
-				if err != nil {
+				if err != nil && err != context.Canceled {
 					zlog.Err(err).Msg("loopCtx error")
 				}
 			}
@@ -291,6 +300,13 @@ func readLoop(
 		//ctx, _ := context.WithTimeout(ctx, 10*time.Second) // For testing
 		err := wspb.Read(ctx, ws, msg)
 		if err != nil {
+			if err == context.Canceled {
+				zlog.Info().Msgf("readLoop context canceled (%s)", name)
+			}
+			if strings.Contains(err.Error(), "StatusNormalClosure") {
+				zlog.Info().Msgf("readLoop received StatusNormalClosure (%s)", name)
+				return nil
+			}
 			return errors.Wrap(err, "Error reading message")
 		}
 		if msg.Type == nil {
