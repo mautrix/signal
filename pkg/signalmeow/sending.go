@@ -19,7 +19,7 @@ import (
 // Sending
 
 // We don't want to couple library users to signalpb, so just alias it
-type DataMessage signalpb.DataMessage
+type SignalContent signalpb.Content
 type AttachmentPointer signalpb.AttachmentPointer
 
 func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
@@ -323,18 +323,19 @@ func sendContactSyncRequest(ctx context.Context, d *Device) error {
 	return err
 }
 
-func DataMessageForText(text string) *DataMessage {
+func DataMessageForText(text string) *SignalContent {
 	timestamp := currentMessageTimestamp()
-	return &DataMessage{
+	dm := &signalpb.DataMessage{
 		Body:      proto.String(text),
 		Timestamp: &timestamp,
 	}
+	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption string) *DataMessage {
+func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption string) *SignalContent {
 	ap := (*signalpb.AttachmentPointer)(attachmentPointer) // Cast back to signalpb, this is okay AttachmentPointer is an alias
 	timestamp := currentMessageTimestamp()
-	dm := &DataMessage{
+	dm := &signalpb.DataMessage{
 		Timestamp:   &timestamp,
 		Attachments: []*signalpb.AttachmentPointer{},
 	}
@@ -342,12 +343,12 @@ func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption stri
 		ap.Caption = proto.String(caption)
 	}
 	dm.Attachments = append(dm.Attachments, ap)
-	return dm
+	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *DataMessage {
+func DataMessageForReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *SignalContent {
 	timestamp := currentMessageTimestamp()
-	return &DataMessage{
+	dm := &signalpb.DataMessage{
 		Timestamp: &timestamp,
 		Reaction: &signalpb.DataMessage_Reaction{
 			Emoji:               proto.String(reaction),
@@ -356,30 +357,33 @@ func DataMessageForReaction(reaction string, targetMessageSender string, targetM
 			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
 		},
 	}
+	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForDelete(targetMessageTimestamp uint64) *DataMessage {
+func DataMessageForDelete(targetMessageTimestamp uint64) *SignalContent {
 	timestamp := currentMessageTimestamp()
-	return &DataMessage{
+	dm := &signalpb.DataMessage{
 		Timestamp: &timestamp,
 		Delete: &signalpb.DataMessage_Delete{
 			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
 		},
 	}
+	return wrapDataMessageInContent(dm)
 }
 
-func AddQuoteToDataMessage(dm *DataMessage, quotedMessageSender string, quotedMessageTimestamp uint64) {
+func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender string, quotedMessageTimestamp uint64) {
 	// Note: We're supposed to send the quoted message content too as a fallback,
 	// but it only seems to be necessary to quote image messages on iOS and Desktop.
 	// Android seems to render every quote fine, and iOS and Desktop render text quotes fine.
-	dm.Quote = &signalpb.DataMessage_Quote{
+	content.DataMessage.Quote = &signalpb.DataMessage_Quote{
 		AuthorUuid: proto.String(quotedMessageSender),
 		Id:         proto.Uint64(quotedMessageTimestamp),
 		Type:       signalpb.DataMessage_Quote_NORMAL.Enum(),
 	}
 }
 
-func AddMentionsToDataMessage(dm *DataMessage, mentions []string) {
+func AddMentionsToDataMessage(content *SignalContent, mentions []string) {
+	dm := content.DataMessage
 	dm.BodyRanges = []*signalpb.BodyRange{}
 	// Iterate over the body string, and add a BodyRange for each Unicode replacement character
 	bodyString := *dm.Body
@@ -411,19 +415,22 @@ func UploadAttachment(d *Device, image []byte, mimeType string, filename string)
 	return (*AttachmentPointer)(ap), err
 }
 
-func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, message *DataMessage) (*GroupMessageSendResult, error) {
+func wrapDataMessageInContent(dm *signalpb.DataMessage) *SignalContent {
+	return &SignalContent{
+		DataMessage: dm,
+	}
+}
+
+func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, message *SignalContent) (*GroupMessageSendResult, error) {
 	group, err := RetrieveGroupByID(ctx, device, gid)
 	if err != nil {
 		return nil, err
 	}
 
-	// Assemble the content to send
-	dataMessage := (*signalpb.DataMessage)(message)
+	content := (*signalpb.Content)(message)
+	dataMessage := content.DataMessage
 	messageTimestamp := *dataMessage.Timestamp
 	dataMessage.GroupV2 = groupMetadataForDataMessage(*group)
-	content := &signalpb.Content{
-		DataMessage: dataMessage,
-	}
 
 	// Send to each member of the group
 	result := &GroupMessageSendResult{
@@ -468,13 +475,11 @@ func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, 
 	return result, nil
 }
 
-func SendMessage(ctx context.Context, device *Device, recipientUuid string, message *DataMessage) SendMessageResult {
+func SendMessage(ctx context.Context, device *Device, recipientUuid string, message *SignalContent) SendMessageResult {
 	// Assemble the content to send
-	dataMessage := (*signalpb.DataMessage)(message) // Cast back to signalpb, this is okay DataMessage is an alias
+	content := (*signalpb.Content)(message)
+	dataMessage := content.DataMessage
 	messageTimestamp := *dataMessage.Timestamp
-	content := &signalpb.Content{
-		DataMessage: dataMessage,
-	}
 
 	// Send to the recipient
 	sentUnidentified, err := sendContent(ctx, device, recipientUuid, messageTimestamp, content, 0)

@@ -591,7 +591,7 @@ func (portal *Portal) convertAudio(ctx context.Context, mimeType string, audio [
 	return outMimeType, outAudio, nil
 }
 
-func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, evt *event.Event) (*signalmeow.DataMessage, error) {
+func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, evt *event.Event) (*signalmeow.SignalContent, error) {
 	content, ok := evt.Content.Parsed.(*event.MessageEventContent)
 	if !ok {
 		return nil, fmt.Errorf("%w %T", errUnexpectedParsedContentType, evt.Content.Parsed)
@@ -601,7 +601,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		content.MsgType = event.MessageType(event.EventSticker.Type)
 	}
 
-	var outgoingMessage *signalmeow.DataMessage
+	var outgoingMessage *signalmeow.SignalContent
 
 	switch content.MsgType {
 	case event.MsgText, event.MsgEmote, event.MsgNotice:
@@ -750,7 +750,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 	return outgoingMessage, nil
 }
 
-func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.DataMessage, sender *User, evtID id.EventID) error {
+func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.SignalContent, sender *User, evtID id.EventID) error {
 	recipientSignalID := portal.ChatID
 	portal.log.Debug().Msgf("Sending event %s to Signal %s", evtID, recipientSignalID)
 
