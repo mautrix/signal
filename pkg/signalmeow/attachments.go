@@ -57,20 +57,23 @@ func fetchAndDecryptAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
 		return nil, err
 	}
 
+	return decryptAttachment(body, a.Key, *a.Size)
+}
+
+func decryptAttachment(body, key []byte, size uint32) ([]byte, error) {
 	l := len(body) - 32
-	if !verifyMAC(a.Key[32:], body[:l], body[l:]) {
+	if !verifyMAC(key[32:], body[:l], body[l:]) {
 		return nil, ErrInvalidMACForAttachment
 	}
 
 	// TODO: verify digest?
-	decrypted, err := aesDecrypt(a.Key[:32], body[:l])
+	decrypted, err := aesDecrypt(key[:32], body[:l])
 	if err != nil {
 		return nil, err
 	}
-	if len(decrypted) < int(*a.Size) {
-		return nil, fmt.Errorf("decrypted attachment length %v < expected %v", len(decrypted), *a.Size)
+	if len(decrypted) < int(size) {
+		return nil, fmt.Errorf("decrypted attachment length %v < expected %v", len(decrypted), size)
 	}
-	size := int(*a.Size)
 	return decrypted[:size], nil
 }
 
