@@ -323,6 +323,25 @@ func sendContactSyncRequest(ctx context.Context, d *Device) error {
 	return err
 }
 
+func TypingMessage(isTyping bool) *SignalContent {
+	// Note: not handling sending to a group ATM since that will require
+	// SenderKey sending to not be terrible
+	timestamp := currentMessageTimestamp()
+	var action signalpb.TypingMessage_Action
+	if isTyping {
+		action = signalpb.TypingMessage_STARTED
+	} else {
+		action = signalpb.TypingMessage_STOPPED
+	}
+	tm := &signalpb.TypingMessage{
+		Timestamp: &timestamp,
+		Action:    &action,
+	}
+	return &SignalContent{
+		TypingMessage: tm,
+	}
+}
+
 func DataMessageForText(text string) *SignalContent {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
@@ -479,7 +498,12 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 	// Assemble the content to send
 	content := (*signalpb.Content)(message)
 	dataMessage := content.DataMessage
-	messageTimestamp := *dataMessage.Timestamp
+	var messageTimestamp uint64
+	if dataMessage != nil {
+		messageTimestamp = *dataMessage.Timestamp
+	} else {
+		messageTimestamp = currentMessageTimestamp()
+	}
 
 	// Send to the recipient
 	sentUnidentified, err := sendContent(ctx, device, recipientUuid, messageTimestamp, content, 0)
@@ -505,7 +529,7 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 	FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
 
 	// If we have other devices, send to them too
-	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
+	if howManyOtherDevicesDoWeHave(ctx, device) > 0 && dataMessage != nil {
 		syncContent := syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
 		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
 		if selfSendErr != nil {

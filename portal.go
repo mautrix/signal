@@ -73,9 +73,10 @@ func init() {
 
 var _ bridge.Portal = (*Portal)(nil)
 
-//var _ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
-//var _ bridge.MembershipHandlingPortal = (*Portal)(nil)
-//var _ bridge.TypingPortal = (*Portal)(nil)
+// var _ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
+// var _ bridge.MembershipHandlingPortal = (*Portal)(nil)
+var _ bridge.TypingPortal = (*Portal)(nil)
+
 //var _ bridge.MetaHandlingPortal = (*Portal)(nil)
 //var _ bridge.DisappearingPortal = (*Portal)(nil)
 
@@ -1074,7 +1075,6 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 const SignalTypingTimeout = 15 * time.Second
 
 func (portal *Portal) handleSignalTypingMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
-	portal.log.Debug().Msgf("Typing message: %v", portalMessage)
 	typingMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageTyping)
 	var err error
 	if typingMessage.IsTyping {
@@ -1083,6 +1083,64 @@ func (portal *Portal) handleSignalTypingMessage(portalMessage portalSignalMessag
 		_, err = intent.UserTyping(portal.MXID, false, 0)
 	}
 	return err
+}
+
+func typingDiff(prev, new []id.UserID) (started, stopped []id.UserID) {
+OuterNew:
+	for _, userID := range new {
+		for _, previousUserID := range prev {
+			if userID == previousUserID {
+				continue OuterNew
+			}
+		}
+		started = append(started, userID)
+	}
+OuterPrev:
+	for _, userID := range prev {
+		for _, previousUserID := range new {
+			if userID == previousUserID {
+				continue OuterPrev
+			}
+		}
+		stopped = append(stopped, userID)
+	}
+	return
+}
+
+func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
+	for _, userID := range userIDs {
+		user := portal.bridge.GetUserByMXID(userID)
+		if user == nil || !user.IsLoggedIn() {
+			continue
+		}
+		recipientSignalID := portal.ChatID
+
+		// Check to see if recipientSignalID is a standard UUID (with dashes)
+		// Note: not handling sending to a group right now, since that will
+		// require SenderKey sending to not be terrible
+		var err error
+		if _, uuidErr := uuid.Parse(recipientSignalID); uuidErr == nil {
+			// this is a 1:1 chat
+			portal.log.Debug().Msgf("Sending Typing event to Signal %s", recipientSignalID)
+			ctx := context.Background()
+			typingMessage := signalmeow.TypingMessage(isTyping)
+			result := signalmeow.SendMessage(ctx, user.SignalDevice, recipientSignalID, typingMessage)
+			if !result.WasSuccessful {
+				err = result.FailedSendResult.Error
+				portal.log.Error().Msgf("Error sending event to Signal %s: %s", recipientSignalID, err)
+			}
+		}
+	}
+}
+
+// mautrix-go TypingPortal interface
+func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
+	portal.currentlyTypingLock.Lock()
+	defer portal.currentlyTypingLock.Unlock()
+	startedTyping, stoppedTyping := typingDiff(portal.currentlyTyping, newTyping)
+	portal.currentlyTyping = newTyping
+	portal.setTyping(startedTyping, true)
+	portal.setTyping(stoppedTyping, false)
 }
 
 func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
