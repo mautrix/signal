@@ -489,6 +489,25 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 						return nil, err
 					}
 				}
+
+				if content.TypingMessage != nil {
+					var isTyping = content.TypingMessage.GetAction() == signalpb.TypingMessage_STARTED
+					var typingMessage = IncomingSignalMessageTyping{
+						IncomingSignalMessageBase: IncomingSignalMessageBase{
+							SenderUUID:    theirUuid,
+							RecipientUUID: device.Data.AciUuid,
+							Timestamp:     content.TypingMessage.GetTimestamp(),
+						},
+						IsTyping: isTyping,
+					}
+					if content.TypingMessage.GetGroupId() != nil {
+						gidBytes := content.TypingMessage.GetGroupId()
+						gid := GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
+						typingMessage.GroupID = &gid
+					}
+
+					device.Connection.IncomingSignalMessageHandler(typingMessage)
+				}
 			}
 
 		} else if *req.Verb == "PUT" && *req.Path == "/api/v1/queue/empty" {

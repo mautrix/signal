@@ -853,6 +853,12 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle sticker message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeTyping {
+		err := portal.handleSignalTypingMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle typing message")
+			return
+		}
 	} else {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
@@ -1062,6 +1068,20 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 		return errors.New("Didn't receive event ID from Matrix")
 	}
 	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
+	return err
+}
+
+const SignalTypingTimeout = 15 * time.Second
+
+func (portal *Portal) handleSignalTypingMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	portal.log.Debug().Msgf("Typing message: %v", portalMessage)
+	typingMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageTyping)
+	var err error
+	if typingMessage.IsTyping {
+		_, err = intent.UserTyping(portal.MXID, true, SignalTypingTimeout)
+	} else {
+		_, err = intent.UserTyping(portal.MXID, false, 0)
+	}
 	return err
 }
 

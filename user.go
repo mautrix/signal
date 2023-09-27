@@ -569,6 +569,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
 		if err != nil {
 			user.log.Err(err).Msg("error retrieving group")
+			return err
 		}
 		if portal.Name != group.Title || portal.Topic != group.Description {
 			portal.Name = group.Title
