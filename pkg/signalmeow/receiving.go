@@ -808,6 +808,8 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 
 	// Pass along reactions
 	if dataMessage.Reaction != nil {
+		// make sure target author UUID is lowercase
+		targetAuthor := strings.ToLower(dataMessage.GetReaction().GetTargetAuthorUuid())
 		incomingMessage := IncomingSignalMessageReaction{
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
@@ -819,7 +821,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			},
 			Emoji:                  dataMessage.GetReaction().GetEmoji(),
 			Remove:                 dataMessage.GetReaction().GetRemove(),
-			TargetAuthorUUID:       dataMessage.GetReaction().GetTargetAuthorUuid(),
+			TargetAuthorUUID:       targetAuthor,
 			TargetMessageTimestamp: dataMessage.GetReaction().GetTargetSentTimestamp(),
 		}
 		incomingMessages = append(incomingMessages, incomingMessage)
