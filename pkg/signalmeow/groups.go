@@ -243,7 +243,6 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 		zlog.Err(err).Msg("groupIdentifierFromMasterKey error")
 		return nil, err
 	}
-	zlog.Debug().Msgf("masterKey: %v, groupIdentifier: %v", groupMasterKey, gid)
 	decryptedGroup.GroupIdentifier = gid
 
 	title, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.Title)
@@ -263,7 +262,9 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	titleString = strings.TrimSpace(titleString)
 	decryptedGroup.Title = titleString
 
+	// These aren't encrypted
 	decryptedGroup.AvatarPath = encryptedGroup.Avatar
+	decryptedGroup.Revision = encryptedGroup.Revision
 
 	// Decrypt members
 	decryptedGroup.Members = make([]*GroupMember, 0)
@@ -441,13 +442,7 @@ func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey Serialize
 }
 
 func RetrieveGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, error) {
-	if d.Connection.GroupCache == nil {
-		d.Connection.GroupCache = &GroupCache{
-			groups:      make(map[GroupIdentifier]*Group),
-			lastFetched: make(map[GroupIdentifier]time.Time),
-			avatarPaths: make(map[GroupIdentifier]string),
-		}
-	}
+	d.initGroupCache()
 
 	lastFetched, ok := d.Connection.GroupCache.lastFetched[gid]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
@@ -514,8 +509,38 @@ func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGro
 	return groupIdentifier, nil
 }
 
+// We need to track active calls so we don't send too many IncomingSignalMessageCalls
+// Of course for group calls Signal doesn't tell us *anything* so we're mostly just inferring
+// So we just jam a new call ID in, and return true if we *think* this is a new incoming call
+func (d *Device) UpdateActiveCalls(gid GroupIdentifier, callID string) (isActive bool) {
+	d.initGroupCache()
+	// Check to see if we currently have an active call for this group
+	currentCallID, ok := d.Connection.GroupCache.activeCalls[gid]
+	if ok {
+		// If we do, then this must be ending the call
+		if currentCallID == callID {
+			delete(d.Connection.GroupCache.activeCalls, gid)
+			return false
+		}
+	}
+	d.Connection.GroupCache.activeCalls[gid] = callID
+	return true
+}
+
+func (d *Device) initGroupCache() {
+	if d.Connection.GroupCache == nil {
+		d.Connection.GroupCache = &GroupCache{
+			groups:      make(map[GroupIdentifier]*Group),
+			lastFetched: make(map[GroupIdentifier]time.Time),
+			avatarPaths: make(map[GroupIdentifier]string),
+			activeCalls: make(map[GroupIdentifier]string),
+		}
+	}
+}
+
 type GroupCache struct {
 	groups      map[GroupIdentifier]*Group
 	lastFetched map[GroupIdentifier]time.Time
 	avatarPaths map[GroupIdentifier]string
+	activeCalls map[GroupIdentifier]string
 }

@@ -861,6 +861,12 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle typing message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeCall {
+		err := portal.handleSignalCallMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle call message")
+			return
+		}
 	} else {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
@@ -1071,6 +1077,18 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 	}
 	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
 	return err
+}
+
+func (portal *Portal) handleSignalCallMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	callMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageCall)
+	var message string
+	if callMessage.IsRinging {
+		message = "Incoming Call"
+	} else {
+		message = "Call Ended"
+	}
+	portal.MainIntent().SendNotice(portal.MXID, message)
+	return nil
 }
 
 const SignalTypingTimeout = 15 * time.Second

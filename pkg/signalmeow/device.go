@@ -37,6 +37,7 @@ type DeviceConnection struct {
 	GroupCredentials  *GroupCredentials
 	GroupCache        *GroupCache
 	ProfileCache      *ProfileCache
+	GroupCallCache    *map[string]bool
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket

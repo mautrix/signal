@@ -508,6 +508,23 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 					device.Connection.IncomingSignalMessageHandler(typingMessage)
 				}
+
+				// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
+				if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
+					callMessage := IncomingSignalMessageCall{
+						IncomingSignalMessageBase: IncomingSignalMessageBase{
+							SenderUUID:    theirUuid,
+							RecipientUUID: device.Data.AciUuid,
+							Timestamp:     currentMessageTimestamp(), // there is no timestmap on a callMessage
+						},
+					}
+					if content.CallMessage.Offer != nil {
+						callMessage.IsRinging = true
+					} else if content.CallMessage.Hangup != nil {
+						callMessage.IsRinging = false
+					}
+					device.Connection.IncomingSignalMessageHandler(callMessage)
+				}
 			}
 
 		} else if *req.Verb == "PUT" && *req.Path == "/api/v1/queue/empty" {
@@ -812,6 +829,21 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Mentions:      mentions,
 			},
 			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),
+		}
+		incomingMessages = append(incomingMessages, incomingMessage)
+	}
+
+	// Pass along group calls
+	if dataMessage.GroupCallUpdate != nil {
+		isRinging := device.UpdateActiveCalls(*gidPointer, *dataMessage.GroupCallUpdate.EraId)
+		incomingMessage := IncomingSignalMessageCall{
+			IncomingSignalMessageBase: IncomingSignalMessageBase{
+				SenderUUID:    senderUUID,
+				RecipientUUID: recipientUUID,
+				GroupID:       gidPointer,
+				Timestamp:     dataMessage.GetTimestamp(),
+			},
+			IsRinging: isRinging,
 		}
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}

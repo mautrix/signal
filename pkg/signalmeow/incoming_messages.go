@@ -35,6 +35,7 @@ const (
 	IncomingSignalMessageTypeTyping
 	IncomingSignalMessageTypeReceipt
 	IncomingSignalMessageTypeSticker
+	IncomingSignalMessageTypeCall
 )
 
 type IncomingSignalMessage interface {
@@ -51,6 +52,7 @@ var _ IncomingSignalMessage = IncomingSignalMessageDelete{}
 var _ IncomingSignalMessage = IncomingSignalMessageTyping{}
 var _ IncomingSignalMessage = IncomingSignalMessageReceipt{}
 var _ IncomingSignalMessage = IncomingSignalMessageSticker{}
+var _ IncomingSignalMessage = IncomingSignalMessageCall{}
 
 // ** IncomingSignalMessageUnhandled **
 type IncomingSignalMessageUnhandled struct {
@@ -157,6 +159,19 @@ func (IncomingSignalMessageTyping) MessageType() IncomingSignalMessageType {
 	return IncomingSignalMessageTypeTyping
 }
 func (i IncomingSignalMessageTyping) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageCall **
+type IncomingSignalMessageCall struct {
+	IncomingSignalMessageBase
+	IsRinging bool
+}
+
+func (IncomingSignalMessageCall) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeCall
+}
+func (i IncomingSignalMessageCall) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 
