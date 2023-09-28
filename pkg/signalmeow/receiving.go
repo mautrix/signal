@@ -608,6 +608,14 @@ func printStructFields(message protoreflect.Message, parent string, builder *str
 				builder.WriteString("} ")
 			}
 			builder.WriteString("] ")
+		} else if fd.IsList() {
+			builder.WriteString("[ ")
+			for i := 0; i < v.List().Len(); i++ {
+				//v := v.List().Get(i)
+				//builder.WriteString(fmt.Sprintf("%s, ", v.String()))
+				builder.WriteString("<>, ")
+			}
+			builder.WriteString("] ")
 		}
 		return true
 	})
@@ -849,8 +857,32 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	}
 
 	if device.Connection.IncomingSignalMessageHandler != nil {
+		deliveredTimestamps := make([]uint64, 0)
 		for _, incomingMessage := range incomingMessages {
-			device.Connection.IncomingSignalMessageHandler(incomingMessage)
+			err := device.Connection.IncomingSignalMessageHandler(incomingMessage)
+			if err != nil {
+				zlog.Err(err).Msg("IncomingSignalMessageHandler error")
+			} else {
+				deliveredTimestamps = append(deliveredTimestamps, incomingMessage.Base().Timestamp)
+			}
+		}
+		if len(deliveredTimestamps) > 0 {
+			err := sendDeliveryReceipts(ctx, device, deliveredTimestamps, senderUUID)
+			if err != nil {
+				zlog.Err(err).Msg("sendDeliveryReceipts error")
+			}
+		}
+	}
+	return nil
+}
+
+func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestamps []uint64, senderUUID string) error {
+	// Send delivery receipts
+	if len(deliveredTimestamps) > 0 {
+		receipt := DeliveredReceiptMessageForTimestamps(deliveredTimestamps)
+		result := SendMessage(ctx, device, senderUUID, receipt)
+		if !result.WasSuccessful {
+			zlog.Error().Msgf("Failed to send delivery receipts: %v", result)
 		}
 	}
 	return nil

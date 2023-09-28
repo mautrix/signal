@@ -342,6 +342,16 @@ func TypingMessage(isTyping bool) *SignalContent {
 	}
 }
 
+func DeliveredReceiptMessageForTimestamps(timestamps []uint64) *SignalContent {
+	rm := &signalpb.ReceiptMessage{
+		Timestamp: timestamps,
+		Type:      signalpb.ReceiptMessage_DELIVERY.Enum(),
+	}
+	return &SignalContent{
+		ReceiptMessage: rm,
+	}
+}
+
 func DataMessageForText(text string) *SignalContent {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
@@ -526,7 +536,8 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 
 	// TODO: don't fetch every time
 	// (But for now this makes sure we know about all our other devices)
-	FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
+	// ((Actually I don't think this is necessary?))
+	//FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
 
 	// If we have other devices, send to them too
 	if howManyOtherDevicesDoWeHave(ctx, device) > 0 && dataMessage != nil {
