@@ -566,7 +566,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	}
 	updatePortal := false
 	if m.GroupID != nil {
-		group, err := signalmeow.RetrieveGroupByID(context.Background(), user.SignalDevice, *m.GroupID)
+		group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(context.Background(), user.SignalDevice, *m.GroupID)
 		if err != nil {
 			user.log.Err(err).Msg("error retrieving group")
 			return err
@@ -574,6 +574,20 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		if portal.Name != group.Title || portal.Topic != group.Description {
 			portal.Name = group.Title
 			portal.Topic = group.Description
+			updatePortal = true
+		}
+		// avatarImage is only not nil if there's a new avatar to set
+		if avatarImage != nil {
+			user.log.Debug().Msg("Uploading new group avatar")
+			avatarURL, err := portal.MainIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
+			if err != nil {
+				user.log.Err(err).Msg("error uploading group avatar")
+				return err
+			}
+			portal.AvatarURL = avatarURL.ContentURI
+			portal.AvatarSet = true
+			hash := sha256.Sum256(avatarImage)
+			portal.AvatarHash = hex.EncodeToString(hash[:])
 			updatePortal = true
 		}
 
@@ -595,6 +609,11 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		if err != nil {
 			user.log.Err(err).Msg("error setting room topic")
 		}
+		_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
+		if err != nil {
+			user.log.Err(err).Msg("error setting room avatar")
+		}
+		portal.AvatarSet = err == nil
 		err = portal.Update()
 		if err != nil {
 			user.log.Err(err).Msg("error updating portal")

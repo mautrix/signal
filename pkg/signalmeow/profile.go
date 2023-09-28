@@ -276,7 +276,7 @@ func fetchAndDecryptAvatarImage(d *Device, avatarPath string, profileKey *libsig
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
-		zlog.Err(err).Msg("error fetching profile avatar")
+		zlog.Err(err).Msg("bad status fetching profile avatar")
 		return nil, err
 	}
 	encryptedAvatar, err := io.ReadAll(resp.Body)

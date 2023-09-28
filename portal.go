@@ -135,6 +135,7 @@ func (portal *Portal) getBridgeInfo() (string, CustomBridgeInfoContent) {
 		Channel: event.BridgeInfoSection{
 			ID:          portal.Key().ChatID,
 			DisplayName: portal.Name,
+			AvatarURL:   portal.AvatarURL.CUString(),
 		},
 	}
 	var bridgeInfoStateKey string

@@ -39,7 +39,7 @@ type Group struct {
 	GroupIdentifier GroupIdentifier          // This is what we should use to identify a group outside this file
 
 	Title             string
-	Avatar            string
+	AvatarPath        string
 	Members           []*GroupMember
 	Description       string
 	AnnouncementsOnly bool
@@ -263,15 +263,7 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	titleString = strings.TrimSpace(titleString)
 	decryptedGroup.Title = titleString
 
-	// TODO: Not sure how to decrypt avatar yet
-	//avatarBytes, err := base64.StdEncoding.DecodeString(encryptedGroup.Avatar)
-	//zlog.Err(err).Msg("avatarBytes")
-	//decryptedAvatar, err := groupSecretParams.DecryptBlobWithPadding(avatarBytes)
-	//if err != nil {
-	//	zlog.Err(err).Msg("DecryptBlobWithPadding Avatar error")
-	//	//return nil, err
-	//}
-	//decryptedGroup.Avatar = string(decryptedAvatar)
+	decryptedGroup.AvatarPath = encryptedGroup.Avatar
 
 	// Decrypt members
 	decryptedGroup.Members = make([]*GroupMember, 0)
@@ -302,6 +294,30 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	return decryptedGroup, nil
 }
 
+func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey SerializedGroupMasterKey) ([]byte, error) {
+	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(groupMasterKey))
+	if err != nil {
+		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
+		return nil, err
+	}
+	decryptedAvatar, err := groupSecretParams.DecryptBlobWithPadding(encryptedAvatar)
+	if err != nil {
+		zlog.Err(err).Msg("DecryptBlobWithPadding error")
+		return nil, err
+	}
+	// decryptedAvatar is a protobuf for no reason at all
+	avatarBlob := &signalpb.GroupAttributeBlob{}
+	err = proto.Unmarshal(decryptedAvatar, avatarBlob)
+	if err != nil {
+		zlog.Err(err).Msg("Unmarshal error")
+		return nil, err
+	}
+	// The actual avatar is in the blob
+	decryptedImage := avatarBlob.GetAvatar()
+
+	return decryptedImage, nil
+}
+
 func printGroupMember(member *GroupMember) {
 	if member == nil {
 		zlog.Debug().Msg("GroupMember is nil")
@@ -315,7 +331,7 @@ func printGroupMember(member *GroupMember) {
 func printGroup(group *Group) {
 	zlog.Debug().Msgf("GroupIdentifier: %v", group.GroupIdentifier)
 	zlog.Debug().Msgf("Title: %v", group.Title)
-	zlog.Debug().Msgf("Avatar: %v", group.Avatar)
+	zlog.Debug().Msgf("AvatarPath: %v", group.AvatarPath)
 	zlog.Debug().Msgf("Members len: %v", len(group.Members))
 	for _, member := range group.Members {
 		printGroupMember(member)
@@ -392,11 +408,44 @@ func fetchGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group
 	return group, nil
 }
 
+func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey SerializedGroupMasterKey) ([]byte, error) {
+	// Fetch avatar
+	username, password := d.Data.BasicAuthCreds()
+	opts := &web.HTTPReqOpt{
+		Host:     web.CDNUrlHost,
+		Username: &username,
+		Password: &password,
+	}
+	zlog.Info().Msgf("Fetching group avatar from %v", path)
+	resp, err := web.SendHTTPRequest("GET", path, opts)
+	if err != nil {
+		zlog.Err(err).Msg("error fetching group avatar")
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
+		zlog.Err(err).Msg("bad status fetching group avatar")
+		return nil, err
+	}
+	encryptedAvatar, err := io.ReadAll(resp.Body)
+	if err != nil {
+		zlog.Err(err).Msg("error reading group avatar")
+		return nil, err
+	}
+
+	encryptedBytes := encryptedAvatar
+
+	// Decrypt avatar
+	decryptedBytes, err := decryptGroupAvatar(encryptedBytes, masterKey)
+	return decryptedBytes, nil
+}
+
 func RetrieveGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, error) {
 	if d.Connection.GroupCache == nil {
 		d.Connection.GroupCache = &GroupCache{
 			groups:      make(map[GroupIdentifier]*Group),
 			lastFetched: make(map[GroupIdentifier]time.Time),
+			avatarPaths: make(map[GroupIdentifier]string),
 		}
 	}
 
@@ -416,12 +465,36 @@ func RetrieveGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Gr
 	return group, nil
 }
 
+func RetrieveGroupAndAvatarByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, []byte, error) {
+	group, err := RetrieveGroupByID(ctx, d, gid)
+	if err != nil {
+		return nil, nil, err
+	}
+	gid = group.GroupIdentifier
+
+	// If there is an avatarPath, and it's different from the cached one, fetch it
+	// (we only return the avatar if it's different from the cached one)
+	var avatarImage []byte
+	cachedAvatarPath, _ := d.Connection.GroupCache.avatarPaths[gid]
+	if group.AvatarPath != "" && cachedAvatarPath != group.AvatarPath {
+		avatarImage, err = fetchAndDecryptGroupAvatarImage(d, group.AvatarPath, group.groupMasterKey)
+		if err != nil {
+			zlog.Err(err).Msg("error fetching group avatarImage")
+			return nil, nil, err
+		}
+	}
+	d.Connection.GroupCache.avatarPaths[gid] = group.AvatarPath
+
+	return group, avatarImage, nil
+}
+
 func InvalidateGroupCache(d *Device, gid GroupIdentifier) {
 	if d.Connection.GroupCache == nil {
 		return
 	}
 	delete(d.Connection.GroupCache.groups, gid)
 	delete(d.Connection.GroupCache.lastFetched, gid)
+	// Don't delete avatarPaths, they can stay cached
 }
 
 // We should store the group master key in the group store as soon as we see it,
@@ -444,4 +517,5 @@ func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGro
 type GroupCache struct {
 	groups      map[GroupIdentifier]*Group
 	lastFetched map[GroupIdentifier]time.Time
+	avatarPaths map[GroupIdentifier]string
 }

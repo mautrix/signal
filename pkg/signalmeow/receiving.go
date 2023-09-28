@@ -650,6 +650,8 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
 				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", gidValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
 				InvalidateGroupCache(device, gidValue)
+				// Update our group now that the cache is invalidated
+				RetrieveGroupByID(ctx, device, gidValue)
 			}
 		}
 	}
