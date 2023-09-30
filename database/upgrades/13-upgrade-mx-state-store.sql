@@ -3,8 +3,8 @@ ALTER TABLE mx_room_state DROP COLUMN is_encrypted;
 ALTER TABLE mx_room_state DROP COLUMN has_full_member_list;
 
 -- only: postgres for next 2 lines
-ALTER TABLE mx_room_state ALTER COLUMN power_levels TYPE jsonb;
-ALTER TABLE mx_room_state ALTER COLUMN encryption TYPE jsonb;
+ALTER TABLE mx_room_state ALTER COLUMN power_levels TYPE jsonb USING power_levels::jsonb;
+ALTER TABLE mx_room_state ALTER COLUMN encryption TYPE jsonb USING encryption::jsonb;
 
 ALTER TABLE "user" ADD COLUMN management_room TEXT;
 
