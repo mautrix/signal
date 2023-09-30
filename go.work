@@ -1,7 +1,7 @@
 go 1.20
 
 use (
-	./
+	.
 	./pkg/libsignalgo
 	./pkg/signalmeow
 )
