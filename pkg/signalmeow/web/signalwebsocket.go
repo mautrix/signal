@@ -3,14 +3,16 @@ package web
 import (
 	"context"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"nhooyr.io/websocket"
+
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
-	"nhooyr.io/websocket"
 )
 
 const WebsocketProvisioningPath = "/v1/websocket/provisioning/"
@@ -159,27 +161,27 @@ func (s *SignalWebsocket) connectLoop(
 					// We can try again if it's a 5xx
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventDisconnected,
-						Err:   errors.Errorf("5xx opening websocket: %v", resp.Status),
+						Err:   fmt.Errorf("5xx opening websocket: %v", resp.Status),
 					}
 				} else if resp.StatusCode == 403 {
 					// We are logged out, so we should stop trying to reconnect
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventLoggedOut,
-						Err:   errors.Errorf("403 opening websocket, we are logged out"),
+						Err:   fmt.Errorf("403 opening websocket, we are logged out"),
 					}
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
 					// Unexpected status code
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventError,
-						Err:   errors.Errorf("Bad status opening websocket: %v", resp.Status),
+						Err:   fmt.Errorf("Bad status opening websocket: %v", resp.Status),
 					}
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
 					// Something is very wrong
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventError,
-						Err:   errors.Errorf("Unexpected error opening websocket: %v", resp.Status),
+						Err:   fmt.Errorf("Unexpected error opening websocket: %v", resp.Status),
 					}
 				}
 				// Retry the connection
@@ -192,12 +194,12 @@ func (s *SignalWebsocket) connectLoop(
 			if backoff < maxBackoff {
 				s.statusChannel <- SignalWebsocketConnectionStatus{
 					Event: SignalWebsocketConnectionEventDisconnected,
-					Err:   errors.Wrap(err, "Hopefully transient error opening websocket"),
+					Err:   fmt.Errorf("hopefully transient error opening websocket: %w", err),
 				}
 			} else {
 				s.statusChannel <- SignalWebsocketConnectionStatus{
 					Event: SignalWebsocketConnectionEventError,
-					Err:   errors.Wrap(err, "Continuing error opening websocket"),
+					Err:   fmt.Errorf("continuing error opening websocket: %w", err),
 				}
 			}
 			retrying = true
@@ -218,14 +220,14 @@ func (s *SignalWebsocket) connectLoop(
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
 			err := readLoop(loopCtx, ws, s.name, incomingRequestChan, &responseChannels)
-			loopCancel(errors.Wrap(err, "Error in readLoop"))
+			loopCancel(fmt.Errorf("error in readLoop: %w", err))
 			zlog.Info().Msgf("readLoop exited (%s)", s.name)
 		}()
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
 			err := writeLoop(loopCtx, ws, s.name, s.sendChannel, &responseChannels)
-			loopCancel(errors.Wrap(err, "Error in writeLoop"))
+			loopCancel(fmt.Errorf("error in writeLoop: %w", err))
 			zlog.Info().Msgf("writeLoop exited (%s)", s.name)
 		}()
 
@@ -239,7 +241,7 @@ func (s *SignalWebsocket) connectLoop(
 				case <-ticker.C:
 					err := ws.Ping(loopCtx)
 					if err != nil {
-						loopCancel(errors.Wrap(err, "Error sending keepalive"))
+						loopCancel(fmt.Errorf("error sending keepalive: %w", err))
 						return
 					}
 					zlog.Info().Msgf("Sent keepalive (%s)", s.name)
@@ -307,7 +309,7 @@ func readLoop(
 				zlog.Info().Msgf("readLoop received StatusNormalClosure (%s)", name)
 				return nil
 			}
-			return errors.Wrap(err, "Error reading message")
+			return fmt.Errorf("error reading message: %w", err)
 		}
 		if msg.Type == nil {
 			return errors.New("Received message with no type")
@@ -335,9 +337,9 @@ func readLoop(
 			zlog.Trace().Msgf("Deleted response channel for id: %v", *msg.Response.Id)
 			close(responseChannel)
 		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
-			return errors.Errorf("Received message with unknown type: %v", *msg.Type)
+			return fmt.Errorf("Received message with unknown type: %v", *msg.Type)
 		} else {
-			return errors.Errorf("Received message with actually unknown type: %v", *msg.Type)
+			return fmt.Errorf("Received message with actually unknown type: %v", *msg.Type)
 		}
 	}
 }
@@ -385,7 +387,7 @@ func writeLoop(
 				if request.RequestTime != (time.Time{}) {
 					elapsed := time.Since(request.RequestTime)
 					if elapsed > 1*time.Minute {
-						return errors.Errorf("Took too long, not sending (elapsed: %v)", elapsed)
+						return fmt.Errorf("Took too long, not sending (elapsed: %v)", elapsed)
 					} else if elapsed > 10*time.Second {
 						zlog.Warn().Msgf("Sending WS request %v:%v, verb: %v, path: %v, elapsed: %v", name, i, *request.RequestMessage.Verb, path, elapsed)
 					} else {
@@ -397,17 +399,17 @@ func writeLoop(
 					if ctx.Err() != nil && ctx.Err() != context.Canceled {
 						return ctx.Err()
 					}
-					return errors.Wrap(err, "Error writing request message")
+					return fmt.Errorf("error writing request message: %w", err)
 				}
 			} else if request.RequestMessage != nil && request.ResponseMessage != nil {
 				message := CreateWSResponse(*request.RequestMessage.Id, request.ResponseMessage.Status)
 				zlog.Debug().Msgf("Sending WS response %v:%v, status: %v", name, *request.RequestMessage.Id, request.ResponseMessage.Status)
 				err := wspb.Write(ctx, ws, message)
 				if err != nil {
-					return errors.Wrap(err, "Error writing response message")
+					return fmt.Errorf("error writing response message: %w", err)
 				}
 			} else {
-				return errors.Errorf("Invalid request: %+v", request)
+				return fmt.Errorf("Invalid request: %+v", request)
 			}
 		}
 	}
@@ -446,7 +448,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 		if retryCount >= 3 {
 			// TODO: I think error isn't getting passed in this context (as it's not the one in writeLoop)
 			if ctx.Err() != nil {
-				return nil, errors.Wrap(ctx.Err(), "Retried 3 times, giving up")
+				return nil, fmt.Errorf("retried 3 times, giving up: %w", ctx.Err())
 			} else {
 				return nil, errors.New("Retried 3 times, giving up")
 			}
