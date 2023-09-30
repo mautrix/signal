@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
@@ -14,7 +15,7 @@ var _ libsignalgo.SenderKeyStore = (*SQLStore)(nil)
 
 const (
 	loadSenderKeyQuery  = `SELECT key_record FROM signalmeow_sender_keys WHERE our_aci_uuid=$1 AND sender_uuid=$2 AND sender_device_id=$3 AND distribution_id=$4`
-	storeSenderKeyQuery = `INSERT OR REPLACE INTO signalmeow_sender_keys (our_aci_uuid, sender_uuid, sender_device_id, distribution_id, key_record) VALUES ($1, $2, $3, $4, $5)` // SQLite specific
+	storeSenderKeyQuery = `INSERT INTO signalmeow_sender_keys (our_aci_uuid, sender_uuid, sender_device_id, distribution_id, key_record) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (our_aci_uuid, sender_uuid, sender_device_id, distribution_id) DO UPDATE SET key_record=excluded.key_record`
 )
 
 func scanSenderKey(row scannable) (*libsignalgo.SenderKeyRecord, error) {

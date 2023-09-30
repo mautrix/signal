@@ -14,7 +14,7 @@ var _ libsignalgo.IdentityKeyStore = (*SQLStore)(nil)
 const (
 	getIdentityKeyPairQuery       = `SELECT aci_identity_key_pair FROM signalmeow_device WHERE aci_uuid=$1`
 	getRegistrationLocalIDQuery   = `SELECT registration_id FROM signalmeow_device WHERE aci_uuid=$1`
-	insertIdentityKeyQuery        = `INSERT OR REPLACE INTO signalmeow_identity_keys (our_aci_uuid, their_aci_uuid, their_device_id, key, trust_level) VALUES ($1, $2, $3, $4, $5)`
+	insertIdentityKeyQuery        = `INSERT INTO signalmeow_identity_keys (our_aci_uuid, their_aci_uuid, their_device_id, key, trust_level) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (our_aci_uuid, their_aci_uuid, their_device_id) DO UPDATE SET key=excluded.key, trust_level=excluded.trust_level`
 	getIdentityKeyTrustLevelQuery = `SELECT trust_level FROM signalmeow_identity_keys WHERE our_aci_uuid=$1 AND their_aci_uuid=$2 AND their_device_id=$3`
 	getIdentityKeyQuery           = `SELECT key FROM signalmeow_identity_keys WHERE our_aci_uuid=$1 AND their_aci_uuid=$2 AND their_device_id=$3`
 )

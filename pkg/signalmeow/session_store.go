@@ -13,7 +13,7 @@ var _ SessionStoreExtras = (*SQLStore)(nil)
 
 const (
 	loadSessionQuery   = `SELECT their_device_id, record FROM signalmeow_sessions WHERE our_aci_uuid=$1 AND their_aci_uuid=$2 AND their_device_id=$3`
-	storeSessionQuery  = `INSERT OR REPLACE INTO signalmeow_sessions (our_aci_uuid, their_aci_uuid, their_device_id, record) VALUES ($1, $2, $3, $4)` // SQLite specific
+	storeSessionQuery  = `INSERT INTO signalmeow_sessions (our_aci_uuid, their_aci_uuid, their_device_id, record) VALUES ($1, $2, $3, $4) ON CONFLICT (our_aci_uuid, their_aci_uuid, their_device_id) DO UPDATE SET record=excluded.record`
 	allSessionsQuery   = `SELECT their_device_id, record FROM signalmeow_sessions WHERE our_aci_uuid=$1 AND their_aci_uuid=$2`
 	removeSessionQuery = `DELETE FROM signalmeow_sessions WHERE our_aci_uuid=$1 AND their_aci_uuid=$2 AND their_device_id=$3`
 )
