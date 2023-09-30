@@ -29,29 +29,27 @@ type User struct {
 	SignalUsername string
 	SignalID       string
 	ManagementRoom id.RoomID
-	NoticeRoom     id.RoomID
 }
 
 func (u *User) Insert() error {
-	q := `INSERT INTO "user" (mxid, username, uuid, management_room, notice_room) VALUES ($1, $2, $3, $4, $5)`
-	_, err := u.db.Exec(q, u.MXID, u.SignalUsername, u.SignalID, u.ManagementRoom, u.NoticeRoom)
+	q := `INSERT INTO "user" (mxid, username, uuid, management_room) VALUES ($1, $2, $3, $4)`
+	_, err := u.db.Exec(q, u.MXID, u.SignalUsername, u.SignalID, u.ManagementRoom)
 	return err
 }
 
 func (u *User) Update() error {
-	q := `UPDATE "user" SET username=$1, uuid=$2, management_room=$3, notice_room=$4 WHERE mxid=$5`
-	_, err := u.db.Exec(q, u.SignalUsername, u.SignalID, u.ManagementRoom, u.NoticeRoom, u.MXID)
+	q := `UPDATE "user" SET username=$1, uuid=$2, management_room=$3 WHERE mxid=$4`
+	_, err := u.db.Exec(q, u.SignalUsername, u.SignalID, u.ManagementRoom, u.MXID)
 	return err
 }
 
 func (u *User) Scan(row dbutil.Scannable) *User {
-	var username, managementRoom, noticeRoom sql.NullString
+	var username, managementRoom sql.NullString
 	err := row.Scan(
 		&u.MXID,
 		&username,
 		&u.SignalID,
 		&managementRoom,
-		&noticeRoom,
 	)
 	if err != nil {
 		if err != sql.ErrNoRows {
@@ -61,12 +59,11 @@ func (u *User) Scan(row dbutil.Scannable) *User {
 	}
 	u.SignalUsername = username.String
 	u.ManagementRoom = id.RoomID(managementRoom.String)
-	u.NoticeRoom = id.RoomID(noticeRoom.String)
 	return u
 }
 
 func (uq *UserQuery) GetByMXID(mxid id.UserID) *User {
-	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE mxid=$1`
+	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE mxid=$1`
 	row := uq.db.QueryRow(q, mxid)
 	if row == nil {
 		return nil
@@ -75,7 +72,7 @@ func (uq *UserQuery) GetByMXID(mxid id.UserID) *User {
 }
 
 func (uq *UserQuery) GetByUsername(username string) *User {
-	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE username=$1`
+	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE username=$1`
 	row := uq.db.QueryRow(q, username)
 	if row == nil {
 		return nil
@@ -84,7 +81,7 @@ func (uq *UserQuery) GetByUsername(username string) *User {
 }
 
 func (uq *UserQuery) GetBySignalID(uuid string) *User {
-	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE uuid=$1`
+	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE uuid=$1`
 	row := uq.db.QueryRow(q, uuid)
 	if row == nil {
 		return nil
@@ -93,7 +90,7 @@ func (uq *UserQuery) GetBySignalID(uuid string) *User {
 }
 
 func (uq *UserQuery) AllLoggedIn() ([]*User, error) {
-	q := `SELECT mxid, username, uuid, management_room, notice_room FROM "user" WHERE username IS NOT NULL`
+	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE username IS NOT NULL`
 	rows, err := uq.db.Query(q)
 	if err != nil {
 		return nil, err
@@ -103,7 +100,7 @@ func (uq *UserQuery) AllLoggedIn() ([]*User, error) {
 	var users []*User
 	for rows.Next() {
 		u := uq.New()
-		err := rows.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.ManagementRoom, &u.NoticeRoom)
+		err := rows.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.ManagementRoom)
 		if err != nil {
 			return nil, err
 		}

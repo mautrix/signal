@@ -1,4 +1,4 @@
--- v0 -> v13: Latest revision
+-- v0 -> v14: Latest revision
 
 CREATE TABLE portal (
     chat_id     TEXT,
@@ -41,8 +41,7 @@ CREATE TABLE "user" (
     mxid            TEXT PRIMARY KEY,
     username        TEXT,
     uuid            UUID,
-    management_room TEXT,
-    notice_room     TEXT
+    management_room TEXT
 );
 
 CREATE TABLE message (
