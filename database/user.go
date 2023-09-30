@@ -31,15 +31,29 @@ type User struct {
 	ManagementRoom id.RoomID
 }
 
+func (u *User) sqlVariables() []any {
+	var username, signalID, managementRoom *string
+	if u.SignalUsername != "" {
+		username = &u.SignalUsername
+	}
+	if u.SignalID != "" {
+		signalID = &u.SignalID
+	}
+	if u.ManagementRoom != "" {
+		managementRoom = (*string)(&u.ManagementRoom)
+	}
+	return []any{u.MXID, username, signalID, managementRoom}
+}
+
 func (u *User) Insert() error {
 	q := `INSERT INTO "user" (mxid, username, uuid, management_room) VALUES ($1, $2, $3, $4)`
-	_, err := u.db.Exec(q, u.MXID, u.SignalUsername, u.SignalID, u.ManagementRoom)
+	_, err := u.db.Exec(q, u.sqlVariables()...)
 	return err
 }
 
 func (u *User) Update() error {
-	q := `UPDATE "user" SET username=$1, uuid=$2, management_room=$3 WHERE mxid=$4`
-	_, err := u.db.Exec(q, u.SignalUsername, u.SignalID, u.ManagementRoom, u.MXID)
+	q := `UPDATE "user" SET username=$2, uuid=$3, management_room=$4 WHERE mxid=$1`
+	_, err := u.db.Exec(q, u.sqlVariables()...)
 	return err
 }
 
