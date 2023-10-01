@@ -1156,7 +1156,7 @@ func (portal *Portal) SetReadMarkers(dbMessage *database.Message, sender *Puppet
 		ReadExtra:      extra,
 		FullyReadExtra: extra,
 	}
-	return portal.MainIntent().SetReadMarkers(portal.MXID, content)
+	return sender.IntentFor(portal).SetReadMarkers(portal.MXID, content)
 }
 
 const SignalTypingTimeout = 15 * time.Second
