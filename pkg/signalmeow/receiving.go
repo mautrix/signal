@@ -525,6 +525,34 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					}
 					device.Connection.IncomingSignalMessageHandler(callMessage)
 				}
+
+				// Read and delivery receipts
+				if content.ReceiptMessage != nil {
+					zlog.Debug().Msgf("Received receipt message: %v", content.ReceiptMessage)
+					var receiptType IncomingSignalMessageReceiptType
+					switch *content.ReceiptMessage.Type {
+					case signalpb.ReceiptMessage_READ:
+						receiptType = IncomingSignalMessageReceiptTypeRead
+					case signalpb.ReceiptMessage_DELIVERY:
+						receiptType = IncomingSignalMessageReceiptTypeDelivery
+					default:
+						zlog.Warn().Msgf("Unknown receipt type: %v", *content.ReceiptMessage.Type)
+					}
+					currentTimestamp := currentMessageTimestamp()
+					// Send one incoming message for each timestamp, so they can be sent to different portals if necessary
+					for _, timestamp := range content.ReceiptMessage.Timestamp {
+						var receiptMessage = IncomingSignalMessageReceipt{
+							IncomingSignalMessageBase: IncomingSignalMessageBase{
+								SenderUUID:    theirUuid,
+								RecipientUUID: device.Data.AciUuid,
+								Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
+							},
+							ReceiptType:      receiptType,
+							ReceiptTimestamp: timestamp,
+						}
+						device.Connection.IncomingSignalMessageHandler(receiptMessage)
+					}
+				}
 			}
 
 		} else if *req.Verb == "PUT" && *req.Path == "/api/v1/queue/empty" {

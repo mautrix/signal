@@ -181,13 +181,12 @@ type IncomingSignalMessageReceiptType int
 const (
 	IncomingSignalMessageReceiptTypeDelivery IncomingSignalMessageReceiptType = iota
 	IncomingSignalMessageReceiptTypeRead
-	IncomingSignalMessageReceiptTypeViewed
 )
 
 type IncomingSignalMessageReceipt struct {
 	IncomingSignalMessageBase
-	Timestamps  []uint64
-	ReceiptType IncomingSignalMessageReceiptType
+	ReceiptTimestamp uint64
+	ReceiptType      IncomingSignalMessageReceiptType
 }
 
 func (IncomingSignalMessageReceipt) MessageType() IncomingSignalMessageType {

@@ -557,6 +557,18 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		}
 	}
 
+	// If this is a receipt, the chatID/portal is the room where the message was read
+	if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt {
+		receiptMessage := incomingMessage.(signalmeow.IncomingSignalMessageReceipt)
+		timestamp := receiptMessage.ReceiptTimestamp
+		dbMessage := user.bridge.DB.Message.FindBySenderAndTimestamp(user.SignalID, timestamp)
+		if dbMessage == nil {
+			user.log.Warn().Msgf("Receipt received for unknown message %v %d", user.SignalID, timestamp)
+			return nil
+		}
+		chatID = dbMessage.SignalChatID
+	}
+
 	// Get and update the portal for this message
 	portal := user.GetPortalByChatID(chatID)
 	if portal == nil {
@@ -564,61 +576,68 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		user.log.Err(err).Msg("error getting portal")
 		return err
 	}
-	updatePortal := false
-	if m.GroupID != nil {
-		group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(context.Background(), user.SignalDevice, *m.GroupID)
-		if err != nil {
-			user.log.Err(err).Msg("error retrieving group")
-			return err
-		}
-		if portal.Name != group.Title || portal.Topic != group.Description {
-			portal.Name = group.Title
-			portal.Topic = group.Description
-			updatePortal = true
-		}
-		// avatarImage is only not nil if there's a new avatar to set
-		if avatarImage != nil {
-			user.log.Debug().Msg("Uploading new group avatar")
-			avatarURL, err := portal.MainIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
+
+	// Don't bother with portal updates for receipts or typing notifications
+	// (esp. read receipts - they don't have GroupID set so it breaks)
+	if !(incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt || incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeTyping) {
+		updatePortal := false
+		if m.GroupID != nil {
+			group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(context.Background(), user.SignalDevice, *m.GroupID)
 			if err != nil {
-				user.log.Err(err).Msg("error uploading group avatar")
+				user.log.Err(err).Msg("error retrieving group")
 				return err
 			}
-			portal.AvatarURL = avatarURL.ContentURI
-			portal.AvatarSet = true
-			hash := sha256.Sum256(avatarImage)
-			portal.AvatarHash = hex.EncodeToString(hash[:])
-			updatePortal = true
-		}
+			if portal.Name != group.Title || portal.Topic != group.Description {
+				portal.Name = group.Title
+				portal.Topic = group.Description
+				updatePortal = true
+			}
+			// avatarImage is only not nil if there's a new avatar to set
+			if avatarImage != nil {
+				user.log.Debug().Msg("Uploading new group avatar")
+				avatarURL, err := portal.MainIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
+				if err != nil {
+					user.log.Err(err).Msg("error uploading group avatar")
+					return err
+				}
+				portal.AvatarURL = avatarURL.ContentURI
+				portal.AvatarSet = true
+				hash := sha256.Sum256(avatarImage)
+				portal.AvatarHash = hex.EncodeToString(hash[:])
+				updatePortal = true
+			}
 
-		// ensure everyone is invited to the group
-		_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
-	} else {
-		if portal.shouldSetDMRoomMetadata() {
-			portal.Name = senderPuppet.Name
-			updatePortal = true
+			// ensure everyone is invited to the group
+			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
+		} else {
+			if portal.shouldSetDMRoomMetadata() {
+				if senderPuppet.Name != portal.Name {
+					portal.Name = senderPuppet.Name
+					updatePortal = true
+				}
+			}
 		}
-	}
-	if updatePortal {
-		_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
-		if err != nil {
-			user.log.Err(err).Msg("error setting room name")
+		if updatePortal {
+			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+			if err != nil {
+				user.log.Err(err).Msg("error setting room name")
+			}
+			portal.NameSet = err == nil
+			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+			if err != nil {
+				user.log.Err(err).Msg("error setting room topic")
+			}
+			_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
+			if err != nil {
+				user.log.Err(err).Msg("error setting room avatar")
+			}
+			portal.AvatarSet = err == nil
+			err = portal.Update()
+			if err != nil {
+				user.log.Err(err).Msg("error updating portal")
+			}
+			portal.UpdateBridgeInfo()
 		}
-		portal.NameSet = err == nil
-		_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
-		if err != nil {
-			user.log.Err(err).Msg("error setting room topic")
-		}
-		_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
-		if err != nil {
-			user.log.Err(err).Msg("error setting room avatar")
-		}
-		portal.AvatarSet = err == nil
-		err = portal.Update()
-		if err != nil {
-			user.log.Err(err).Msg("error updating portal")
-		}
-		portal.UpdateBridgeInfo()
 	}
 
 	// We've updated puppets and portals, now send the message along to the portal

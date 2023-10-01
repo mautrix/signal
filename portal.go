@@ -60,6 +60,8 @@ type Portal struct {
 
 	currentlyTyping     []id.UserID
 	currentlyTypingLock sync.Mutex
+
+	latestReadTimestamp uint64 // Cache the latest read timestamp to avoid unnecessary read receipts
 }
 
 const recentMessageBufferSize = 32
@@ -861,6 +863,13 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle typing message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt {
+		portal.log.Debug().Msg("Received receipt message")
+		err := portal.handleSignalReceiptMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle receipt message")
+			return
+		}
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeCall {
 		err := portal.handleSignalCallMessage(portalMessage, intent)
 		if err != nil {
@@ -1089,6 +1098,65 @@ func (portal *Portal) handleSignalCallMessage(portalMessage portalSignalMessage,
 	}
 	portal.MainIntent().SendNotice(portal.MXID, message)
 	return nil
+}
+
+func (portal *Portal) handleSignalReceiptMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	receiptMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageReceipt)
+	if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeRead {
+		portal.log.Debug().Msgf("Received read receipt")
+
+		// Don't process read receipts for messages older than the latest one we've seen
+		if receiptMessage.ReceiptTimestamp <= portal.latestReadTimestamp {
+			portal.log.Debug().Msgf("Ignoring read receipt for timestamp %d", receiptMessage.ReceiptTimestamp)
+			return nil
+		}
+		portal.latestReadTimestamp = receiptMessage.ReceiptTimestamp
+
+		// The message sender is always the recipient of the read receipt
+		messageSender := portalMessage.user.SignalID
+		timestamp := receiptMessage.ReceiptTimestamp
+		dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(messageSender, timestamp)
+		if dbMessage != nil {
+			portal.log.Debug().Msgf("Marking message %s as read", dbMessage.MXID)
+			err := portal.SetReadMarkers(dbMessage, portalMessage.sender)
+			if err != nil {
+				portal.log.Error().Err(err).Msg("Failed to set read markers")
+			}
+		}
+
+	} else if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeDelivery {
+		portal.log.Debug().Msgf("Received delivery receipt")
+	}
+	return nil
+}
+
+func (portal *Portal) SetReadMarkers(dbMessage *database.Message, sender *Puppet) error {
+	puppetIntent := sender.IntentFor(portal)
+	// Gotta build some custom JSON that isn't in mautrix yet
+	type customReadReceipt struct {
+		Timestamp          int64  `json:"ts,omitempty"`
+		DoublePuppetSource string `json:"fi.mau.double_puppet_source,omitempty"`
+	}
+
+	type customReadMarkers struct {
+		mautrix.ReqSetReadMarkers
+		ReadExtra      customReadReceipt `json:"com.beeper.read.extra"`
+		FullyReadExtra customReadReceipt `json:"com.beeper.fully_read.extra"`
+	}
+	doublePuppet := puppetIntent.IsCustomPuppet
+	extra := customReadReceipt{}
+	if doublePuppet {
+		extra.DoublePuppetSource = portal.bridge.Name
+	}
+	content := customReadMarkers{
+		ReqSetReadMarkers: mautrix.ReqSetReadMarkers{
+			Read:      dbMessage.MXID,
+			FullyRead: dbMessage.MXID,
+		},
+		ReadExtra:      extra,
+		FullyReadExtra: extra,
+	}
+	return portal.MainIntent().SetReadMarkers(portal.MXID, content)
 }
 
 const SignalTypingTimeout = 15 * time.Second
