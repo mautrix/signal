@@ -313,6 +313,25 @@ func syncMessageForContactRequest() *signalpb.Content {
 	}
 }
 
+func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, messageSender string) *signalpb.Content {
+	if *receiptMessage.Type != signalpb.ReceiptMessage_READ {
+		zlog.Warn().Msgf("syncMessageFromReadReceiptMessage called with non-read receipt message: %v", receiptMessage.Type)
+		return nil
+	}
+	read := []*signalpb.SyncMessage_Read{}
+	for _, timestamp := range receiptMessage.Timestamp {
+		read = append(read, &signalpb.SyncMessage_Read{
+			Timestamp:  &timestamp,
+			SenderUuid: &messageSender,
+		})
+	}
+	return &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Read: read,
+		},
+	}
+}
+
 func sendContactSyncRequest(ctx context.Context, d *Device) error {
 	groupRequest := syncMessageForContactRequest()
 	currentUnixTime := time.Now().Unix()
@@ -549,12 +568,20 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 	// ((Actually I don't think this is necessary?))
 	//FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
 
-	// If we have other devices, send to them too
-	if howManyOtherDevicesDoWeHave(ctx, device) > 0 && dataMessage != nil {
-		syncContent := syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
-		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
-		if selfSendErr != nil {
-			zlog.Err(selfSendErr).Msg("Failed to send sync message to myself")
+	// If we have other devices, send Sync messages to them too
+	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
+		var syncContent *signalpb.Content
+		if dataMessage != nil {
+			syncContent = syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
+		}
+		if content.ReceiptMessage != nil && *content.ReceiptMessage.Type == signalpb.ReceiptMessage_READ {
+			syncContent = syncMessageFromReadReceiptMessage(content.ReceiptMessage, recipientUuid)
+		}
+		if syncContent != nil {
+			_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+			if selfSendErr != nil {
+				zlog.Err(selfSendErr).Msg("Failed to send sync message to myself")
+			}
 		}
 	}
 	return result
