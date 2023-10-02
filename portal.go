@@ -75,12 +75,12 @@ func init() {
 
 var _ bridge.Portal = (*Portal)(nil)
 
-// var _ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
-// var _ bridge.MembershipHandlingPortal = (*Portal)(nil)
+var _ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
 var _ bridge.TypingPortal = (*Portal)(nil)
 
-//var _ bridge.MetaHandlingPortal = (*Portal)(nil)
 //var _ bridge.DisappearingPortal = (*Portal)(nil)
+//var _ bridge.MembershipHandlingPortal = (*Portal)(nil)
+//var _ bridge.MetaHandlingPortal = (*Portal)(nil)
 
 // ** bridge.Portal Interface **
 
@@ -1228,6 +1228,32 @@ func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
 	portal.currentlyTyping = newTyping
 	portal.setTyping(startedTyping, true)
 	portal.setTyping(stoppedTyping, false)
+}
+
+// mautrix-go ReadReceiptHandlingPortal interface
+func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.EventID, receipt event.ReadReceipt) {
+	portal.log.Debug().Msgf("Received read receipt for event %s", eventID)
+	// Find event in the DB
+	dbMessage := portal.bridge.DB.Message.GetByMXID(eventID)
+	if dbMessage == nil {
+		portal.log.Warn().Msgf("Couldn't find message with event ID %s", eventID)
+		return
+	}
+	msg := signalmeow.ReadReceptMessageForTimestamps([]uint64{dbMessage.Timestamp})
+	receiptDestination := dbMessage.Sender
+	receiptSender := sender.(*User)
+
+	// Don't use portal.sendSignalMessage because we're sending this straight to
+	// who sent the original message, not the portal's ChatID
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	result := signalmeow.SendMessage(ctx, receiptSender.SignalDevice, receiptDestination, msg)
+	if !result.WasSuccessful {
+		err := result.FailedSendResult.Error
+		portal.log.Error().Msgf("Error sending read receipt to Signal %s: %s", receiptDestination, err)
+		return
+	}
+	portal.log.Debug().Msgf("Sent read receipt for event %s to Signal %s", eventID, receiptDestination)
 }
 
 func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {

@@ -352,6 +352,16 @@ func DeliveredReceiptMessageForTimestamps(timestamps []uint64) *SignalContent {
 	}
 }
 
+func ReadReceptMessageForTimestamps(timestamps []uint64) *SignalContent {
+	rm := &signalpb.ReceiptMessage{
+		Timestamp: timestamps,
+		Type:      signalpb.ReceiptMessage_READ.Enum(),
+	}
+	return &SignalContent{
+		ReceiptMessage: rm,
+	}
+}
+
 func DataMessageForText(text string) *SignalContent {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
