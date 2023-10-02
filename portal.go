@@ -1106,15 +1106,14 @@ func (portal *Portal) handleSignalReceiptMessage(portalMessage portalSignalMessa
 		portal.log.Debug().Msgf("Received read receipt")
 
 		// Don't process read receipts for messages older than the latest one we've seen
-		if receiptMessage.ReceiptTimestamp <= portal.latestReadTimestamp {
-			portal.log.Debug().Msgf("Ignoring read receipt for timestamp %d", receiptMessage.ReceiptTimestamp)
+		if receiptMessage.OriginalTimestamp <= portal.latestReadTimestamp {
+			portal.log.Debug().Msgf("Ignoring read receipt for timestamp %d", receiptMessage.OriginalTimestamp)
 			return nil
 		}
-		portal.latestReadTimestamp = receiptMessage.ReceiptTimestamp
+		portal.latestReadTimestamp = receiptMessage.OriginalTimestamp
 
-		// The message sender is always the recipient of the read receipt
-		messageSender := portalMessage.user.SignalID
-		timestamp := receiptMessage.ReceiptTimestamp
+		messageSender := receiptMessage.OriginalSender
+		timestamp := receiptMessage.OriginalTimestamp
 		dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(messageSender, timestamp)
 		if dbMessage != nil {
 			portal.log.Debug().Msgf("Marking message %s as read", dbMessage.MXID)

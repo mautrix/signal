@@ -560,8 +560,9 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	// If this is a receipt, the chatID/portal is the room where the message was read
 	if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt {
 		receiptMessage := incomingMessage.(signalmeow.IncomingSignalMessageReceipt)
-		timestamp := receiptMessage.ReceiptTimestamp
-		dbMessage := user.bridge.DB.Message.FindBySenderAndTimestamp(user.SignalID, timestamp)
+		timestamp := receiptMessage.OriginalTimestamp
+		sender := receiptMessage.OriginalSender
+		dbMessage := user.bridge.DB.Message.FindBySenderAndTimestamp(sender, timestamp)
 		if dbMessage == nil {
 			user.log.Warn().Msgf("Receipt received for unknown message %v %d", user.SignalID, timestamp)
 			return nil

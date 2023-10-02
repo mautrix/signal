@@ -185,8 +185,9 @@ const (
 
 type IncomingSignalMessageReceipt struct {
 	IncomingSignalMessageBase
-	ReceiptTimestamp uint64
-	ReceiptType      IncomingSignalMessageReceiptType
+	OriginalTimestamp uint64
+	OriginalSender    string
+	ReceiptType       IncomingSignalMessageReceiptType
 }
 
 func (IncomingSignalMessageReceipt) MessageType() IncomingSignalMessageType {

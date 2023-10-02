@@ -453,7 +453,8 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								return nil, err
 							}
 						}
-					} else if content.SyncMessage.Contacts != nil {
+					}
+					if content.SyncMessage.Contacts != nil {
 						zlog.Debug().Msgf("Recieved sync message contacts")
 						blob := content.SyncMessage.Contacts.Blob
 						if blob != nil {
@@ -480,6 +481,24 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 							}
 						}
 					}
+					if content.SyncMessage.Read != nil {
+						zlog.Debug().Msgf("Recieved sync message read")
+						currentTimestamp := currentMessageTimestamp()
+						for _, read := range content.SyncMessage.Read {
+							var receiptMessage = IncomingSignalMessageReceipt{
+								IncomingSignalMessageBase: IncomingSignalMessageBase{
+									SenderUUID:    device.Data.AciUuid,
+									RecipientUUID: theirUuid,
+									Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
+								},
+								ReceiptType:       IncomingSignalMessageReceiptTypeRead,
+								OriginalTimestamp: *read.Timestamp,
+								OriginalSender:    *read.SenderUuid,
+							}
+							device.Connection.IncomingSignalMessageHandler(receiptMessage)
+						}
+					}
+
 				}
 
 				if content.DataMessage != nil {
@@ -547,8 +566,9 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								RecipientUUID: device.Data.AciUuid,
 								Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
 							},
-							ReceiptType:      receiptType,
-							ReceiptTimestamp: timestamp,
+							ReceiptType:       receiptType,
+							OriginalTimestamp: timestamp,
+							OriginalSender:    device.Data.AciUuid, // this is a read receipt for a message we sent
 						}
 						device.Connection.IncomingSignalMessageHandler(receiptMessage)
 					}
