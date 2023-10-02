@@ -220,14 +220,22 @@ func (s *SignalWebsocket) connectLoop(
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
 			err := readLoop(loopCtx, ws, s.name, incomingRequestChan, &responseChannels)
-			loopCancel(fmt.Errorf("error in readLoop: %w", err))
+			// Don't want to put an err into loopCancel if we don't have one
+			if err != nil {
+				err = fmt.Errorf("error in readLoop: %w", err)
+			}
+			loopCancel(err)
 			zlog.Info().Msgf("readLoop exited (%s)", s.name)
 		}()
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
 			err := writeLoop(loopCtx, ws, s.name, s.sendChannel, &responseChannels)
-			loopCancel(fmt.Errorf("error in writeLoop: %w", err))
+			// Don't want to put an err into loopCancel if we don't have one
+			if err != nil {
+				err = fmt.Errorf("error in writeLoop: %w", err)
+			}
+			loopCancel(err)
 			zlog.Info().Msgf("writeLoop exited (%s)", s.name)
 		}()
 
