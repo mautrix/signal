@@ -548,29 +548,34 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				// Read and delivery receipts
 				if content.ReceiptMessage != nil {
 					zlog.Debug().Msgf("Received receipt message: %v", content.ReceiptMessage)
-					var receiptType IncomingSignalMessageReceiptType
-					switch *content.ReceiptMessage.Type {
-					case signalpb.ReceiptMessage_READ:
-						receiptType = IncomingSignalMessageReceiptTypeRead
-					case signalpb.ReceiptMessage_DELIVERY:
-						receiptType = IncomingSignalMessageReceiptTypeDelivery
-					default:
-						zlog.Warn().Msgf("Unknown receipt type: %v", *content.ReceiptMessage.Type)
-					}
-					currentTimestamp := currentMessageTimestamp()
-					// Send one incoming message for each timestamp, so they can be sent to different portals if necessary
-					for _, timestamp := range content.ReceiptMessage.Timestamp {
-						var receiptMessage = IncomingSignalMessageReceipt{
-							IncomingSignalMessageBase: IncomingSignalMessageBase{
-								SenderUUID:    theirUuid,
-								RecipientUUID: device.Data.AciUuid,
-								Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
-							},
-							ReceiptType:       receiptType,
-							OriginalTimestamp: timestamp,
-							OriginalSender:    device.Data.AciUuid, // this is a read receipt for a message we sent
+					// If this is a delivery receipt from one of our other devices, ignore it
+					if !(*content.ReceiptMessage.Type == signalpb.ReceiptMessage_DELIVERY && theirUuid == device.Data.AciUuid) {
+						var receiptType IncomingSignalMessageReceiptType
+						switch *content.ReceiptMessage.Type {
+						case signalpb.ReceiptMessage_READ:
+							receiptType = IncomingSignalMessageReceiptTypeRead
+						case signalpb.ReceiptMessage_DELIVERY:
+							receiptType = IncomingSignalMessageReceiptTypeDelivery
+						default:
+							zlog.Warn().Msgf("Unknown receipt type: %v", *content.ReceiptMessage.Type)
 						}
-						device.Connection.IncomingSignalMessageHandler(receiptMessage)
+						currentTimestamp := currentMessageTimestamp()
+						// Send one incoming message for each timestamp, so they can be sent to different portals if necessary
+						for _, timestamp := range content.ReceiptMessage.Timestamp {
+							var receiptMessage = IncomingSignalMessageReceipt{
+								IncomingSignalMessageBase: IncomingSignalMessageBase{
+									SenderUUID:    theirUuid,
+									RecipientUUID: device.Data.AciUuid,
+									Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
+								},
+								ReceiptType:       receiptType,
+								OriginalTimestamp: timestamp,
+								OriginalSender:    device.Data.AciUuid, // this is a receipt for a message we sent
+							}
+							device.Connection.IncomingSignalMessageHandler(receiptMessage)
+						}
+					} else {
+						zlog.Debug().Msgf("Ignoring delivery receipt from self")
 					}
 				}
 			}

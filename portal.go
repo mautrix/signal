@@ -32,6 +32,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/ffmpeg"
+	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
 )
 
@@ -798,13 +799,18 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.Sig
 func (portal *Portal) sendMessageStatusCheckpointSuccess(evt *event.Event) {
 	portal.sendDeliveryReceipt(evt.ID)
 	portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, 0)
-	portal.sendStatusEvent(evt.ID, "", nil)
+
+	var deliveredTo *[]id.UserID
+	if portal.IsPrivateChat() {
+		deliveredTo = &[]id.UserID{}
+	}
+	portal.sendStatusEvent(evt.ID, "", nil, deliveredTo)
 }
 
 func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err error) {
 	portal.sendDeliveryReceipt(evt.ID)
 	portal.bridge.SendMessageErrorCheckpoint(evt, status.MsgStepRemote, err, true, 0)
-	portal.sendStatusEvent(evt.ID, "", nil)
+	portal.sendStatusEvent(evt.ID, "", nil, nil)
 }
 
 func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
@@ -1102,6 +1108,13 @@ func (portal *Portal) handleSignalCallMessage(portalMessage portalSignalMessage,
 
 func (portal *Portal) handleSignalReceiptMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	receiptMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageReceipt)
+	messageSender := receiptMessage.OriginalSender
+	timestamp := receiptMessage.OriginalTimestamp
+	dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(messageSender, timestamp)
+	if dbMessage == nil {
+		return fmt.Errorf("Couldn't find message with Signal ID %s/%d", messageSender, timestamp)
+	}
+
 	if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeRead {
 		portal.log.Debug().Msgf("Received read receipt")
 
@@ -1112,19 +1125,29 @@ func (portal *Portal) handleSignalReceiptMessage(portalMessage portalSignalMessa
 		}
 		portal.latestReadTimestamp = receiptMessage.OriginalTimestamp
 
-		messageSender := receiptMessage.OriginalSender
-		timestamp := receiptMessage.OriginalTimestamp
-		dbMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(messageSender, timestamp)
-		if dbMessage != nil {
-			portal.log.Debug().Msgf("Marking message %s as read", dbMessage.MXID)
-			err := portal.SetReadMarkers(dbMessage, portalMessage.sender)
-			if err != nil {
-				portal.log.Error().Err(err).Msg("Failed to set read markers")
-			}
+		portal.log.Debug().Msgf("Marking message %s as read", dbMessage.MXID)
+		err := portal.SetReadMarkers(dbMessage, portalMessage.sender)
+		if err != nil {
+			err = fmt.Errorf("Failed to set read markers: %w", err)
+			portal.log.Error().Err(err).Msgf("Failed to set read markers for message %s", dbMessage.MXID)
+			return err
 		}
 
 	} else if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeDelivery {
 		portal.log.Debug().Msgf("Received delivery receipt")
+		// Only send delivery MSS for DMs, not groups
+		if portal.IsPrivateChat() {
+			time := jsontime.UMInt(int64(receiptMessage.Timestamp))
+			portal.bridge.SendRawMessageCheckpoint(&status.MessageCheckpoint{
+				EventID:    dbMessage.MXID,
+				RoomID:     portal.MXID,
+				Step:       status.MsgStepRemote,
+				Timestamp:  time,
+				Status:     status.MsgStatusDelivered,
+				ReportedBy: status.MsgReportedByBridge,
+			})
+			portal.sendStatusEvent(dbMessage.MXID, "", nil, &[]id.UserID{portal.MainIntent().UserID})
+		}
 	}
 	return nil
 }
@@ -1235,7 +1258,7 @@ func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.Eve
 	// Find event in the DB
 	dbMessage := portal.bridge.DB.Message.GetByMXID(eventID)
 	if dbMessage == nil {
-		portal.log.Warn().Msgf("Couldn't find message with event ID %s", eventID)
+		portal.log.Info().Msgf("Read receipt: Couldn't find message with event ID %s", eventID)
 		return
 	}
 	msg := signalmeow.ReadReceptMessageForTimestamps([]uint64{dbMessage.Timestamp})
