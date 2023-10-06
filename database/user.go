@@ -58,11 +58,11 @@ func (u *User) Update() error {
 }
 
 func (u *User) Scan(row dbutil.Scannable) *User {
-	var username, managementRoom sql.NullString
+	var username, managementRoom, signalID sql.NullString
 	err := row.Scan(
 		&u.MXID,
 		&username,
-		&u.SignalID,
+		&signalID,
 		&managementRoom,
 	)
 	if err != nil {
@@ -72,6 +72,7 @@ func (u *User) Scan(row dbutil.Scannable) *User {
 		return nil
 	}
 	u.SignalUsername = username.String
+	u.SignalID = signalID.String
 	u.ManagementRoom = id.RoomID(managementRoom.String)
 	return u
 }
