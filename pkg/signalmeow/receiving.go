@@ -293,16 +293,8 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePlaintext {
 					zlog.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
-					message, err := libsignalgo.DeserializeMessage(usmcContents)
-					if err != nil {
-						zlog.Err(err).Msg("DeserializeMessage error")
-					}
-					body, err := message.GetBody()
-					if err != nil {
-						zlog.Err(err).Msg("GetBody error")
-					}
 					content := signalpb.Content{}
-					err = proto.Unmarshal(body, &content)
+					err = proto.Unmarshal(usmcContents, &content)
 					if err != nil {
 						zlog.Err(err).Msg("Unmarshal error")
 					}
