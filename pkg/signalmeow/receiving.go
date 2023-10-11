@@ -293,16 +293,31 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePlaintext {
 					zlog.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
-					content := signalpb.Content{}
-					err = proto.Unmarshal(usmcContents, &content)
-					if err != nil {
-						zlog.Err(err).Msg("Unmarshal error")
-					}
-					result = &DecryptionResult{
-						SenderAddress: *senderAddress,
-						Content:       &content,
-						SealedSender:  true,
-					}
+					// TODO: handle plaintext (usually DecryptionErrorMessage) and retries
+					// when implementing SenderKey groups
+
+					//plaintextContent, err := libsignalgo.DeserializePlaintextContent(usmcContents)
+					//if err != nil {
+					//	zlog.Err(err).Msg("DeserializePlaintextContent error")
+					//}
+					//body, err := plaintextContent.GetBody()
+					//if err != nil {
+					//	zlog.Err(err).Msg("PlaintextContent GetBody error")
+					//}
+					//content := signalpb.Content{}
+					//err = proto.Unmarshal(body, &content)
+					//if err != nil {
+					//	zlog.Err(err).Msg("PlaintextContent Unmarshal error")
+					//}
+					//result = &DecryptionResult{
+					//	SenderAddress: *senderAddress,
+					//	Content:       &content,
+					//	SealedSender:  true,
+					//}
+
+					return &web.SimpleResponse{
+						Status: responseCode,
+					}, nil
 
 				} else {
 					zlog.Warn().Msg("SealedSender messageType is unknown")
