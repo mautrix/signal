@@ -293,6 +293,24 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 
 				} else if messageType == libsignalgo.CiphertextMessageTypePlaintext {
 					zlog.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
+					message, err := libsignalgo.DeserializeMessage(usmcContents)
+					if err != nil {
+						zlog.Err(err).Msg("DeserializeMessage error")
+					}
+					body, err := message.GetBody()
+					if err != nil {
+						zlog.Err(err).Msg("GetBody error")
+					}
+					content := signalpb.Content{}
+					err = proto.Unmarshal(body, &content)
+					if err != nil {
+						zlog.Err(err).Msg("Unmarshal error")
+					}
+					result = &DecryptionResult{
+						SenderAddress: *senderAddress,
+						Content:       &content,
+						SealedSender:  true,
+					}
 
 				} else {
 					zlog.Warn().Msg("SealedSender messageType is unknown")
@@ -447,7 +465,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								zlog.Err(err).Msg("")
 								return nil, err
 							}
-							err = incomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination)
+							_, err = incomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination)
 							if err != nil {
 								zlog.Err(err).Msg("incomingDataMessage error")
 								return nil, err
@@ -502,10 +520,16 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				}
 
 				if content.DataMessage != nil {
-					err = incomingDataMessage(ctx, device, content.DataMessage, theirUuid, device.Data.AciUuid)
+					deliveredTimestamps, err := incomingDataMessage(ctx, device, content.DataMessage, theirUuid, device.Data.AciUuid)
 					if err != nil {
 						zlog.Err(err).Msg("incomingDataMessage error")
 						return nil, err
+					}
+					if len(deliveredTimestamps) > 0 {
+						err := sendDeliveryReceipts(ctx, device, deliveredTimestamps, theirUuid)
+						if err != nil {
+							zlog.Err(err).Msg("sendDeliveryReceipts error")
+						}
 					}
 				}
 
@@ -692,14 +716,16 @@ func contentFieldsString(c *signalpb.Content) string {
 	return builder.String()
 }
 
-func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) error {
+func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) ([]uint64, error) {
+	deliveredTimestamps := make([]uint64, 0)
+
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
 		err := device.ProfileKeyStore.StoreProfileKey(senderUUID, profileKey, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("StoreProfileKey error")
-			return err
+			return deliveredTimestamps, err
 		}
 	}
 
@@ -712,7 +738,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		gidValue, err := StoreMasterKey(ctx, device, masterKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreMasterKey error")
-			return err
+			return deliveredTimestamps, err
 		}
 		gidPointer = &gidValue
 
@@ -912,7 +938,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	}
 
 	if device.Connection.IncomingSignalMessageHandler != nil {
-		deliveredTimestamps := make([]uint64, 0)
 		for _, incomingMessage := range incomingMessages {
 			err := device.Connection.IncomingSignalMessageHandler(incomingMessage)
 			if err != nil {
@@ -921,14 +946,8 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				deliveredTimestamps = append(deliveredTimestamps, incomingMessage.Base().Timestamp)
 			}
 		}
-		if len(deliveredTimestamps) > 0 {
-			err := sendDeliveryReceipts(ctx, device, deliveredTimestamps, senderUUID)
-			if err != nil {
-				zlog.Err(err).Msg("sendDeliveryReceipts error")
-			}
-		}
 	}
-	return nil
+	return deliveredTimestamps, nil
 }
 
 func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestamps []uint64, senderUUID string) error {
