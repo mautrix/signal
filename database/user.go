@@ -104,22 +104,22 @@ func (uq *UserQuery) GetBySignalID(uuid string) *User {
 	return uq.New().Scan(row)
 }
 
-func (uq *UserQuery) AllLoggedIn() ([]*User, error) {
+func (uq *UserQuery) AllLoggedIn() []*User {
 	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE username IS NOT NULL`
 	rows, err := uq.db.Query(q)
 	if err != nil {
-		return nil, err
+		uq.log.Errorln("Database query failed:", err)
+		return nil
 	}
 	defer rows.Close()
 
 	var users []*User
 	for rows.Next() {
-		u := uq.New()
-		err := rows.Scan(&u.MXID, &u.SignalUsername, &u.SignalID, &u.ManagementRoom)
-		if err != nil {
-			return nil, err
+		u := uq.New().Scan(rows)
+		if u == nil {
+			continue
 		}
 		users = append(users, u)
 	}
-	return users, nil
+	return users
 }

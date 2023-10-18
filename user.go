@@ -264,11 +264,7 @@ func (br *SignalBridge) getAllLoggedInUsers() []*User {
 	br.usersLock.Lock()
 	defer br.usersLock.Unlock()
 
-	dbUsers, err := br.DB.User.AllLoggedIn()
-	if err != nil {
-		br.ZLog.Error().Err(err).Msg("Error fetching all logged in users")
-		return nil
-	}
+	dbUsers := br.DB.User.AllLoggedIn()
 	users := make([]*User, len(dbUsers))
 
 	for idx, dbUser := range dbUsers {
