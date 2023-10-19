@@ -90,6 +90,7 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 
 				if status.Event == web.SignalWebsocketConnectionEventConnected {
 					zlog.Info().Msg("Unauthed websocket connected")
+					zlog.Info().Msgf("lastUnauthStatus: %v, lastAuthStatus: %v, currentStatus: %v", lastUnauthStatus, lastAuthStatus, currentStatus)
 				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
 					zlog.Err(status.Err).Msg("Unauthed websocket disconnected")
 				} else if status.Event == web.SignalWebsocketConnectionEventLoggedOut {
@@ -131,6 +132,7 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 				}
 			}
 			if statusToSend.Event != 0 && statusToSend != lastSentStatus {
+				zlog.Info().Msgf("Sending connection status: %v", statusToSend)
 				statusChan <- statusToSend
 				lastSentStatus = statusToSend
 			}
