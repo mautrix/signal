@@ -40,6 +40,7 @@ type portalSignalMessage struct {
 	message signalmeow.IncomingSignalMessage
 	user    *User
 	sender  *Puppet
+	sync    bool
 }
 
 type portalMatrixMessage struct {
@@ -78,8 +79,8 @@ var _ bridge.Portal = (*Portal)(nil)
 
 var _ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
 var _ bridge.TypingPortal = (*Portal)(nil)
+var _ bridge.DisappearingPortal = (*Portal)(nil)
 
-//var _ bridge.DisappearingPortal = (*Portal)(nil)
 //var _ bridge.MembershipHandlingPortal = (*Portal)(nil)
 //var _ bridge.MetaHandlingPortal = (*Portal)(nil)
 
@@ -259,7 +260,6 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 		totalReceive: time.Since(evtTS),
 	}
 	implicitRRStart := time.Now()
-	//portal.handleMatrixReadReceipt(msg.user, "", evtTS, false)
 	timings.implicitRR = time.Since(implicitRRStart)
 	start := time.Now()
 
@@ -329,13 +329,20 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	timings.convert = time.Since(start)
 	start = time.Now()
 
+	// If the portal has disappearing messages enabled, set the expiration time
+	if portal.ExpirationTime > 0 {
+		signalmeow.AddExpiryToDataMessage(msg, uint32(portal.ExpirationTime))
+	}
+
 	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 
 	timings.totalSend = time.Since(start)
 	go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
-		//dbMsg.MarkSent(resp.Timestamp)
 		portal.storeMessageInDB(evt.ID, sender.SignalID, uint64(start.UnixMilli()))
+		if portal.ExpirationTime > 0 {
+			portal.addDisappearingMessage(evt.ID, int64(portal.ExpirationTime), true)
+		}
 	}
 }
 
@@ -886,8 +893,6 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
 	}
-	// TODO: send receipt
-	// TODO: expire if it's an expiring message
 }
 
 func (portal *Portal) storeMessageInDB(eventID id.EventID, senderSignalID string, timestamp uint64) {
@@ -938,6 +943,10 @@ func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *
 			portal.log.Warn().Msgf("Couldn't find event ID for message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
 		}
 	}
+}
+
+func (portal *Portal) addDisappearingMessage(eventID id.EventID, expireInSeconds int64, startTimerNow bool) {
+	portal.bridge.disappearingMessagesManager.AddDisappearingMessage(eventID, portal.MXID, expireInSeconds, startTimerNow)
 }
 
 func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent, mentions []signalmeow.IncomingSignalMessageMentionData) {
@@ -1059,6 +1068,7 @@ func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage,
 		return errors.New("Didn't receive event ID from Matrix")
 	}
 	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.addDisappearingMessage(resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
 
@@ -1091,6 +1101,7 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 		return errors.New("Didn't receive event ID from Matrix")
 	}
 	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.addDisappearingMessage(resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
 
@@ -1132,6 +1143,7 @@ func (portal *Portal) handleSignalReceiptMessage(portalMessage portalSignalMessa
 			portal.log.Error().Err(err).Msgf("Failed to set read markers for message %s", dbMessage.MXID)
 			return err
 		}
+		portal.ScheduleDisappearing()
 
 	} else if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeDelivery {
 		portal.log.Debug().Msgf("Received delivery receipt")
@@ -1255,6 +1267,8 @@ func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
 // mautrix-go ReadReceiptHandlingPortal interface
 func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.EventID, receipt event.ReadReceipt) {
 	portal.log.Debug().Msgf("Received read receipt for event %s", eventID)
+	portal.ScheduleDisappearing()
+
 	// Find event in the DB
 	dbMessage := portal.bridge.DB.Message.GetByMXID(eventID)
 	if dbMessage == nil {
@@ -1314,6 +1328,7 @@ func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage
 		return errors.New("Didn't receive event ID from Matrix")
 	}
 	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.addDisappearingMessage(resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
 
@@ -1734,4 +1749,49 @@ func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 
 func (portal *Portal) getBridgeInfoStateKey() string {
 	return fmt.Sprintf("net.maunium.signal://signal/%s", portal.ChatID)
+}
+
+// ** DisappearingPortal interface **
+func (p *Portal) ScheduleDisappearing() {
+	p.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(p.MXID)
+}
+
+func humanReadableTime(seconds int) string {
+	d := time.Duration(seconds) * time.Second
+
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%d second%s", d/time.Second, pluralize(int(d/time.Second)))
+	case d < time.Hour:
+		minutes := (d + time.Second/2).Truncate(time.Minute) / time.Minute
+		return fmt.Sprintf("%d minute%s", minutes, pluralize(int(minutes)))
+	case d < 24*time.Hour:
+		hours := (d + time.Minute/2).Truncate(time.Hour) / time.Hour
+		return fmt.Sprintf("%d hour%s", hours, pluralize(int(hours)))
+	case d < 7*24*time.Hour:
+		days := (d + time.Hour/2).Truncate(24*time.Hour) / (24 * time.Hour)
+		return fmt.Sprintf("%d day%s", days, pluralize(int(days)))
+	default:
+		weeks := d / (7 * 24 * time.Hour)
+		return fmt.Sprintf("%d week%s", weeks, pluralize(int(weeks)))
+	}
+}
+
+func pluralize(value int) string {
+	if value == 1 {
+		return ""
+	}
+	return "s"
+}
+
+func (portal *Portal) HandleNewDisappearingMessageTime(newTimer uint32) {
+	portal.log.Debug().Msgf("Disappearing message timer changed to %d", newTimer)
+	intent := portal.bridge.Bot
+	if newTimer == 0 {
+		intent.SendNotice(portal.MXID, "Disappearing messages disabled")
+	} else {
+		// Format time to be round and human readable
+		timeString := humanReadableTime(int(newTimer))
+		intent.SendNotice(portal.MXID, fmt.Sprintf("Disappearing messages set to %s", timeString))
+	}
 }

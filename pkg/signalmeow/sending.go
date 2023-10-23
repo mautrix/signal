@@ -440,6 +440,10 @@ func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender string, q
 	}
 }
 
+func AddExpiryToDataMessage(content *SignalContent, expiresInSeconds uint32) {
+	content.DataMessage.ExpireTimer = proto.Uint32(expiresInSeconds)
+}
+
 func AddMentionsToDataMessage(content *SignalContent, mentions []string) {
 	dm := content.DataMessage
 	dm.BodyRanges = []*signalpb.BodyRange{}

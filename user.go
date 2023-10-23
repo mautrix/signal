@@ -524,8 +524,10 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	var chatID string
 	var senderPuppet *Puppet
 
+	isSyncMessage := m.SenderUUID == user.SignalID
+
 	// Get and update the puppet for this message
-	if m.SenderUUID == user.SignalID {
+	if isSyncMessage {
 		// This is a message sent by us on another device
 		user.log.Debug().Msgf("Message received to %s (group: %v)", m.RecipientUUID, m.GroupID)
 		chatID = m.RecipientUUID
@@ -574,6 +576,21 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		return err
 	}
 
+	// If this is an expireTimer change, update the portal and return (only for DMs, group expireTimer changes are handled below)
+	if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeExpireTimerChange {
+		expireTimerMessage := incomingMessage.(signalmeow.IncomingSignalMessageExpireTimerChange)
+		portal.log.Debug().Msgf("Updating expiration time to %d (DM)", expireTimerMessage.NewExpireTimer)
+		if portal.ExpirationTime != int(expireTimerMessage.NewExpireTimer) {
+			portal.ExpirationTime = int(expireTimerMessage.NewExpireTimer)
+			err := portal.Update()
+			if err != nil {
+				user.log.Err(err).Msg("error updating exipration time in portal")
+			}
+		}
+		portal.HandleNewDisappearingMessageTime(expireTimerMessage.NewExpireTimer)
+		return nil
+	}
+
 	// Don't bother with portal updates for receipts or typing notifications
 	// (esp. read receipts - they don't have GroupID set so it breaks)
 	if !(incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt || incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeTyping) {
@@ -588,6 +605,12 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 				portal.Name = group.Title
 				portal.Topic = group.Description
 				updatePortal = true
+			}
+			if portal.ExpirationTime != int(group.DisappearingMessagesDuration) {
+				portal.ExpirationTime = int(group.DisappearingMessagesDuration)
+				updatePortal = true
+				portal.log.Debug().Msgf("Updating expiration time to %d (group)", group.DisappearingMessagesDuration)
+				portal.HandleNewDisappearingMessageTime(group.DisappearingMessagesDuration)
 			}
 			// avatarImage is only not nil if there's a new avatar to set
 			if avatarImage != nil {
@@ -635,6 +658,10 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			}
 			portal.UpdateBridgeInfo()
 		}
+		if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeGroupChange {
+			// This was just a group change message, and we changed the group, so we're done
+			return nil
+		}
 	}
 
 	// We've updated puppets and portals, now send the message along to the portal
@@ -642,6 +669,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		user:    user,
 		sender:  senderPuppet,
 		message: incomingMessage,
+		sync:    isSyncMessage,
 	}
 	portal.signalMessages <- portalSignalMessage
 

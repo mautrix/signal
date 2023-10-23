@@ -10,6 +10,7 @@ type IncomingSignalMessageBase struct {
 	Timestamp     uint64                             // With SenderUUID, treated as a unique identifier for a specific Signal message
 	Quote         *IncomingSignalMessageQuoteData    // If this message is a quote (reply), this will be non-nil
 	Mentions      []IncomingSignalMessageMentionData // If this message mentions other users, this will be len > 0
+	ExpiresIn     int64                              // If this message is ephemeral, this will be non-zero (in seconds)
 }
 
 type IncomingSignalMessageQuoteData struct {
@@ -36,6 +37,8 @@ const (
 	IncomingSignalMessageTypeReceipt
 	IncomingSignalMessageTypeSticker
 	IncomingSignalMessageTypeCall
+	IncomingSignalMessageTypeExpireTimerChange
+	IncomingSignalMessageTypeGroupChange
 )
 
 type IncomingSignalMessage interface {
@@ -53,6 +56,8 @@ var _ IncomingSignalMessage = IncomingSignalMessageTyping{}
 var _ IncomingSignalMessage = IncomingSignalMessageReceipt{}
 var _ IncomingSignalMessage = IncomingSignalMessageSticker{}
 var _ IncomingSignalMessage = IncomingSignalMessageCall{}
+var _ IncomingSignalMessage = IncomingSignalMessageExpireTimerChange{}
+var _ IncomingSignalMessage = IncomingSignalMessageGroupChange{}
 
 // ** IncomingSignalMessageUnhandled **
 type IncomingSignalMessageUnhandled struct {
@@ -172,6 +177,31 @@ func (IncomingSignalMessageCall) MessageType() IncomingSignalMessageType {
 	return IncomingSignalMessageTypeCall
 }
 func (i IncomingSignalMessageCall) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageExpireTimerChange **
+type IncomingSignalMessageExpireTimerChange struct {
+	IncomingSignalMessageBase
+	NewExpireTimer uint32
+}
+
+func (IncomingSignalMessageExpireTimerChange) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeExpireTimerChange
+}
+func (i IncomingSignalMessageExpireTimerChange) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageGroupChange **
+type IncomingSignalMessageGroupChange struct {
+	IncomingSignalMessageBase
+}
+
+func (IncomingSignalMessageGroupChange) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeGroupChange
+}
+func (i IncomingSignalMessageGroupChange) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 

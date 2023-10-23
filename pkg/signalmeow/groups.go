@@ -38,19 +38,19 @@ type Group struct {
 	groupMasterKey  SerializedGroupMasterKey // We should keep this relatively private
 	GroupIdentifier GroupIdentifier          // This is what we should use to identify a group outside this file
 
-	Title             string
-	AvatarPath        string
-	Members           []*GroupMember
-	Description       string
-	AnnouncementsOnly bool
-	Revision          uint32
-	//PublicKey                 *libsignalgo.PublicKey
-	//DisappearingMessagesTimer []byte
-	//AccessControl             *AccessControl
-	//PendingMembers            []*PendingMember
-	//RequestingMembers         []*RequestingMember
-	//InviteLinkPassword        []byte
-	//BannedMembers             []*BannedMember
+	Title                        string
+	AvatarPath                   string
+	Members                      []*GroupMember
+	Description                  string
+	AnnouncementsOnly            bool
+	Revision                     uint32
+	DisappearingMessagesDuration uint32
+	//PublicKey                  *libsignalgo.PublicKey
+	//AccessControl              *AccessControl
+	//PendingMembers             []*PendingMember
+	//RequestingMembers          []*RequestingMember
+	//InviteLinkPassword         []byte
+	//BannedMembers              []*BannedMember
 }
 
 type GroupAuth struct {
@@ -250,7 +250,17 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 		zlog.Err(err).Msg("DecryptBlobWithPadding Title error")
 		return nil, err
 	}
-	titleString := string(title)
+
+	// decode title into signalpb.GroupAttributeBlob
+	titleBlob := &signalpb.GroupAttributeBlob{}
+	err = proto.Unmarshal(title, titleBlob)
+	if err != nil {
+		zlog.Err(err).Msg("Unmarshal Title error")
+		return nil, err
+	}
+	// The actual title is in the blob
+	titleString := titleBlob.GetTitle()
+
 	// strip non-printable characters from the title
 	titleString = strings.Map(func(r rune) rune {
 		if unicode.IsGraphic(r) {
@@ -261,6 +271,21 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	// strip \n and \t from start and end of title if it exists
 	titleString = strings.TrimSpace(titleString)
 	decryptedGroup.Title = titleString
+
+	if encryptedGroup.DisappearingMessagesTimer != nil && len(encryptedGroup.DisappearingMessagesTimer) > 0 {
+		disappearingMessagesTimer, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.DisappearingMessagesTimer)
+		if err != nil {
+			zlog.Err(err).Msg("DecryptBlobWithPadding DisappearingMessagesTimer error")
+			return nil, err
+		}
+		timerBlob := &signalpb.GroupAttributeBlob{}
+		err = proto.Unmarshal(disappearingMessagesTimer, timerBlob)
+		if err != nil {
+			zlog.Err(err).Msg("Unmarshal DisappearingMessagesTimer error")
+			return nil, err
+		}
+		decryptedGroup.DisappearingMessagesDuration = timerBlob.GetDisappearingMessagesDuration()
+	}
 
 	// These aren't encrypted
 	decryptedGroup.AvatarPath = encryptedGroup.Avatar

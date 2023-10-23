@@ -698,7 +698,7 @@ func printStructFields(message protoreflect.Message, parent string, builder *str
 			builder.WriteString("[ ")
 			for i := 0; i < v.List().Len(); i++ {
 				//v := v.List().Get(i)
-				//builder.WriteString(fmt.Sprintf("%s, ", v.String()))
+				//builder.WriteString(fmt.Sprintf("%s, ", v.String())) // DEBUG: printing value, don't commit
 				builder.WriteString("<>, ")
 			}
 			builder.WriteString("] ")
@@ -738,6 +738,8 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		}
 	}
 
+	var incomingMessages []IncomingSignalMessage
+
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var gidPointer *GroupIdentifier
 	if dataMessage.GetGroupV2() != nil {
@@ -751,10 +753,12 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		}
 		gidPointer = &gidValue
 
+		var groupHasChanged = false
 		if dataMessage.GetGroupV2().GroupChange != nil {
 			// TODO: don't parse the change	for now, just invalidate our cache
 			zlog.Debug().Msgf("Invalidating group %v due to change: %v", gidValue, dataMessage.GetGroupV2().GroupChange)
 			InvalidateGroupCache(device, gidValue)
+			groupHasChanged = true
 		} else if dataMessage.GetGroupV2().GetRevision() > 0 {
 			// Compare revision, and if it's newer, invalidate our cache
 			ourGroup, err := RetrieveGroupByID(ctx, device, gidValue)
@@ -763,13 +767,22 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
 				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", gidValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
 				InvalidateGroupCache(device, gidValue)
-				// Update our group now that the cache is invalidated
-				RetrieveGroupByID(ctx, device, gidValue)
+				groupHasChanged = true
 			}
 		}
+		if groupHasChanged {
+			// Send a group change message to trigger a group update in the portal
+			groupChangeMessage := &IncomingSignalMessageGroupChange{
+				IncomingSignalMessageBase: IncomingSignalMessageBase{
+					SenderUUID:    senderUUID,
+					RecipientUUID: recipientUUID,
+					GroupID:       gidPointer,
+					Timestamp:     dataMessage.GetTimestamp(),
+				},
+			}
+			incomingMessages = append(incomingMessages, groupChangeMessage)
+		}
 	}
-
-	var incomingMessages []IncomingSignalMessage
 
 	// Grab quote (reply) info if it exists
 	var quoteData *IncomingSignalMessageQuoteData
@@ -778,6 +791,12 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			QuotedSender:    dataMessage.GetQuote().GetAuthorUuid(),
 			QuotedTimestamp: dataMessage.GetQuote().GetId(),
 		}
+	}
+
+	// If this message is disappearing, set ExpiresIn
+	expiresIn := int64(0)
+	if dataMessage.ExpireTimer != nil {
+		expiresIn = int64(dataMessage.GetExpireTimer())
 	}
 
 	// If there's mentions, add them
@@ -821,6 +840,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						Timestamp:     dataMessage.GetTimestamp(),
 						Quote:         quoteData,
 						Mentions:      mentions,
+						ExpiresIn:     expiresIn,
 					},
 					Image:       bytes,
 					Caption:     dataMessage.GetBody(),
@@ -843,6 +863,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 						Timestamp:     dataMessage.GetTimestamp(),
 						Quote:         quoteData,
 						Mentions:      mentions,
+						ExpiresIn:     expiresIn,
 					},
 					Type:   "attachment",
 					Notice: fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
@@ -862,6 +883,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
 				Mentions:      mentions,
+				ExpiresIn:     expiresIn,
 			},
 			Content: dataMessage.GetBody(),
 		}
@@ -882,6 +904,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					Timestamp:     dataMessage.GetTimestamp(),
 					Quote:         quoteData,
 					Mentions:      mentions,
+					ExpiresIn:     expiresIn,
 				},
 				Width:       *dataMessage.Sticker.Data.Width,
 				Height:      *dataMessage.Sticker.Data.Height,
@@ -906,6 +929,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
 				Mentions:      mentions,
+				ExpiresIn:     expiresIn,
 			},
 			Emoji:                  dataMessage.GetReaction().GetEmoji(),
 			Remove:                 dataMessage.GetReaction().GetRemove(),
@@ -925,6 +949,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
 				Mentions:      mentions,
+				ExpiresIn:     expiresIn,
 			},
 			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),
 		}
@@ -942,6 +967,24 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Timestamp:     dataMessage.GetTimestamp(),
 			},
 			IsRinging: isRinging,
+		}
+		incomingMessages = append(incomingMessages, incomingMessage)
+	}
+
+	// If it's a expireTimer change, send that along (DMs only)
+	if dataMessage.Flags != nil && dataMessage.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
+		newTime := uint32(0)
+		if dataMessage.ExpireTimer != nil {
+			newTime = dataMessage.GetExpireTimer()
+		}
+		incomingMessage := IncomingSignalMessageExpireTimerChange{
+			IncomingSignalMessageBase: IncomingSignalMessageBase{
+				SenderUUID:    senderUUID,
+				RecipientUUID: recipientUUID,
+				GroupID:       gidPointer,
+				Timestamp:     dataMessage.GetTimestamp(),
+			},
+			NewExpireTimer: newTime,
 		}
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"os"
@@ -55,6 +56,8 @@ type SignalBridge struct {
 	puppetsByCustomMXID map[id.UserID]*Puppet
 	puppetsByNumber     map[string]*Puppet
 	puppetsLock         sync.Mutex
+
+	disappearingMessagesManager *DisappearingMessagesManager
 }
 
 var _ bridge.ChildOverride = (*SignalBridge)(nil)
@@ -85,6 +88,11 @@ func (br *SignalBridge) Init() {
 	if len(ss) > 0 && ss != "disable" {
 		br.provisioning = &ProvisioningAPI{bridge: br, log: br.ZLog.With().Str("component", "provisioning").Logger()}
 	}
+	br.disappearingMessagesManager = &DisappearingMessagesManager{
+		DB:     br.DB,
+		Log:    br.ZLog.With().Str("component", "disappearingMessagesManager").Logger(),
+		Bridge: br,
+	}
 }
 
 func (br *SignalBridge) Start() {
@@ -98,6 +106,7 @@ func (br *SignalBridge) Start() {
 		br.provisioning.Init()
 	}
 	go br.StartUsers()
+	go br.disappearingMessagesManager.StartDisappearingLoop(context.TODO())
 }
 
 func (br *SignalBridge) Stop() {
