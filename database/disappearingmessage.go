@@ -35,21 +35,6 @@ func (dmq *DisappearingMessageQuery) NewWithValues(roomID id.RoomID, eventID id.
 	return dm
 }
 
-func (dmq *DisappearingMessageQuery) GetUpcomingScheduled(duration time.Duration) (messages []*DisappearingMessage) {
-	const getAllScheduledDisappearingMessagesQuery = `
-		SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message WHERE expiration_ts IS NOT NULL AND expiration_ts <= $1
-	`
-	rows, err := dmq.db.Query(getAllScheduledDisappearingMessagesQuery, time.Now().Add(duration).Unix())
-	if err != nil || rows == nil {
-		dmq.log.Warnln("Failed to get upcoming scheduled disappearing messages:", err)
-		return nil
-	}
-	for rows.Next() {
-		messages = append(messages, dmq.New().Scan(rows))
-	}
-	return
-}
-
 func (dmq *DisappearingMessageQuery) GetUnscheduledForRoom(roomID id.RoomID) (messages []*DisappearingMessage) {
 	const getUnscheduledQuery = `
 		SELECT room_id, mxid, expiration_seconds, expiration_ts FROM disappearing_message WHERE expiration_ts IS NULL AND room_id = $1

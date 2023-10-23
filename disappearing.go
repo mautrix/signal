@@ -60,7 +60,7 @@ func (dmm *DisappearingMessagesManager) StartDisappearingLoop(ctx context.Contex
 }
 
 func (dmm *DisappearingMessagesManager) redactExpiredMessages() {
-	// Get all expired messages in this room and delete them
+	// Get all expired messages and redact them
 	expiredMessages := dmm.DB.DisappearingMessage.GetExpiredMessages()
 
 	for _, msg := range expiredMessages {
