@@ -286,7 +286,7 @@ func (user *User) startupTryConnect(retryCount int) {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
 		if errors.Is(err, ErrNotLoggedIn) {
 			user.log.Warn().Msg("Not logged in, clearing Signal device keys")
-			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials})
+			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 			user.clearMySignalKeys()
 		} else if retryCount < 6 {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
@@ -328,7 +328,7 @@ func (user *User) startupTryConnect(retryCount int) {
 			case signalmeow.SignalConnectionEventLoggedOut:
 				user.log.Debug().Msg("Sending BadCredentials BridgeState")
 				if err == nil {
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials})
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 				} else {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
