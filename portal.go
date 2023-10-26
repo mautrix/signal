@@ -889,6 +889,12 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle call message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeUnhandled {
+		err := portal.handleSignalUnhandledMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle unhandled message")
+			return
+		}
 	} else {
 		portal.log.Warn().Msgf("Unknown message type: %v", portalMessage.message.MessageType())
 		return
@@ -1114,6 +1120,14 @@ func (portal *Portal) handleSignalCallMessage(portalMessage portalSignalMessage,
 		message = "Call Ended"
 	}
 	portal.MainIntent().SendNotice(portal.MXID, message)
+	return nil
+}
+
+func (portal *Portal) handleSignalUnhandledMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	unhandledMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageUnhandled)
+	portal.log.Warn().Msgf("Received unhandled message type %s, notice: %s", unhandledMessage.Type, unhandledMessage.Notice)
+	notice := unhandledMessage.Notice
+	portalMessage.sender.DefaultIntent().SendNotice(portal.MXID, notice)
 	return nil
 }
 
