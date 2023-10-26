@@ -846,10 +846,10 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle text message")
 			return
 		}
-	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeImage {
-		err = portal.handleSignalImageMessage(portalMessage, intent)
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeAttachment {
+		err = portal.handleSignalAttachmentMessage(portalMessage, intent)
 		if err != nil {
-			portal.log.Error().Err(err).Msg("Failed to handle image message")
+			portal.log.Error().Err(err).Msg("Failed to handle attachment message")
 			return
 		}
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeReaction {
@@ -1306,11 +1306,10 @@ func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.Eve
 	portal.log.Debug().Msgf("Sent read receipt for event %s to Signal %s", eventID, receiptDestination)
 }
 
-func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
-	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageImage)
+	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageAttachment)
 	content := &event.MessageEventContent{
-		MsgType:  event.MsgImage,
 		Body:     msg.Caption,
 		FileName: msg.Filename,
 		Info: &event.FileInfo{
@@ -1321,18 +1320,33 @@ func (portal *Portal) handleSignalImageMessage(portalMessage portalSignalMessage
 			// TODO: bridge blurhash! (needs mautrix-go update)
 		},
 	}
+	if strings.HasPrefix(msg.ContentType, "image") {
+		portal.log.Debug().Msgf("Received image attachment: %s", msg.ContentType)
+		content.MsgType = event.MsgImage
+	} else if strings.HasPrefix(msg.ContentType, "video") {
+		portal.log.Debug().Msgf("Received video attachment: %s", msg.ContentType)
+		content.MsgType = event.MsgVideo
+	} else if strings.HasPrefix(msg.ContentType, "audio") {
+		portal.log.Debug().Msgf("Received audio attachment: %s", msg.ContentType)
+		content.MsgType = event.MsgAudio
+	} else {
+		portal.log.Debug().Msgf("Received file attachment: %s", msg.ContentType)
+		content.MsgType = event.MsgFile
+	}
 	portal.addSignalQuote(content, msg.Quote)
 	portal.addMentionsToMatrixBody(content, msg.Mentions)
-	err := portal.uploadMediaToMatrix(intent, msg.Image, content)
+	err := portal.uploadMediaToMatrix(intent, msg.Attachment, content)
 	if err != nil {
+		failureMessage := "Failed to bridge media: "
 		if errors.Is(err, mautrix.MTooLarge) {
-			//return portal.makeMediaBridgeFailureMessage(info, errors.New("homeserver rejected too large file"), converted, nil, "")
+			failureMessage = failureMessage + "homeserver rejected too large file"
 		} else if httpErr, ok := err.(mautrix.HTTPError); ok && httpErr.IsStatus(413) {
-			//return portal.makeMediaBridgeFailureMessage(info, errors.New("proxy rejected too large file"), converted, nil, "")
+			failureMessage = failureMessage + "proxy rejected too large file"
 		} else {
-			//return portal.makeMediaBridgeFailureMessage(info, fmt.Errorf("failed to upload media: %w", err), converted, nil, "")
+			failureMessage = failureMessage + fmt.Sprintf("Failed to bridge media: upload failed: %s", err)
 		}
-		portal.log.Error().Err(err).Msg("Failed to upload media")
+		portal.log.Error().Err(err).Msg(failureMessage)
+		portal.MainIntent().SendNotice(portal.MXID, failureMessage)
 	}
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {

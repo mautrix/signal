@@ -831,45 +831,26 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				continue
 			}
 			// TODO: right now this will be one message per image, each with the same caption
-			if strings.HasPrefix(attachmentPointer.GetContentType(), "image") {
-				incomingMessage := IncomingSignalMessageImage{
-					IncomingSignalMessageBase: IncomingSignalMessageBase{
-						SenderUUID:    senderUUID,
-						RecipientUUID: recipientUUID,
-						GroupID:       gidPointer,
-						Timestamp:     dataMessage.GetTimestamp(),
-						Quote:         quoteData,
-						Mentions:      mentions,
-						ExpiresIn:     expiresIn,
-					},
-					Image:       bytes,
-					Caption:     dataMessage.GetBody(),
-					Filename:    attachmentPointer.GetFileName(),
-					ContentType: attachmentPointer.GetContentType(),
-					Size:        uint64(attachmentPointer.GetSize()),
-					Width:       attachmentPointer.GetWidth(),
-					Height:      attachmentPointer.GetHeight(),
-					BlurHash:    attachmentPointer.GetBlurHash(),
-				}
-				incomingMessages = append(incomingMessages, incomingMessage)
-			} else {
-				// Unhandled attachment
-				zlog.Debug().Msgf("Unhandled attachment: %v", attachmentPointer)
-				incomingMessage := IncomingSignalMessageUnhandled{
-					IncomingSignalMessageBase: IncomingSignalMessageBase{
-						SenderUUID:    senderUUID,
-						RecipientUUID: recipientUUID,
-						GroupID:       gidPointer,
-						Timestamp:     dataMessage.GetTimestamp(),
-						Quote:         quoteData,
-						Mentions:      mentions,
-						ExpiresIn:     expiresIn,
-					},
-					Type:   "attachment",
-					Notice: fmt.Sprintf("Unhandled attachment of type: %v", attachmentPointer.GetContentType()),
-				}
-				incomingMessages = append(incomingMessages, incomingMessage)
+			incomingMessage := IncomingSignalMessageAttachment{
+				IncomingSignalMessageBase: IncomingSignalMessageBase{
+					SenderUUID:    senderUUID,
+					RecipientUUID: recipientUUID,
+					GroupID:       gidPointer,
+					Timestamp:     dataMessage.GetTimestamp(),
+					Quote:         quoteData,
+					Mentions:      mentions,
+					ExpiresIn:     expiresIn,
+				},
+				Attachment:  bytes,
+				Caption:     dataMessage.GetBody(),
+				Filename:    attachmentPointer.GetFileName(),
+				ContentType: attachmentPointer.GetContentType(),
+				Size:        uint64(attachmentPointer.GetSize()),
+				Width:       attachmentPointer.GetWidth(),
+				Height:      attachmentPointer.GetHeight(),
+				BlurHash:    attachmentPointer.GetBlurHash(),
 			}
+			incomingMessages = append(incomingMessages, incomingMessage)
 		}
 	}
 

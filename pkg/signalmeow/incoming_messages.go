@@ -30,7 +30,7 @@ type IncomingSignalMessageType int
 const (
 	IncomingSignalMessageTypeUnhandled IncomingSignalMessageType = iota
 	IncomingSignalMessageTypeText
-	IncomingSignalMessageTypeImage
+	IncomingSignalMessageTypeAttachment
 	IncomingSignalMessageTypeReaction
 	IncomingSignalMessageTypeDelete
 	IncomingSignalMessageTypeTyping
@@ -49,7 +49,7 @@ type IncomingSignalMessage interface {
 // Ensure all of these types implement IncomingSignalMessage
 var _ IncomingSignalMessage = IncomingSignalMessageUnhandled{}
 var _ IncomingSignalMessage = IncomingSignalMessageText{}
-var _ IncomingSignalMessage = IncomingSignalMessageImage{}
+var _ IncomingSignalMessage = IncomingSignalMessageAttachment{}
 var _ IncomingSignalMessage = IncomingSignalMessageReaction{}
 var _ IncomingSignalMessage = IncomingSignalMessageDelete{}
 var _ IncomingSignalMessage = IncomingSignalMessageTyping{}
@@ -86,11 +86,11 @@ func (i IncomingSignalMessageText) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 
-// ** IncomingSignalMessageImage **
-type IncomingSignalMessageImage struct {
+// ** IncomingSignalMessageAttachment **
+type IncomingSignalMessageAttachment struct {
 	IncomingSignalMessageBase
 	Caption     string
-	Image       []byte
+	Attachment  []byte
 	Filename    string
 	ContentType string
 	Size        uint64
@@ -99,10 +99,10 @@ type IncomingSignalMessageImage struct {
 	BlurHash    string
 }
 
-func (IncomingSignalMessageImage) MessageType() IncomingSignalMessageType {
-	return IncomingSignalMessageTypeImage
+func (IncomingSignalMessageAttachment) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeAttachment
 }
-func (i IncomingSignalMessageImage) Base() IncomingSignalMessageBase {
+func (i IncomingSignalMessageAttachment) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 
