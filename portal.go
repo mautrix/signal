@@ -1320,6 +1320,12 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 			// TODO: bridge blurhash! (needs mautrix-go update)
 		},
 	}
+	// Always need a filename, because filename needs to be set and different than body
+	// for the body to be interpreted as a caption
+	if content.FileName == "" {
+		content.FileName = fmt.Sprintf("%d", timestamp)
+		content.FileName = content.FileName + "." + strings.Split(msg.ContentType, "/")[1]
+	}
 	if strings.HasPrefix(msg.ContentType, "image") {
 		portal.log.Debug().Msgf("Received image attachment: %s", msg.ContentType)
 		content.MsgType = event.MsgImage
