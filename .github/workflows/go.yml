@@ -64,6 +64,7 @@ jobs:
       - name: Build libsignal
         run: |
           cd libsignal
+          sudo apt-get install protobuf-compiler
           cargo build -p libsignal-ffi --release --verbose
 
       - name: Run tests
