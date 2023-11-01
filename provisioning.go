@@ -260,15 +260,12 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 		return
 	case <-time.After(45 * time.Second):
 		prov.log.Warn().Msg("Timeout waiting for provisioning response (scan)")
-		//jsonResponse(w, http.StatusRequestTimeout, Error{
-		//	Success: false,
-		//	Error:   "Timeout waiting for QR code scan",
-		//	ErrCode: "M_TIMEOUT",
-		//})
-
-		// The client retries after 30s, but doesn't cancel the previous request, so when we
-		// return an error here the client still displays it. Instead, don't return an error,
-		// just be chill and maybe the client error display logic won't notice we went away
+		// Using 400 here to match the old bridge
+		jsonResponse(w, http.StatusBadRequest, Error{
+			Success: false,
+			Error:   "Timeout waiting for QR code scan",
+			ErrCode: "M_BAD_REQUEST",
+		})
 		return
 	}
 }
