@@ -26,6 +26,7 @@ type ProvisioningAPI struct {
 
 func (prov *ProvisioningAPI) Init() {
 	prov.log.Debug().Msgf("Enabling provisioning API at %v", prov.bridge.Config.Bridge.Provisioning.Prefix)
+	prov.provisioningUsers = make(map[string]int)
 	r := prov.bridge.AS.Router.PathPrefix(prov.bridge.Config.Bridge.Provisioning.Prefix).Subrouter()
 	r.Use(prov.AuthMiddleware)
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
