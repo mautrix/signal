@@ -54,12 +54,12 @@ type ProvisioningResponse struct {
 	Err              error
 }
 
-func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
+func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) chan ProvisioningResponse {
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		ctx, cancel := context.WithTimeout(incomingCtx, time.Minute)
 		defer cancel()
 		ws, err := openProvisioningWebsocket(ctx)
 		if err != nil {
@@ -71,6 +71,11 @@ func PerformProvisioning(deviceStore DeviceStore) chan ProvisioningResponse {
 		provisioningCipher := NewProvisioningCipher()
 
 		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
+		if err != nil {
+			zlog.Err(err).Msg("startProvisioning error")
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			return
+		}
 		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningUrl: provisioningUrl, Err: err}
 
 		provisioningMessage, err := continueProvisioning(ctx, ws, provisioningCipher)

@@ -17,11 +17,17 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+type provisioningHandle struct {
+	context context.Context
+	cancel  context.CancelFunc
+	channel <-chan signalmeow.ProvisioningResponse
+}
+
 type ProvisioningAPI struct {
-	bridge               *SignalBridge
-	log                  zerolog.Logger
-	provisioningChannels []<-chan signalmeow.ProvisioningResponse
-	provisioningUsers    map[string]int
+	bridge              *SignalBridge
+	log                 zerolog.Logger
+	provisioningHandles []provisioningHandle
+	provisioningUsers   map[string]int
 }
 
 func (prov *ProvisioningAPI) Init() {
@@ -107,14 +113,9 @@ type Response struct {
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value("user").(*User)
 	prov.log.Debug().Msgf("LinkNew from %v", user.MXID)
-	if _, ok := prov.provisioningUsers[user.MXID.String()]; ok {
-		prov.log.Warn().Msgf("LinkNew from %v, user already has a pending provisioning request", user.MXID)
-		jsonResponse(w, http.StatusConflict, Error{
-			Success: false,
-			Error:   "User already has a pending provisioning request",
-			ErrCode: "M_CONFLICT",
-		})
-		return
+	if existingSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
+		prov.log.Warn().Msgf("LinkNew from %v, user already has a pending provisioning request (%d), cancelling", user.MXID, existingSessionID)
+		prov.CancelLink(user)
 	}
 
 	provChan, err := user.Login()
@@ -127,8 +128,14 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	prov.provisioningChannels = append(prov.provisioningChannels, provChan)
-	sessionID := len(prov.provisioningChannels) - 1
+	provisioningCtx, cancel := context.WithCancel(context.Background())
+	handle := provisioningHandle{
+		context: provisioningCtx,
+		cancel:  cancel,
+		channel: provChan,
+	}
+	prov.provisioningHandles = append(prov.provisioningHandles, handle)
+	sessionID := len(prov.provisioningHandles) - 1
 	prov.provisioningUsers[user.MXID.String()] = sessionID
 	prov.log.Debug().Msgf("LinkNew from %v, waiting for provisioning response", user.MXID)
 
@@ -208,10 +215,10 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	respChan := prov.provisioningChannels[sessionID]
+	handle := prov.provisioningHandles[sessionID]
 
 	select {
-	case resp := <-respChan:
+	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
 			jsonResponse(w, http.StatusInternalServerError, Error{
@@ -291,10 +298,10 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 		})
 		return
 	}
-	respChan := prov.provisioningChannels[sessionID]
+	handle := prov.provisioningHandles[sessionID]
 
 	select {
-	case resp := <-respChan:
+	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
 			jsonResponse(w, http.StatusInternalServerError, Error{
@@ -339,7 +346,14 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 func (prov *ProvisioningAPI) CancelLink(user *User) {
 	if sessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
 		prov.log.Debug().Msgf("CancelLink called for %v, clearing session %v", user.MXID, sessionID)
-		prov.provisioningChannels[sessionID] = nil
+		if sessionID >= len(prov.provisioningHandles) {
+			prov.log.Warn().Msgf("CancelLink called for %v, session %v does not exist", user.MXID, sessionID)
+			return
+		}
+		if prov.provisioningHandles[sessionID].cancel != nil {
+			prov.provisioningHandles[sessionID].cancel()
+		}
+		prov.provisioningHandles[sessionID] = provisioningHandle{}
 		delete(prov.provisioningUsers, user.MXID.String())
 	} else {
 		prov.log.Debug().Msgf("CancelLink called for %v, no session found", user.MXID)
