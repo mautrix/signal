@@ -169,7 +169,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	case <-time.After(30 * time.Second):
-		prov.log.Err(err).Msg("Timeout waiting for provisioning response (new)")
+		prov.log.Warn().Msg("Timeout waiting for provisioning response (new)")
 		jsonResponse(w, http.StatusGatewayTimeout, Error{
 			Success: false,
 			Error:   "Timeout waiting for provisioning response (new)",
@@ -221,7 +221,10 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 			prov.log.Err(resp.Err).Msg("Error waiting for scan")
-			jsonResponse(w, http.StatusInternalServerError, Error{
+			// If we error waiting for the scan, treat it as a normal error not 5xx
+			// so that the client will retry quietly. Also, it's really not an internal
+			// error, sitting with a WS open waiting for a scan is inherently flaky.
+			jsonResponse(w, http.StatusBadRequest, Error{
 				Success: false,
 				Error:   resp.Err.Error(),
 				ErrCode: "M_INTERNAL",
@@ -250,8 +253,8 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 			user.Update()
 		}
 		return
-	case <-time.After(60 * time.Second):
-		prov.log.Err(err).Msg("Timeout waiting for provisioning response (scan)")
+	case <-time.After(30 * time.Second):
+		prov.log.Warn().Msg("Timeout waiting for provisioning response (scan)")
 		jsonResponse(w, http.StatusRequestTimeout, Error{
 			Success: false,
 			Error:   "Timeout waiting for QR code scan",
@@ -333,7 +336,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 		user.Connect()
 		return
 	case <-time.After(30 * time.Second):
-		prov.log.Err(err).Msg("Timeout waiting for provisioning response (account)")
+		prov.log.Warn().Msg("Timeout waiting for provisioning response (account)")
 		jsonResponse(w, http.StatusGatewayTimeout, Error{
 			Success: false,
 			Error:   "Timeout waiting for provisioning response (account)",
