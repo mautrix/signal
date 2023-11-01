@@ -145,7 +145,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
-				Error:   "Error getting provisioning URL",
+				Error:   resp.Err.Error(),
 				ErrCode: "M_INTERNAL",
 			})
 			return
@@ -220,10 +220,10 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 	select {
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
-			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
+			prov.log.Err(resp.Err).Msg("Error waiting for scan")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
-				Error:   "Error getting provisioning URL",
+				Error:   resp.Err.Error(),
 				ErrCode: "M_INTERNAL",
 			})
 			return
@@ -303,10 +303,10 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	select {
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
-			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
+			prov.log.Err(resp.Err).Msg("Error waiting for account")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
-				Error:   "Error getting provisioning URL",
+				Error:   resp.Err.Error(),
 				ErrCode: "M_INTERNAL",
 			})
 			return

@@ -59,7 +59,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 	go func() {
 		defer close(c)
 
-		ctx, cancel := context.WithTimeout(incomingCtx, time.Minute)
+		ctx, cancel := context.WithTimeout(incomingCtx, 2*time.Minute)
 		defer cancel()
 		ws, err := openProvisioningWebsocket(ctx)
 		if err != nil {
@@ -109,7 +109,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 		code := provisioningMessage.ProvisioningCode
 		registrationId := mrand.Intn(16383) + 1
 		pniRegistrationId := mrand.Intn(16383) + 1
-		deviceResponse, err := confirmDevice(username, password, *code, registrationId, pniRegistrationId)
+		deviceResponse, err := confirmDevice(ctx, username, password, *code, registrationId, pniRegistrationId)
 		if err != nil {
 			zlog.Err(err).Msg("confirmDevice error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -271,9 +271,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 	return provisioningMessage, err
 }
 
-func confirmDevice(username string, password string, code string, registrationId int, pniRegistrationId int) (*ConfirmDeviceResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
+func confirmDevice(ctx context.Context, username string, password string, code string, registrationId int, pniRegistrationId int) (*ConfirmDeviceResponse, error) {
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
 	if err != nil {
 		zlog.Err(err).Msgf("openWebsocket error, resp : %v", resp)
