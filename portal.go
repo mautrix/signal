@@ -791,7 +791,9 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.Sig
 		if len(result.FailedToSendTo) > 0 {
 			portal.log.Error().Msgf("Failed to send event %s to %d of %d members of Signal group %s", evtID, len(result.FailedToSendTo), totalRecipients, recipientSignalID)
 		}
-		if len(result.SuccessfullySentTo) == 0 {
+		if len(result.SuccessfullySentTo) == 0 && len(result.FailedToSendTo) == 0 {
+			portal.log.Debug().Msgf("No successes or failures - Probably sent to myself")
+		} else if len(result.SuccessfullySentTo) == 0 {
 			portal.log.Error().Msgf("Failed to send event %s to all %d members of Signal group %s", evtID, totalRecipients, recipientSignalID)
 			err = errors.New("failed to send to any members of Signal group")
 		} else if len(result.SuccessfullySentTo) < totalRecipients {

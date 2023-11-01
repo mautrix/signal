@@ -529,6 +529,9 @@ func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, 
 		}
 	}
 
+	if len(result.FailedToSendTo) == 0 && len(result.SuccessfullySentTo) == 0 {
+		return result, nil // I only sent to myself
+	}
 	if len(result.SuccessfullySentTo) == 0 {
 		lastError := result.FailedToSendTo[len(result.FailedToSendTo)-1].Error
 		return nil, fmt.Errorf("Failed to send to any group members: %v", lastError)
