@@ -221,6 +221,11 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 			prov.log.Err(resp.Err).Msg("Error waiting for scan")
+			// If context was cancelled be chill
+			if errors.Is(resp.Err, context.Canceled) {
+				prov.log.Debug().Msg("Context cancelled waiting for scan")
+				return
+			}
 			// If we error waiting for the scan, treat it as a normal error not 5xx
 			// so that the client will retry quietly. Also, it's really not an internal
 			// error, sitting with a WS open waiting for a scan is inherently flaky.
@@ -253,7 +258,7 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 			user.Update()
 		}
 		return
-	case <-time.After(30 * time.Second):
+	case <-time.After(45 * time.Second):
 		prov.log.Warn().Msg("Timeout waiting for provisioning response (scan)")
 		jsonResponse(w, http.StatusRequestTimeout, Error{
 			Success: false,
