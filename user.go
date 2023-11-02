@@ -280,7 +280,12 @@ func (br *SignalBridge) getAllLoggedInUsers() []*User {
 func (user *User) startupTryConnect(retryCount int) {
 	user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 
-	statusChan, err := user.doConnect()
+	// Make sure user has the Signal device populated
+	user.populateSignalDevice()
+
+	user.log.Debug().Msg("Connecting to Signal")
+	ctx := context.Background()
+	statusChan, err := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
 
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
@@ -358,10 +363,17 @@ func (br *SignalBridge) StartUsers() {
 	br.ZLog.Debug().Msg("Starting users")
 
 	usersWithToken := br.getAllLoggedInUsers()
+	numUsersStarting := 0
 	for _, u := range usersWithToken {
+		device := u.populateSignalDevice()
+		if device == nil {
+			br.ZLog.Warn().Str("user_id", u.MXID.String()).Msg("No device found for user, skipping Connect")
+			continue
+		}
 		go u.Connect()
+		numUsersStarting++
 	}
-	if len(usersWithToken) == 0 {
+	if numUsersStarting == 0 {
 		br.SendGlobalBridgeState(status.BridgeState{StateEvent: status.StateUnconfigured}.Fill(nil))
 	}
 
@@ -390,31 +402,27 @@ func (user *User) Connect() {
 	user.startupTryConnect(0)
 }
 
-func (user *User) doConnect() (chan signalmeow.SignalConnectionStatus, error) {
+func (user *User) populateSignalDevice() *signalmeow.Device {
 	user.Lock()
 	defer user.Unlock()
 
 	if user.SignalID == "" {
-		return nil, ErrNotLoggedIn
+		return nil
 	}
-
-	user.log.Debug().Msg("Connecting to Signal")
 
 	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
 	if err != nil {
 		user.log.Err(ErrNotLoggedIn).Msgf("problem looking up aci %s", user.SignalID)
-		return nil, ErrNotLoggedIn
+		return nil
 	}
 	if device == nil {
 		user.log.Err(ErrNotLoggedIn).Msgf("no device found for aci %s", user.SignalID)
-		return nil, ErrNotLoggedIn
+		return nil
 	}
 
 	user.SignalDevice = device
 	device.Connection.IncomingSignalMessageHandler = user.incomingMessageHandler
-
-	ctx := context.Background()
-	return signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
+	return device
 }
 
 func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {
