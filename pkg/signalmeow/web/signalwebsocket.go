@@ -58,6 +58,21 @@ const (
 	SignalWebsocketConnectionEventCleanShutdown
 )
 
+// mapping from SignalWebsocketConnectionEvent to its string representation
+var signalWebsocketConnectionEventNames = map[SignalWebsocketConnectionEvent]string{
+	SignalWebsocketConnectionEventConnecting:    "SignalWebsocketConnectionEventConnecting",
+	SignalWebsocketConnectionEventConnected:     "SignalWebsocketConnectionEventConnected",
+	SignalWebsocketConnectionEventDisconnected:  "SignalWebsocketConnectionEventDisconnected",
+	SignalWebsocketConnectionEventLoggedOut:     "SignalWebsocketConnectionEventLoggedOut",
+	SignalWebsocketConnectionEventError:         "SignalWebsocketConnectionEventError",
+	SignalWebsocketConnectionEventCleanShutdown: "SignalWebsocketConnectionEventCleanShutdown",
+}
+
+// Implement the fmt.Stringer interface
+func (s SignalWebsocketConnectionEvent) String() string {
+	return signalWebsocketConnectionEventNames[s]
+}
+
 type SignalWebsocketConnectionStatus struct {
 	Event SignalWebsocketConnectionEvent
 	Err   error

@@ -28,6 +28,21 @@ const (
 	SignalConnectionCleanShutdown
 )
 
+// mapping from SignalConnectionEvent to its string representation
+var signalConnectionEventNames = map[SignalConnectionEvent]string{
+	SignalConnectionEventNone:         "SignalConnectionEventNone",
+	SignalConnectionEventConnected:    "SignalConnectionEventConnected",
+	SignalConnectionEventDisconnected: "SignalConnectionEventDisconnected",
+	SignalConnectionEventLoggedOut:    "SignalConnectionEventLoggedOut",
+	SignalConnectionEventError:        "SignalConnectionEventError",
+	SignalConnectionCleanShutdown:     "SignalConnectionCleanShutdown",
+}
+
+// Implement the fmt.Stringer interface
+func (s SignalConnectionEvent) String() string {
+	return signalConnectionEventNames[s]
+}
+
 type SignalConnectionStatus struct {
 	Event SignalConnectionEvent
 	Err   error
@@ -131,7 +146,7 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 					Event: SignalConnectionCleanShutdown,
 				}
 			}
-			if statusToSend.Event != 0 && statusToSend != lastSentStatus {
+			if statusToSend.Event != 0 && statusToSend.Event != lastSentStatus.Event {
 				zlog.Info().Msgf("Sending connection status: %v", statusToSend)
 				statusChan <- statusToSend
 				lastSentStatus = statusToSend

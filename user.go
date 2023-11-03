@@ -310,12 +310,22 @@ func (user *User) startupTryConnect(retryCount int) {
 	}
 	// After Connect returns, all bridge states are triggered by events on the statusChan
 	go func() {
+		var peekedConnectionStatus signalmeow.SignalConnectionStatus
 		for {
-			connectionStatus, ok := <-statusChan
-			if !ok {
-				user.log.Debug().Msg("connectionStatus channel closed")
-				return
+			var connectionStatus signalmeow.SignalConnectionStatus
+			if peekedConnectionStatus.Event != signalmeow.SignalConnectionEventNone {
+				user.log.Debug().Msgf("Using peeked connectionStatus event: %v", peekedConnectionStatus.Event)
+				connectionStatus = peekedConnectionStatus
+				peekedConnectionStatus = signalmeow.SignalConnectionStatus{}
+			} else {
+				var ok bool
+				connectionStatus, ok = <-statusChan
+				if !ok {
+					user.log.Debug().Msg("statusChan channel closed")
+					return
+				}
 			}
+
 			err := connectionStatus.Err
 			switch connectionStatus.Event {
 			case signalmeow.SignalConnectionEventConnected:
@@ -323,11 +333,54 @@ func (user *User) startupTryConnect(retryCount int) {
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 
 			case signalmeow.SignalConnectionEventDisconnected:
-				user.log.Debug().Msg("Sending TransientDisconnect BridgeState")
-				if err == nil {
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
-				} else {
-					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+				user.log.Debug().Msg("Received SignalConnectionEventDisconnected")
+
+				// Debounce: wait 7s before sending TransientDisconnect, in case we get a reconnect
+				// We should wait until the next message comes in, or 7 seconds has passed.
+				// - If a disconnected event comes in, just loop again, unless it's been more than 7 seconds.
+				// - If a non-disconnected event comes in, store it in peekedConnectionStatus,
+				//   break out of this loop and go back to the top of the goroutine to handle it in the switch.
+				// - If 7 seconds passes without any non-disconnect messages, send the TransientDisconnect.
+				//   (Why 7 seconds? It was 5 at first, but websockets min retry is 5 seconds,
+				//     so it would send TransientDisconnect right before reconnecting. 7 seems to work well.)
+				debounceTimer := time.NewTimer(7 * time.Second)
+			PeekLoop:
+				for {
+					var ok bool
+					select {
+					case peekedConnectionStatus, ok = <-statusChan:
+						// Handle channel closing
+						if !ok {
+							user.log.Debug().Msg("connectionStatus channel closed")
+							return
+						}
+						// If it's another Disconnected event, just keep looping
+						if peekedConnectionStatus.Event == signalmeow.SignalConnectionEventDisconnected {
+							peekedConnectionStatus = signalmeow.SignalConnectionStatus{}
+							continue
+						}
+						// If it's a non-disconnect event, break out of the PeekLoop and handle it in the switch
+						break PeekLoop
+					case <-debounceTimer.C:
+						// It's been 5 seconds, so break out of the loop and send the TransientDisconnect
+						break PeekLoop
+					}
+				}
+				// We're out of the PeekLoop, so either we got a non-disconnect event, or it's been 5 seconds (or both).
+				// We want to send TransientDisconnect if it's been 5 seconds, but not if the latest event was something
+				// other than Disconnected
+				if !debounceTimer.Stop() { // If the timer has already expired
+					// Send TransientDisconnect only if the latest event is a disconnect or no event
+					// (peekedConnectionStatus could be something else if the timer and the event race)
+					if peekedConnectionStatus.Event == signalmeow.SignalConnectionEventDisconnected ||
+						peekedConnectionStatus.Event == signalmeow.SignalConnectionEventNone {
+						user.log.Debug().Msg("Sending TransientDisconnect BridgeState")
+						if err == nil {
+							user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
+						} else {
+							user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+						}
+					}
 				}
 
 			case signalmeow.SignalConnectionEventLoggedOut:
