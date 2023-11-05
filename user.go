@@ -362,12 +362,12 @@ func (user *User) startupTryConnect(retryCount int) {
 						// If it's a non-disconnect event, break out of the PeekLoop and handle it in the switch
 						break PeekLoop
 					case <-debounceTimer.C:
-						// It's been 5 seconds, so break out of the loop and send the TransientDisconnect
+						// Time is up, so break out of the loop and send the TransientDisconnect
 						break PeekLoop
 					}
 				}
-				// We're out of the PeekLoop, so either we got a non-disconnect event, or it's been 5 seconds (or both).
-				// We want to send TransientDisconnect if it's been 5 seconds, but not if the latest event was something
+				// We're out of the PeekLoop, so either we got a non-disconnect event, or it's been 7 seconds (or both).
+				// We want to send TransientDisconnect if it's been 7 seconds, but not if the latest event was something
 				// other than Disconnected
 				if !debounceTimer.Stop() { // If the timer has already expired
 					// Send TransientDisconnect only if the latest event is a disconnect or no event
