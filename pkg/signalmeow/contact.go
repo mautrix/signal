@@ -187,6 +187,33 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetc
 	return existingContact, profileAvatar, nil
 }
 
+func (d *Device) UpdateContactE164(uuid string, e164 string) error {
+	ctx := context.TODO()
+	existingContact, err := d.ContactStore.LoadContact(ctx, uuid)
+	if err != nil {
+		zlog.Err(err).Msg("UpdateContactE164: error loading contact")
+		return err
+	}
+	if existingContact == nil {
+		zlog.Debug().Msgf("UpdateContactE164: creating new contact for uuid: %v", uuid)
+		existingContact = &Contact{
+			UUID: uuid,
+		}
+	} else {
+		zlog.Debug().Msgf("UpdateContactE164: found existing contact for uuid: %v", uuid)
+	}
+	if existingContact.E164 != e164 {
+		zlog.Debug().Msgf("UpdateContactE164: e164 changed for uuid: %v", uuid)
+		existingContact.E164 = e164
+		storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
+		if storeErr != nil {
+			zlog.Err(storeErr).Msg("UpdateContactE164: error storing contact")
+			return storeErr
+		}
+	}
+	return nil
+}
+
 // ContactAvatar is only populated if there is no contact avatar, and the profile the avatar has changed
 // If there is a contact avatar, it will have to have been updated when the contact is sent, we can't fetch on demand
 func (d *Device) ContactByIDWithProfileAvatar(uuid string) (*Contact, *ContactAvatar, error) {

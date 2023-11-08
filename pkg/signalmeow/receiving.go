@@ -230,11 +230,17 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				if err != nil {
 					zlog.Err(err).Msg("NewAddress error")
 				}
+				senderE164, err := senderCertificate.GetSenderE164()
+				if err != nil {
+					zlog.Err(err).Msg("GetSenderE164 error")
+				}
 				usmcContents, err := usmc.GetContents()
 				if err != nil {
 					zlog.Err(err).Msg("GetContents error")
 				}
 				zlog.Trace().Msgf("SealedSender senderUUID: %v, senderDeviceID: %v", senderUUID, senderDeviceID)
+
+				device.UpdateContactE164(senderUUID.String(), senderE164)
 
 				if messageType == libsignalgo.CiphertextMessageTypeSenderKey {
 					zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypeSenderKey ")
