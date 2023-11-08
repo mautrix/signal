@@ -1,6 +1,8 @@
 package main
 
 import (
+	"strings"
+
 	"github.com/skip2/go-qrcode"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix/bridge/commands"
@@ -74,21 +76,34 @@ func fnPM(ce *WrappedCommandEvent) {
 		return
 	}
 
-	//user := ce.User
-	//number := strings.Join(ce.Args, "")
-	//uuid, err := contactdiscovery.LookupPhoneNumber(ce.User.SignalDevice, number)
-	//if err != nil {
-	//	ce.Reply("Failed to check if the number is on Signal: %v", err)
-	//	return
-	//}
-	//if uuid == "" {
-	//	ce.Reply("The server said +%s is not on Signal", number)
-	//	return
-	//}
+	user := ce.User
+	number := strings.Join(ce.Args, "")
+	contact, err := user.SignalDevice.ContactByE164(number)
+	if err != nil {
+		ce.Reply("Error looking up number in local contact list: %v", err)
+		return
+	}
+	if contact == nil {
+		ce.Reply("The bridge does not have the Signal ID for the number %s", number)
+		return
+	}
 
-	//user.GetPortalByChatID(uuid)
-	//ce.Reply("Created portal room with and invited you to it.")
-	ce.Reply("TODO")
+	portal := user.GetPortalByChatID(contact.UUID)
+	if portal == nil {
+		ce.Reply("Error creating portal to %s", number)
+		ce.Log.Errorln("Error creating portal to", number)
+		return
+	}
+	if portal.MXID != "" {
+		ce.Reply("You already have a portal to %s at %s", number, portal.MXID)
+		return
+	}
+	if err := portal.CreateMatrixRoom(user, nil); err != nil {
+		ce.Reply("Error creating Matrix room for portal to %s", number)
+		ce.Log.Errorln("Error creating Matrix room for portal to %s: %s", number, err)
+		return
+	}
+	ce.Reply("Created portal room with and invited you to it.")
 }
 
 var cmdLogin = &commands.FullHandler{
