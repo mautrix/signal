@@ -4,3 +4,7 @@
 
 *.db*
 *.log*
+
+/mautrix-signal
+/mautrix-signalgo
+/start
