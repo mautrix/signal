@@ -106,20 +106,23 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	return *existingContact, contactAvatar, nil
 }
 
-func updateContactWithProfile(d *Device, profileUuid string, fetchProfileAvatar bool) (*Contact, *ContactAvatar, error) {
+func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetchProfileAvatar bool) (*Contact, *ContactAvatar, error) {
 	ctx := context.TODO()
+	contactChanged := false
+
 	existingContact, err := d.ContactStore.LoadContact(ctx, profileUuid)
 	if err != nil {
-		zlog.Err(err).Msg("updateContactWithProfile: error loading contact")
+		zlog.Err(err).Msg("fetchContactThenTryAndUpdateWithProfile: error loading contact")
 		return nil, nil, err
 	}
 	if existingContact == nil {
-		zlog.Debug().Msgf("updateContactWithProfile: creating new contact for uuid: %v", profileUuid)
+		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: creating new contact for uuid: %v", profileUuid)
 		existingContact = &Contact{
 			UUID: profileUuid,
 		}
+		contactChanged = true
 	} else {
-		zlog.Debug().Msgf("updateContactWithProfile: updating existing contact for uuid: %v, contact: %+v", profileUuid, existingContact)
+		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: updating existing contact for uuid: %v, contact: %+v", profileUuid, existingContact)
 	}
 	var profile *Profile
 	var profileAvatarImage []byte
@@ -130,14 +133,34 @@ func updateContactWithProfile(d *Device, profileUuid string, fetchProfileAvatar 
 		profile, err = RetrieveProfileByID(ctx, d, profileUuid)
 	}
 	if err != nil {
-		zlog.Err(err).Msgf("updateContactWithProfile: error retrieving profile for uuid: %v", profileUuid)
-		return nil, nil, err
+		zlog.Err(err).Msgf("fetchContactThenTryAndUpdateWithProfile: error retrieving profile for uuid: %v", profileUuid)
+		//return nil, nil, err
+		// Don't return here, we still want to return what we have
 	}
 
-	existingContact.ProfileName = profile.Name
-	existingContact.ProfileAbout = profile.About
-	existingContact.ProfileAboutEmoji = profile.AboutEmoji
-	existingContact.ProfileKey = profile.Key[:]
+	if profile != nil {
+		if existingContact.ProfileName != profile.Name {
+			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile name changed for uuid: %v", profileUuid)
+			existingContact.ProfileName = profile.Name
+			contactChanged = true
+		}
+		if existingContact.ProfileAbout != profile.About {
+			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile about changed for uuid: %v", profileUuid)
+			existingContact.ProfileAbout = profile.About
+			contactChanged = true
+		}
+		if existingContact.ProfileAboutEmoji != profile.AboutEmoji {
+			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile about emoji changed for uuid: %v", profileUuid)
+			existingContact.ProfileAboutEmoji = profile.AboutEmoji
+			contactChanged = true
+		}
+		newProfileKey := profile.Key.Slice()
+		if !bytes.Equal(existingContact.ProfileKey, newProfileKey) {
+			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile key changed for uuid: %v", profileUuid)
+			existingContact.ProfileKey = newProfileKey
+			contactChanged = true
+		}
+	}
 
 	var profileAvatar *ContactAvatar
 	if len(profileAvatarImage) > 0 {
@@ -151,11 +174,17 @@ func updateContactWithProfile(d *Device, profileUuid string, fetchProfileAvatar 
 				Hash:        avatarHash,
 			}
 			existingContact.ProfileAvatarHash = avatarHash
+			contactChanged = true
 		}
 	}
 
-	storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
-	return existingContact, profileAvatar, storeErr
+	if contactChanged {
+		storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
+		if storeErr != nil {
+			zlog.Err(storeErr).Msg("fetchContactThenTryAndUpdateWithProfile: error storing contact")
+		}
+	}
+	return existingContact, profileAvatar, nil
 }
 
 // ContactAvatar is only populated if there is no contact avatar, and the profile the avatar has changed
@@ -163,12 +192,12 @@ func updateContactWithProfile(d *Device, profileUuid string, fetchProfileAvatar 
 func (d *Device) ContactByIDWithProfileAvatar(uuid string) (*Contact, *ContactAvatar, error) {
 	// Update the profile (we can call this liberally, there's a cache backing it)
 	// We can just return the result of this, ContactAvatar will be nil if there's no change or if there is a contact avatar
-	return updateContactWithProfile(d, uuid, true)
+	return fetchContactThenTryAndUpdateWithProfile(d, uuid, true)
 }
 
 func (d *Device) ContactByID(uuid string) (*Contact, error) {
 	// Update the profile (we can call this liberally, there's a cache backing it)
-	contact, _, err := updateContactWithProfile(d, uuid, false)
+	contact, _, err := fetchContactThenTryAndUpdateWithProfile(d, uuid, false)
 	return contact, err
 }
 
@@ -183,7 +212,7 @@ func (d *Device) ContactByE164(e164 string) (*Contact, error) {
 		return nil, nil
 	}
 	// Update profile information (we can call this liberally, there's a cache backing it)
-	contact, _, err = updateContactWithProfile(d, contact.UUID, false)
+	contact, _, err = fetchContactThenTryAndUpdateWithProfile(d, contact.UUID, false)
 	return contact, err
 }
 
