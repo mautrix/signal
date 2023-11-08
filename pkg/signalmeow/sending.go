@@ -606,13 +606,17 @@ func sendContent(
 	content *signalpb.Content,
 	retryCount int, // For ending recursive retries
 ) (sentUnidentified bool, err error) {
-	// TODO: also handle non sealed-sender messages
-	// TODO: also handle pre-key messages (for the aformentioned session establishment)
-	// TODO: function returns before message is sent - need async status to caller
-
-	//unidentifiedAccessKey := "a key" // TODO: derive key from their profile key
-
 	printContentFieldString(content, "Outgoing message")
+
+	// If it's a data message, add our profile key
+	if content.DataMessage != nil {
+		profileKey, err := ProfileKeyForSignalID(ctx, d, d.Data.AciUuid)
+		if err != nil {
+			zlog.Err(err).Msg("Error getting profile key, not adding to outgoing message")
+		} else {
+			content.DataMessage.ProfileKey = profileKey.Slice()
+		}
+	}
 
 	if retryCount > 3 {
 		err := fmt.Errorf("Too many retries")

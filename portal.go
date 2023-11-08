@@ -462,7 +462,7 @@ func (portal *Portal) downloadAndDecryptMatrixMedia(ctx context.Context, content
 	return data, nil
 }
 
-func (portal *Portal) convertWebPtoPNG(webpImage []byte) ([]byte, error) {
+func convertWebPtoPNG(webpImage []byte) ([]byte, error) {
 	webpDecoded, err := webp.Decode(bytes.NewReader(webpImage))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode webp image: %w", err)
@@ -491,7 +491,7 @@ func (img *PaddedImage) At(x, y int) color.Color {
 	return img.Image.At(x+img.OffsetX, y+img.OffsetY)
 }
 
-func (portal *Portal) convertToWebPSticker(img []byte) ([]byte, error) {
+func convertToWebPSticker(img []byte) ([]byte, error) {
 	decodedImg, _, err := image.Decode(bytes.NewReader(img))
 	if err != nil {
 		return img, fmt.Errorf("failed to decode image: %w", err)
@@ -523,7 +523,7 @@ func (portal *Portal) convertToWebPSticker(img []byte) ([]byte, error) {
 	return webpBuffer.Bytes(), nil
 }
 
-func (portal *Portal) convertImage(ctx context.Context, mimeType string, image []byte) (string, []byte, error) {
+func convertImage(ctx context.Context, mimeType string, image []byte) (string, []byte, error) {
 	var outMimeType string
 	var outImage []byte
 	var err error
@@ -534,7 +534,7 @@ func (portal *Portal) convertImage(ctx context.Context, mimeType string, image [
 		outImage = image
 	case "image/webp":
 		outMimeType = "image/png"
-		outImage, err = portal.convertWebPtoPNG(image)
+		outImage, err = convertWebPtoPNG(image)
 	default:
 		return "", nil, fmt.Errorf("%w %q", errMediaUnsupportedType, mimeType)
 	}
@@ -544,12 +544,12 @@ func (portal *Portal) convertImage(ctx context.Context, mimeType string, image [
 	return outMimeType, outImage, nil
 }
 
-func (portal *Portal) convertSticker(ctx context.Context, mimeType string, sticker []byte, width, height int) (string, []byte, error) {
+func convertSticker(ctx context.Context, mimeType string, sticker []byte, width, height int) (string, []byte, error) {
 	var outMimeType string = mimeType
 	var outSticker []byte = sticker
 	var err error
 	if mimeType != "image/webp" || width != height {
-		outSticker, err = portal.convertToWebPSticker(sticker)
+		outSticker, err = convertToWebPSticker(sticker)
 		outMimeType = "image/webp"
 	}
 	if err != nil {
@@ -558,7 +558,7 @@ func (portal *Portal) convertSticker(ctx context.Context, mimeType string, stick
 	return outMimeType, outSticker, nil
 }
 
-func (portal *Portal) convertVideo(ctx context.Context, mimeType string, video []byte) (string, []byte, error) {
+func convertVideo(ctx context.Context, mimeType string, video []byte) (string, []byte, error) {
 	var outMimeType string
 	var outVideo []byte
 	var err error
@@ -581,7 +581,7 @@ func (portal *Portal) convertVideo(ctx context.Context, mimeType string, video [
 	return outMimeType, outVideo, nil
 }
 
-func (portal *Portal) convertAudio(ctx context.Context, mimeType string, audio []byte) (string, []byte, error) {
+func convertAudio(ctx context.Context, mimeType string, audio []byte) (string, []byte, error) {
 	var outMimeType string
 	var outAudio []byte
 	var err error
@@ -651,7 +651,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		newMimeType, convertedImage, err := portal.convertImage(ctx, content.GetInfo().MimeType, image)
+		newMimeType, convertedImage, err := convertImage(ctx, content.GetInfo().MimeType, image)
 		if err != nil {
 			return nil, err
 		}
@@ -672,7 +672,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		newMimeType, convertedSticker, err := portal.convertSticker(ctx, content.GetInfo().MimeType, image, content.GetInfo().Width, content.GetInfo().Height)
+		newMimeType, convertedSticker, err := convertSticker(ctx, content.GetInfo().MimeType, image, content.GetInfo().Width, content.GetInfo().Height)
 		if err != nil {
 			return nil, err
 		}
@@ -692,7 +692,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		newMimeType, convertedVideo, err := portal.convertVideo(ctx, content.GetInfo().MimeType, image)
+		newMimeType, convertedVideo, err := convertVideo(ctx, content.GetInfo().MimeType, image)
 		if err != nil {
 			return nil, err
 		}
@@ -713,7 +713,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		newMimeType, convertedAudio, err := portal.convertAudio(ctx, content.GetInfo().MimeType, image)
+		newMimeType, convertedAudio, err := convertAudio(ctx, content.GetInfo().MimeType, image)
 		if err != nil {
 			return nil, err
 		}

@@ -478,65 +478,78 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 	return device
 }
 
-func updatePuppetWithSignalProfile(ctx context.Context, user *User, puppet *Puppet) error {
-	profile, avatarImage, err := signalmeow.RetrieveProfileAndAvatarByID(context.Background(), user.SignalDevice, puppet.SignalID)
+func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *signalmeow.ContactAvatar) error {
+	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID)
 	if err != nil {
-		user.log.Err(err).Msg("error retrieving profile")
+		user.log.Err(err).Msg("updatePuppetWithSignalContact: error retrieving contact")
 		return err
 	}
-	if profile.Name != puppet.Name {
-		puppet.Name = profile.Name
-		err = puppet.DefaultIntent().SetDisplayName(profile.Name)
+	user.log.Debug().Msgf("updatePuppetWithSignalContact: contact: %+v", contact)
+
+	contactName := contact.PreferredName()
+	if contactName != puppet.Name {
+		user.log.Debug().Msgf("updatePuppetWithSignalContact: updating puppet name to %s", contactName)
+		puppet.Name = contactName
+		err = puppet.DefaultIntent().SetDisplayName(contactName)
 		if err != nil {
-			user.log.Err(err).Msg("error setting display name")
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error setting display name")
 			return err
-		} else {
-			puppet.NameSet = true
-			err = puppet.Update()
-			if err != nil {
-				user.log.Err(err).Msg("error updating puppet")
-				return err
-			}
+		}
+		puppet.NameSet = true
+		err = puppet.Update()
+		if err != nil {
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet with new name")
+			return err
 		}
 	}
 
-	if profile.AvatarPath == "" {
+	if contact.PreferredAvatarHash() == "" && puppet.AvatarSet {
+		user.log.Debug().Msg("updatePuppetWithSignalContact: clearing avatar")
 		puppet.AvatarSet = false
 		puppet.AvatarURL = id.ContentURI{}
 		puppet.AvatarHash = ""
+		err = puppet.DefaultIntent().SetAvatarURL(id.ContentURI{})
+		if err != nil {
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error clearing avatar url")
+			return err
+		}
 		err = puppet.Update()
 		if err != nil {
-			user.log.Err(err).Msg("error updating puppet")
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet while clearing avatar")
 			return err
 		}
 		return nil
 	}
 
 	// If avatar is set, we must have a new avatar image, so update it
-	if avatarImage != nil {
-		if avatarImage != nil {
-			user.log.Debug().Msg("Uploading new avatar")
-			avatarURL, err := puppet.DefaultIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
-			if err != nil {
-				user.log.Err(err).Msg("error uploading avatar")
-				return err
-			}
-			puppet.AvatarURL = avatarURL.ContentURI
-			puppet.AvatarSet = true
-			hash := sha256.Sum256(avatarImage)
-			puppet.AvatarHash = hex.EncodeToString(hash[:])
+	var newAvatar *signalmeow.ContactAvatar
+	if newContactAvatar != nil {
+		user.log.Debug().Msg("updatePuppetWithSignalContact: using newContactAvatar")
+		newAvatar = newContactAvatar
+	} else if newProfileAvatar != nil {
+		user.log.Debug().Msg("updatePuppetWithSignalContact: using newProfileAvatar")
+		newAvatar = newProfileAvatar
+	}
+	if newAvatar != nil {
+		user.log.Debug().Msg("updatePuppetWithSignalContact: uploading avatar")
+		avatarURL, err := puppet.DefaultIntent().UploadBytes(newAvatar.Image, newAvatar.ContentType)
+		if err != nil {
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error uploading avatar")
+			return err
+		}
+		puppet.AvatarURL = avatarURL.ContentURI
+		puppet.AvatarSet = true
+		puppet.AvatarHash = newAvatar.Hash
 
-			err = puppet.DefaultIntent().SetAvatarURL(avatarURL.ContentURI)
-			if err != nil {
-				user.log.Err(err).Msg("error setting avatar url")
-				return err
-			} else {
-				err = puppet.Update()
-				if err != nil {
-					user.log.Err(err).Msg("error updating puppet")
-					return err
-				}
-			}
+		err = puppet.DefaultIntent().SetAvatarURL(avatarURL.ContentURI)
+		if err != nil {
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error setting avatar url")
+			return err
+		}
+		err = puppet.Update()
+		if err != nil {
+			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet with new avatar")
+			return err
 		}
 	}
 	return nil
@@ -570,7 +583,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserId)
 			continue
 		}
-		_ = updatePuppetWithSignalProfile(context.Background(), user, memberPuppet)
+		_ = updatePuppetWithSignalContact(context.TODO(), user, memberPuppet, nil)
 		err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
 		if err != nil {
 			user.log.Err(err).Msg("error ensuring joined")
@@ -607,9 +620,18 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			user.log.Err(err).Msg("error getting puppet")
 			//return err
 		}
-		err := updatePuppetWithSignalProfile(context.Background(), user, senderPuppet)
+
+		// If this is a contact change, it might have a new contact avatar, and if it does
+		// we'll need to pull it out there, since we can't get it any other time
+		var newAvatar *signalmeow.ContactAvatar
+		if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeContactChange {
+			contactChangeMessage := incomingMessage.(signalmeow.IncomingSignalMessageContactChange)
+			newAvatar = contactChangeMessage.Avatar
+		}
+
+		err := updatePuppetWithSignalContact(context.TODO(), user, senderPuppet, newAvatar)
 		if err != nil {
-			user.log.Err(err).Msg("error updating puppet")
+			user.log.Err(err).Msg("error updating puppet with signal contact")
 		}
 		if m.GroupID != nil {
 			chatID = string(*m.GroupID)
@@ -719,8 +741,9 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			}
 			portal.UpdateBridgeInfo()
 		}
-		if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeGroupChange {
-			// This was just a group change message, and we changed the group, so we're done
+		if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeGroupChange ||
+			incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeContactChange {
+			// This was just a group or contact change message, and we changed the group, so we're done
 			return nil
 		}
 	}

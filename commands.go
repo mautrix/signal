@@ -8,6 +8,14 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+var (
+	HelpSectionConnectionManagement = commands.HelpSection{Name: "Connection management", Order: 11}
+	HelpSectionCreatingPortals      = commands.HelpSection{Name: "Creating portals", Order: 15}
+	HelpSectionPortalManagement     = commands.HelpSection{Name: "Portal management", Order: 20}
+	HelpSectionInvites              = commands.HelpSection{Name: "Group invites", Order: 25}
+	HelpSectionMiscellaneous        = commands.HelpSection{Name: "Miscellaneous", Order: 30}
+)
+
 type WrappedCommandEvent struct {
 	*commands.Event
 	Bridge *SignalBridge
@@ -15,13 +23,12 @@ type WrappedCommandEvent struct {
 	Portal *Portal
 }
 
-var HelpSectionPortalManagement = commands.HelpSection{Name: "Portal management", Order: 20}
-
 func (br *SignalBridge) RegisterCommands() {
 	proc := br.CommandProcessor.(*commands.Processor)
 	proc.AddHandlers(
 		cmdPing,
 		cmdLogin,
+		cmdPM,
 	)
 }
 
@@ -48,6 +55,40 @@ var cmdPing = &commands.FullHandler{
 
 func fnPing(ce *WrappedCommandEvent) {
 	ce.Reply("A fake ping! Well done! 💥")
+}
+
+var cmdPM = &commands.FullHandler{
+	Func: wrapCommand(fnPM),
+	Name: "pm",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionCreatingPortals,
+		Description: "Open a private chat with the given phone number.",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin: true,
+}
+
+func fnPM(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `pm <international phone number>`")
+		return
+	}
+
+	//user := ce.User
+	//number := strings.Join(ce.Args, "")
+	//uuid, err := contactdiscovery.LookupPhoneNumber(ce.User.SignalDevice, number)
+	//if err != nil {
+	//	ce.Reply("Failed to check if the number is on Signal: %v", err)
+	//	return
+	//}
+	//if uuid == "" {
+	//	ce.Reply("The server said +%s is not on Signal", number)
+	//	return
+	//}
+
+	//user.GetPortalByChatID(uuid)
+	//ce.Reply("Created portal room with and invited you to it.")
+	ce.Reply("TODO")
 }
 
 var cmdLogin = &commands.FullHandler{

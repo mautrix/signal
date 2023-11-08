@@ -1,10 +1,8 @@
 package signalmeow
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/binary"
 	"fmt"
 	"strings"
 	"time"
@@ -505,21 +503,28 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								zlog.Err(err).Msg("Contacts Sync fetchAndDecryptAttachment error")
 							}
 							// unmarshall contacts
-							contacts, _, err := unmarshalContactDetailsMessages(contactsBytes)
+							contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
 							if err != nil {
 								zlog.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
 							}
-							// TODO: actually use contacts and avatars
-							// store profile keys
-							for _, contact := range contacts {
-								if contact.ProfileKey != nil {
-									profileKey := libsignalgo.ProfileKey(contact.ProfileKey)
-									err = device.ProfileKeyStore.StoreProfileKey(*contact.Uuid, profileKey, ctx)
-									if err != nil {
-										zlog.Err(err).Msg("StoreProfileKey error")
-										return nil, err
-									}
+							zlog.Debug().Msgf("Contacts Sync received %v contacts", len(contacts))
+							for i, contact := range contacts {
+								contact, contactAvatar, err := StoreContactDetailsAsContact(device, contact, &avatars[i])
+								if err != nil {
+									zlog.Err(err).Msg("StoreContactDetailsAsContact error")
+									continue
 								}
+								// Model each contact as an incoming contact change message
+								contactChange := IncomingSignalMessageContactChange{
+									IncomingSignalMessageBase: IncomingSignalMessageBase{
+										SenderUUID:    contact.UUID,
+										RecipientUUID: device.Data.AciUuid,
+										Timestamp:     currentMessageTimestamp(),
+									},
+									Contact: contact,
+									Avatar:  contactAvatar,
+								}
+								device.Connection.IncomingSignalMessageHandler(contactChange)
 							}
 						}
 					}
@@ -639,55 +644,6 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 		}, nil
 	}
 	return handler
-}
-
-// UnmarshalContactDetailsMessages unmarshals a slice of ContactDetails messages from a byte buffer.
-func unmarshalContactDetailsMessages(byteStream []byte) ([]*signalpb.ContactDetails, [][]byte, error) {
-	var contactDetailsList []*signalpb.ContactDetails
-	var avatarList [][]byte
-	buf := bytes.NewBuffer(byteStream)
-
-	for {
-		// If no more bytes are left to read, break the loop
-		if buf.Len() == 0 {
-			break
-		}
-
-		// Read the length prefix (varint) of the next Protobuf message
-		msgLen, err := binary.ReadUvarint(buf)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to read message length: %v", err)
-		}
-
-		// If no more bytes are left to read, break the loop
-		if buf.Len() == 0 {
-			break
-		}
-
-		// Read the Protobuf message using the length obtained
-		msgBytes := buf.Next(int(msgLen))
-
-		// Unmarshal the Protobuf message into a ContactDetails object
-		contactDetails := &signalpb.ContactDetails{}
-		if err := proto.Unmarshal(msgBytes, contactDetails); err != nil {
-			return nil, nil, fmt.Errorf("Failed to unmarshal ContactDetails: %v", err)
-		}
-
-		// Append the ContactDetails object to the result slice
-		contactDetailsList = append(contactDetailsList, contactDetails)
-
-		// If the ContactDetails object has an avatar, read it into a byte slice
-		if contactDetails.Avatar != nil {
-			avatarBytes := buf.Next(int(*contactDetails.Avatar.Length))
-			avatarBytesCopy := make([]byte, len(avatarBytes))
-			avatarList = append(avatarList, avatarBytesCopy)
-		} else {
-			// If there isn't, append nil so the indicies line up
-			avatarList = append(avatarList, nil)
-		}
-	}
-
-	return contactDetailsList, avatarList, nil
 }
 
 func printStructFields(message protoreflect.Message, parent string, builder *strings.Builder) {
@@ -826,11 +782,11 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			if mentionUUID := bodyRange.GetMentionUuid(); mentionUUID != "" {
 				mention.MentionedUUID = mentionUUID
 				// Get name from profile db table
-				profile, err := RetrieveProfileByID(ctx, device, mentionUUID)
+				contact, err := device.ContactByID(mentionUUID)
 				if err != nil {
-					zlog.Err(err).Msg("RetrieveProfileByID error")
+					zlog.Err(err).Msg("Error getting contact for mention name")
 				} else {
-					mention.MentionedName = profile.Name
+					mention.MentionedName = contact.PreferredName()
 				}
 			}
 			mentions = append(mentions, mention)

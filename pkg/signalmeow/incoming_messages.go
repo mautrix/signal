@@ -39,6 +39,7 @@ const (
 	IncomingSignalMessageTypeCall
 	IncomingSignalMessageTypeExpireTimerChange
 	IncomingSignalMessageTypeGroupChange
+	IncomingSignalMessageTypeContactChange
 )
 
 type IncomingSignalMessage interface {
@@ -58,6 +59,7 @@ var _ IncomingSignalMessage = IncomingSignalMessageSticker{}
 var _ IncomingSignalMessage = IncomingSignalMessageCall{}
 var _ IncomingSignalMessage = IncomingSignalMessageExpireTimerChange{}
 var _ IncomingSignalMessage = IncomingSignalMessageGroupChange{}
+var _ IncomingSignalMessage = IncomingSignalMessageContactChange{}
 
 // ** IncomingSignalMessageUnhandled **
 type IncomingSignalMessageUnhandled struct {
@@ -202,6 +204,20 @@ func (IncomingSignalMessageGroupChange) MessageType() IncomingSignalMessageType 
 	return IncomingSignalMessageTypeGroupChange
 }
 func (i IncomingSignalMessageGroupChange) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageContactChange **
+type IncomingSignalMessageContactChange struct {
+	IncomingSignalMessageBase
+	Contact Contact
+	Avatar  *ContactAvatar
+}
+
+func (IncomingSignalMessageContactChange) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeContactChange
+}
+func (i IncomingSignalMessageContactChange) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 
