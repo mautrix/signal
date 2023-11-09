@@ -215,10 +215,8 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	justCreated := false
 	portal := user.GetPortalByChatID(resp.ChatID.UUID)
 	if portal.MXID == "" {
-		justCreated = true
 		if err := portal.CreateMatrixRoom(user, nil); err != nil {
 			prov.log.Err(err).Msgf("StartPM from %v, error creating Matrix room", user.MXID)
 			jsonResponse(w, http.StatusInternalServerError, Error{
@@ -228,9 +226,10 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		resp.JustCreated = true
+		resp.RoomID = portal.MXID.String()
 	}
-	resp.JustCreated = justCreated
-	if justCreated {
+	if resp.JustCreated {
 		status = http.StatusCreated
 	}
 
