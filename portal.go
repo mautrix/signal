@@ -317,9 +317,11 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	timings.preproc = time.Since(start)
 	start = time.Now()
 
-	//msgText := evt.Content.AsMessage().Body
-	//msg := signalmeow.DataMessageForText(msgText)
 	msg, err := portal.convertMatrixMessage(ctx, sender, evt)
+	timestamp := *msg.DataMessage.Timestamp
+	if timestamp == 0 {
+		timestamp = uint64(start.UnixMilli())
+	}
 	if err != nil {
 		portal.log.Error().Msgf("Error converting message %s: %v", evt.ID, err)
 		go ms.sendMessageMetrics(evt, err, "Error converting", true)
@@ -339,7 +341,7 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	timings.totalSend = time.Since(start)
 	go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
-		portal.storeMessageInDB(evt.ID, sender.SignalID, uint64(start.UnixMilli()))
+		portal.storeMessageInDB(evt.ID, sender.SignalID, timestamp)
 		if portal.ExpirationTime > 0 {
 			portal.addDisappearingMessage(evt.ID, int64(portal.ExpirationTime), true)
 		}
