@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix/id"
@@ -39,6 +40,8 @@ func (prov *ProvisioningAPI) Init() {
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/account", prov.LinkWaitForAccount).Methods(http.MethodPost)
 	r.HandleFunc("/v2/logout", prov.Logout).Methods(http.MethodPost)
+	r.HandleFunc("/v2/resolve_identifier/{phonenum}", prov.ResolveIdentifier).Methods(http.MethodGet)
+	r.HandleFunc("/v2/pm/{phonenum}", prov.StartPM).Methods(http.MethodPost)
 }
 
 type responseWrap struct {
@@ -108,6 +111,134 @@ type Response struct {
 	// For response in LinkWaitForAccount
 	UUID   string `json:"uuid,omitempty"`
 	Number string `json:"number,omitempty"`
+
+	// For response in ResolveIdentifier
+	ResolveIdentifierResponse
+}
+
+type ResolveIdentifierResponse struct {
+	RoomID      string                             `json:"room_id"`
+	ChatID      ResolveIdentifierResponseChatID    `json:"chat_id"`
+	JustCreated bool                               `json:"just_created"`
+	OtherUser   ResolveIdentifierResponseOtherUser `json:"other_user"`
+}
+
+type ResolveIdentifierResponseChatID struct {
+	UUID   string `json:"uuid"`
+	Number string `json:"number"`
+}
+
+type ResolveIdentifierResponseOtherUser struct {
+	MXID        string `json:"mxid"`
+	DisplayName string `json:"displayname"`
+	AvatarURL   string `json:"avatar_url"`
+}
+
+func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int, *ResolveIdentifierResponse, error) {
+	if !strings.HasPrefix(phoneNum, "+") {
+		phoneNum = "+" + phoneNum
+	}
+	contact, err := user.SignalDevice.ContactByE164(phoneNum)
+	if err != nil {
+		prov.log.Err(err).Msgf("ResolveIdentifier from %v, error looking up contact", user.MXID)
+		return http.StatusInternalServerError, nil, fmt.Errorf("Error looking up number in local contact list: %w", err)
+	}
+	if contact == nil {
+		prov.log.Debug().Msgf("ResolveIdentifier from %v, contact not found", user.MXID)
+		return http.StatusNotFound, nil, fmt.Errorf("The bridge does not have the Signal ID for the number %s", phoneNum)
+	}
+
+	portal := user.GetPortalByChatID(contact.UUID)
+	puppet := prov.bridge.GetPuppetBySignalID(contact.UUID)
+
+	return http.StatusOK, &ResolveIdentifierResponse{
+		RoomID: portal.MXID.String(),
+		ChatID: ResolveIdentifierResponseChatID{
+			UUID:   contact.UUID,
+			Number: phoneNum,
+		},
+		OtherUser: ResolveIdentifierResponseOtherUser{
+			MXID:        puppet.MXID.String(),
+			DisplayName: puppet.Name,
+			AvatarURL:   puppet.AvatarURL.String(),
+		},
+	}, nil
+}
+
+func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value("user").(*User)
+	phoneNum, _ := mux.Vars(r)["phonenum"]
+	prov.log.Debug().Msgf("ResolveIdentifier from %v, phone number: %v", user.MXID, phoneNum)
+
+	status, resp, err := prov.resolveIdentifier(user, phoneNum)
+	if err != nil {
+		errCode := "M_INTERNAL"
+		if status == http.StatusNotFound {
+			prov.log.Debug().Msgf("ResolveIdentifier from %v, contact not found", user.MXID)
+			errCode = "M_NOT_FOUND"
+		} else {
+			prov.log.Err(err).Msgf("ResolveIdentifier from %v, error looking up contact", user.MXID)
+		}
+		jsonResponse(w, status, Error{
+			Success: false,
+			Error:   err.Error(),
+			ErrCode: errCode,
+		})
+		return
+	}
+	jsonResponse(w, status, Response{
+		Success:                   true,
+		Status:                    "ok",
+		ResolveIdentifierResponse: *resp,
+	})
+}
+
+func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value("user").(*User)
+	phoneNum, _ := mux.Vars(r)["phonenum"]
+	prov.log.Debug().Msgf("StartPM from %v, phone number: %v", user.MXID, phoneNum)
+
+	status, resp, err := prov.resolveIdentifier(user, phoneNum)
+	if err != nil {
+		errCode := "M_INTERNAL"
+		if status == http.StatusNotFound {
+			prov.log.Debug().Msgf("StartPM from %v, contact not found", user.MXID)
+			errCode = "M_NOT_FOUND"
+		} else {
+			prov.log.Err(err).Msgf("StartPM from %v, error looking up contact", user.MXID)
+		}
+		jsonResponse(w, status, Error{
+			Success: false,
+			Error:   err.Error(),
+			ErrCode: errCode,
+		})
+		return
+	}
+
+	justCreated := false
+	portal := user.GetPortalByChatID(resp.ChatID.UUID)
+	if portal.MXID == "" {
+		justCreated = true
+		if err := portal.CreateMatrixRoom(user, nil); err != nil {
+			prov.log.Err(err).Msgf("StartPM from %v, error creating Matrix room", user.MXID)
+			jsonResponse(w, http.StatusInternalServerError, Error{
+				Success: false,
+				Error:   "Error creating Matrix room",
+				ErrCode: "M_INTERNAL",
+			})
+			return
+		}
+	}
+	resp.JustCreated = justCreated
+	if justCreated {
+		status = http.StatusCreated
+	}
+
+	jsonResponse(w, status, Response{
+		Success:                   true,
+		Status:                    "ok",
+		ResolveIdentifierResponse: *resp,
+	})
 }
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
