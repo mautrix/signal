@@ -787,7 +787,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			}
 			if mentionUUID := bodyRange.GetMentionUuid(); mentionUUID != "" {
 				mention.MentionedUUID = mentionUUID
-				// Get name from profile db table
 				contact, err := device.ContactByID(mentionUUID)
 				if err != nil {
 					zlog.Err(err).Msg("Error getting contact for mention name")

@@ -465,7 +465,7 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 
 	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
 	if err != nil {
-		user.log.Err(ErrNotLoggedIn).Msgf("problem looking up aci %s", user.SignalID)
+		user.log.Err(err).Msgf("problem looking up aci %s", user.SignalID)
 		return nil
 	}
 	if device == nil {

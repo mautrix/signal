@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	errUserNotConnected            = errors.New("you are not connected to WhatsApp")
+	errUserNotConnected            = errors.New("you are not connected to Signal")
 	errDifferentUser               = errors.New("user is not the recipient of this private chat portal")
 	errUserNotLoggedIn             = errors.New("user is not logged in and chat has no relay bot")
 	errMNoticeDisabled             = errors.New("bridging m.notice messages is disabled")

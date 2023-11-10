@@ -240,6 +240,14 @@ func (portal *Portal) messageLoop() {
 }
 
 func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
+	// If we have no SignalDevice, the bridge isn't logged in properly,
+	// so send TRANSIENT_DISCONNECT so the user knows
+	if msg.user.SignalDevice == nil || msg.user.SignalDevice.Data.AciUuid == "" {
+		portal.sendMessageStatusCheckpointFailed(msg.evt, errUserNotLoggedIn)
+		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
+		return
+	}
+
 	switch msg.evt.Type {
 	case event.EventMessage, event.EventSticker:
 		portal.handleMatrixMessage(msg.user, msg.evt)
@@ -821,7 +829,7 @@ func (portal *Portal) sendMessageStatusCheckpointSuccess(evt *event.Event) {
 func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err error) {
 	portal.sendDeliveryReceipt(evt.ID)
 	portal.bridge.SendMessageErrorCheckpoint(evt, status.MsgStepRemote, err, true, 0)
-	portal.sendStatusEvent(evt.ID, "", nil, nil)
+	portal.sendStatusEvent(evt.ID, "", err, nil)
 }
 
 func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
