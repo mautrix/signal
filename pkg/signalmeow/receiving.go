@@ -932,6 +932,58 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}
 
+	// If there's a contact card share, pass it along
+	if dataMessage.Contact != nil {
+		for _, contactCard := range dataMessage.GetContact() {
+			incomingMessage := IncomingSignalMessageContactCard{
+				IncomingSignalMessageBase: IncomingSignalMessageBase{
+					SenderUUID:    senderUUID,
+					RecipientUUID: recipientUUID,
+					GroupID:       gidPointer,
+					Timestamp:     dataMessage.GetTimestamp(),
+				},
+				DisplayName:  contactCard.GetName().GetDisplayName(),
+				Organization: contactCard.GetOrganization(),
+				PhoneNumbers: make([]string, 0),
+				Emails:       make([]string, 0),
+				Addresses:    make([]string, 0),
+			}
+			for _, phone := range contactCard.Number {
+				incomingMessage.PhoneNumbers = append(incomingMessage.PhoneNumbers, *phone.Value)
+			}
+			for _, email := range contactCard.Email {
+				incomingMessage.Emails = append(incomingMessage.Emails, *email.Value)
+			}
+			for _, address := range contactCard.Address {
+				addressParts := make([]string, 0)
+				if address.Pobox != nil {
+					addressParts = append(addressParts, "P.O. Box: "+*address.Pobox)
+				}
+				if address.Street != nil {
+					addressParts = append(addressParts, *address.Street)
+				}
+				if address.Neighborhood != nil {
+					addressParts = append(addressParts, *address.Neighborhood)
+				}
+				if address.City != nil {
+					addressParts = append(addressParts, *address.City)
+				}
+				if address.Region != nil {
+					addressParts = append(addressParts, *address.Region)
+				}
+				if address.Postcode != nil {
+					addressParts = append(addressParts, *address.Postcode)
+				}
+				if address.Country != nil {
+					addressParts = append(addressParts, *address.Country)
+				}
+				addressString := strings.Join(addressParts, ", ")
+				incomingMessage.Addresses = append(incomingMessage.Addresses, addressString)
+			}
+			incomingMessages = append(incomingMessages, incomingMessage)
+		}
+	}
+
 	// If it's a expireTimer change, send that along (DMs only)
 	if dataMessage.Flags != nil && dataMessage.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		newTime := uint32(0)

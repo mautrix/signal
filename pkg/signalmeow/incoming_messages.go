@@ -40,6 +40,7 @@ const (
 	IncomingSignalMessageTypeExpireTimerChange
 	IncomingSignalMessageTypeGroupChange
 	IncomingSignalMessageTypeContactChange
+	IncomingSignalMessageTypeContactCard
 )
 
 type IncomingSignalMessage interface {
@@ -60,6 +61,7 @@ var _ IncomingSignalMessage = IncomingSignalMessageCall{}
 var _ IncomingSignalMessage = IncomingSignalMessageExpireTimerChange{}
 var _ IncomingSignalMessage = IncomingSignalMessageGroupChange{}
 var _ IncomingSignalMessage = IncomingSignalMessageContactChange{}
+var _ IncomingSignalMessage = IncomingSignalMessageContactCard{}
 
 // ** IncomingSignalMessageUnhandled **
 type IncomingSignalMessageUnhandled struct {
@@ -218,6 +220,26 @@ func (IncomingSignalMessageContactChange) MessageType() IncomingSignalMessageTyp
 	return IncomingSignalMessageTypeContactChange
 }
 func (i IncomingSignalMessageContactChange) Base() IncomingSignalMessageBase {
+	return i.IncomingSignalMessageBase
+}
+
+// ** IncomingSignalMessageContactCard **
+// Note: a "contact card" has nothing to do with a Signal "contact"
+// a "contact" (as in the ContactChange above) actually includes the user's UUID and such
+// a "contact card" is just information about a person shared from another person, no UUIDs or anything
+type IncomingSignalMessageContactCard struct {
+	IncomingSignalMessageBase
+	DisplayName  string
+	PhoneNumbers []string
+	Emails       []string
+	Addresses    []string
+	Organization string
+}
+
+func (IncomingSignalMessageContactCard) MessageType() IncomingSignalMessageType {
+	return IncomingSignalMessageTypeContactCard
+}
+func (i IncomingSignalMessageContactCard) Base() IncomingSignalMessageBase {
 	return i.IncomingSignalMessageBase
 }
 

@@ -16,6 +16,7 @@ import (
 	cwebp "github.com/chai2010/webp"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"golang.org/x/image/webp"
 
 	"maunium.net/go/mautrix"
@@ -904,6 +905,12 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			portal.log.Error().Err(err).Msg("Failed to handle call message")
 			return
 		}
+	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeContactCard {
+		err := portal.handleSignalContactCardMessage(portalMessage, intent)
+		if err != nil {
+			portal.log.Error().Err(err).Msg("Failed to handle contact card message")
+			return
+		}
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeUnhandled {
 		err := portal.handleSignalUnhandledMessage(portalMessage, intent)
 		if err != nil {
@@ -1135,6 +1142,29 @@ func (portal *Portal) handleSignalCallMessage(portalMessage portalSignalMessage,
 		message = "Call Ended"
 	}
 	portal.MainIntent().SendNotice(portal.MXID, message)
+	return nil
+}
+
+func (portal *Portal) handleSignalContactCardMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+	contactCardMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageContactCard)
+	messageParts := []string{}
+	messageParts = append(messageParts, contactCardMessage.DisplayName)
+	messageParts = append(messageParts, contactCardMessage.Organization)
+	for _, phoneNumber := range contactCardMessage.PhoneNumbers {
+		messageParts = append(messageParts, phoneNumber)
+	}
+	for _, email := range contactCardMessage.Emails {
+		messageParts = append(messageParts, email)
+	}
+	for _, address := range contactCardMessage.Addresses {
+		messageParts = append(messageParts, address)
+	}
+	messageParts = lo.Filter(messageParts, func(s string, i int) bool {
+		return s != ""
+	})
+	message := strings.Join(messageParts, "\n")
+	intent.SendNotice(portal.MXID, message)
+
 	return nil
 }
 
