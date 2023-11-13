@@ -326,16 +326,19 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	start = time.Now()
 
 	msg, err := portal.convertMatrixMessage(ctx, sender, evt)
-	timestamp := *msg.DataMessage.Timestamp
-	if timestamp == 0 {
-		timestamp = uint64(start.UnixMilli())
-	}
-	if err != nil {
+	if err != nil || msg == nil {
+		if err == nil {
+			err = fmt.Errorf("msg is nil")
+		}
 		portal.log.Error().Msgf("Error converting message %s: %v", evt.ID, err)
 		go ms.sendMessageMetrics(evt, err, "Error converting", true)
 		return
 	}
 
+	timestamp := *msg.DataMessage.Timestamp
+	if timestamp == 0 {
+		timestamp = uint64(start.UnixMilli())
+	}
 	timings.convert = time.Since(start)
 	start = time.Now()
 

@@ -206,8 +206,12 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					device.IdentityStore,
 					libsignalgo.NewCallbackContext(ctx),
 				)
-				if err != nil {
+				if err != nil || usmc == nil {
+					if err == nil {
+						err = fmt.Errorf("usmc is nil")
+					}
 					zlog.Err(err).Msg("SealedSenderDecryptToUSMC error")
+					return nil, err
 				}
 
 				messageType, err := usmc.GetMessageType()
