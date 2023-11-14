@@ -1391,6 +1391,9 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 	} else {
 		portal.log.Debug().Msgf("Received file attachment: %s", msg.ContentType)
 		content.MsgType = event.MsgFile
+		if content.Body == "" {
+			content.Body = content.FileName
+		}
 	}
 	portal.addSignalQuote(content, msg.Quote)
 	portal.addMentionsToMatrixBody(content, msg.Mentions)
