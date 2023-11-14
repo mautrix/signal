@@ -493,12 +493,8 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								destination = &g
 							}
 							if destination == nil {
-								err := fmt.Errorf("sync message sent destination is nil")
-								zlog.Err(err).Msg("")
-								return nil, err
-							}
-							_, err = incomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination)
-							if err != nil {
+								zlog.Warn().Msg("sync message sent destination is nil")
+							} else if _, err = incomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination); err != nil {
 								zlog.Err(err).Msg("incomingDataMessage error")
 								return nil, err
 							}
