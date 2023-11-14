@@ -37,6 +37,7 @@ type SignalBridge struct {
 
 	Config    *config.Config
 	DB        *database.Database
+	Metrics   *MetricsHandler
 	MeowStore *signalmeow.StoreContainer
 
 	provisioning *ProvisioningAPI
@@ -93,6 +94,9 @@ func (br *SignalBridge) Init() {
 		Log:    br.ZLog.With().Str("component", "disappearingMessagesManager").Logger(),
 		Bridge: br,
 	}
+
+	br.Metrics = NewMetricsHandler(br.Config.Metrics.Listen, br.Log.Sub("Metrics"), br.DB)
+	br.MatrixHandler.TrackEventDuration = br.Metrics.TrackMatrixEvent
 }
 
 func (br *SignalBridge) Start() {
@@ -106,10 +110,14 @@ func (br *SignalBridge) Start() {
 		br.provisioning.Init()
 	}
 	go br.StartUsers()
+	if br.Config.Metrics.Enabled {
+		go br.Metrics.Start()
+	}
 	go br.disappearingMessagesManager.StartDisappearingLoop(context.TODO())
 }
 
 func (br *SignalBridge) Stop() {
+	br.Metrics.Stop()
 	for _, user := range br.usersByMXID {
 		br.Log.Debugln("Disconnecting", user.MXID)
 		user.Disconnect()

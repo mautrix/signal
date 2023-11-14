@@ -24,6 +24,11 @@ import (
 type Config struct {
 	*bridgeconfig.BaseConfig `yaml:",inline"`
 
+	Metrics struct {
+		Enabled bool   `yaml:"enabled"`
+		Listen  string `yaml:"listen"`
+	} `yaml:"metrics"`
+
 	Bridge BridgeConfig `yaml:"bridge"`
 }
 

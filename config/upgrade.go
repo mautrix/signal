@@ -25,6 +25,9 @@ import (
 func DoUpgrade(helper *up.Helper) {
 	bridgeconfig.Upgrader.DoUpgrade(helper)
 
+	helper.Copy(up.Bool, "metrics", "enabled")
+	helper.Copy(up.Str, "metrics", "listen")
+
 	helper.Copy(up.Str, "bridge", "username_template")
 	helper.Copy(up.Str, "bridge", "displayname_template")
 	helper.Copy(up.Str, "bridge", "private_chat_portal_meta")
@@ -82,6 +85,7 @@ var SpacedBlocks = [][]string{
 	{"appservice", "database"},
 	{"appservice", "id"},
 	{"appservice", "as_token"},
+	{"metrics"},
 	{"bridge"},
 	{"bridge", "command_prefix"},
 	{"bridge", "management_room_text"},
