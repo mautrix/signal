@@ -380,8 +380,8 @@ func fetchGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group
 		return nil, err
 	}
 	if groupMasterKey == "" {
-		err := fmt.Errorf("No group master key found for group identifier: %v", gid)
-		zlog.Err(err).Msg("")
+		err := fmt.Errorf("No group master key found for group identifier")
+		zlog.Err(err).Str("gid", string(gid)).Msg("")
 		return nil, err
 	}
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
