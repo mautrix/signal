@@ -607,9 +607,12 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		chatID = m.RecipientUUID
 		senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
 		if senderPuppet == nil {
-			err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
-			user.log.Err(err).Msg("error getting puppet")
-			//return err
+			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+			if senderPuppet == nil {
+				err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
+				user.log.Err(err).Msg("error getting puppet")
+				//return err
+			}
 		}
 	} else {
 		user.log.Debug().Msgf("Message received from %s (group: %v)", m.SenderUUID, m.GroupID)
