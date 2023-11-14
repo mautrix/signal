@@ -201,7 +201,7 @@ bridge:
         #   verified - Require manual per-device verification
         #              (currently only possible by modifying the `trust` column in the `crypto_device` database table).
         verification_levels:
-            # Minimum level for which the bridge should send keys to when bridging messages from WhatsApp to Matrix.
+            # Minimum level for which the bridge should send keys to when bridging messages from Signal to Matrix.
             receive: unverified
             # Minimum level that the bridge should accept for incoming Matrix messages.
             send: unverified

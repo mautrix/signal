@@ -24,7 +24,6 @@ var (
 	errMediaDownloadFailed         = errors.New("failed to download media")
 	errMediaDecryptFailed          = errors.New("failed to decrypt media")
 	errMediaConvertFailed          = errors.New("failed to convert media")
-	errMediaWhatsAppUploadFailed   = errors.New("failed to upload media to WhatsApp")
 	errMediaUnsupportedType        = errors.New("unsupported media type")
 	errTargetNotFound              = errors.New("target event not found")
 	errReactionDatabaseNotFound    = errors.New("reaction database entry not found")

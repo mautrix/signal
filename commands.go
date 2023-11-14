@@ -111,7 +111,7 @@ var cmdLogin = &commands.FullHandler{
 	Name: "login",
 	Help: commands.HelpMeta{
 		Section:     commands.HelpSectionAuth,
-		Description: "Link the bridge to your WhatsApp account as a web client.",
+		Description: "Link the bridge to your Signal account as a web client.",
 	},
 }
 
