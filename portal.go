@@ -1777,7 +1777,6 @@ var (
 func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.PortalKey) *Portal {
 	if dbPortal == nil {
 		if key == nil {
-			br.ZLog.Warn().Msg("loadPortal called with nil dbPortal and nil key")
 			return nil
 		}
 
