@@ -837,6 +837,15 @@ func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err er
 }
 
 func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
+	if old_message := portal.bridge.DB.Message.GetBySignalID(
+		portalMessage.sender.SignalID,
+		portalMessage.message.Base().Timestamp,
+		portal.ChatID,
+		portal.Receiver,
+	); old_message != nil {
+		portal.log.Debug().Msgf("Ignoring message %d by %s as it was already handled", old_message.Timestamp, old_message.Sender)
+		return
+	}
 	if portal.MXID == "" {
 		portal.log.Debug().Msg("Creating Matrix room from incoming message")
 		if err := portal.CreateMatrixRoom(portalMessage.user, nil); err != nil {
