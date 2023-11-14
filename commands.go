@@ -152,7 +152,11 @@ func fnLogin(ce *WrappedCommandEvent) {
 	// Next, get the results of finishing registration
 	resp = <-provChan
 	if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
-		ce.Reply("Error finishing registration: %v", resp.Err)
+		if resp.Err != nil && strings.HasSuffix(resp.Err.Error(), " EOF") {
+			ce.Reply("Logging in timed out, please try again.")
+		} else {
+			ce.Reply("Error finishing registration: %v", resp.Err)
+		}
 		return
 	}
 	if resp.State == signalmeow.StateProvisioningDataReceived {
