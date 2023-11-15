@@ -850,10 +850,10 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		if err := portal.CreateMatrixRoom(portalMessage.user, nil); err != nil {
 			portal.log.Error().Err(err).Msg("Failed to create portal room")
 			return
-		} else {
-			portal.log.Info().Msgf("Created matrix room: %s", portal.MXID)
-			ensureGroupPuppetsAreJoinedToPortal(context.Background(), portalMessage.user, portal)
 		}
+		portal.log.Info().Msgf("Created matrix room: %s", portal.MXID)
+		ensureGroupPuppetsAreJoinedToPortal(context.Background(), portalMessage.user, portal)
+		signalmeow.SendContactSyncRequest(context.TODO(), portalMessage.user.SignalDevice)
 	}
 
 	//intent := portal.getMessageIntent(portalMessage.user, portalMessage.sender)

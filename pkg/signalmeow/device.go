@@ -33,11 +33,12 @@ func (d *DeviceData) BasicAuthCreds() (string, string) {
 // and other data that is used to communicate with the Signal servers and other clients.
 type DeviceConnection struct {
 	// cached data (not persisted)
-	SenderCertificate *libsignalgo.SenderCertificate
-	GroupCredentials  *GroupCredentials
-	GroupCache        *GroupCache
-	ProfileCache      *ProfileCache
-	GroupCallCache    *map[string]bool
+	SenderCertificate      *libsignalgo.SenderCertificate
+	GroupCredentials       *GroupCredentials
+	GroupCache             *GroupCache
+	ProfileCache           *ProfileCache
+	GroupCallCache         *map[string]bool
+	LastContactRequestTime *int64
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket

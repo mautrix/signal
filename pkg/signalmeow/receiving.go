@@ -160,7 +160,7 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 				return
 			case <-initialConnectChan:
 				zlog.Info().Msg("Both websockets connected, sending contacts sync request")
-				sendContactSyncRequest(ctx, d)
+				SendContactSyncRequest(ctx, d)
 				return
 			}
 		}

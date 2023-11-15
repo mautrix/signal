@@ -332,14 +332,23 @@ func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, 
 	}
 }
 
-func sendContactSyncRequest(ctx context.Context, d *Device) error {
-	groupRequest := syncMessageForContactRequest()
+func SendContactSyncRequest(ctx context.Context, d *Device) error {
 	currentUnixTime := time.Now().Unix()
+	lastRequestTime := d.Connection.LastContactRequestTime
+	// If we've requested in the last minute, don't request again
+	if lastRequestTime != nil && currentUnixTime-*lastRequestTime < 60 {
+		zlog.Warn().Msgf("Not sending contact sync request, already sent %v seconds ago", currentUnixTime-*lastRequestTime)
+		return nil
+	}
+
+	groupRequest := syncMessageForContactRequest()
 	_, err := sendContent(ctx, d, d.Data.AciUuid, uint64(currentUnixTime), groupRequest, 0)
 	if err != nil {
 		zlog.Err(err).Msg("Failed to send contact sync request message to myself (%v)")
+		return err
 	}
-	return err
+	d.Connection.LastContactRequestTime = &currentUnixTime
+	return nil
 }
 
 func TypingMessage(isTyping bool) *SignalContent {
@@ -634,7 +643,7 @@ func sendContent(
 		zlog.Err(err).Msg("Error getting profile key")
 		useUnidentifiedSender = false
 		// Try to self heal by requesting contact sync, though this is slow and not guaranteed to help
-		sendContactSyncRequest(ctx, d)
+		SendContactSyncRequest(ctx, d)
 	}
 	var accessKey *libsignalgo.AccessKey
 	if profileKey != nil {
