@@ -143,6 +143,10 @@ func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
 }
 
 func buildMessagesToSend(ctx context.Context, d *Device, recipientUuid string, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
+	// We need to prevent multiple encryption operations from happening at once, or else ratchets can race
+	d.Connection.EncryptionMutex.Lock()
+	defer d.Connection.EncryptionMutex.Unlock()
+
 	messages := []MyMessage{}
 
 	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)

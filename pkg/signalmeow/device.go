@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sync"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -39,6 +40,10 @@ type DeviceConnection struct {
 	ProfileCache           *ProfileCache
 	GroupCallCache         *map[string]bool
 	LastContactRequestTime *int64
+
+	// mutexes
+	EncryptionMutex sync.Mutex
+
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket
