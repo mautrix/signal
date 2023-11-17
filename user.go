@@ -484,7 +484,6 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		user.log.Err(err).Msg("updatePuppetWithSignalContact: error retrieving contact")
 		return err
 	}
-	user.log.Debug().Msgf("updatePuppetWithSignalContact: contact: %+v", contact)
 
 	contactName := contact.PreferredName()
 	if contactName != puppet.Name {

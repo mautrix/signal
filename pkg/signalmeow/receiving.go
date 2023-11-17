@@ -514,8 +514,12 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								zlog.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
 							}
 							zlog.Debug().Msgf("Contacts Sync received %v contacts", len(contacts))
-							for i, contact := range contacts {
-								contact, contactAvatar, err := StoreContactDetailsAsContact(device, contact, &avatars[i])
+							for i, signalContact := range contacts {
+								if signalContact.Uuid == nil || *signalContact.Uuid == "" {
+									zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
+									continue
+								}
+								contact, contactAvatar, err := StoreContactDetailsAsContact(device, signalContact, &avatars[i])
 								if err != nil {
 									zlog.Err(err).Msg("StoreContactDetailsAsContact error")
 									continue

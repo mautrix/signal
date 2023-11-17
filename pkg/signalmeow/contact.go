@@ -50,7 +50,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 			UUID: contactDetails.GetUuid(),
 		}
 	} else {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v, contact: %+v", contactDetails.GetUuid(), existingContact)
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v", contactDetails.GetUuid())
 	}
 
 	existingContact.E164 = contactDetails.GetNumber()
@@ -97,7 +97,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 		}
 	}
 
-	zlog.Debug().Msgf("StoreContactDetailsAsContact: storing contact for uuid: %v, contact: %+v", contactDetails.GetUuid(), existingContact)
+	zlog.Debug().Msgf("StoreContactDetailsAsContact: storing contact for uuid: %v", contactDetails.GetUuid())
 	storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
 	if storeErr != nil {
 		zlog.Err(storeErr).Msg("StoreContactDetailsAsContact: error storing contact")
@@ -122,7 +122,7 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetc
 		}
 		contactChanged = true
 	} else {
-		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: updating existing contact for uuid: %v, contact: %+v", profileUuid, existingContact)
+		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: updating existing contact for uuid: %v", profileUuid)
 	}
 	var profile *Profile
 	var profileAvatarImage []byte
