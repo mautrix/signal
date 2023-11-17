@@ -140,20 +140,18 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
-		newDevice, err := deviceStore.DeviceByAci(data.AciUuid)
-		if err != nil {
-			zlog.Err(err).Msg("error retrieving new device")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
-			return
-		}
 
-		// Store identity keys?
 		device, err := deviceStore.DeviceByAci(data.AciUuid)
 		if err != nil {
 			zlog.Err(err).Msg("error retrieving new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
+
+		// In case this is an existing device, we gotta clear out keys
+		device.ClearDeviceKeys()
+
+		// Store identity keys?
 		address, err := libsignalgo.NewAddress(device.Data.AciUuid, uint(device.Data.DeviceId))
 		_, err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
 		if err != nil {
@@ -174,8 +172,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
 		// Generate, store, and register prekeys
-		err = GenerateAndRegisterPreKeys(newDevice, UUID_KIND_ACI)
-		err = GenerateAndRegisterPreKeys(newDevice, UUID_KIND_PNI)
+		err = GenerateAndRegisterPreKeys(device, UUID_KIND_ACI)
+		err = GenerateAndRegisterPreKeys(device, UUID_KIND_PNI)
 
 		if err != nil {
 			zlog.Err(err).Msg("error generating and registering prekeys")

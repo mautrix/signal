@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -19,6 +20,7 @@ import (
 )
 
 type provisioningHandle struct {
+	id      int
 	context context.Context
 	cancel  context.CancelFunc
 	channel <-chan signalmeow.ProvisioningResponse
@@ -27,13 +29,15 @@ type provisioningHandle struct {
 type ProvisioningAPI struct {
 	bridge              *SignalBridge
 	log                 zerolog.Logger
-	provisioningHandles []provisioningHandle
+	provisioningHandles []*provisioningHandle
 	provisioningUsers   map[string]int
+	provisioningMutexes map[string]*sync.Mutex
 }
 
 func (prov *ProvisioningAPI) Init() {
 	prov.log.Debug().Msgf("Enabling provisioning API at %v", prov.bridge.Config.Bridge.Provisioning.Prefix)
 	prov.provisioningUsers = make(map[string]int)
+	prov.provisioningMutexes = make(map[string]*sync.Mutex)
 	r := prov.bridge.AS.Router.PathPrefix(prov.bridge.Config.Bridge.Provisioning.Prefix).Subrouter()
 	r.Use(prov.AuthMiddleware)
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
@@ -115,6 +119,8 @@ type Response struct {
 	// For response in ResolveIdentifier
 	ResolveIdentifierResponse
 }
+
+// ** Start New Chat ** //
 
 type ResolveIdentifierResponse struct {
 	RoomID      string                             `json:"room_id"`
@@ -240,15 +246,75 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
-	prov.log.Debug().Msgf("LinkNew from %v", user.MXID)
+// ** Provisioning session creation and management ** //
+
+func (prov *ProvisioningAPI) mutexForUser(user *User) *sync.Mutex {
+	if _, ok := prov.provisioningMutexes[user.MXID.String()]; !ok {
+		prov.provisioningMutexes[user.MXID.String()] = &sync.Mutex{}
+	}
+	return prov.provisioningMutexes[user.MXID.String()]
+}
+
+func (prov *ProvisioningAPI) newOrExistingSession(user *User) (newSessionLoggedIn bool, handle *provisioningHandle, err error) {
+	prov.mutexForUser(user).Lock()
+	defer prov.mutexForUser(user).Unlock()
+
 	if existingSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
-		prov.log.Warn().Msgf("LinkNew from %v, user already has a pending provisioning request (%d), cancelling", user.MXID, existingSessionID)
-		prov.CancelLink(user)
+		provisioningHandle := prov.provisioningHandles[existingSessionID]
+		return false, provisioningHandle, nil
 	}
 
 	provChan, err := user.Login()
+	if err != nil {
+		return false, nil, fmt.Errorf("Error logging in: %w", err)
+	}
+	provisioningCtx, cancel := context.WithCancel(context.Background())
+	handle = &provisioningHandle{
+		context: provisioningCtx,
+		cancel:  cancel,
+		channel: provChan,
+	}
+	prov.provisioningHandles = append(prov.provisioningHandles, handle)
+	handle.id = len(prov.provisioningHandles) - 1
+	prov.provisioningUsers[user.MXID.String()] = handle.id
+	return true, handle, nil
+}
+
+func (prov *ProvisioningAPI) existingSession(user *User) (handle *provisioningHandle) {
+	prov.mutexForUser(user).Lock()
+	defer prov.mutexForUser(user).Unlock()
+
+	if existingSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
+		provisioningHandle := prov.provisioningHandles[existingSessionID]
+		return provisioningHandle
+	}
+	return nil
+}
+
+func (prov *ProvisioningAPI) clearSession(user *User) {
+	prov.mutexForUser(user).Lock()
+	defer prov.mutexForUser(user).Unlock()
+
+	if existingSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
+		prov.log.Debug().Msgf("clearSession called for %v, clearing session %v", user.MXID, existingSessionID)
+		if existingSessionID >= len(prov.provisioningHandles) {
+			prov.log.Warn().Msgf("clearSession called for %v, session %v does not exist", user.MXID, existingSessionID)
+			return
+		}
+		if prov.provisioningHandles[existingSessionID].cancel != nil {
+			prov.provisioningHandles[existingSessionID].cancel()
+		}
+		prov.provisioningHandles[existingSessionID] = nil
+		delete(prov.provisioningUsers, user.MXID.String())
+	} else {
+		prov.log.Debug().Msgf("clearSession called for %v, no session found", user.MXID)
+	}
+}
+
+// ** Provisioning API Helpers ** //
+
+func (prov *ProvisioningAPI) loginOrSendError(w http.ResponseWriter, user *User) *provisioningHandle {
+	newSessionLoggedIn, handle, err := prov.newOrExistingSession(user)
 	if err != nil {
 		prov.log.Err(err).Msg("Error logging in")
 		jsonResponse(w, http.StatusInternalServerError, Error{
@@ -256,21 +322,61 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 			Error:   "Error logging in",
 			ErrCode: "M_INTERNAL",
 		})
-		return
+		return nil
 	}
-	provisioningCtx, cancel := context.WithCancel(context.Background())
-	handle := provisioningHandle{
-		context: provisioningCtx,
-		cancel:  cancel,
-		channel: provChan,
+	if !newSessionLoggedIn {
+		prov.log.Debug().Msgf("LinkNew from %v, user already has a pending provisioning request (%d), cancelling", user.MXID, handle.id)
+		prov.clearSession(user)
+		newSessionLoggedIn, handle, err = prov.newOrExistingSession(user)
+		if err != nil {
+			prov.log.Err(err).Msg("Error logging in after cancelling existing session")
+			jsonResponse(w, http.StatusInternalServerError, Error{
+				Success: false,
+				Error:   "Error logging in",
+				ErrCode: "M_INTERNAL",
+			})
+			return nil
+		}
 	}
-	prov.provisioningHandles = append(prov.provisioningHandles, handle)
-	sessionID := len(prov.provisioningHandles) - 1
-	prov.provisioningUsers[user.MXID.String()] = sessionID
-	prov.log.Debug().Msgf("LinkNew from %v, waiting for provisioning response", user.MXID)
+	return handle
+}
+
+func (prov *ProvisioningAPI) checkSessionAndReturnHandle(w http.ResponseWriter, r *http.Request, currentSession int) *provisioningHandle {
+	user := r.Context().Value("user").(*User)
+	handle := prov.existingSession(user)
+	if handle == nil {
+		prov.log.Warn().Msgf("checkSessionAndReturnHandle: from %v, no session found", user.MXID)
+		jsonResponse(w, http.StatusNotFound, Error{
+			Success: false,
+			Error:   "No session found",
+			ErrCode: "M_NOT_FOUND",
+		})
+		return nil
+	}
+	if handle.id != currentSession {
+		prov.log.Warn().Msgf("checkSessionAndReturnHandle: from %v, session_id %v does not match user's current session_id %v", user.MXID, currentSession, handle.id)
+		jsonResponse(w, http.StatusBadRequest, Error{
+			Success: false,
+			Error:   "session_id does not match user's session_id",
+			ErrCode: "M_BAD_JSON",
+		})
+		return nil
+	}
+	return handle
+}
+
+// ** Provisioning API ** //
+
+func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value("user").(*User)
+
+	prov.log.Debug().Msgf("LinkNew from %v, starting login", user.MXID)
+	handle := prov.loginOrSendError(w, user)
+
+	prov.log.Debug().Msgf("LinkNew from %v, waiting for provisioning response (session: %v)", user.MXID, handle.id)
 
 	select {
-	case resp := <-provChan:
+	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
 			jsonResponse(w, http.StatusInternalServerError, Error{
@@ -281,7 +387,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningURLReceived {
-			prov.log.Err(err).Msgf("LinkNew from %v, unexpected state: %v", user.MXID, resp.State)
+			prov.log.Error().Msgf("LinkNew from %v, unexpected state: %v", user.MXID, resp.State)
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   "Unexpected state",
@@ -294,7 +400,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, http.StatusOK, Response{
 			Success:   true,
 			Status:    "provisioning_url_received",
-			SessionID: fmt.Sprintf("%v", sessionID),
+			SessionID: fmt.Sprintf("%v", handle.id),
 			URI:       resp.ProvisioningUrl,
 		})
 		return
@@ -316,36 +422,29 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 	}{}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		prov.log.Err(err).Msg("Error decoding JSON body")
 		jsonResponse(w, http.StatusBadRequest, Error{
 			Success: false,
 			Error:   "Error decoding JSON body",
+			ErrCode: "M_BAD_JSON",
+		})
+		return
+	}
+	sessionID, err := strconv.Atoi(body.SessionID)
+	if err != nil {
+		jsonResponse(w, http.StatusBadRequest, Error{
+			Success: false,
+			Error:   "Error decoding session ID in JSON body",
 			ErrCode: "M_BAD_JSON",
 		})
 		return
 	}
 
-	sessionID, err := strconv.Atoi(body.SessionID)
-	if err != nil {
-		prov.log.Err(err).Msg("Error decoding JSON body")
-		jsonResponse(w, http.StatusBadRequest, Error{
-			Success: false,
-			Error:   "Error decoding JSON body",
-			ErrCode: "M_BAD_JSON",
-		})
-		return
-	}
 	prov.log.Debug().Msgf("LinkWaitForScan from %v, session_id: %v", user.MXID, sessionID)
-	if userSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok && userSessionID != sessionID {
-		prov.log.Warn().Msgf("LinkWaitForAccount from %v, session_id %v does not match user's session_id %v", user.MXID, sessionID, userSessionID)
-		jsonResponse(w, http.StatusBadRequest, Error{
-			Success: false,
-			Error:   "session_id does not match user's session_id",
-			ErrCode: "M_BAD_JSON",
-		})
+
+	handle := prov.checkSessionAndReturnHandle(w, r, sessionID)
+	if handle == nil {
 		return
 	}
-	handle := prov.provisioningHandles[sessionID]
 
 	select {
 	case resp := <-handle.channel:
@@ -408,7 +507,6 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	}{}
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		prov.log.Err(err).Msg("Error decoding JSON body")
 		jsonResponse(w, http.StatusBadRequest, Error{
 			Success: false,
 			Error:   "Error decoding JSON body",
@@ -418,26 +516,21 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	}
 	sessionID, err := strconv.Atoi(body.SessionID)
 	if err != nil {
-		prov.log.Err(err).Msg("Error decoding JSON body")
 		jsonResponse(w, http.StatusBadRequest, Error{
 			Success: false,
-			Error:   "Error decoding JSON body",
+			Error:   "Error decoding session ID in JSON body",
 			ErrCode: "M_BAD_JSON",
 		})
 		return
 	}
 	deviceName := body.DeviceName
+
 	prov.log.Debug().Msgf("LinkWaitForAccount from %v, session_id: %v, device_name: %v", user.MXID, sessionID, deviceName)
-	if userSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok && userSessionID != sessionID {
-		prov.log.Warn().Msgf("LinkWaitForAccount from %v, session_id %v does not match user's session_id %v", user.MXID, sessionID, userSessionID)
-		jsonResponse(w, http.StatusBadRequest, Error{
-			Success: false,
-			Error:   "session_id does not match user's session_id",
-			ErrCode: "M_BAD_JSON",
-		})
+
+	handle := prov.checkSessionAndReturnHandle(w, r, sessionID)
+	if handle == nil {
 		return
 	}
-	handle := prov.provisioningHandles[sessionID]
 
 	select {
 	case resp := <-handle.channel:
@@ -482,27 +575,10 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	}
 }
 
-func (prov *ProvisioningAPI) CancelLink(user *User) {
-	if sessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
-		prov.log.Debug().Msgf("CancelLink called for %v, clearing session %v", user.MXID, sessionID)
-		if sessionID >= len(prov.provisioningHandles) {
-			prov.log.Warn().Msgf("CancelLink called for %v, session %v does not exist", user.MXID, sessionID)
-			return
-		}
-		if prov.provisioningHandles[sessionID].cancel != nil {
-			prov.provisioningHandles[sessionID].cancel()
-		}
-		prov.provisioningHandles[sessionID] = provisioningHandle{}
-		delete(prov.provisioningUsers, user.MXID.String())
-	} else {
-		prov.log.Debug().Msgf("CancelLink called for %v, no session found", user.MXID)
-	}
-}
-
 func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value("user").(*User)
 	prov.log.Debug().Msgf("Logout called from %v (but not logging out)", user.MXID)
-	prov.CancelLink(user)
+	prov.clearSession(user)
 
 	// For now do nothing - we need this API to return 200 to be compatible with
 	// the old Signal bridge, which needed a call to Logout before allowing LinkNew
