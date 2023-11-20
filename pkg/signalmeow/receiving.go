@@ -519,8 +519,8 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 									zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
 									continue
 								}
-								if _, err := uuid.Parse(*signalContact.Uuid); err == nil {
-									zlog.Info().Msgf("Signal Contact UUID is not a valid UUID, skipping: %v", signalContact)
+								if _, err := uuid.Parse(*signalContact.Uuid); err != nil {
+									zlog.Info().Msgf("Signal Contact UUID is not a UUID, skipping: %v", signalContact)
 									continue
 								}
 								contact, contactAvatar, err := StoreContactDetailsAsContact(device, signalContact, &avatars[i])
