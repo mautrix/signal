@@ -605,6 +605,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	isSyncMessage := m.SenderUUID == user.SignalID
 
 	// Get and update the puppet for this message
+	user.tryAutomaticDoublePuppeting()
 	if isSyncMessage {
 		// This is a message sent by us on another device
 		user.log.Debug().Msgf("Message received to %s (group: %v)", m.RecipientUUID, m.GroupID)

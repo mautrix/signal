@@ -842,7 +842,7 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		portal.ChatID,
 		portal.Receiver,
 	); old_message != nil {
-		portal.log.Debug().Msgf("Ignoring message %d by %s as it was already handled", old_message.Timestamp, old_message.Sender)
+		portal.log.Info().Msgf("Ignoring message %d by %s as it was already handled", old_message.Timestamp, old_message.Sender)
 		return
 	}
 	if portal.MXID == "" {
@@ -856,7 +856,6 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		signalmeow.SendContactSyncRequest(context.TODO(), portalMessage.user.SignalDevice)
 	}
 
-	//intent := portal.getMessageIntent(portalMessage.user, portalMessage.sender)
 	intent := portalMessage.sender.IntentFor(portal)
 	if intent == nil {
 		portal.log.Error().Msg("Failed to get message intent")
