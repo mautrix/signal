@@ -963,7 +963,9 @@ func (portal *Portal) storeReactionInDB(
 
 func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *signalmeow.IncomingSignalMessageQuoteData) {
 	if quote != nil {
-		originalMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(quote.QuotedSender, quote.QuotedTimestamp)
+		originalMessage := portal.bridge.DB.Message.GetBySignalID(
+			quote.QuotedSender, quote.QuotedTimestamp, portal.ChatID, portal.Receiver,
+		)
 		if originalMessage == nil {
 			portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
 			return
