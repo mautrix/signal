@@ -144,6 +144,10 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 	if !strings.HasPrefix(phoneNum, "+") {
 		phoneNum = "+" + phoneNum
 	}
+	if user.SignalDevice == nil {
+		prov.log.Debug().Msgf("ResolveIdentifier from %v, no device found", user.MXID)
+		return http.StatusUnauthorized, nil, fmt.Errorf("Not currently connected to Signal")
+	}
 	contact, err := user.SignalDevice.ContactByE164(phoneNum)
 	if err != nil {
 		prov.log.Err(err).Msgf("ResolveIdentifier from %v, error looking up contact", user.MXID)
