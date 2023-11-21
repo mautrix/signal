@@ -31,6 +31,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdPing,
 		cmdLogin,
 		cmdPM,
+		cmdDisconnect,
 	)
 }
 
@@ -44,6 +45,25 @@ func wrapCommand(handler func(*WrappedCommandEvent)) func(*commands.Event) {
 		br := ce.Bridge.Child.(*SignalBridge)
 		handler(&WrappedCommandEvent{ce, br, user, portal})
 	}
+}
+
+var cmdDisconnect = &commands.FullHandler{
+	Func: wrapCommand(fnDisconnect),
+	Name: "disconnect",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionConnectionManagement,
+		Description: "Disconnect from Signal, clearing sessions but keeping other data. Reconnect with `login`",
+	},
+	RequiresLogin: true,
+}
+
+func fnDisconnect(ce *WrappedCommandEvent) {
+	if !ce.User.SignalDevice.IsDeviceLoggedIn() {
+		ce.Reply("You're not logged in")
+		return
+	}
+	ce.User.SignalDevice.ClearKeysAndDisconnect()
+	ce.Reply("Disconnected from Signal")
 }
 
 var cmdPing = &commands.FullHandler{
@@ -151,6 +171,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 
 	// Next, get the results of finishing registration
 	resp = <-provChan
+	_, _ = ce.Bot.RedactEvent(ce.RoomID, qrEventID)
 	if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 		if resp.Err != nil && strings.HasSuffix(resp.Err.Error(), " EOF") {
 			ce.Reply("Logging in timed out, please try again.")
@@ -164,7 +185,6 @@ func fnLogin(ce *WrappedCommandEvent) {
 		signalUsername = resp.ProvisioningData.Number
 		ce.Reply("Successfully logged in!")
 		ce.Reply("ACI: %v, Phone Number: %v", resp.ProvisioningData.AciUuid, resp.ProvisioningData.Number)
-		_, _ = ce.Bot.RedactEvent(ce.RoomID, qrEventID)
 	} else {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return

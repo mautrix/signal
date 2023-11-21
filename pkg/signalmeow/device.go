@@ -47,6 +47,7 @@ type DeviceConnection struct {
 	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket
+	WSCancel   context.CancelFunc
 
 	IncomingSignalMessageHandler func(IncomingSignalMessage) error
 }

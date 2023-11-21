@@ -48,6 +48,7 @@ type SignalConnectionStatus struct {
 
 func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionStatus, error) {
 	ctx, cancel := context.WithCancel(ctx)
+	d.Connection.WSCancel = cancel
 	handler := incomingRequestHandlerWithDevice(d)
 	authChan, err := d.Connection.ConnectAuthedWS(ctx, d.Data, handler)
 	if err != nil {
@@ -176,6 +177,7 @@ func StopReceiveLoops(d *Device) error {
 	}()
 	authErr := d.Connection.AuthedWS.Close()
 	unauthErr := d.Connection.UnauthedWS.Close()
+	d.Connection.WSCancel()
 	if authErr != nil {
 		return authErr
 	}
@@ -183,6 +185,20 @@ func StopReceiveLoops(d *Device) error {
 		return unauthErr
 	}
 	return nil
+}
+
+// If a bridge can't decrypt prekeys, it's probably because the prekeys are broken so force re-registration
+func checkDecryptionErrorAndDisconnect(err error, device *Device) {
+	if err != nil {
+		if strings.Contains(err.Error(), "30: invalid PreKey message: decryption failed") ||
+			strings.Contains(err.Error(), "70: invalid signed prekey identifier") {
+			zlog.Warn().Msg("Failed decrypting a PreKey message, probably our prekeys are broken, force re-registration")
+			disconnectErr := device.ClearKeysAndDisconnect()
+			if disconnectErr != nil {
+				zlog.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
+			}
+		}
+	}
 }
 
 // Returns a RequestHandlerFunc that can be used to handle incoming requests, with a device injected via closure.
@@ -358,6 +374,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 							zlog.Debug().Msg("Message sent by us, ignoring")
 						} else {
 							zlog.Err(err).Msg("sealedSenderDecrypt error")
+							checkDecryptionErrorAndDisconnect(err, device)
 						}
 					} else {
 						zlog.Trace().Msgf("SealedSender decrypt result - address: %v, content: %v", result.SenderAddress, result.Content)
@@ -376,6 +393,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				result, err = prekeyDecrypt(*sender, envelope.Content, device, ctx)
 				if err != nil {
 					zlog.Err(err).Msg("prekeyDecrypt error")
+					checkDecryptionErrorAndDisconnect(err, device)
 				} else {
 					zlog.Trace().Msgf("prekey decrypt result -  address: %v, data: %v", result.SenderAddress, result.Content)
 				}

@@ -292,7 +292,7 @@ func (user *User) startupTryConnect(retryCount int) {
 		if errors.Is(err, ErrNotLoggedIn) {
 			user.log.Warn().Msg("Not logged in, clearing Signal device keys")
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
-			user.clearMySignalKeys()
+			user.clearKeysAndDisconnect()
 		} else if retryCount < 6 {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 			retryInSeconds := 2 << retryCount
@@ -390,23 +390,28 @@ func (user *User) startupTryConnect(retryCount int) {
 				} else {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
-				user.clearMySignalKeys()
+				user.clearKeysAndDisconnect()
 
 			case signalmeow.SignalConnectionEventError:
 				user.log.Debug().Msg("Sending UnknownError BridgeState")
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 
 			case signalmeow.SignalConnectionCleanShutdown:
-				user.log.Debug().Msg("Clean Shutdown - sending no BridgeState")
+				if user.SignalDevice.IsDeviceLoggedIn() {
+					user.log.Debug().Msg("Clean Shutdown - sending no BridgeState")
+				} else {
+					user.log.Debug().Msg("Clean Shutdown, but logged out - Sending BadCredentials BridgeState")
+					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
+				}
 			}
 		}
 	}()
 }
 
-func (user *User) clearMySignalKeys() {
+func (user *User) clearKeysAndDisconnect() {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
 	user.log.Debug().Msg("Clearing out Signal device keys")
-	err := user.SignalDevice.ClearDeviceKeys()
+	err := user.SignalDevice.ClearKeysAndDisconnect()
 	if err != nil {
 		user.log.Err(err).Msg("Error clearing device keys")
 	}

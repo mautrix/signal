@@ -99,11 +99,18 @@ func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
 	requestHandler *RequestHandlerFunc,
 ) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 10000)
-	s.sendChannel = make(chan SignalWebsocketSendMessage)
-	defer close(incomingRequestChan)
-	defer close(s.statusChannel)
-	defer close(s.sendChannel)
+	defer func() {
+		close(incomingRequestChan)
+		close(s.statusChannel)
+		close(s.sendChannel)
+		incomingRequestChan = nil
+		s.statusChannel = nil
+		s.sendChannel = nil
+		cancel()
+	}()
 
 	const backoffIncrement = 5 * time.Second
 	const maxBackoff = 60 * time.Second
@@ -140,7 +147,7 @@ func (s *SignalWebsocket) connectLoop(
 					zlog.Err(err).Msg("Error handling request")
 					continue
 				}
-				if response != nil {
+				if response != nil && s.sendChannel != nil {
 					s.sendChannel <- SignalWebsocketSendMessage{
 						RequestMessage:  request,
 						ResponseMessage: response,
@@ -295,6 +302,21 @@ func (s *SignalWebsocket) connectLoop(
 				err := context.Cause(loopCtx)
 				if err != nil && err != context.Canceled {
 					zlog.Err(err).Msg("loopCtx error")
+				}
+			}
+		case <-ctx.Done():
+			zlog.Info().Msgf("received ctx done (%s)", s.name)
+			zlog.Debug().Msgf("ctx error: %v", ctx.Err())
+			zlog.Debug().Msgf("ctx cause: %v", context.Cause(ctx))
+			if context.Cause(ctx) != nil && context.Cause(ctx) == context.Canceled {
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventCleanShutdown,
+				}
+				return
+			} else {
+				s.statusChannel <- SignalWebsocketConnectionStatus{
+					Event: SignalWebsocketConnectionEventDisconnected,
+					Err:   err,
 				}
 			}
 		}

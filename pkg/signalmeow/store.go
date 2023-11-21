@@ -47,6 +47,7 @@ type Device struct {
 	ProfileKeyStore    ProfileKeyStore
 	GroupStore         GroupStore
 	ContactStore       ContactStore
+	DeviceStore        DeviceStore
 }
 
 // New connects to the given SQL database and wraps it in a StoreContainer.
@@ -133,6 +134,7 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 	device.SenderKeyStore = innerStore
 	device.GroupStore = innerStore
 	device.ContactStore = innerStore
+	device.DeviceStore = innerStore
 
 	return &device, nil
 }
@@ -191,7 +193,6 @@ var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before acce
 
 // PutDevice stores the given device in this database.
 func (c *StoreContainer) PutDevice(device *DeviceData) error {
-	// TODO: if storing with same ACI UUID and device id, update instead of insert
 	if device.AciUuid == "" {
 		return ErrDeviceIDMustBeSet
 	}
@@ -230,6 +231,33 @@ func (d *Device) ClearDeviceKeys() error {
 	err := d.PreKeyStoreExtras.DeleteAllPreKeys()
 	err = d.SessionStoreExtras.RemoveAllSessions(context.Background())
 	return err
+}
+
+func (d *Device) IsDeviceLoggedIn() bool {
+	return d != nil &&
+		d.Data.AciUuid != "" &&
+		d.Data.DeviceId != 0 &&
+		d.Data.Password != ""
+
+}
+
+func (d *Device) ClearKeysAndDisconnect() error {
+	// Essentially logout, clearing sessions and keys, and disconnecting websockets
+	// but don't clear ACI UUID or profile keys or contacts, or anything else that
+	// we can reuse if we reassociate with the same Signal account.
+	// To fully "logout" delete the device from the database.
+	clearErr := d.ClearDeviceKeys()
+	d.Data.Password = ""
+	saveDeviceErr := d.DeviceStore.PutDevice(&d.Data)
+	stopLoopErr := StopReceiveLoops(d)
+
+	if clearErr != nil {
+		return clearErr
+	}
+	if saveDeviceErr != nil {
+		return saveDeviceErr
+	}
+	return stopLoopErr
 }
 
 //
