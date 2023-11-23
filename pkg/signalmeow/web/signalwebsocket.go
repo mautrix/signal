@@ -161,6 +161,7 @@ func (s *SignalWebsocket) connectLoop(
 	// kill everything (including the websocket) and build it all up again
 	backoff := backoffIncrement
 	retrying := false
+	errorCount := 0
 	for {
 		if retrying {
 			if backoff > maxBackoff {
@@ -286,8 +287,13 @@ func (s *SignalWebsocket) connectLoop(
 		select {
 		case <-loopCtx.Done():
 			zlog.Info().Msgf("received loopCtx done (%s)", s.name)
-			zlog.Debug().Msgf("loopCtx error: %v", loopCtx.Err())
-			zlog.Debug().Msgf("loopCtx cause: %v", context.Cause(loopCtx))
+			if context.Cause(loopCtx) != nil {
+				err := context.Cause(loopCtx)
+				if err != nil && err != context.Canceled {
+					zlog.Err(err).Msg("loopCtx error")
+					errorCount++
+				}
+			}
 			if context.Cause(loopCtx) != nil && context.Cause(loopCtx) == context.Canceled {
 				s.statusChannel <- SignalWebsocketConnectionStatus{
 					Event: SignalWebsocketConnectionEventCleanShutdown,
@@ -296,12 +302,6 @@ func (s *SignalWebsocket) connectLoop(
 				s.statusChannel <- SignalWebsocketConnectionStatus{
 					Event: SignalWebsocketConnectionEventDisconnected,
 					Err:   err,
-				}
-			}
-			if context.Cause(loopCtx) != nil {
-				err := context.Cause(loopCtx)
-				if err != nil && err != context.Canceled {
-					zlog.Err(err).Msg("loopCtx error")
 				}
 			}
 		case <-ctx.Done():
@@ -329,6 +329,12 @@ func (s *SignalWebsocket) connectLoop(
 		}
 		loopCancel(nil)
 		zlog.Debug().Msg("Finished websocket cleanup")
+		if errorCount > 500 {
+			// Something is really wrong, we better panic.
+			// This is a last defense against a runaway error loop,
+			// like the WS continually closing and reconnecting
+			zlog.Fatal().Msgf("Too many errors (%d), panicking (%s)", errorCount, s.name)
+		}
 	}
 }
 
@@ -516,7 +522,9 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 	}
 	urlStr := "wss://" + UrlHost + path
 	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
-	ws.SetReadLimit(1 << 20) // Increase read limit to 1MB from default of 32KB
+	if ws != nil {
+		ws.SetReadLimit(1 << 20) // Increase read limit to 1MB from default of 32KB
+	}
 	return ws, resp, err
 }
 
