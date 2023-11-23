@@ -516,6 +516,7 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 	}
 	urlStr := "wss://" + UrlHost + path
 	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
+	ws.SetReadLimit(1 << 20) // Increase read limit to 1MB from default of 32KB
 	return ws, resp, err
 }
 
