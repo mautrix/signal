@@ -2,6 +2,8 @@ package signalmeow
 
 import (
 	"database/sql"
+
+	"go.mau.fi/util/dbutil"
 )
 
 type upgradeFunc func(*sql.Tx, *StoreContainer) error
@@ -192,7 +194,10 @@ func upgradeV3(tx *sql.Tx, _ *StoreContainer) error {
 	return nil
 }
 
-func upgradeV4(tx *sql.Tx, _ *StoreContainer) error {
+func upgradeV4(tx *sql.Tx, c *StoreContainer) error {
+	if c.dialect != dbutil.Postgres.String() {
+		return nil
+	}
 	_, err := tx.Exec(`
 		ALTER TABLE signalmeow_contacts
 		ALTER COLUMN profile_key TYPE bytea USING profile_key::bytea
