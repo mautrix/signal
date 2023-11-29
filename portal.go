@@ -991,6 +991,10 @@ func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent
 		UserIDs: []id.UserID{},
 	}
 	for _, mention := range mentions {
+		if mention.MentionedUUID == "" {
+			// Not a mention, skip it
+			continue
+		}
 		puppet := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID)
 		mxID := puppet.MXID
 
