@@ -245,47 +245,22 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	}
 	decryptedGroup.GroupIdentifier = gid
 
-	title, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.Title)
+	titleBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedGroup.Title)
 	if err != nil {
-		zlog.Err(err).Msg("DecryptBlobWithPadding Title error")
-		return nil, err
-	}
-
-	// decode title into signalpb.GroupAttributeBlob
-	titleBlob := &signalpb.GroupAttributeBlob{}
-	err = proto.Unmarshal(title, titleBlob)
-	if err != nil {
-		zlog.Err(err).Msg("Unmarshal Title error")
 		return nil, err
 	}
 	// The actual title is in the blob
-	titleString := titleBlob.GetTitle()
+	decryptedGroup.Title = cleanupStringProperty(titleBlob.GetTitle())
 
-	// strip non-printable characters from the title
-	titleString = strings.Map(func(r rune) rune {
-		if unicode.IsGraphic(r) {
-			return r
-		}
-		return -1
-	}, titleString)
-	// strip \n and \t from start and end of title if it exists
-	titleString = strings.TrimSpace(titleString)
-	decryptedGroup.Title = titleString
-
-	if description, err := decryptGroupDescription(groupSecretParams, encryptedGroup.Description); err == nil {
-		decryptedGroup.Description = description
+	descriptionBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedGroup.Description)
+	if err == nil {
+		// treat a failure in obtaining the description as non-fatal
+		decryptedGroup.Description = cleanupStringProperty(descriptionBlob.GetDescription())
 	}
 
 	if encryptedGroup.DisappearingMessagesTimer != nil && len(encryptedGroup.DisappearingMessagesTimer) > 0 {
-		disappearingMessagesTimer, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.DisappearingMessagesTimer)
+		timerBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedGroup.DisappearingMessagesTimer)
 		if err != nil {
-			zlog.Err(err).Msg("DecryptBlobWithPadding DisappearingMessagesTimer error")
-			return nil, err
-		}
-		timerBlob := &signalpb.GroupAttributeBlob{}
-		err = proto.Unmarshal(disappearingMessagesTimer, timerBlob)
-		if err != nil {
-			zlog.Err(err).Msg("Unmarshal DisappearingMessagesTimer error")
 			return nil, err
 		}
 		decryptedGroup.DisappearingMessagesDuration = timerBlob.GetDisappearingMessagesDuration()
@@ -324,33 +299,33 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	return decryptedGroup, nil
 }
 
-func decryptGroupDescription(groupSecretParams libsignalgo.GroupSecretParams, Description []byte) (string, error) {
-	description, err := groupSecretParams.DecryptBlobWithPadding(Description)
+func decryptGroupPropertyIntoBlob(groupSecretParams libsignalgo.GroupSecretParams, encryptedProperty []byte) (*signalpb.GroupAttributeBlob, error) {
+	decryptedProperty, err := groupSecretParams.DecryptBlobWithPadding(encryptedProperty)
 	if err != nil {
-		zlog.Err(err).Msg("DecryptBlobWithPadding Description error")
-		return "", err
+		zlog.Err(err).Msg("DecryptBlobWithPadding error")
+		return nil, err
 	}
-
-	// decode description into signalpb.GroupAttributeBlob
-	descriptionBlob := &signalpb.GroupAttributeBlob{}
-	err = proto.Unmarshal(description, descriptionBlob)
+	propertyBlob := &signalpb.GroupAttributeBlob{}
+	err = proto.Unmarshal(decryptedProperty, propertyBlob)
 	if err != nil {
-		zlog.Err(err).Msg("Unmarshal Description error")
-		return "", err
+		zlog.Err(err).Msg("Unmarshal error")
+		return nil, err
 	}
-	// The actual description is in the blob
-	descriptionString := descriptionBlob.GetDescription()
+	return propertyBlob, nil
+}
 
-	// strip non-printable characters from the description
-	descriptionString = strings.Map(func(r rune) rune {
-		if unicode.IsGraphic(r) {
-			return r
-		}
-		return -1
-	}, descriptionString)
-	// strip \n and \t from start and end of description if it exists
-	descriptionString = strings.TrimSpace(descriptionString)
-	return descriptionString, nil
+func cleanupStringProperty(property string) string {
+	// strip non-printable characters from the string
+	property = strings.Map(cleanupStringMapping, property)
+	// strip \n and \t from start and end of the property if it exists
+	return strings.TrimSpace(property)
+}
+
+func cleanupStringMapping(r rune) rune {
+	if unicode.IsGraphic(r) {
+		return r
+	}
+	return -1
 }
 
 func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey SerializedGroupMasterKey) ([]byte, error) {
@@ -359,16 +334,8 @@ func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey SerializedGroupMa
 		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
 	}
-	decryptedAvatar, err := groupSecretParams.DecryptBlobWithPadding(encryptedAvatar)
+	avatarBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedAvatar)
 	if err != nil {
-		zlog.Err(err).Msg("DecryptBlobWithPadding error")
-		return nil, err
-	}
-	// decryptedAvatar is a protobuf for no reason at all
-	avatarBlob := &signalpb.GroupAttributeBlob{}
-	err = proto.Unmarshal(decryptedAvatar, avatarBlob)
-	if err != nil {
-		zlog.Err(err).Msg("Unmarshal error")
 		return nil, err
 	}
 	// The actual avatar is in the blob
