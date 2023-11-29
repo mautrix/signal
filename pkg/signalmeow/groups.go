@@ -272,6 +272,10 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	titleString = strings.TrimSpace(titleString)
 	decryptedGroup.Title = titleString
 
+	if description, err := decryptGroupDescription(groupSecretParams, encryptedGroup.Description); err == nil {
+		decryptedGroup.Description = description
+	}
+
 	if encryptedGroup.DisappearingMessagesTimer != nil && len(encryptedGroup.DisappearingMessagesTimer) > 0 {
 		disappearingMessagesTimer, err := groupSecretParams.DecryptBlobWithPadding(encryptedGroup.DisappearingMessagesTimer)
 		if err != nil {
@@ -318,6 +322,35 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 	}
 
 	return decryptedGroup, nil
+}
+
+func decryptGroupDescription(groupSecretParams libsignalgo.GroupSecretParams, Description []byte) (string, error) {
+	description, err := groupSecretParams.DecryptBlobWithPadding(Description)
+	if err != nil {
+		zlog.Err(err).Msg("DecryptBlobWithPadding Description error")
+		return "", err
+	}
+
+	// decode description into signalpb.GroupAttributeBlob
+	descriptionBlob := &signalpb.GroupAttributeBlob{}
+	err = proto.Unmarshal(description, descriptionBlob)
+	if err != nil {
+		zlog.Err(err).Msg("Unmarshal Description error")
+		return "", err
+	}
+	// The actual description is in the blob
+	descriptionString := descriptionBlob.GetDescription()
+
+	// strip non-printable characters from the description
+	descriptionString = strings.Map(func(r rune) rune {
+		if unicode.IsGraphic(r) {
+			return r
+		}
+		return -1
+	}, descriptionString)
+	// strip \n and \t from start and end of description if it exists
+	descriptionString = strings.TrimSpace(descriptionString)
+	return descriptionString, nil
 }
 
 func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey SerializedGroupMasterKey) ([]byte, error) {
