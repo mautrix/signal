@@ -826,11 +826,17 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
-		for _, attachmentPointer := range dataMessage.Attachments {
+		for index, attachmentPointer := range dataMessage.Attachments {
 			bytes, err := fetchAndDecryptAttachment(attachmentPointer)
 			if err != nil {
 				zlog.Err(err).Msg("fetchAndDecryptAttachment error")
 				continue
+			}
+			// TODO: this is a hack to make sure each attachment has a unique timestamp
+			// this allows us to associate up to 999 attachments with a single Signal message
+			var timestamp uint64 = dataMessage.GetTimestamp()
+			if index > 0 {
+				timestamp = (dataMessage.GetTimestamp() * 1000) + uint64(index)
 			}
 			// TODO: right now this will be one message per image, each with the same caption
 			incomingMessage := IncomingSignalMessageAttachment{
@@ -838,7 +844,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					SenderUUID:    senderUUID,
 					RecipientUUID: recipientUUID,
 					GroupID:       gidPointer,
-					Timestamp:     dataMessage.GetTimestamp(),
+					Timestamp:     timestamp,
 					Quote:         quoteData,
 					Mentions:      mentions,
 					ExpiresIn:     expiresIn,
