@@ -134,67 +134,7 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 			br.ZLog.Err(err).Msg("Error updating puppet for user %s")
 		}
 	}
-
 	return user
-}
-
-// ** Clean up any old ghosts that might have been left behind **
-func (user *User) CleanUpExtraGhosts() {
-	br := user.bridge
-
-	// Get all the matrix rooms this user is in
-	dbPortals := br.DB.Portal.AllWithRoom()
-	portals := br.dbPortalsToPortals(dbPortals)
-
-	for _, portal := range portals {
-		if portal.MXID == "" {
-			continue
-		}
-		members, err := portal.MainIntent().JoinedMembers(portal.MXID)
-		if err != nil {
-			user.log.Err(err).Msgf("Error getting joined members for %s", portal.MXID)
-			continue
-		}
-		membersMap := members.Joined
-
-		// Ingore Signal bot if it's in the room
-		delete(membersMap, br.Bot.UserID)
-
-		user.log.Debug().Msgf("Checking room %s for ghosts, found %d members", portal.MXID, len(membersMap))
-
-		// If there are 2 or fewer members, skip it
-		if len(membersMap) <= 2 {
-			continue
-		}
-
-		// Check membership list for our custom ghost
-		_, customGhostOk := membersMap[user.MXID]
-
-		// Check membership list for another ghost with our SignalID
-		puppetMXID := user.bridge.FormatPuppetMXID(user.SignalID)
-		_, signalGhostOk := membersMap[puppetMXID]
-
-		// If we have both, we need to remove the other ghost
-		extraGhostCount := 0
-		kickedGhostCount := 0
-		if customGhostOk && signalGhostOk {
-			extraGhostCount++
-			kickUserReq := mautrix.ReqKickUser{
-				UserID: puppetMXID,
-				Reason: "You have been replaced by a new ghost",
-			}
-			_, err := portal.MainIntent().KickUser(portal.MXID, &kickUserReq)
-			if err != nil {
-				user.log.Err(err).Msgf("Error leaving room %s", portal.MXID)
-			} else {
-				user.log.Debug().Msgf("Kicked ghost %s from %s", puppetMXID, portal.MXID)
-				kickedGhostCount++
-			}
-		}
-		if extraGhostCount > 0 {
-			user.log.Info().Msgf("Found %d extra ghosts in %s, kicked %d", extraGhostCount, portal.MXID, kickedGhostCount)
-		}
-	}
 }
 
 func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
@@ -483,7 +423,6 @@ func (br *SignalBridge) StartUsers() {
 	usersWithToken := br.getAllLoggedInUsers()
 	numUsersStarting := 0
 	for _, u := range usersWithToken {
-		u.CleanUpExtraGhosts()
 		device := u.populateSignalDevice()
 		if device == nil {
 			br.ZLog.Warn().Str("user_id", u.MXID.String()).Msg("No device found for user, skipping Connect")
