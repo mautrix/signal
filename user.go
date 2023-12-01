@@ -135,8 +135,6 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 		}
 	}
 
-	user.CleanUpExtraGhosts()
-
 	return user
 }
 
@@ -171,12 +169,10 @@ func (user *User) CleanUpExtraGhosts() {
 
 		// Check membership list for our custom ghost
 		_, customGhostOk := membersMap[user.MXID]
-		user.log.Debug().Msgf("Found custom ghost %s in %s: %v", user.MXID, portal.MXID, customGhostOk)
 
 		// Check membership list for another ghost with our SignalID
 		puppetMXID := user.bridge.FormatPuppetMXID(user.SignalID)
 		_, signalGhostOk := membersMap[puppetMXID]
-		user.log.Debug().Msgf("Found signal ghost %s in %s: %v", puppetMXID, portal.MXID, signalGhostOk)
 
 		// If we have both, we need to remove the other ghost
 		extraGhostCount := 0
@@ -191,6 +187,7 @@ func (user *User) CleanUpExtraGhosts() {
 			if err != nil {
 				user.log.Err(err).Msgf("Error leaving room %s", portal.MXID)
 			} else {
+				user.log.Debug().Msgf("Kicked ghost %s from %s", puppetMXID, portal.MXID)
 				kickedGhostCount++
 			}
 		}
@@ -486,6 +483,7 @@ func (br *SignalBridge) StartUsers() {
 	usersWithToken := br.getAllLoggedInUsers()
 	numUsersStarting := 0
 	for _, u := range usersWithToken {
+		u.CleanUpExtraGhosts()
 		device := u.populateSignalDevice()
 		if device == nil {
 			br.ZLog.Warn().Str("user_id", u.MXID.String()).Msg("No device found for user, skipping Connect")
