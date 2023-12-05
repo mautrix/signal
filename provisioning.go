@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,6 +47,13 @@ func (prov *ProvisioningAPI) Init() {
 	r.HandleFunc("/v2/logout", prov.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/v2/resolve_identifier/{phonenum}", prov.ResolveIdentifier).Methods(http.MethodGet)
 	r.HandleFunc("/v2/pm/{phonenum}", prov.StartPM).Methods(http.MethodPost)
+
+	if prov.bridge.Config.Bridge.Provisioning.DebugEndpoints {
+		prov.log.Debug().Msg("Enabling debug API at /debug")
+		r := prov.bridge.AS.Router.PathPrefix("/debug").Subrouter()
+		r.Use(prov.AuthMiddleware)
+		r.PathPrefix("/pprof").Handler(http.DefaultServeMux)
+	}
 }
 
 type responseWrap struct {

@@ -74,6 +74,7 @@ func DoUpgrade(helper *up.Helper) {
 	} else {
 		helper.Copy(up.Str, "bridge", "provisioning", "shared_secret")
 	}
+	helper.Copy(up.Bool, "bridge", "provisioning", "debug_endpoints")
 
 	helper.Copy(up.Map, "bridge", "permissions")
 }
