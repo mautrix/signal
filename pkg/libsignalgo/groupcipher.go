@@ -24,8 +24,7 @@ func GroupEncrypt(ptext []byte, sender *Address, distributionID uuid.UUID, store
 		sender.ptr,
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		BytesToBuffer(ptext),
-		wrapSenderKeyStore(store),
-		contextPointer)
+		wrapSenderKeyStore(store))
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -41,8 +40,7 @@ func GroupDecrypt(ctext []byte, sender *Address, store SenderKeyStore, ctx *Call
 		&resp,
 		sender.ptr,
 		BytesToBuffer(ctext),
-		wrapSenderKeyStore(store),
-		contextPointer)
+		wrapSenderKeyStore(store))
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}

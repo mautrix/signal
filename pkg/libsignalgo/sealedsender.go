@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	gopointer "github.com/mattn/go-pointer"
 )
 
 type SealedSenderAddress struct {
@@ -46,16 +45,12 @@ func SealedSenderEncryptPlaintext(message []byte, forAddress *Address, fromSende
 }
 
 func SealedSenderEncrypt(messageContent *UnidentifiedSenderMessageContent, forRecipient *Address, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sealed_session_cipher_encrypt(
 		&encrypted,
 		forRecipient.ptr,
 		messageContent.ptr,
 		wrapIdentityKeyStore(identityStore),
-		contextPointer,
 	)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
@@ -64,9 +59,6 @@ func SealedSenderEncrypt(messageContent *UnidentifiedSenderMessageContent, forRe
 }
 
 func SealedSenderMultiRecipientEncrypt(messageContent *UnidentifiedSenderMessageContent, forRecipients []*Address, identityStore IdentityKeyStore, sessionStore SessionStore, ctx *CallbackContext) ([]byte, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	panic("not implemented")
 }
 
@@ -80,15 +72,11 @@ func SealedSenderDecryptToUSMC(
 	identityStore IdentityKeyStore,
 	ctx *CallbackContext,
 ) (*UnidentifiedSenderMessageContent, error) {
-	contextPtr := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPtr)
-
 	var usmc *C.SignalUnidentifiedSenderMessageContent = nil
 	signalFfiError := C.signal_sealed_session_cipher_decrypt_to_usmc(
 		&usmc,
 		BytesToBuffer(ciphertext),
 		wrapIdentityKeyStore(identityStore),
-		contextPtr,
 	)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -107,9 +95,6 @@ func SealedSenderDecrypt(
 	signedPreKeyStore SignedPreKeyStore,
 	ctx *CallbackContext,
 ) (result SealedSenderResult, err error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	var senderE164 *C.char
 	var senderUUID *C.char
@@ -130,7 +115,6 @@ func SealedSenderDecrypt(
 		wrapIdentityKeyStore(identityStore),
 		wrapPreKeyStore(preKeyStore),
 		wrapSignedPreKeyStore(signedPreKeyStore),
-		contextPointer,
 	)
 	if signalFfiError != nil {
 		err = wrapCallbackError(signalFfiError, ctx)

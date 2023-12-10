@@ -10,18 +10,13 @@ import (
 	"unsafe"
 
 	"github.com/google/uuid"
-	gopointer "github.com/mattn/go-pointer"
 )
 
 func ProcessSenderKeyDistributionMessage(message *SenderKeyDistributionMessage, fromSender *Address, store SenderKeyStore, ctx *CallbackContext) error {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	signalFfiError := C.signal_process_sender_key_distribution_message(
 		fromSender.ptr,
 		message.ptr,
 		wrapSenderKeyStore(store),
-		contextPointer,
 	)
 	return wrapCallbackError(signalFfiError, ctx)
 }
@@ -37,16 +32,13 @@ func wrapSenderKeyDistributionMessage(ptr *C.SignalSenderKeyDistributionMessage)
 }
 
 func NewSenderKeyDistributionMessage(sender *Address, distributionID uuid.UUID, store SenderKeyStore, ctx *CallbackContext) (*SenderKeyDistributionMessage, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	var skdm *C.SignalSenderKeyDistributionMessage
 	signalFfiError := C.signal_sender_key_distribution_message_create(
 		&skdm,
 		sender.ptr,
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		wrapSenderKeyStore(store),
-		contextPointer)
+	)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -77,14 +69,11 @@ func (sc *SenderKeyDistributionMessage) Serialize() ([]byte, error) {
 }
 
 func (sc *SenderKeyDistributionMessage) Process(sender *Address, store SenderKeyStore, ctx *CallbackContext) error {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	signalFfiError := C.signal_process_sender_key_distribution_message(
 		sender.ptr,
 		sc.ptr,
 		wrapSenderKeyStore(store),
-		contextPointer)
+	)
 	if signalFfiError != nil {
 		return wrapCallbackError(signalFfiError, ctx)
 	}

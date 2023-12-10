@@ -5,7 +5,10 @@ package libsignalgo
 #include "./libsignal-ffi.h"
 */
 import "C"
-import "runtime"
+import (
+	"runtime"
+	"time"
+)
 
 type SessionRecord struct {
 	ptr *C.SignalSessionRecord
@@ -56,7 +59,7 @@ func (sr *SessionRecord) CurrentRatchetKeyMatches(key *PublicKey) (bool, error) 
 
 func (sr *SessionRecord) HasCurrentState() (bool, error) {
 	var result C.bool
-	signalFfiError := C.signal_session_record_has_current_state(&result, sr.ptr)
+	signalFfiError := C.signal_session_record_has_usable_sender_chain(&result, sr.ptr, C.uint64_t(time.Now().Unix()))
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}

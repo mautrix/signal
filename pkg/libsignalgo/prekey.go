@@ -7,14 +7,9 @@ package libsignalgo
 import "C"
 import (
 	"runtime"
-
-	gopointer "github.com/mattn/go-pointer"
 )
 
 func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, kyberPreKeyStore KyberPreKeyStore, ctx *CallbackContext) ([]byte, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_pre_key_message(
 		&decrypted,
@@ -25,7 +20,6 @@ func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionSt
 		wrapPreKeyStore(preKeyStore),
 		wrapSignedPreKeyStore(signedPreKeyStore),
 		wrapKyberPreKeyStore(kyberPreKeyStore), // TODO: *actually* support Kyber prekeys I guess, this is a stub right now
-		contextPointer,
 	)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)

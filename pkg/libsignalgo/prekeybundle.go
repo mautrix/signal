@@ -7,20 +7,17 @@ package libsignalgo
 import "C"
 import (
 	"runtime"
-
-	gopointer "github.com/mattn/go-pointer"
+	"time"
 )
 
 func ProcessPreKeyBundle(bundle *PreKeyBundle, forAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, ctx *CallbackContext) error {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
+	var now C.uint64_t = C.uint64_t(time.Now().Unix())
 	signalFfiError := C.signal_process_prekey_bundle(
 		bundle.ptr,
 		forAddress.ptr,
 		wrapSessionStore(sessionStore),
 		wrapIdentityKeyStore(identityStore),
-		contextPointer,
+		now,
 	)
 	return wrapCallbackError(signalFfiError, ctx)
 }

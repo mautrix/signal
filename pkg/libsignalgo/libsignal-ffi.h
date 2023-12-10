@@ -14,6 +14,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 #include <stdint.h>
 #include <stdlib.h>
 
+/**
+ * The encoded length of a [`FourCC`], in bytes.
+ */
+#define SignalFourCC_ENCODED_LEN 4
+
 #define SignalBoxHeader_MAX_SIZE 32
 
 #define SignalNUM_AUTH_CRED_ATTRIBUTES 3
@@ -166,13 +171,15 @@ typedef enum {
   SignalErrorCodeUsernameBadCharacter = 124,
   SignalErrorCodeUsernameTooShort = 125,
   SignalErrorCodeUsernameTooLong = 126,
+  SignalErrorCodeUsernameLinkInvalidEntropyDataLength = 127,
+  SignalErrorCodeUsernameLinkInvalid = 128,
   SignalErrorCodeIoError = 130,
   SignalErrorCodeInvalidMediaInput = 131,
   SignalErrorCodeUnsupportedMediaInput = 132,
 } SignalErrorCode;
 
 /**
- * A wrapper around [`aes::Aes256Ctr`] that uses a smaller nonce and supports an initial counter.
+ * A wrapper around [`ctr::Ctr32BE`] that uses a smaller nonce and supports an initial counter.
  */
 typedef struct SignalAes256Ctr32 SignalAes256Ctr32;
 
@@ -197,6 +204,10 @@ typedef struct SignalKeyPair SignalKeyPair;
 typedef struct SignalKeySecret SignalKeySecret;
 
 typedef struct SignalKyberPreKeyRecord SignalKyberPreKeyRecord;
+
+typedef struct SignalNonSuspendingBackgroundThreadRuntime SignalNonSuspendingBackgroundThreadRuntime;
+
+typedef struct SignalOtherTestingHandleType SignalOtherTestingHandleType;
 
 typedef struct SignalPinHash SignalPinHash;
 
@@ -245,6 +256,8 @@ typedef struct SignalMessage SignalMessage;
 
 typedef struct SignalSignedPreKeyRecord SignalSignedPreKeyRecord;
 
+typedef struct SignalTestingHandleType SignalTestingHandleType;
+
 typedef struct SignalUnidentifiedSenderMessageContent SignalUnidentifiedSenderMessageContent;
 
 typedef struct SignalValidatingMac SignalValidatingMac;
@@ -259,9 +272,9 @@ typedef struct {
   uintptr_t length;
 } SignalOwnedBuffer;
 
-typedef int (*SignalLoadSession)(void *store_ctx, SignalSessionRecord **recordp, const SignalProtocolAddress *address, void *ctx);
+typedef int (*SignalLoadSession)(void *store_ctx, SignalSessionRecord **recordp, const SignalProtocolAddress *address);
 
-typedef int (*SignalStoreSession)(void *store_ctx, const SignalProtocolAddress *address, const SignalSessionRecord *record, void *ctx);
+typedef int (*SignalStoreSession)(void *store_ctx, const SignalProtocolAddress *address, const SignalSessionRecord *record);
 
 typedef struct {
   void *ctx;
@@ -269,15 +282,15 @@ typedef struct {
   SignalStoreSession store_session;
 } SignalSessionStore;
 
-typedef int (*SignalGetIdentityKeyPair)(void *store_ctx, SignalPrivateKey **keyp, void *ctx);
+typedef int (*SignalGetIdentityKeyPair)(void *store_ctx, SignalPrivateKey **keyp);
 
-typedef int (*SignalGetLocalRegistrationId)(void *store_ctx, uint32_t *idp, void *ctx);
+typedef int (*SignalGetLocalRegistrationId)(void *store_ctx, uint32_t *idp);
 
-typedef int (*SignalSaveIdentityKey)(void *store_ctx, const SignalProtocolAddress *address, const SignalPublicKey *public_key, void *ctx);
+typedef int (*SignalSaveIdentityKey)(void *store_ctx, const SignalProtocolAddress *address, const SignalPublicKey *public_key);
 
-typedef int (*SignalGetIdentityKey)(void *store_ctx, SignalPublicKey **public_keyp, const SignalProtocolAddress *address, void *ctx);
+typedef int (*SignalGetIdentityKey)(void *store_ctx, SignalPublicKey **public_keyp, const SignalProtocolAddress *address);
 
-typedef int (*SignalIsTrustedIdentity)(void *store_ctx, const SignalProtocolAddress *address, const SignalPublicKey *public_key, unsigned int direction, void *ctx);
+typedef int (*SignalIsTrustedIdentity)(void *store_ctx, const SignalProtocolAddress *address, const SignalPublicKey *public_key, unsigned int direction);
 
 typedef struct {
   void *ctx;
@@ -288,11 +301,11 @@ typedef struct {
   SignalIsTrustedIdentity is_trusted_identity;
 } SignalIdentityKeyStore;
 
-typedef int (*SignalLoadPreKey)(void *store_ctx, SignalPreKeyRecord **recordp, uint32_t id, void *ctx);
+typedef int (*SignalLoadPreKey)(void *store_ctx, SignalPreKeyRecord **recordp, uint32_t id);
 
-typedef int (*SignalStorePreKey)(void *store_ctx, uint32_t id, const SignalPreKeyRecord *record, void *ctx);
+typedef int (*SignalStorePreKey)(void *store_ctx, uint32_t id, const SignalPreKeyRecord *record);
 
-typedef int (*SignalRemovePreKey)(void *store_ctx, uint32_t id, void *ctx);
+typedef int (*SignalRemovePreKey)(void *store_ctx, uint32_t id);
 
 typedef struct {
   void *ctx;
@@ -301,9 +314,9 @@ typedef struct {
   SignalRemovePreKey remove_pre_key;
 } SignalPreKeyStore;
 
-typedef int (*SignalLoadSignedPreKey)(void *store_ctx, SignalSignedPreKeyRecord **recordp, uint32_t id, void *ctx);
+typedef int (*SignalLoadSignedPreKey)(void *store_ctx, SignalSignedPreKeyRecord **recordp, uint32_t id);
 
-typedef int (*SignalStoreSignedPreKey)(void *store_ctx, uint32_t id, const SignalSignedPreKeyRecord *record, void *ctx);
+typedef int (*SignalStoreSignedPreKey)(void *store_ctx, uint32_t id, const SignalSignedPreKeyRecord *record);
 
 typedef struct {
   void *ctx;
@@ -339,11 +352,18 @@ typedef SignalKeySecret SignalSecretKey;
 
 typedef SignalSecretKey SignalKyberSecretKey;
 
-typedef int (*SignalLoadKyberPreKey)(void *store_ctx, SignalKyberPreKeyRecord **recordp, uint32_t id, void *ctx);
+/**
+ * The fixed-width binary representation of a ServiceId.
+ *
+ * Rarely used. The variable-width format that privileges ACIs is preferred.
+ */
+typedef uint8_t SignalServiceIdFixedWidthBinaryBytes[17];
 
-typedef int (*SignalStoreKyberPreKey)(void *store_ctx, uint32_t id, const SignalKyberPreKeyRecord *record, void *ctx);
+typedef int (*SignalLoadKyberPreKey)(void *store_ctx, SignalKyberPreKeyRecord **recordp, uint32_t id);
 
-typedef int (*SignalMarkKyberPreKeyUsed)(void *store_ctx, uint32_t id, void *ctx);
+typedef int (*SignalStoreKyberPreKey)(void *store_ctx, uint32_t id, const SignalKyberPreKeyRecord *record);
+
+typedef int (*SignalMarkKyberPreKeyUsed)(void *store_ctx, uint32_t id);
 
 typedef struct {
   void *ctx;
@@ -362,9 +382,9 @@ typedef struct {
   uintptr_t length;
 } SignalBorrowedSliceOfSessionRecord;
 
-typedef int (*SignalLoadSenderKey)(void *store_ctx, SignalSenderKeyRecord**, const SignalProtocolAddress*, const uint8_t (*distribution_id)[16], void *ctx);
+typedef int (*SignalLoadSenderKey)(void *store_ctx, SignalSenderKeyRecord**, const SignalProtocolAddress*, const uint8_t (*distribution_id)[16]);
 
-typedef int (*SignalStoreSenderKey)(void *store_ctx, const SignalProtocolAddress*, const uint8_t (*distribution_id)[16], const SignalSenderKeyRecord*, void *ctx);
+typedef int (*SignalStoreSenderKey)(void *store_ctx, const SignalProtocolAddress*, const uint8_t (*distribution_id)[16], const SignalSenderKeyRecord*);
 
 typedef struct {
   void *ctx;
@@ -381,6 +401,48 @@ typedef struct {
   SignalRead read;
   SignalSkip skip;
 } SignalInputStream;
+
+typedef SignalInputStream SignalSyncInputStream;
+
+/**
+ * A C callback used to report the results of Rust futures.
+ *
+ * cbindgen will produce independent C types like `SignalCPromisei32` and
+ * `SignalCPromiseProtocolAddress`.
+ */
+typedef void (*SignalCPromisei32)(SignalFfiError *error, const int32_t *result, const void *context);
+
+/**
+ * A C callback used to report the results of Rust futures.
+ *
+ * cbindgen will produce independent C types like `SignalCPromisei32` and
+ * `SignalCPromiseProtocolAddress`.
+ */
+typedef void (*SignalCPromiseTestingHandleType)(SignalFfiError *error, SignalTestingHandleType *const *result, const void *context);
+
+/**
+ * A C callback used to report the results of Rust futures.
+ *
+ * cbindgen will produce independent C types like `SignalCPromisei32` and
+ * `SignalCPromiseProtocolAddress`.
+ */
+typedef void (*SignalCPromiseOtherTestingHandleType)(SignalFfiError *error, SignalOtherTestingHandleType *const *result, const void *context);
+
+/**
+ * A C callback used to report the results of Rust futures.
+ *
+ * cbindgen will produce independent C types like `SignalCPromisei32` and
+ * `SignalCPromiseProtocolAddress`.
+ */
+typedef void (*SignalCPromisebool)(SignalFfiError *error, const bool *result, const void *context);
+
+/**
+ * A C callback used to report the results of Rust futures.
+ *
+ * cbindgen will produce independent C types like `SignalCPromisei32` and
+ * `SignalCPromiseProtocolAddress`.
+ */
+typedef void (*SignalCPromiseRawPointer)(SignalFfiError *error, const void *const *result, const void *context);
 
 typedef uint8_t SignalRandomnessBytes[SignalRANDOMNESS_LEN];
 
@@ -402,7 +464,7 @@ void signal_error_free(SignalFfiError *err);
 
 SignalFfiError *signal_identitykeypair_deserialize(SignalPrivateKey **private_key, SignalPublicKey **public_key, SignalBorrowedBuffer input);
 
-SignalFfiError *signal_sealed_session_cipher_decrypt(SignalOwnedBuffer *out, const char **sender_e164, const char **sender_uuid, uint32_t *sender_device_id, SignalBorrowedBuffer ctext, const SignalPublicKey *trust_root, uint64_t timestamp, const char *local_e164, const char *local_uuid, unsigned int local_device_id, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_store, const SignalPreKeyStore *prekey_store, const SignalSignedPreKeyStore *signed_prekey_store, void *ctx);
+SignalFfiError *signal_sealed_session_cipher_decrypt(SignalOwnedBuffer *out, const char **sender_e164, const char **sender_uuid, uint32_t *sender_device_id, SignalBorrowedBuffer ctext, const SignalPublicKey *trust_root, uint64_t timestamp, const char *local_e164, const char *local_uuid, unsigned int local_device_id, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_store, const SignalPreKeyStore *prekey_store, const SignalSignedPreKeyStore *signed_prekey_store);
 
 void signal_init_logger(SignalLogLevel max_level, SignalFfiLogger logger);
 
@@ -525,6 +587,16 @@ SignalFfiError *signal_kyber_secret_key_destroy(SignalKyberSecretKey *p);
 SignalFfiError *signal_kyber_secret_key_clone(SignalKyberSecretKey **new_obj, const SignalKyberSecretKey *obj);
 
 SignalFfiError *signal_hkdf_derive(SignalBorrowedMutableBuffer output, SignalBorrowedBuffer ikm, SignalBorrowedBuffer label, SignalBorrowedBuffer salt);
+
+SignalFfiError *signal_service_id_service_id_binary(SignalOwnedBuffer *out, const SignalServiceIdFixedWidthBinaryBytes *value);
+
+SignalFfiError *signal_service_id_service_id_string(const char **out, const SignalServiceIdFixedWidthBinaryBytes *value);
+
+SignalFfiError *signal_service_id_service_id_log(const char **out, const SignalServiceIdFixedWidthBinaryBytes *value);
+
+SignalFfiError *signal_service_id_parse_from_service_id_binary(SignalServiceIdFixedWidthBinaryBytes *out, SignalBorrowedBuffer input);
+
+SignalFfiError *signal_service_id_parse_from_service_id_string(SignalServiceIdFixedWidthBinaryBytes *out, const char *input);
 
 SignalFfiError *signal_address_new(SignalProtocolAddress **out, const char *name, uint32_t device_id);
 
@@ -810,9 +882,9 @@ SignalFfiError *signal_ciphertext_message_from_plaintext_content(SignalCiphertex
 
 SignalFfiError *signal_session_record_archive_current_state(SignalSessionRecord *session_record);
 
-SignalFfiError *signal_session_record_current_ratchet_key_matches(bool *out, const SignalSessionRecord *s, const SignalPublicKey *key);
+SignalFfiError *signal_session_record_has_usable_sender_chain(bool *out, const SignalSessionRecord *s, uint64_t now);
 
-SignalFfiError *signal_session_record_has_current_state(bool *out, const SignalSessionRecord *obj);
+SignalFfiError *signal_session_record_current_ratchet_key_matches(bool *out, const SignalSessionRecord *s, const SignalPublicKey *key);
 
 SignalFfiError *signal_session_record_deserialize(SignalSessionRecord **out, SignalBorrowedBuffer data);
 
@@ -822,29 +894,29 @@ SignalFfiError *signal_session_record_get_local_registration_id(uint32_t *out, c
 
 SignalFfiError *signal_session_record_get_remote_registration_id(uint32_t *out, const SignalSessionRecord *obj);
 
-SignalFfiError *signal_process_prekey_bundle(const SignalPreKeyBundle *bundle, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, void *ctx);
+SignalFfiError *signal_process_prekey_bundle(const SignalPreKeyBundle *bundle, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, uint64_t now);
 
-SignalFfiError *signal_encrypt_message(SignalCiphertextMessage **out, SignalBorrowedBuffer ptext, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, void *ctx);
+SignalFfiError *signal_encrypt_message(SignalCiphertextMessage **out, SignalBorrowedBuffer ptext, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, uint64_t now);
 
-SignalFfiError *signal_decrypt_message(SignalOwnedBuffer *out, const SignalMessage *message, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, void *ctx);
+SignalFfiError *signal_decrypt_message(SignalOwnedBuffer *out, const SignalMessage *message, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store);
 
-SignalFfiError *signal_decrypt_pre_key_message(SignalOwnedBuffer *out, const SignalPreKeySignalMessage *message, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, const SignalPreKeyStore *prekey_store, const SignalSignedPreKeyStore *signed_prekey_store, const SignalKyberPreKeyStore *kyber_prekey_store, void *ctx);
+SignalFfiError *signal_decrypt_pre_key_message(SignalOwnedBuffer *out, const SignalPreKeySignalMessage *message, const SignalProtocolAddress *protocol_address, const SignalSessionStore *session_store, const SignalIdentityKeyStore *identity_key_store, const SignalPreKeyStore *prekey_store, const SignalSignedPreKeyStore *signed_prekey_store, const SignalKyberPreKeyStore *kyber_prekey_store);
 
-SignalFfiError *signal_sealed_session_cipher_encrypt(SignalOwnedBuffer *out, const SignalProtocolAddress *destination, const SignalUnidentifiedSenderMessageContent *content, const SignalIdentityKeyStore *identity_key_store, void *ctx);
+SignalFfiError *signal_sealed_session_cipher_encrypt(SignalOwnedBuffer *out, const SignalProtocolAddress *destination, const SignalUnidentifiedSenderMessageContent *content, const SignalIdentityKeyStore *identity_key_store);
 
-SignalFfiError *signal_sealed_sender_multi_recipient_encrypt(SignalOwnedBuffer *out, SignalBorrowedSliceOfProtocolAddress recipients, SignalBorrowedSliceOfSessionRecord recipient_sessions, const SignalUnidentifiedSenderMessageContent *content, const SignalIdentityKeyStore *identity_key_store, void *ctx);
+SignalFfiError *signal_sealed_sender_multi_recipient_encrypt(SignalOwnedBuffer *out, SignalBorrowedSliceOfProtocolAddress recipients, SignalBorrowedSliceOfSessionRecord recipient_sessions, const SignalUnidentifiedSenderMessageContent *content, const SignalIdentityKeyStore *identity_key_store);
 
 SignalFfiError *signal_sealed_sender_multi_recipient_message_for_single_recipient(SignalOwnedBuffer *out, SignalBorrowedBuffer encoded_multi_recipient_message);
 
-SignalFfiError *signal_sealed_session_cipher_decrypt_to_usmc(SignalUnidentifiedSenderMessageContent **out, SignalBorrowedBuffer ctext, const SignalIdentityKeyStore *identity_store, void *ctx);
+SignalFfiError *signal_sealed_session_cipher_decrypt_to_usmc(SignalUnidentifiedSenderMessageContent **out, SignalBorrowedBuffer ctext, const SignalIdentityKeyStore *identity_store);
 
-SignalFfiError *signal_sender_key_distribution_message_create(SignalSenderKeyDistributionMessage **out, const SignalProtocolAddress *sender, const uint8_t (*distribution_id)[16], const SignalSenderKeyStore *store, void *ctx);
+SignalFfiError *signal_sender_key_distribution_message_create(SignalSenderKeyDistributionMessage **out, const SignalProtocolAddress *sender, const uint8_t (*distribution_id)[16], const SignalSenderKeyStore *store);
 
-SignalFfiError *signal_process_sender_key_distribution_message(const SignalProtocolAddress *sender, const SignalSenderKeyDistributionMessage *sender_key_distribution_message, const SignalSenderKeyStore *store, void *ctx);
+SignalFfiError *signal_process_sender_key_distribution_message(const SignalProtocolAddress *sender, const SignalSenderKeyDistributionMessage *sender_key_distribution_message, const SignalSenderKeyStore *store);
 
-SignalFfiError *signal_group_encrypt_message(SignalCiphertextMessage **out, const SignalProtocolAddress *sender, const uint8_t (*distribution_id)[16], SignalBorrowedBuffer message, const SignalSenderKeyStore *store, void *ctx);
+SignalFfiError *signal_group_encrypt_message(SignalCiphertextMessage **out, const SignalProtocolAddress *sender, const uint8_t (*distribution_id)[16], SignalBorrowedBuffer message, const SignalSenderKeyStore *store);
 
-SignalFfiError *signal_group_decrypt_message(SignalOwnedBuffer *out, const SignalProtocolAddress *sender, SignalBorrowedBuffer message, const SignalSenderKeyStore *store, void *ctx);
+SignalFfiError *signal_group_decrypt_message(SignalOwnedBuffer *out, const SignalProtocolAddress *sender, SignalBorrowedBuffer message, const SignalSenderKeyStore *store);
 
 SignalFfiError *signal_device_transfer_generate_private_key(SignalOwnedBuffer *out);
 
@@ -920,9 +992,9 @@ SignalFfiError *signal_server_secret_params_check_valid_contents(SignalBorrowedB
 
 SignalFfiError *signal_uuid_ciphertext_check_valid_contents(SignalBorrowedBuffer buffer);
 
-SignalFfiError *signal_profile_key_get_commitment(unsigned char (*out)[SignalPROFILE_KEY_COMMITMENT_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN], const uint8_t (*uuid)[16]);
+SignalFfiError *signal_profile_key_get_commitment(unsigned char (*out)[SignalPROFILE_KEY_COMMITMENT_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN], const SignalServiceIdFixedWidthBinaryBytes *user_id);
 
-SignalFfiError *signal_profile_key_get_profile_key_version(uint8_t (*out)[SignalPROFILE_KEY_VERSION_ENCODED_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN], const uint8_t (*uuid)[16]);
+SignalFfiError *signal_profile_key_get_profile_key_version(uint8_t (*out)[SignalPROFILE_KEY_VERSION_ENCODED_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN], const SignalServiceIdFixedWidthBinaryBytes *user_id);
 
 SignalFfiError *signal_profile_key_derive_access_key(uint8_t (*out)[SignalACCESS_KEY_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN]);
 
@@ -934,13 +1006,13 @@ SignalFfiError *signal_group_secret_params_get_master_key(unsigned char (*out)[S
 
 SignalFfiError *signal_group_secret_params_get_public_params(unsigned char (*out)[SignalGROUP_PUBLIC_PARAMS_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN]);
 
-SignalFfiError *signal_group_secret_params_encrypt_uuid(unsigned char (*out)[SignalUUID_CIPHERTEXT_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const uint8_t (*uuid)[16]);
+SignalFfiError *signal_group_secret_params_encrypt_service_id(unsigned char (*out)[SignalUUID_CIPHERTEXT_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const SignalServiceIdFixedWidthBinaryBytes *service_id);
 
-SignalFfiError *signal_group_secret_params_decrypt_uuid(uint8_t (*out)[16], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*uuid)[SignalUUID_CIPHERTEXT_LEN]);
+SignalFfiError *signal_group_secret_params_decrypt_service_id(SignalServiceIdFixedWidthBinaryBytes *out, const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*ciphertext)[SignalUUID_CIPHERTEXT_LEN]);
 
-SignalFfiError *signal_group_secret_params_encrypt_profile_key(unsigned char (*out)[SignalPROFILE_KEY_CIPHERTEXT_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN], const uint8_t (*uuid)[16]);
+SignalFfiError *signal_group_secret_params_encrypt_profile_key(unsigned char (*out)[SignalPROFILE_KEY_CIPHERTEXT_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN], const SignalServiceIdFixedWidthBinaryBytes *user_id);
 
-SignalFfiError *signal_group_secret_params_decrypt_profile_key(unsigned char (*out)[SignalPROFILE_KEY_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_CIPHERTEXT_LEN], const uint8_t (*uuid)[16]);
+SignalFfiError *signal_group_secret_params_decrypt_profile_key(unsigned char (*out)[SignalPROFILE_KEY_LEN], const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*profile_key)[SignalPROFILE_KEY_CIPHERTEXT_LEN], const SignalServiceIdFixedWidthBinaryBytes *user_id);
 
 SignalFfiError *signal_group_secret_params_encrypt_blob_with_padding_deterministic(SignalOwnedBuffer *out, const unsigned char (*params)[SignalGROUP_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], SignalBorrowedBuffer plaintext, uint32_t padding_len);
 
@@ -952,15 +1024,17 @@ SignalFfiError *signal_server_secret_params_get_public_params(unsigned char (*ou
 
 SignalFfiError *signal_server_secret_params_sign_deterministic(uint8_t (*out)[SignalSIGNATURE_LEN], const unsigned char (*params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], SignalBorrowedBuffer message);
 
-SignalFfiError *signal_server_public_params_receive_auth_credential(unsigned char (*out)[SignalAUTH_CREDENTIAL_LEN], const unsigned char (*params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*uuid)[16], uint32_t redemption_time, const unsigned char (*response)[SignalAUTH_CREDENTIAL_RESPONSE_LEN]);
+SignalFfiError *signal_server_public_params_receive_auth_credential(unsigned char (*out)[SignalAUTH_CREDENTIAL_LEN], const unsigned char (*params)[SignalSERVER_PUBLIC_PARAMS_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci, uint32_t redemption_time, const unsigned char (*response)[SignalAUTH_CREDENTIAL_RESPONSE_LEN]);
 
-SignalFfiError *signal_server_public_params_receive_auth_credential_with_pni(unsigned char (*out)[SignalAUTH_CREDENTIAL_WITH_PNI_LEN], const unsigned char (*params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*aci)[16], const uint8_t (*pni)[16], uint64_t redemption_time, const unsigned char (*response)[SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]);
+SignalFfiError *signal_server_public_params_receive_auth_credential_with_pni_as_service_id(unsigned char (*out)[SignalAUTH_CREDENTIAL_WITH_PNI_LEN], const unsigned char (*params)[SignalSERVER_PUBLIC_PARAMS_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci, const SignalServiceIdFixedWidthBinaryBytes *pni, uint64_t redemption_time, const unsigned char (*response)[SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]);
+
+SignalFfiError *signal_server_public_params_receive_auth_credential_with_pni_as_aci(unsigned char (*out)[SignalAUTH_CREDENTIAL_WITH_PNI_LEN], const unsigned char (*params)[SignalSERVER_PUBLIC_PARAMS_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci, const SignalServiceIdFixedWidthBinaryBytes *pni, uint64_t redemption_time, const unsigned char (*response)[SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]);
 
 SignalFfiError *signal_server_public_params_create_auth_credential_presentation_deterministic(SignalOwnedBuffer *out, const unsigned char (*server_public_params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const unsigned char (*group_secret_params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*auth_credential)[SignalAUTH_CREDENTIAL_LEN]);
 
 SignalFfiError *signal_server_public_params_create_auth_credential_with_pni_presentation_deterministic(SignalOwnedBuffer *out, const unsigned char (*server_public_params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const unsigned char (*group_secret_params)[SignalGROUP_SECRET_PARAMS_LEN], const unsigned char (*auth_credential)[SignalAUTH_CREDENTIAL_WITH_PNI_LEN]);
 
-SignalFfiError *signal_server_public_params_create_profile_key_credential_request_context_deterministic(unsigned char (*out)[SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN], const unsigned char (*server_public_params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const uint8_t (*uuid)[16], const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN]);
+SignalFfiError *signal_server_public_params_create_profile_key_credential_request_context_deterministic(unsigned char (*out)[SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN], const unsigned char (*server_public_params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const SignalServiceIdFixedWidthBinaryBytes *user_id, const unsigned char (*profile_key)[SignalPROFILE_KEY_LEN]);
 
 SignalFfiError *signal_server_public_params_receive_expiring_profile_key_credential(unsigned char (*out)[SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN], const unsigned char (*server_public_params)[SignalSERVER_PUBLIC_PARAMS_LEN], const unsigned char (*request_context)[SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN], const unsigned char (*response)[SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN], uint64_t current_time_in_seconds);
 
@@ -972,13 +1046,15 @@ SignalFfiError *signal_server_public_params_receive_receipt_credential(unsigned 
 
 SignalFfiError *signal_server_public_params_create_receipt_credential_presentation_deterministic(unsigned char (*out)[SignalRECEIPT_CREDENTIAL_PRESENTATION_LEN], const unsigned char (*server_public_params)[SignalSERVER_PUBLIC_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const unsigned char (*receipt_credential)[SignalRECEIPT_CREDENTIAL_LEN]);
 
-SignalFfiError *signal_server_secret_params_issue_auth_credential_deterministic(unsigned char (*out)[SignalAUTH_CREDENTIAL_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const uint8_t (*uuid)[16], uint32_t redemption_time);
+SignalFfiError *signal_server_secret_params_issue_auth_credential_deterministic(unsigned char (*out)[SignalAUTH_CREDENTIAL_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci, uint32_t redemption_time);
 
-SignalFfiError *signal_server_secret_params_issue_auth_credential_with_pni_deterministic(unsigned char (*out)[SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const uint8_t (*aci)[16], const uint8_t (*pni)[16], uint64_t redemption_time);
+SignalFfiError *signal_server_secret_params_issue_auth_credential_with_pni_as_service_id_deterministic(unsigned char (*out)[SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci, const SignalServiceIdFixedWidthBinaryBytes *pni, uint64_t redemption_time);
+
+SignalFfiError *signal_server_secret_params_issue_auth_credential_with_pni_as_aci_deterministic(unsigned char (*out)[SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci, const SignalServiceIdFixedWidthBinaryBytes *pni, uint64_t redemption_time);
 
 SignalFfiError *signal_server_secret_params_verify_auth_credential_presentation(const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const unsigned char (*group_public_params)[SignalGROUP_PUBLIC_PARAMS_LEN], SignalBorrowedBuffer presentation_bytes, uint64_t current_time_in_seconds);
 
-SignalFfiError *signal_server_secret_params_issue_expiring_profile_key_credential_deterministic(unsigned char (*out)[SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const unsigned char (*request)[SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN], const uint8_t (*uuid)[16], const unsigned char (*commitment)[SignalPROFILE_KEY_COMMITMENT_LEN], uint64_t expiration_in_seconds);
+SignalFfiError *signal_server_secret_params_issue_expiring_profile_key_credential_deterministic(unsigned char (*out)[SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN], const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const unsigned char (*request)[SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN], const SignalServiceIdFixedWidthBinaryBytes *user_id, const unsigned char (*commitment)[SignalPROFILE_KEY_COMMITMENT_LEN], uint64_t expiration_in_seconds);
 
 SignalFfiError *signal_server_secret_params_verify_profile_key_credential_presentation(const unsigned char (*server_secret_params)[SignalSERVER_SECRET_PARAMS_LEN], const unsigned char (*group_public_params)[SignalGROUP_PUBLIC_PARAMS_LEN], SignalBorrowedBuffer presentation_bytes, uint64_t current_time_in_seconds);
 
@@ -1034,7 +1110,7 @@ SignalFfiError *signal_call_link_secret_params_derive_from_root_key(SignalOwnedB
 
 SignalFfiError *signal_call_link_secret_params_get_public_params(SignalOwnedBuffer *out, SignalBorrowedBuffer params_bytes);
 
-SignalFfiError *signal_call_link_secret_params_decrypt_user_id(uint8_t (*out)[16], SignalBorrowedBuffer params_bytes, const unsigned char (*user_id)[SignalUUID_CIPHERTEXT_LEN]);
+SignalFfiError *signal_call_link_secret_params_decrypt_user_id(SignalServiceIdFixedWidthBinaryBytes *out, SignalBorrowedBuffer params_bytes, const unsigned char (*user_id)[SignalUUID_CIPHERTEXT_LEN]);
 
 SignalFfiError *signal_call_link_public_params_check_valid_contents(SignalBorrowedBuffer params_bytes);
 
@@ -1046,15 +1122,15 @@ SignalFfiError *signal_create_call_link_credential_request_context_get_request(S
 
 SignalFfiError *signal_create_call_link_credential_request_check_valid_contents(SignalBorrowedBuffer request_bytes);
 
-SignalFfiError *signal_create_call_link_credential_request_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request_bytes, const uint8_t (*user_id)[16], uint64_t timestamp, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+SignalFfiError *signal_create_call_link_credential_request_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request_bytes, const SignalServiceIdFixedWidthBinaryBytes *user_id, uint64_t timestamp, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
 
 SignalFfiError *signal_create_call_link_credential_response_check_valid_contents(SignalBorrowedBuffer response_bytes);
 
-SignalFfiError *signal_create_call_link_credential_request_context_receive_response(SignalOwnedBuffer *out, SignalBorrowedBuffer context_bytes, SignalBorrowedBuffer response_bytes, const uint8_t (*user_id)[16], SignalBorrowedBuffer params_bytes);
+SignalFfiError *signal_create_call_link_credential_request_context_receive_response(SignalOwnedBuffer *out, SignalBorrowedBuffer context_bytes, SignalBorrowedBuffer response_bytes, const SignalServiceIdFixedWidthBinaryBytes *user_id, SignalBorrowedBuffer params_bytes);
 
 SignalFfiError *signal_create_call_link_credential_check_valid_contents(SignalBorrowedBuffer params_bytes);
 
-SignalFfiError *signal_create_call_link_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, SignalBorrowedBuffer room_id, const uint8_t (*user_id)[16], SignalBorrowedBuffer server_params_bytes, SignalBorrowedBuffer call_link_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+SignalFfiError *signal_create_call_link_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, SignalBorrowedBuffer room_id, const SignalServiceIdFixedWidthBinaryBytes *user_id, SignalBorrowedBuffer server_params_bytes, SignalBorrowedBuffer call_link_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
 
 SignalFfiError *signal_create_call_link_credential_presentation_check_valid_contents(SignalBorrowedBuffer presentation_bytes);
 
@@ -1062,19 +1138,43 @@ SignalFfiError *signal_create_call_link_credential_presentation_verify(SignalBor
 
 SignalFfiError *signal_call_link_auth_credential_response_check_valid_contents(SignalBorrowedBuffer response_bytes);
 
-SignalFfiError *signal_call_link_auth_credential_response_issue_deterministic(SignalOwnedBuffer *out, const uint8_t (*user_id)[16], uint64_t redemption_time, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+SignalFfiError *signal_call_link_auth_credential_response_issue_deterministic(SignalOwnedBuffer *out, const SignalServiceIdFixedWidthBinaryBytes *user_id, uint64_t redemption_time, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
 
-SignalFfiError *signal_call_link_auth_credential_response_receive(SignalOwnedBuffer *out, SignalBorrowedBuffer response_bytes, const uint8_t (*user_id)[16], uint64_t redemption_time, SignalBorrowedBuffer params_bytes);
+SignalFfiError *signal_call_link_auth_credential_response_receive(SignalOwnedBuffer *out, SignalBorrowedBuffer response_bytes, const SignalServiceIdFixedWidthBinaryBytes *user_id, uint64_t redemption_time, SignalBorrowedBuffer params_bytes);
 
 SignalFfiError *signal_call_link_auth_credential_check_valid_contents(SignalBorrowedBuffer credential_bytes);
 
-SignalFfiError *signal_call_link_auth_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, const uint8_t (*user_id)[16], uint64_t redemption_time, SignalBorrowedBuffer server_params_bytes, SignalBorrowedBuffer call_link_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+SignalFfiError *signal_call_link_auth_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, const SignalServiceIdFixedWidthBinaryBytes *user_id, uint64_t redemption_time, SignalBorrowedBuffer server_params_bytes, SignalBorrowedBuffer call_link_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
 
 SignalFfiError *signal_call_link_auth_credential_presentation_check_valid_contents(SignalBorrowedBuffer presentation_bytes);
 
 SignalFfiError *signal_call_link_auth_credential_presentation_verify(SignalBorrowedBuffer presentation_bytes, uint64_t now, SignalBorrowedBuffer server_params_bytes, SignalBorrowedBuffer call_link_params_bytes);
 
 SignalFfiError *signal_call_link_auth_credential_presentation_get_user_id(unsigned char (*out)[SignalUUID_CIPHERTEXT_LEN], SignalBorrowedBuffer presentation_bytes);
+
+SignalFfiError *signal_backup_auth_credential_request_context_new(SignalOwnedBuffer *out, const uint8_t (*backup_key)[32], const uint8_t (*uuid)[16]);
+
+SignalFfiError *signal_backup_auth_credential_request_context_check_valid_contents(SignalBorrowedBuffer context_bytes);
+
+SignalFfiError *signal_backup_auth_credential_request_context_get_request(SignalOwnedBuffer *out, SignalBorrowedBuffer context_bytes);
+
+SignalFfiError *signal_backup_auth_credential_request_check_valid_contents(SignalBorrowedBuffer request_bytes);
+
+SignalFfiError *signal_backup_auth_credential_request_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request_bytes, uint64_t redemption_time, uint64_t receipt_level, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_backup_auth_credential_response_check_valid_contents(SignalBorrowedBuffer response_bytes);
+
+SignalFfiError *signal_backup_auth_credential_request_context_receive_response(SignalOwnedBuffer *out, SignalBorrowedBuffer context_bytes, SignalBorrowedBuffer response_bytes, SignalBorrowedBuffer params_bytes, uint64_t expected_receipt_level);
+
+SignalFfiError *signal_backup_auth_credential_check_valid_contents(SignalBorrowedBuffer params_bytes);
+
+SignalFfiError *signal_backup_auth_credential_get_backup_id(uint8_t (*out)[16], SignalBorrowedBuffer credential_bytes);
+
+SignalFfiError *signal_backup_auth_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, SignalBorrowedBuffer server_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+
+SignalFfiError *signal_backup_auth_credential_presentation_check_valid_contents(SignalBorrowedBuffer presentation_bytes);
+
+SignalFfiError *signal_backup_auth_credential_presentation_verify(SignalBorrowedBuffer presentation_bytes, uint64_t now, SignalBorrowedBuffer server_params_bytes);
 
 SignalFfiError *signal_verify_signature(bool *out, SignalBorrowedBuffer cert_pem, SignalBorrowedBuffer body, SignalBorrowedBuffer signature, uint64_t current_timestamp);
 
@@ -1110,9 +1210,9 @@ SignalFfiError *signal_validating_mac_destroy(SignalValidatingMac *p);
 
 SignalFfiError *signal_validating_mac_initialize(SignalValidatingMac **out, SignalBorrowedBuffer key, uint32_t chunk_size, SignalBorrowedBuffer digests);
 
-SignalFfiError *signal_validating_mac_update(bool *out, SignalValidatingMac *mac, SignalBorrowedBuffer bytes, uint32_t offset, uint32_t length);
+SignalFfiError *signal_validating_mac_update(int32_t *out, SignalValidatingMac *mac, SignalBorrowedBuffer bytes, uint32_t offset, uint32_t length);
 
-SignalFfiError *signal_validating_mac_finalize(bool *out, SignalValidatingMac *mac);
+SignalFfiError *signal_validating_mac_finalize(int32_t *out, SignalValidatingMac *mac);
 
 SignalFfiError *signal_username_hash(uint8_t (*out)[32], const char *username);
 
@@ -1122,12 +1222,20 @@ SignalFfiError *signal_username_verify(SignalBorrowedBuffer proof, SignalBorrowe
 
 SignalFfiError *signal_username_candidates_from(const char **out, const char *nickname, uint32_t min_len, uint32_t max_len);
 
+SignalFfiError *signal_username_link_create(SignalOwnedBuffer *out, const char *username, SignalBorrowedBuffer entropy);
+
+SignalFfiError *signal_username_link_decrypt_username(const char **out, SignalBorrowedBuffer entropy, SignalBorrowedBuffer encrypted_username);
+
 #if defined(SIGNAL_MEDIA_SUPPORTED)
 SignalFfiError *signal_signal_media_check_available(void);
 #endif
 
 #if defined(SIGNAL_MEDIA_SUPPORTED)
 SignalFfiError *signal_mp4_sanitizer_sanitize(SignalSanitizedMetadata **out, const SignalInputStream *input, uint64_t len);
+#endif
+
+#if defined(SIGNAL_MEDIA_SUPPORTED)
+SignalFfiError *signal_webp_sanitizer_sanitize(bool *out, const SignalSyncInputStream *input, uint64_t len);
 #endif
 
 #if defined(SIGNAL_MEDIA_SUPPORTED)
@@ -1149,5 +1257,63 @@ SignalFfiError *signal_sanitized_metadata_get_data_offset(uint64_t *out, const S
 #if defined(SIGNAL_MEDIA_SUPPORTED)
 SignalFfiError *signal_sanitized_metadata_get_data_len(uint64_t *out, const SignalSanitizedMetadata *sanitized);
 #endif
+
+SignalFfiError *signal_testing_NonSuspendingBackgroundThreadRuntime_destroy(SignalNonSuspendingBackgroundThreadRuntime *p);
+
+SignalFfiError *signal_testing_future_success(SignalCPromisei32 promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, uint8_t input);
+
+SignalFfiError *signal_testing_future_failure(SignalCPromisei32 promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, uint8_t _input);
+
+SignalFfiError *signal_testing_handle_type_destroy(SignalTestingHandleType *p);
+
+SignalFfiError *signal_testing_handle_type_clone(SignalTestingHandleType **new_obj, const SignalTestingHandleType *obj);
+
+SignalFfiError *signal_testing_testing_handle_type_get_value(uint8_t *out, const SignalTestingHandleType *handle);
+
+SignalFfiError *signal_testing_future_produces_pointer_type(SignalCPromiseTestingHandleType promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, uint8_t input);
+
+SignalFfiError *signal_other_testing_handle_type_destroy(SignalOtherTestingHandleType *p);
+
+SignalFfiError *signal_other_testing_handle_type_clone(SignalOtherTestingHandleType **new_obj, const SignalOtherTestingHandleType *obj);
+
+SignalFfiError *signal_testing_other_testing_handle_type_get_value(const char **out, const SignalOtherTestingHandleType *handle);
+
+SignalFfiError *signal_testing_future_produces_other_pointer_type(SignalCPromiseOtherTestingHandleType promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const char *input);
+
+SignalFfiError *signal_testing_panic_on_borrow_sync(const void *_input);
+
+SignalFfiError *signal_testing_panic_on_borrow_async(const void *_input);
+
+SignalFfiError *signal_testing_panic_on_borrow_io(SignalCPromisebool promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const void *_input);
+
+SignalFfiError *signal_testing_error_on_borrow_sync(const void *_input);
+
+SignalFfiError *signal_testing_error_on_borrow_async(const void *_input);
+
+SignalFfiError *signal_testing_error_on_borrow_io(SignalCPromisebool promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const void *_input);
+
+SignalFfiError *signal_testing_panic_on_load_sync(const void *_needs_cleanup, const void *_input);
+
+SignalFfiError *signal_testing_panic_on_load_async(const void *_needs_cleanup, const void *_input);
+
+SignalFfiError *signal_testing_panic_on_load_io(SignalCPromisebool promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const void *_needs_cleanup, const void *_input);
+
+SignalFfiError *signal_testing_panic_in_body_sync(const void *_input);
+
+SignalFfiError *signal_testing_panic_in_body_async(const void *_input);
+
+SignalFfiError *signal_testing_panic_in_body_io(SignalCPromisebool promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const void *_input);
+
+SignalFfiError *signal_testing_panic_on_return_sync(const void **out, const void *_needs_cleanup);
+
+SignalFfiError *signal_testing_panic_on_return_async(const void **out, const void *_needs_cleanup);
+
+SignalFfiError *signal_testing_panic_on_return_io(SignalCPromiseRawPointer promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const void *_needs_cleanup);
+
+SignalFfiError *signal_testing_error_on_return_sync(const void **out, const void *_needs_cleanup);
+
+SignalFfiError *signal_testing_error_on_return_async(const void **out, const void *_needs_cleanup);
+
+SignalFfiError *signal_testing_error_on_return_io(SignalCPromiseRawPointer promise, const void *promise_context, const SignalNonSuspendingBackgroundThreadRuntime *async_runtime, const void *_needs_cleanup);
 
 #endif /* SIGNAL_FFI_H_ */

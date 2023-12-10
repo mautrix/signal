@@ -7,14 +7,9 @@ package libsignalgo
 import "C"
 import (
 	"runtime"
-
-	gopointer "github.com/mattn/go-pointer"
 )
 
 func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_message(
 		&decrypted,
@@ -22,7 +17,6 @@ func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, 
 		fromAddress.ptr,
 		wrapSessionStore(sessionStore),
 		wrapIdentityKeyStore(identityStore),
-		contextPointer,
 	)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
