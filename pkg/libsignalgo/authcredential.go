@@ -20,38 +20,6 @@ func (ac *AuthCredentialWithPni) Slice() []byte {
 	return (*ac)[:]
 }
 
-func SignalServiceIdFromUUID(uuid UUID) (*C.SignalServiceIdFixedWidthBinaryBytes, error) {
-	var result C.SignalServiceIdFixedWidthBinaryBytes
-	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(uuid[:]))
-	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
-	}
-	return &result, nil
-}
-
-func SignalPNIServiceIdFromUUID(uuid UUID) (*C.SignalServiceIdFixedWidthBinaryBytes, error) {
-	var result C.SignalServiceIdFixedWidthBinaryBytes
-	// Prepend a 0x01 to the UUID to indicate that it is a PNI UUID
-	pniUUID := append([]byte{0x01}, uuid[:]...)
-	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(pniUUID))
-	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
-	}
-	return &result, nil
-}
-
-func SignalServiceIdToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (UUID, error) {
-	result := C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_service_id_service_id_binary(&result, serviceId)
-	if signalFfiError != nil {
-		return UUID{}, wrapError(signalFfiError)
-	}
-	UUIDBytes := CopySignalOwnedBufferToBytes(result)
-	var uuid UUID
-	copy(uuid[:], UUIDBytes)
-	return uuid, nil
-}
-
 func ReceiveAuthCredentialWithPni(
 	serverPublicParams ServerPublicParams,
 	aci UUID,
@@ -65,7 +33,7 @@ func ReceiveAuthCredentialWithPni(
 	if err != nil {
 		return nil, err
 	}
-	var c_pni *C.SignalServiceIdFixedWidthBinaryBytes
+	var c_pni *[17]C.uint8_t
 	if len(pni) != 16 {
 		c_pni = nil
 	} else {

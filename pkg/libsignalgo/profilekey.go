@@ -115,7 +115,6 @@ type ProfileKeyCredentialRequest [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN]byt
 type ProfileKeyCredentialResponse []byte
 type ProfileKeyCredentialPresentation []byte
 type ServerPublicParams [C.SignalSERVER_PUBLIC_PARAMS_LEN]byte
-type UUID [C.SignalUUID_LEN]byte
 
 func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, uuid UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
 	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
