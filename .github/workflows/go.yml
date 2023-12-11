@@ -3,7 +3,7 @@ name: Go
 on: [push, pull_request]
 
 env:
-  LIBSIGNAL_REF: "v0.22.2"
+  LIBSIGNAL_REF: "v0.36.1"
 
 jobs:
   lint:
