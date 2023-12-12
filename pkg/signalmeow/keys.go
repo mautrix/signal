@@ -13,9 +13,8 @@ import (
 )
 
 type GeneratedPreKeys struct {
-	PreKeys      []libsignalgo.PreKeyRecord
-	SignedPreKey libsignalgo.SignedPreKeyRecord
-	IdentityKey  []uint8
+	PreKeys     []libsignalgo.PreKeyRecord
+	IdentityKey []uint8
 }
 
 func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
@@ -33,8 +32,6 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	} else {
 		identityKeyPair = device.Data.AciIdentityKeyPair
 	}
-	signedPreKey := GenerateSignedPreKey(0, uuidKind, identityKeyPair)
-	device.PreKeyStoreExtras.SaveSignedPreKey(uuidKind, signedPreKey, false)
 
 	// Register prekeys
 	identityKey, err := identityKeyPair.GetPublicKey().Serialize()
@@ -43,9 +40,8 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 		return err
 	}
 	generatedPreKeys := GeneratedPreKeys{
-		PreKeys:      *preKeys,
-		SignedPreKey: *signedPreKey,
-		IdentityKey:  identityKey,
+		PreKeys:     *preKeys,
+		IdentityKey: identityKey,
 	}
 	preKeyUsername := device.Data.Number
 	if device.Data.AciUuid != "" {
@@ -61,8 +57,6 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	// Mark prekeys as registered
 	lastPreKeyId, err := (*preKeys)[len(*preKeys)-1].GetID()
 	err = device.PreKeyStoreExtras.MarkPreKeysAsUploaded(uuidKind, lastPreKeyId)
-	signedId, err := signedPreKey.GetID()
-	err = device.PreKeyStoreExtras.MarkSignedPreKeysAsUploaded(uuidKind, signedId)
 
 	if err != nil {
 		zlog.Err(err).Msg("Error marking prekeys as uploaded")
@@ -122,35 +116,48 @@ func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKe
 	return signedPreKey
 }
 
+func StoreSignedPreKey(device *Device, signedPreKey *libsignalgo.SignedPreKeyRecord, uuidKind UUIDKind) {
+	// Note: marking as uploaded right now because we're about to upload as part of
+	// provisioning, and if provisioning fails, we'll just generate a new one
+	device.PreKeyStoreExtras.SaveSignedPreKey(uuidKind, signedPreKey, true)
+}
+
+func PreKeyToJSON(preKey *libsignalgo.PreKeyRecord) map[string]interface{} {
+	id, _ := preKey.GetID()
+	publicKey, _ := preKey.GetPublicKey()
+	serializedKey, _ := publicKey.Serialize()
+	preKeyJson := map[string]interface{}{
+		"keyId":     id,
+		"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
+	}
+	return preKeyJson
+}
+
+func SignedPreKeyToJSON(signedPreKey *libsignalgo.SignedPreKeyRecord) map[string]interface{} {
+	id, _ := signedPreKey.GetID()
+	publicKey, _ := signedPreKey.GetPublicKey()
+	serializedKey, _ := publicKey.Serialize()
+	signature, _ := signedPreKey.GetSignature()
+	signedPreKeyJson := map[string]interface{}{
+		"keyId":     id,
+		"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
+		"signature": base64.StdEncoding.EncodeToString(signature),
+	}
+	return signedPreKeyJson
+}
+
 func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind UUIDKind, username string, password string) error {
 	// Convert generated prekeys to JSON
 	preKeysJson := []map[string]interface{}{}
 	for _, preKey := range generatedPreKeys.PreKeys {
-		id, _ := preKey.GetID()
-		publicKey, _ := preKey.GetPublicKey()
-		serializedKey, _ := publicKey.Serialize()
-		preKeyJson := map[string]interface{}{
-			"keyId":     id,
-			"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
-		}
+		preKeyJson := PreKeyToJSON(&preKey)
 		preKeysJson = append(preKeysJson, preKeyJson)
 	}
 
-	// Convert signed prekey to JSON
-	id, _ := generatedPreKeys.SignedPreKey.GetID()
-	publicKey, _ := generatedPreKeys.SignedPreKey.GetPublicKey()
-	serializedKey, _ := publicKey.Serialize()
-	signature, _ := generatedPreKeys.SignedPreKey.GetSignature()
-	signedPreKeyJson := map[string]interface{}{
-		"keyId":     id,
-		"publicKey": serializedKey,
-		"signature": base64.StdEncoding.EncodeToString(signature),
-	}
 	identityKey := generatedPreKeys.IdentityKey
 	register_json := map[string]interface{}{
-		"preKeys":      preKeysJson,
-		"signedPreKey": signedPreKeyJson,
-		"identityKey":  base64.StdEncoding.EncodeToString(identityKey),
+		"preKeys":     preKeysJson,
+		"identityKey": base64.StdEncoding.EncodeToString(identityKey),
 	}
 
 	// Send request
