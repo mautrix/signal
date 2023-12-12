@@ -1,100 +1,17 @@
-stages:
-- build
-- build docker
-- manifest
+include:
+- project: 'mautrix/ci'
+  file: '/go.yml'
 
-.build: &build
-  stage: build
-  cache:
-    paths:
-    - .cache
-  before_script:
-  - mkdir -p .cache
-  - export GOPATH="$CI_PROJECT_DIR/.cache"
-  - export GOCACHE="$CI_PROJECT_DIR/.cache/build"
-  - export MAUTRIX_VERSION=$(cat go.mod | grep 'maunium.net/go/mautrix ' | awk '{ print $2 }')
-  - export GO_LDFLAGS="-s -w -linkmode external -extldflags -static -X main.Tag=$CI_COMMIT_TAG -X main.Commit=$CI_COMMIT_SHA -X 'main.BuildTime=`date '+%b %_d %Y, %H:%M:%S'`' -X 'maunium.net/go/mautrix.GoModVersion=$MAUTRIX_VERSION'"
-  - export CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
-  script:
-  - go build -ldflags "$GO_LDFLAGS" -o mautrix-$CI_PROJECT_NAME
-  - sha256sum mautrix-$CI_PROJECT_NAME | tee mautrix-$CI_PROJECT_NAME.sha256sum
-  artifacts:
-    paths:
-    - mautrix-*
-    - example-config.yaml
+variables:
+  BUILDER_IMAGE: dock.mau.dev/tulir/gomuks-build-docker/signal
+  BINARY_NAME: mautrix-signal
 
-.build-docker: &build-docker
-  image: docker:stable
-  stage: build docker
-  before_script:
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  script:
-  - docker pull $CI_REGISTRY_IMAGE:latest || true
-  - docker build --pull --cache-from $CI_REGISTRY_IMAGE:latest --build-arg EXECUTABLE=./mautrix-$CI_PROJECT_NAME --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH . --file Dockerfile.ci
-  - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH
-  after_script:
-  - docker rmi $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH
+# TODO re-enable after macOS builds are fixed
+build macos arm64:
+  rules:
+    - when: never
 
-build amd64:
-  <<: *build
-  image: dock.mau.dev/tulir/gomuks-build-docker/signal:linux-amd64
-  tags:
-  - linux
-  - amd64
-
-build arm64:
-  <<: *build
-  image: dock.mau.dev/tulir/gomuks-build-docker/signal:linux-arm64-native
-  tags:
-  - linux
-  - arm64
-
-build docker amd64:
-  <<: *build-docker
-  tags:
-  - linux
-  - amd64
-  dependencies:
-  - build amd64
-  needs:
-  - build amd64
-  variables:
-    DOCKER_ARCH: amd64
-  after_script:
-  - wget "$BEEPER_CD_TOOL_URL" -O bridge-cd-tool && chmod +x bridge-cd-tool && ./bridge-cd-tool
-  - docker rmi $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-$DOCKER_ARCH
-
-build docker arm64:
-  <<: *build-docker
-  tags:
-  - linux
-  - arm64
-  dependencies:
-  - build arm64
-  needs:
-  - build arm64
-  variables:
-    DOCKER_ARCH: arm64
-
-manifest:
-  stage: manifest
-  variables:
-    GIT_STRATEGY: none
-  before_script:
-  - "mkdir -p $HOME/.docker && echo '{\"experimental\": \"enabled\"}' > $HOME/.docker/config.json"
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
-  needs:
-  - build docker amd64
-  - build docker arm64
-  script:
-  - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-amd64
-  - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-arm64
-  - |
-    if [[ "$CI_COMMIT_BRANCH" == "master" || "$CI_COMMIT_BRANCH" == "main" ]]; then
-      export MANIFEST_NAME="$CI_REGISTRY_IMAGE:latest"
-    else
-      export MANIFEST_NAME="$CI_REGISTRY_IMAGE:${CI_COMMIT_REF_NAME//\//_}"
-    fi
-    docker manifest create $MANIFEST_NAME $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-amd64 $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-arm64
-    docker manifest push $MANIFEST_NAME
-  - docker rmi $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-amd64 $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA-arm64
+# 32-bit arm builds aren't supported
+build arm:
+  rules:
+    - when: never
