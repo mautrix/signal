@@ -43,4 +43,4 @@ if [[ -x $DLV ]]; then
     EXE="${DLV} exec ${EXE} ${NOWAIT:+--continue --accept-multiclient} --api-version 2 --headless -l :4040"
 fi
 
-exec gosu $UID:$GID $EXE
+exec su-exec $UID:$GID $EXE

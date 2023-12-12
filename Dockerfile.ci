@@ -1,9 +1,9 @@
-FROM debian:12-slim
+FROM alpine:3.19
 
 ENV UID=1337 \
     GID=1337
 
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates bash jq yq curl gosu && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache ffmpeg su-exec ca-certificates bash jq curl yq
 
 ARG EXECUTABLE=./mautrix-signal
 COPY $EXECUTABLE /usr/bin/mautrix-signal
