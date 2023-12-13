@@ -32,34 +32,32 @@ func wrapPreKeyBundle(ptr *C.SignalPreKeyBundle) *PreKeyBundle {
 	return bundle
 }
 
-func NewPreKeyBundleWithoutPrekey(registrationID uint32, deviceID uint32, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *IdentityKey) (*PreKeyBundle, error) {
+func NewPreKeyBundle(
+	registrationID uint32,
+	deviceID uint32,
+	preKeyID uint32,
+	preKey *PublicKey,
+	signedPreKeyID uint32,
+	signedPreKey *PublicKey,
+	signedPreKeySignature []byte,
+	kyberPreKeyID uint32,
+	kyberPreKey *KyberPublicKey,
+	kyberPreKeySignature []byte,
+	identityKey *IdentityKey,
+) (*PreKeyBundle, error) {
 	var pkb *C.SignalPreKeyBundle
 	var zero uint32 = 0
 	var kyberSignatureBuffer = EmptyBorrowedBuffer()
-	signalFfiError := C.signal_pre_key_bundle_new(
-		&pkb,
-		C.uint32_t(registrationID),
-		C.uint32_t(deviceID),
-		C.uint32_t(^zero), // Turns out we need to pass in a max uint32 value to indicate no prekey
-		nil,
-		C.uint32_t(signedPreKeyID),
-		signedPreKey.ptr,
-		BytesToBuffer(signedPreKeySignature),
-		identityKey.publicKey.ptr,
-		C.uint32_t(^zero), // No kyber prekey either
-		nil,
-		kyberSignatureBuffer,
-	)
-	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
+	if preKey == nil {
+		preKey = &PublicKey{ptr: nil}
+		preKeyID = ^zero
 	}
-	return wrapPreKeyBundle(pkb), nil
-}
-
-func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, preKey *PublicKey, signedPreKeyID uint32, signedPreKey *PublicKey, signedPreKeySignature []byte, identityKey *IdentityKey) (*PreKeyBundle, error) {
-	var pkb *C.SignalPreKeyBundle
-	var zero uint32 = 0
-	var kyberSignatureBuffer = EmptyBorrowedBuffer()
+	if kyberPreKey == nil {
+		kyberPreKey = &KyberPublicKey{ptr: nil}
+		kyberPreKeyID = ^zero
+	} else {
+		kyberSignatureBuffer = BytesToBuffer(kyberPreKeySignature)
+	}
 	signalFfiError := C.signal_pre_key_bundle_new(
 		&pkb,
 		C.uint32_t(registrationID),
@@ -70,8 +68,8 @@ func NewPreKeyBundle(registrationID uint32, deviceID uint32, preKeyID uint32, pr
 		signedPreKey.ptr,
 		BytesToBuffer(signedPreKeySignature),
 		identityKey.publicKey.ptr,
-		C.uint32_t(^zero), // No kyber prekey
-		nil,
+		C.uint32_t(kyberPreKeyID),
+		kyberPreKey.ptr,
 		kyberSignatureBuffer,
 	)
 	if signalFfiError != nil {

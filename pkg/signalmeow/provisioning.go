@@ -20,9 +20,9 @@ import (
 )
 
 type ConfirmDeviceResponse struct {
-	uuid     string
-	pni      string
-	deviceId int
+	Uuid     string `json:"uuid"`
+	Pni      string `json:"pni,omitempty"`
+	DeviceId int    `json:"deviceId"`
 }
 
 type ProvisioningData struct {
@@ -111,7 +111,22 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 		pniRegistrationId := mrand.Intn(16383) + 1
 		aciSignedPreKey := GenerateSignedPreKey(1, UUID_KIND_ACI, aciIdentityKeyPair)
 		pniSignedPreKey := GenerateSignedPreKey(2, UUID_KIND_PNI, pniIdentityKeyPair)
-		deviceResponse, err := confirmDevice(ctx, username, password, *code, registrationId, pniRegistrationId, aciSignedPreKey, pniSignedPreKey)
+		aciPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUID_KIND_ACI, aciIdentityKeyPair)
+		pniPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUID_KIND_PNI, pniIdentityKeyPair)
+		aciPQLastResortPreKey := (*aciPQLastResortPreKeys)[0]
+		pniPQLastResortPreKey := (*pniPQLastResortPreKeys)[0]
+		deviceResponse, err := confirmDevice(
+			ctx,
+			username,
+			password,
+			*code,
+			registrationId,
+			pniRegistrationId,
+			aciSignedPreKey,
+			pniSignedPreKey,
+			&aciPQLastResortPreKey,
+			&pniPQLastResortPreKey,
+		)
 		if err != nil {
 			zlog.Err(err).Msg("confirmDevice error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -119,8 +134,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 		}
 
 		deviceId := 1
-		if deviceResponse.deviceId != 0 {
-			deviceId = deviceResponse.deviceId
+		if deviceResponse.DeviceId != 0 {
+			deviceId = deviceResponse.DeviceId
 		}
 
 		data := &DeviceData{
@@ -128,8 +143,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 			PniIdentityKeyPair: pniIdentityKeyPair,
 			RegistrationId:     registrationId,
 			PniRegistrationId:  pniRegistrationId,
-			AciUuid:            deviceResponse.uuid,
-			PniUuid:            deviceResponse.pni,
+			AciUuid:            deviceResponse.Uuid,
+			PniUuid:            deviceResponse.Pni,
 			DeviceId:           deviceId,
 			Number:             *provisioningMessage.Number,
 			Password:           password,
@@ -165,6 +180,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 		// Store signed prekeys (now that we have a device)
 		StoreSignedPreKey(device, aciSignedPreKey, UUID_KIND_ACI)
 		StoreSignedPreKey(device, pniSignedPreKey, UUID_KIND_PNI)
+		StoreKyberLastResortPreKey(device, &aciPQLastResortPreKey, UUID_KIND_ACI)
+		StoreKyberLastResortPreKey(device, &pniPQLastResortPreKey, UUID_KIND_PNI)
 
 		// Store our profile key
 		err = device.ProfileKeyStore.StoreProfileKey(data.AciUuid, profileKey, ctx)
@@ -284,6 +301,8 @@ func confirmDevice(
 	pniRegistrationId int,
 	aciSignedPreKey *libsignalgo.SignedPreKeyRecord,
 	pniSignedPreKey *libsignalgo.SignedPreKeyRecord,
+	aciPQLastResortPreKey *libsignalgo.KyberPreKeyRecord,
+	pniPQLastResortPreKey *libsignalgo.KyberPreKeyRecord,
 ) (*ConfirmDeviceResponse, error) {
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
 	if err != nil {
@@ -292,8 +311,11 @@ func confirmDevice(
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
-	pniSignedPreKeyJson := SignedPreKeyToJSON(pniSignedPreKey)
 	aciSignedPreKeyJson := SignedPreKeyToJSON(aciSignedPreKey)
+	pniSignedPreKeyJson := SignedPreKeyToJSON(pniSignedPreKey)
+
+	aciPQLastResortPreKeyJson := KyberPreKeyToJSON(aciPQLastResortPreKey)
+	pniPQLastResortPreKeyJson := KyberPreKeyToJSON(pniPQLastResortPreKey)
 
 	data := map[string]interface{}{
 		"verificationCode": code,
@@ -308,8 +330,8 @@ func confirmDevice(
 		},
 		"aciSignedPreKey":       aciSignedPreKeyJson,
 		"pniSignedPreKey":       pniSignedPreKeyJson,
-		"aciPqLastResortPreKey": map[string]interface{}{},
-		"pniPqLastResortPreKey": map[string]interface{}{},
+		"aciPqLastResortPreKey": aciPQLastResortPreKeyJson,
+		"pniPqLastResortPreKey": pniPQLastResortPreKeyJson,
 	}
 
 	// TODO: Set deviceName with "Signal Bridge" or something properly encrypted
@@ -356,47 +378,6 @@ func confirmDevice(
 		zlog.Err(err).Msgf("failed to unmarshal json: %v", receivedMsg.Response.Body)
 		return nil, err
 	}
-
-	// Decode body into JSON
-	//var body map[string]interface{}
-	//err = json.Unmarshal(receivedMsg.Response.Body, &body)
-	//if err != nil {
-	//	zlog.Err(err).Msgf("failed to unmarshal json: %v", resp)
-	//	return nil, err
-	//}
-	//status := int(*receivedMsg.Response.Status)
-	//if status < 200 || status >= 300 {
-	//	err := fmt.Errorf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
-	//	zlog.Err(err).Msg("")
-	//	return nil, err
-	//}
-
-	//// Put body into struct
-	//deviceResp := ConfirmDeviceResponse{}
-	//uuid, ok := body["uuid"].(string)
-	//if ok {
-	//	deviceResp.uuid = uuid
-	//} else {
-	//	err := fmt.Errorf("No uuid found in response")
-	//	zlog.Err(err).Msg("")
-	//	return nil, err
-	//}
-	//pni, ok := body[UUID_KIND_PNI].(string)
-	//if ok {
-	//	deviceResp.pni = pni
-	//} else {
-	//	err := fmt.Errorf("No pni found in response")
-	//	zlog.Err(err).Msg("")
-	//	return nil, err
-	//}
-	//deviceId, ok := body["deviceId"].(float64)
-	//if ok {
-	//	deviceResp.deviceId = int(deviceId)
-	//} else {
-	//	err := fmt.Errorf("No deviceId found in response")
-	//	zlog.Err(err).Msg("")
-	//	return nil, err
-	//}
 
 	return &deviceResp, nil
 }

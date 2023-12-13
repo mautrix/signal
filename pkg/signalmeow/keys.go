@@ -13,24 +13,39 @@ import (
 )
 
 type GeneratedPreKeys struct {
-	PreKeys     []libsignalgo.PreKeyRecord
-	IdentityKey []uint8
+	PreKeys      []libsignalgo.PreKeyRecord
+	KyberPreKeys []libsignalgo.KyberPreKeyRecord
+	IdentityKey  []uint8
 }
 
 func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
-	// Generate prekeys
-	preKeys := GeneratePreKeys(0, 100, uuidKind)
-
-	// Persist prekeys
-	for _, preKey := range *preKeys {
-		device.PreKeyStoreExtras.SavePreKey(uuidKind, &preKey, false)
-	}
-
 	var identityKeyPair *libsignalgo.IdentityKeyPair
 	if uuidKind == UUID_KIND_PNI {
 		identityKeyPair = device.Data.PniIdentityKeyPair
 	} else {
 		identityKeyPair = device.Data.AciIdentityKeyPair
+	}
+
+	// Generate prekeys
+	nextPreKeyId, err := device.PreKeyStoreExtras.GetNextPreKeyID(uuidKind)
+	if err != nil {
+		zlog.Err(err).Msg("Error getting next prekey id")
+		return err
+	}
+	nextKyberPreKeyId, err := device.PreKeyStoreExtras.GetNextKyberPreKeyID(uuidKind)
+	if err != nil {
+		zlog.Err(err).Msg("Error getting next kyber prekey id")
+		return err
+	}
+	preKeys := GeneratePreKeys(nextPreKeyId, 100, uuidKind)
+	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyId, 100, uuidKind, identityKeyPair)
+
+	// Persist prekeys
+	for _, preKey := range *preKeys {
+		device.PreKeyStoreExtras.SavePreKey(uuidKind, &preKey, false)
+	}
+	for _, kyberPreKey := range *kyberPreKeys {
+		device.PreKeyStoreExtras.SaveKyberPreKey(uuidKind, &kyberPreKey, false)
 	}
 
 	// Register prekeys
@@ -40,8 +55,9 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 		return err
 	}
 	generatedPreKeys := GeneratedPreKeys{
-		PreKeys:     *preKeys,
-		IdentityKey: identityKey,
+		PreKeys:      *preKeys,
+		KyberPreKeys: *kyberPreKeys,
+		IdentityKey:  identityKey,
 	}
 	preKeyUsername := device.Data.Number
 	if device.Data.AciUuid != "" {
@@ -55,6 +71,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	}
 
 	// Mark prekeys as registered
+	// (kyber prekeys don't have "mark as uploaded" we just assume they always are)
 	lastPreKeyId, err := (*preKeys)[len(*preKeys)-1].GetID()
 	err = device.PreKeyStoreExtras.MarkPreKeysAsUploaded(uuidKind, lastPreKeyId)
 
@@ -65,7 +82,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	return err
 }
 
-func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind UUIDKind) *[]libsignalgo.PreKeyRecord {
+func GeneratePreKeys(startKeyId uint, count uint, uuidKind UUIDKind) *[]libsignalgo.PreKeyRecord {
 	generatedPreKeys := []libsignalgo.PreKeyRecord{}
 	for i := startKeyId; i < startKeyId+count; i++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
@@ -73,15 +90,48 @@ func GeneratePreKeys(startKeyId uint32, count uint32, uuidKind UUIDKind) *[]libs
 			zlog.Err(err).Msg("Error generating private key")
 			panic(err)
 		}
-		preKey, err := libsignalgo.NewPreKeyRecordFromPrivateKey(i, privateKey)
+		preKey, err := libsignalgo.NewPreKeyRecordFromPrivateKey(uint32(i), privateKey)
 		if err != nil {
 			zlog.Err(err).Msg("Error creating preKey record")
 			panic(err)
 		}
 		generatedPreKeys = append(generatedPreKeys, *preKey)
 	}
-
 	return &generatedPreKeys
+}
+
+func GenerateKyberPreKeys(startKeyId uint, count uint, uuidKind UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *[]libsignalgo.KyberPreKeyRecord {
+	generatedKyberPreKeys := []libsignalgo.KyberPreKeyRecord{}
+	for i := startKeyId; i < startKeyId+count; i++ {
+		kyberPreKeyPair, err := libsignalgo.KyberKeyPairGenerate()
+		if err != nil {
+			zlog.Err(err).Msg("Error generating kyber key pair")
+			panic(err)
+		}
+		publicKey, err := kyberPreKeyPair.GetPublicKey()
+		if err != nil {
+			zlog.Err(err).Msg("Error getting kyber public key")
+			panic(err)
+		}
+		serializedPublicKey, err := publicKey.Serialize()
+		if err != nil {
+			zlog.Err(err).Msg("Error serializing kyber public key")
+			panic(err)
+		}
+		signature, err := identityKeyPair.GetPrivateKey().Sign(serializedPublicKey)
+		if err != nil {
+			zlog.Err(err).Msg("Error signing kyber public key")
+			panic(err)
+		}
+		preKey, err := libsignalgo.NewKyberPreKeyRecord(uint32(i), time.Now(), kyberPreKeyPair, signature)
+		if err != nil {
+			zlog.Err(err).Msg("Error creating kyber preKey record")
+			panic(err)
+
+		}
+		generatedKyberPreKeys = append(generatedKyberPreKeys, *preKey)
+	}
+	return &generatedKyberPreKeys
 }
 
 func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *libsignalgo.SignedPreKeyRecord {
@@ -97,12 +147,12 @@ func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKe
 		zlog.Err(err).Msg("Error getting public key")
 		panic(err)
 	}
-	serialized_public_key, err := publicKey.Serialize()
+	serializedPublicKey, err := publicKey.Serialize()
 	if err != nil {
 		zlog.Err(err).Msg("Error serializing public key")
 		panic(err)
 	}
-	signature, err := identityKeyPair.GetPrivateKey().Sign(serialized_public_key)
+	signature, err := identityKeyPair.GetPrivateKey().Sign(serializedPublicKey)
 	if err != nil {
 		zlog.Err(err).Msg("Error signing public key")
 		panic(err)
@@ -119,7 +169,12 @@ func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKe
 func StoreSignedPreKey(device *Device, signedPreKey *libsignalgo.SignedPreKeyRecord, uuidKind UUIDKind) {
 	// Note: marking as uploaded right now because we're about to upload as part of
 	// provisioning, and if provisioning fails, we'll just generate a new one
+	// Also we don't really use the uploaded for anything
 	device.PreKeyStoreExtras.SaveSignedPreKey(uuidKind, signedPreKey, true)
+}
+
+func StoreKyberLastResortPreKey(device *Device, kyberPreKey *libsignalgo.KyberPreKeyRecord, uuidKind UUIDKind) {
+	device.PreKeyStoreExtras.SaveKyberPreKey(uuidKind, kyberPreKey, true)
 }
 
 func PreKeyToJSON(preKey *libsignalgo.PreKeyRecord) map[string]interface{} {
@@ -146,17 +201,36 @@ func SignedPreKeyToJSON(signedPreKey *libsignalgo.SignedPreKeyRecord) map[string
 	return signedPreKeyJson
 }
 
+func KyberPreKeyToJSON(kyberPreKey *libsignalgo.KyberPreKeyRecord) map[string]interface{} {
+	id, _ := kyberPreKey.GetID()
+	publicKey, _ := kyberPreKey.GetPublicKey()
+	serializedKey, _ := publicKey.Serialize()
+	signature, _ := kyberPreKey.GetSignature()
+	kyberPreKeyJson := map[string]interface{}{
+		"keyId":     id,
+		"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
+		"signature": base64.StdEncoding.EncodeToString(signature),
+	}
+	return kyberPreKeyJson
+}
+
 func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind UUIDKind, username string, password string) error {
 	// Convert generated prekeys to JSON
 	preKeysJson := []map[string]interface{}{}
+	kyberPreKeysJson := []map[string]interface{}{}
 	for _, preKey := range generatedPreKeys.PreKeys {
 		preKeyJson := PreKeyToJSON(&preKey)
 		preKeysJson = append(preKeysJson, preKeyJson)
+	}
+	for _, kyberPreKey := range generatedPreKeys.KyberPreKeys {
+		kyberPreKeyJson := KyberPreKeyToJSON(&kyberPreKey)
+		kyberPreKeysJson = append(kyberPreKeysJson, kyberPreKeyJson)
 	}
 
 	identityKey := generatedPreKeys.IdentityKey
 	register_json := map[string]interface{}{
 		"preKeys":     preKeysJson,
+		"pqPreKeys":   kyberPreKeysJson,
 		"identityKey": base64.StdEncoding.EncodeToString(identityKey),
 	}
 
@@ -216,7 +290,7 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 	if specificDeviceID >= 0 {
 		deviceIDPath = "/" + fmt.Sprint(specificDeviceID)
 	}
-	path := "/v2/keys/" + theirUuid + deviceIDPath
+	path := "/v2/keys/" + theirUuid + deviceIDPath + "?pq=true"
 	username, password := device.Data.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest("GET", path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
@@ -271,35 +345,43 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 			return err
 		}
 
+		var kyberPublicKey *libsignalgo.KyberPublicKey
+		var kyberPreKeyId uint32
+		var kyberPreKeySignature []byte
+		if d.PQPreKey != nil {
+			kyberPreKeyId = uint32(d.PQPreKey.KeyID)
+			rawKyberPublicKey, err := addBase64PaddingAndDecode(d.PQPreKey.PublicKey)
+			if err != nil {
+				zlog.Err(err).Msg("Error decoding kyber public key")
+				return err
+			}
+			kyberPublicKey, err = libsignalgo.DeserializeKyberPublicKey(rawKyberPublicKey)
+			if err != nil {
+				zlog.Err(err).Msg("Error deserializing kyber public key")
+				return err
+			}
+			kyberPreKeySignature, err = addBase64PaddingAndDecode(d.PQPreKey.Signature)
+		}
+
 		rawSignature, err := addBase64PaddingAndDecode(d.SignedPreKey.Signature)
 		if err != nil {
 			zlog.Err(err).Msg("Error decoding signature")
 			return err
 		}
 
-		var preKeyBundle *libsignalgo.PreKeyBundle
-		if publicKey == nil {
-			// There is no prekey, use the signed method
-			preKeyBundle, err = libsignalgo.NewPreKeyBundleWithoutPrekey(
-				uint32(d.RegistrationID),
-				uint32(d.DeviceID),
-				uint32(d.SignedPreKey.KeyID),
-				signedPublicKey,
-				rawSignature,
-				identityKey,
-			)
-		} else {
-			preKeyBundle, err = libsignalgo.NewPreKeyBundle(
-				uint32(d.RegistrationID),
-				uint32(d.DeviceID),
-				preKeyId,
-				publicKey,
-				uint32(d.SignedPreKey.KeyID),
-				signedPublicKey,
-				rawSignature,
-				identityKey,
-			)
-		}
+		preKeyBundle, err := libsignalgo.NewPreKeyBundle(
+			uint32(d.RegistrationID),
+			uint32(d.DeviceID),
+			preKeyId,
+			publicKey,
+			uint32(d.SignedPreKey.KeyID),
+			signedPublicKey,
+			rawSignature,
+			kyberPreKeyId,
+			kyberPublicKey,
+			kyberPreKeySignature,
+			identityKey,
+		)
 		if err != nil {
 			zlog.Err(err).Msg("Error creating prekey bundle")
 			return err
