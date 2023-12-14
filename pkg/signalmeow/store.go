@@ -238,7 +238,6 @@ func (d *Device) IsDeviceLoggedIn() bool {
 		d.Data.AciUuid != "" &&
 		d.Data.DeviceId != 0 &&
 		d.Data.Password != ""
-
 }
 
 func (d *Device) ClearKeysAndDisconnect() error {

@@ -424,8 +424,9 @@ func (br *SignalBridge) StartUsers() {
 	numUsersStarting := 0
 	for _, u := range usersWithToken {
 		device := u.populateSignalDevice()
-		if device == nil {
-			br.ZLog.Warn().Str("user_id", u.MXID.String()).Msg("No device found for user, skipping Connect")
+		if device == nil || !device.IsDeviceLoggedIn() {
+			br.ZLog.Warn().Str("user_id", u.MXID.String()).Msg("No device found for user, skipping Connect and sending BadCredentials BridgeState")
+			u.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 			continue
 		}
 		go u.Connect()
