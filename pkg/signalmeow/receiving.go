@@ -834,7 +834,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				if err != nil {
 					zlog.Err(err).Msg("Error getting contact for mention name")
 				} else {
-					mention.MentionedName = contact.PreferredName()
+					mention.MentionedName = contact.ContactOrProfileName()
 				}
 			}
 			mentions = append(mentions, mention)

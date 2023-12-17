@@ -260,18 +260,12 @@ func (d *Device) ContactByE164(e164 string) (*Contact, error) {
 	return contact, err
 }
 
-func (c Contact) PreferredName() string {
+// Deprecated
+func (c Contact) ContactOrProfileName() string {
 	if c.ContactName != "" {
 		return c.ContactName
 	}
 	return c.ProfileName
-}
-
-func (c Contact) PreferredAvatarHash() string {
-	if c.ContactAvatarHash != "" {
-		return c.ContactAvatarHash
-	}
-	return c.ProfileAvatarHash
 }
 
 // UnmarshalContactDetailsMessages unmarshals a slice of ContactDetails messages from a byte buffer.

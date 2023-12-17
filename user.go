@@ -508,11 +508,12 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		return err
 	}
 
-	contactName := contact.PreferredName()
-	if contactName != puppet.Name {
-		user.log.Debug().Msgf("updatePuppetWithSignalContact: updating puppet name to %s", contactName)
-		puppet.Name = contactName
-		err = puppet.DefaultIntent().SetDisplayName(contactName)
+	name := user.bridge.Config.Bridge.FormatDisplayname(contact)
+	if name != puppet.Name {
+		user.log.Debug().Msgf("updatePuppetWithSignalContact: updating puppet name to %s", name)
+		puppet.Name = name
+		puppet.NameSet = false
+		err = puppet.DefaultIntent().SetDisplayName(name)
 		if err != nil {
 			user.log.Err(err).Msg("updatePuppetWithSignalContact: error setting display name")
 			return err
@@ -525,7 +526,18 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		}
 	}
 
-	if contact.PreferredAvatarHash() == "" && puppet.AvatarSet {
+	preferredAvatarHash := contact.ProfileAvatarHash
+	newAvatar := newProfileAvatar
+	if user.bridge.Config.Bridge.UseContactAvatars {
+		if contact.ContactAvatarHash != "" {
+			preferredAvatarHash = contact.ContactAvatarHash
+		}
+		if newContactAvatar != nil {
+			newAvatar = newContactAvatar
+		}
+	}
+
+	if preferredAvatarHash == "" && puppet.AvatarSet {
 		user.log.Debug().Msg("updatePuppetWithSignalContact: clearing avatar")
 		puppet.AvatarSet = false
 		puppet.AvatarURL = id.ContentURI{}
@@ -544,14 +556,6 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 	}
 
 	// If avatar is set, we must have a new avatar image, so update it
-	var newAvatar *signalmeow.ContactAvatar
-	if newContactAvatar != nil {
-		user.log.Debug().Msg("updatePuppetWithSignalContact: using newContactAvatar")
-		newAvatar = newContactAvatar
-	} else if newProfileAvatar != nil {
-		user.log.Debug().Msg("updatePuppetWithSignalContact: using newProfileAvatar")
-		newAvatar = newProfileAvatar
-	}
 	if newAvatar != nil {
 		user.log.Debug().Msg("updatePuppetWithSignalContact: uploading avatar")
 		avatarURL, err := puppet.DefaultIntent().UploadBytes(newAvatar.Image, newAvatar.ContentType)

@@ -24,13 +24,15 @@ import (
 	"time"
 
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
+
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 type BridgeConfig struct {
-	UsernameTemplate          string `yaml:"username_template"`
-	DisplaynameTemplate       string `yaml:"displayname_template"`
-	PrivateChatPortalMeta     string `yaml:"private_chat_portal_meta"`
-	PrivateChannelCreateLimit int    `yaml:"startup_private_channel_create_limit"`
+	UsernameTemplate      string `yaml:"username_template"`
+	DisplaynameTemplate   string `yaml:"displayname_template"`
+	PrivateChatPortalMeta string `yaml:"private_chat_portal_meta"`
+	UseContactAvatars     bool   `yaml:"use_contact_avatars"`
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 
@@ -142,5 +144,27 @@ func (bc BridgeConfig) GetManagementRoomTexts() bridgeconfig.ManagementRoomTexts
 func (bc BridgeConfig) FormatUsername(userID string) string {
 	var buffer strings.Builder
 	_ = bc.usernameTemplate.Execute(&buffer, userID)
+	return buffer.String()
+}
+
+type DisplaynameParams struct {
+	ProfileName string
+	ContactName string
+	Username    string
+	PhoneNumber string
+	UUID        string
+	AboutEmoji  string
+}
+
+func (bc BridgeConfig) FormatDisplayname(contact *signalmeow.Contact) string {
+	var buffer strings.Builder
+	_ = bc.displaynameTemplate.Execute(&buffer, DisplaynameParams{
+		ProfileName: contact.ProfileName,
+		ContactName: contact.ContactName,
+		//Username:    contact.Username,
+		PhoneNumber: contact.E164,
+		UUID:        contact.UUID,
+		AboutEmoji:  contact.ProfileAboutEmoji,
+	})
 	return buffer.String()
 }
