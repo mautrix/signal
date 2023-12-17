@@ -33,6 +33,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"go.mau.fi/util/exerrors"
+	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
@@ -1923,42 +1924,12 @@ func (portal *Portal) ScheduleDisappearing() {
 	portal.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(portal.MXID)
 }
 
-func humanReadableTime(seconds int) string {
-	d := time.Duration(seconds) * time.Second
-
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%d second%s", d/time.Second, pluralize(int(d/time.Second)))
-	case d < time.Hour:
-		minutes := (d + time.Second/2).Truncate(time.Minute) / time.Minute
-		return fmt.Sprintf("%d minute%s", minutes, pluralize(int(minutes)))
-	case d < 24*time.Hour:
-		hours := (d + time.Minute/2).Truncate(time.Hour) / time.Hour
-		return fmt.Sprintf("%d hour%s", hours, pluralize(int(hours)))
-	case d < 7*24*time.Hour:
-		days := (d + time.Hour/2).Truncate(24*time.Hour) / (24 * time.Hour)
-		return fmt.Sprintf("%d day%s", days, pluralize(int(days)))
-	default:
-		weeks := d / (7 * 24 * time.Hour)
-		return fmt.Sprintf("%d week%s", weeks, pluralize(int(weeks)))
-	}
-}
-
-func pluralize(value int) string {
-	if value == 1 {
-		return ""
-	}
-	return "s"
-}
-
 func (portal *Portal) HandleNewDisappearingMessageTime(newTimer uint32) {
 	portal.log.Debug().Msgf("Disappearing message timer changed to %d", newTimer)
 	intent := portal.bridge.Bot
 	if newTimer == 0 {
 		intent.SendNotice(portal.MXID, "Disappearing messages disabled")
 	} else {
-		// Format time to be round and human readable
-		timeString := humanReadableTime(int(newTimer))
-		intent.SendNotice(portal.MXID, fmt.Sprintf("Disappearing messages set to %s", timeString))
+		intent.SendNotice(portal.MXID, fmt.Sprintf("Disappearing messages set to %s", exfmt.Duration(time.Duration(newTimer)*time.Second)))
 	}
 }
