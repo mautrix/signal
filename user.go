@@ -192,6 +192,10 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 }
 
 func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
+	if user.bridge.StateStore.GetMembership(roomID, user.MXID) == event.MembershipJoin {
+		ok = true
+		return
+	}
 	extraContent := make(map[string]interface{})
 	if isDirect {
 		extraContent["is_direct"] = true
