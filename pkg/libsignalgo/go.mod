@@ -3,7 +3,7 @@ module go.mau.fi/mautrix-signal/pkg/libsignalgo
 go 1.20
 
 require (
-	github.com/google/uuid v1.3.1
+	github.com/google/uuid v1.5.0
 	github.com/mattn/go-pointer v0.0.1
 	github.com/rs/zerolog v1.31.0
 	github.com/stretchr/testify v1.8.4

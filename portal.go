@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	cwebp "github.com/chai2010/webp"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
+	cwebp "go.mau.fi/webp"
 	"golang.org/x/image/webp"
 
 	"maunium.net/go/mautrix"
@@ -29,12 +29,13 @@ import (
 	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
 
-	"go.mau.fi/mautrix-signal/database"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
+
+	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 type portalSignalMessage struct {
