@@ -17,7 +17,6 @@
 package signalfmt
 
 import (
-	"cmp"
 	"html"
 	"strings"
 
@@ -58,13 +57,21 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 	if len(ranges) == 0 {
 		return content
 	}
-	// LinkedRangeTree.Add depends on the ranges being sorted.
+	// LinkedRangeTree.Add depends on the ranges being sorted by increasing start index and then decreasing length.
 	slices.SortFunc(ranges, func(a, b *signalpb.BodyRange) int {
-		x := cmp.Compare(*a.Start, *b.Start)
-		if x == 0 {
-			return cmp.Compare(*b.Length, *a.Length)
+		if *a.Start == *b.Start {
+			if *a.Length == *b.Length {
+				return 0
+			} else if *a.Length < *b.Length {
+				return 1
+			} else {
+				return -1
+			}
+		} else if *a.Start < *b.Start {
+			return -1
+		} else {
+			return 1
 		}
-		return x
 	})
 
 	lrt := &LinkedRangeTree{}
