@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 
@@ -92,7 +93,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 		if existingContact.ContactAvatarHash != avatarHash {
 			zlog.Debug().Msgf("StoreContactDetailsAsContact: avatar changed for uuid: %v", contactDetails.GetUuid())
 			var contentType string
-			if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil {
+			if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil && !strings.HasSuffix(avatarDetails.GetContentType(), "/*") {
 				contentType = *avatarDetails.ContentType
 				zlog.Debug().Msgf("StoreContactDetailsAsContact: using contentType from details: %v", contentType)
 			} else {
