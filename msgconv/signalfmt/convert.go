@@ -62,7 +62,7 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 	slices.SortFunc(ranges, func(a, b *signalpb.BodyRange) int {
 		x := cmp.Compare(*a.Start, *b.Start)
 		if x == 0 {
-			return cmp.Compare(*a.Length, *b.Length)
+			return cmp.Compare(*b.Length, *a.Length)
 		}
 		return x
 	})
@@ -84,7 +84,8 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 			}
 			mentions[userInfo.MXID] = struct{}{}
 			// This could replace the wrong thing if there's a mention without fffc.
-			// Maybe use NewUTF16String and do index replacements for the plaintext body too?
+			// Maybe use NewUTF16String and do index replacements for the plaintext body too,
+			// or just replace the plaintext body by parsing the generated HTML.
 			content.Body = strings.Replace(content.Body, "\uFFFC", userInfo.Name, 1)
 			br.Value = Mention(userInfo)
 		}
@@ -94,5 +95,6 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 	content.Mentions.UserIDs = maps.Keys(mentions)
 	content.FormattedBody = lrt.Format(NewUTF16String(message), formatContext{})
 	content.Format = event.FormatHTML
+	//content.Body = format.HTMLToText(content.FormattedBody)
 	return content
 }

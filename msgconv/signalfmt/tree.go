@@ -22,28 +22,36 @@ type BodyRange struct {
 	Value  BodyRangeValue
 }
 
+// End returns the end index of the range.
 func (b BodyRange) End() int {
 	return b.Start + b.Length
 }
 
+// Offset changes the start of the range without affecting the length.
 func (b BodyRange) Offset(offset int) *BodyRange {
 	b.Start += offset
 	return &b
 }
 
-func (b BodyRange) ChangeStart(startAt int) *BodyRange {
+// TruncateStart changes the length of the range, so it starts at the given index and ends at the same index as before.
+func (b BodyRange) TruncateStart(startAt int) *BodyRange {
 	b.Length -= startAt - b.Start
 	b.Start = startAt
 	return &b
 }
 
-func (b BodyRange) EndBefore(maxEnd int) *BodyRange {
+// TruncateEnd changes the length of the range, so it ends at or before the given index and starts at the same index as before.
+func (b BodyRange) TruncateEnd(maxEnd int) *BodyRange {
 	if b.End() > maxEnd {
 		b.Length = maxEnd - b.Start
 	}
 	return &b
 }
 
+// LinkedRangeTree is a linked tree of formatting entities.
+//
+// It's meant to parse a list of Signal body ranges into nodes that either overlap completely or not at all,
+// which enables more natural conversion to HTML.
 type LinkedRangeTree struct {
 	Node    *BodyRange
 	Sibling *LinkedRangeTree
@@ -57,6 +65,7 @@ func ptrAdd(to **LinkedRangeTree, r *BodyRange) {
 	(*to).Add(r)
 }
 
+// Add adds the given formatting entity to this tree.
 func (lrt *LinkedRangeTree) Add(r *BodyRange) {
 	if lrt.Node == nil {
 		lrt.Node = r
@@ -68,7 +77,7 @@ func (lrt *LinkedRangeTree) Add(r *BodyRange) {
 		return
 	}
 	if r.End() > lrtEnd {
-		ptrAdd(&lrt.Sibling, r.ChangeStart(lrtEnd).Offset(-lrtEnd))
+		ptrAdd(&lrt.Sibling, r.TruncateStart(lrtEnd).Offset(-lrtEnd))
 	}
-	ptrAdd(&lrt.Child, r.EndBefore(lrtEnd).Offset(-lrt.Node.Start))
+	ptrAdd(&lrt.Child, r.TruncateEnd(lrtEnd).Offset(-lrt.Node.Start))
 }
