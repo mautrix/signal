@@ -1,5 +1,5 @@
-// mautrix-discord - A Matrix-Discord puppeting bridge.
-// Copyright (C) 2022 Tulir Asokan
+// mautrix-signal - A Matrix-Signal puppeting bridge.
+// Copyright (C) 2023 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by

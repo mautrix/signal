@@ -1,4 +1,4 @@
-// mautrix-discord - A Matrix-Discord puppeting bridge.
+// mautrix-signal - A Matrix-Signal puppeting bridge.
 // Copyright (C) 2022 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
