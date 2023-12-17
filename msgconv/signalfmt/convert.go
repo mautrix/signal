@@ -69,11 +69,13 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 
 	lrt := &LinkedRangeTree{}
 	mentions := map[id.UserID]struct{}{}
+	utf16Message := NewUTF16String(message)
+	maxLength := len(utf16Message)
 	for _, r := range ranges {
-		br := &BodyRange{
+		br := BodyRange{
 			Start:  int(*r.Start),
 			Length: int(*r.Length),
-		}
+		}.TruncateEnd(maxLength)
 		switch rv := r.GetAssociatedValue().(type) {
 		case *signalpb.BodyRange_Style_:
 			br.Value = Style(rv.Style)
@@ -93,7 +95,7 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 	}
 
 	content.Mentions.UserIDs = maps.Keys(mentions)
-	content.FormattedBody = lrt.Format(NewUTF16String(message), formatContext{})
+	content.FormattedBody = lrt.Format(utf16Message, formatContext{})
 	content.Format = event.FormatHTML
 	//content.Body = format.HTMLToText(content.FormattedBody)
 	return content

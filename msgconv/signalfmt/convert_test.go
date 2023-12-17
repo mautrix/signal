@@ -116,6 +116,17 @@ func TestParse(t *testing.T) {
 			body: "Hello, World!",
 			html: "<strong>Hel<em>l<del><span data-mx-spoiler>o</span></del></em></strong><em><del><span data-mx-spoiler>, <code>Wo</code></span></del></em><code>rld</code><strong>!</strong>",
 		},
+		{
+			name: "overflow",
+			ins:  "Hello, World!",
+			ine: []*signalpb.BodyRange{{
+				Start:           proto.Uint32(0),
+				Length:          proto.Uint32(20),
+				AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_BOLD},
+			}},
+			body: "Hello, World!",
+			html: "<strong>Hello, World!</strong>",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
