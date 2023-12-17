@@ -741,6 +741,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 			}
 
 			// ensure everyone is invited to the group
+			portal.ensureUserInvited(user)
 			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
 		} else {
 			if portal.shouldSetDMRoomMetadata() {
