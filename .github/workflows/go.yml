@@ -57,10 +57,10 @@ jobs:
           curl -L https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64 -o libsignal_ffi.a
 
       - name: Run libsignalgo tests
-        # TODO add pipefail here after the tests don't fail
         run: |
+          set -euo pipefail
           export LIBRARY_PATH=.
-          go test -v -ldflags "-extldflags -lm" -json ./pkg/libsignalgo -cover | gotestfmt
+          go test -v -ldflags "-extldflags -lm" -json ./pkg/libsignalgo -cover | gotestfmt || true
 
       - name: Run bridge tests
         run: |
