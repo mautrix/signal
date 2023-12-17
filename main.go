@@ -287,7 +287,7 @@ func main() {
 	}
 	br.Bridge = bridge.Bridge{
 		Name:              "mautrix-signal",
-		URL:               "https://github.com/mautrix/signalgo",
+		URL:               "https://github.com/mautrix/signal",
 		Description:       "A Matrix-Signal puppeting bridge.",
 		Version:           "0.1.0",
 		ProtocolName:      "Signal",

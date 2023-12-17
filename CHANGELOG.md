@@ -1,3 +1,8 @@
+# v0.5.0 (unreleased)
+
+* Rewrote bridge in Go.
+* Renamed main branch from `master` to `main`.
+
 # v0.4.3 (2023-05-17)
 
 Target signald version: [v0.23.2](https://gitlab.com/signald/signald/-/releases/0.23.2)

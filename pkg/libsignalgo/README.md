@@ -14,10 +14,6 @@ Go bindings for [libsignal](https://github.com/signalapp/libsignal).
 You can find precompiled `libsignal_ffi.a`'s on
 [mau.dev/tulir/gomuks-build-docker](https://mau.dev/tulir/gomuks-build-docker).
 Direct links:
-* [GNU/Linux amd64](https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64)
-* [GNU/Linux arm64](https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20arm64)
+* [Linux amd64](https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64)
+* [Linux arm64](https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20arm64)
 * [macOS arm64](https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20macos%20arm64)
-
-(the linux builds use glibc because the boringssl rust bindings are too hard to
-build statically, so they're only for GNU/Linux and won't work on musl-based
-distros like Alpine).

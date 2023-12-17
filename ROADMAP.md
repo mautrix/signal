@@ -43,12 +43,12 @@
   * [x] Remote deletions
   * [x] Initial profile/contact info
   * [ ] Profile/contact info changes
-    * [ ] When restarting bridge or syncing
+    * [x] When restarting bridge or syncing
     * [ ] Real time
-  * [ ] Group info
+  * [x] Group info
     * [x] Name
     * [x] Avatar
-    * [ ] Topic
+    * [x] Topic
   * [ ] Membership actions
     * [ ] Join
     * [ ] Invite
