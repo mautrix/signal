@@ -11,12 +11,13 @@ import (
 	"net/url"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+	"nhooyr.io/websocket"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
-	"google.golang.org/protobuf/proto"
-	"nhooyr.io/websocket"
 )
 
 type ConfirmDeviceResponse struct {

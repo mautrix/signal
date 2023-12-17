@@ -4,10 +4,11 @@ import (
 	"strings"
 
 	"github.com/skip2/go-qrcode"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
+
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 var (

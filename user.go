@@ -13,8 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"go.mau.fi/mautrix-signal/database"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
@@ -22,6 +20,9 @@ import (
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
+
+	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 var (

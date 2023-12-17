@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/rs/zerolog"
-
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/id"

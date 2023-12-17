@@ -5,10 +5,10 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"go.mau.fi/util/dbutil"
 	"maunium.net/go/maulogger/v2"
 
 	"go.mau.fi/mautrix-signal/database/upgrades"
-	"go.mau.fi/util/dbutil"
 )
 
 type Database struct {

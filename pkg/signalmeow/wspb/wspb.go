@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"google.golang.org/protobuf/proto"
-
 	"nhooyr.io/websocket"
 )
 

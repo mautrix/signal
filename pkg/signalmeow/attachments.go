@@ -13,6 +13,7 @@ import (
 	"math"
 
 	"github.com/rs/zerolog/log"
+
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )

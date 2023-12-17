@@ -16,8 +16,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix/id"
+
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 type provisioningHandle struct {

@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"go.mau.fi/mautrix-signal/database"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
+
+	"go.mau.fi/mautrix-signal/database"
 )
 
 type DisappearingMessagesManager struct {

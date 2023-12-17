@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"io"
 
-	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"golang.org/x/crypto/hkdf"
 	"google.golang.org/protobuf/proto"
+
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
 type ProvisioningCipher struct {

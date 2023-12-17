@@ -16,9 +16,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
+	"go.mau.fi/util/exerrors"
+	"go.mau.fi/util/ffmpeg"
+	"go.mau.fi/util/jsontime"
+	"go.mau.fi/util/variationselector"
 	cwebp "go.mau.fi/webp"
 	"golang.org/x/image/webp"
-
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
@@ -28,11 +31,6 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
-
-	"go.mau.fi/util/exerrors"
-	"go.mau.fi/util/ffmpeg"
-	"go.mau.fi/util/jsontime"
-	"go.mau.fi/util/variationselector"
 
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
