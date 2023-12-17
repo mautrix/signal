@@ -6,11 +6,6 @@ variables:
   BUILDER_IMAGE: dock.mau.dev/tulir/gomuks-build-docker/signal
   BINARY_NAME: mautrix-signal
 
-# TODO re-enable after macOS builds are fixed
-build macos arm64:
-  rules:
-    - when: never
-
 # 32-bit arm builds aren't supported
 build arm:
   rules:

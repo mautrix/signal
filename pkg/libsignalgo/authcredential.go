@@ -49,7 +49,7 @@ func ReceiveAuthCredentialWithPni(
 	if err != nil {
 		return nil, err
 	}
-	var c_pni *[17]C.uint8_t
+	var c_pni cPNIType
 	if len(pni) != 16 {
 		c_pni = nil
 	} else {
