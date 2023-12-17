@@ -2,49 +2,53 @@
 
 * Matrix → Signal
   * [ ] Message content
-    * [ ] Text
-    * [ ] ‡Formatting
-    * [ ] Mentions
+    * [x] Text
+    * [ ] Formatting
+    * [x] Mentions
     * [ ] Media
-      * [ ] Images
-      * [ ] Audio files
-      * [ ] Files
-      * [ ] Gifs
+      * [x] Images
+      * [x] Audio files
+      * [x] Voice messages
+      * [x] Files
+      * [x] Gifs
       * [ ] Locations
-      * [ ] Stickers
-  * [ ] Message reactions
-  * [ ] Message redactions
+      * [x] Stickers
+  * [x] Message reactions
+  * [x] Message redactions
   * [ ] Group info changes
     * [ ] Name
     * [ ] Avatar
+    * [ ] Topic
   * [ ] Membership actions
-    * [ ] Join (accept invite)
+    * [ ] Join (accepting invites)
     * [ ] Invite
     * [ ] Leave
     * [ ] Kick/Ban/Unban
-  * [ ] Typing notifications
+  * [x] Typing notifications
   * [ ] Read receipts (currently partial support, only marks last message)
-  * [ ] Delivery receipts (sent after message is bridged)
+  * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
   * [ ] Message content
-    * [ ] Text
-    * [ ] Mentions
-    * [ ] Media
-      * [ ] Images
-      * [ ] Voice notes
-      * [ ] Files
-      * [ ] Gifs
-      * [ ] Contacts
-      * [ ] Locations
-      * [ ] Stickers
-  * [ ] Message reactions
-  * [ ] Remote deletions
-  * [ ] Initial user and group profile info
-  * [ ] Profile info changes
+    * [x] Text
+	* [ ] Formatting
+    * [x] Mentions
+    * [x] Media
+      * [x] Images
+      * [x] Voice notes
+      * [x] Files
+      * [x] Gifs
+      * [x] Contacts
+      * [x] Stickers
+  * [x] Message reactions
+  * [x] Remote deletions
+  * [x] Initial profile/contact info
+  * [ ] Profile/contact info changes
     * [ ] When restarting bridge or syncing
     * [ ] Real time
-      * [ ] Groups
-      * [ ] Users
+  * [ ] Group info
+    * [x] Name
+    * [x] Avatar
+    * [ ] Topic
   * [ ] Membership actions
     * [ ] Join
     * [ ] Invite
@@ -52,21 +56,15 @@
     * [ ] Leave
     * [ ] Kick/Ban/Unban
   * [ ] Group permissions
-  * [ ] Typing notifications
-  * [ ] Read receipts
+  * [x] Typing notifications
+  * [x] Read receipts
   * [ ] Delivery receipts (there's no good way to bridge these)
-  * [ ] Disappearing messages
+  * [x] Disappearing messages
 * Misc
   * [ ] Automatic portal creation
-    * [ ] At startup
-    * [ ] When receiving message
-  * [ ] Provisioning API for logging in
-    * [ ] Linking as secondary device
-    * [ ] Registering as primary device
+    * [ ] After login
+    * [x] When receiving message
+  * [x] Linking as secondary device
+  * [ ] Registering as primary device
   * [ ] Private chat/group creation by inviting Matrix puppet of Signal user to new room
-  * [ ] Option to use own Matrix account for messages sent from other Signal clients
-    * [ ] Automatic login with shared secret
-    * [ ] Manual login with `login-matrix`
-  * [ ] E2EE in Matrix rooms
-
-‡ Not possible in Signal
+  * [x] Option to use own Matrix account for messages sent from other Signal clients
