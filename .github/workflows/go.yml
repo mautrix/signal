@@ -10,25 +10,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/checkout@v3
-        with:
-          repository: signalapp/libsignal
-          path: libsignal
-          ref: ${{ env.LIBSIGNAL_REF }}
 
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
           go-version: "1.21"
+          cache: true
 
       - name: Install libolm
-        run: sudo apt-get install libolm-dev libolm3
+        run: sudo apt-get install libolm-dev
 
-      - name: Build libsignal
+      - name: Download libsignal
         run: |
-          cd libsignal
-          sudo apt-get install protobuf-compiler
-          cargo build -p libsignal-ffi --release --verbose
+          curl https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64 -o libsignal_ffi.a
 
       - name: Install dependencies
         run: |
@@ -48,15 +42,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/checkout@v3
-        with:
-          repository: signalapp/libsignal
-          path: libsignal
-
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go-version }}
+          cache: true
 
       - name: Set up gotestfmt
         uses: GoTestTools/gotestfmt-action@v2
@@ -64,13 +54,11 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libolm
-        run: sudo apt-get install libolm-dev libolm3
+        run: sudo apt-get install libolm-dev
 
-      - name: Build libsignal
+      - name: Download libsignal
         run: |
-          cd libsignal
-          sudo apt-get install protobuf-compiler
-          cargo build -p libsignal-ffi --release --verbose
+          curl https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64 -o libsignal_ffi.a
 
       - name: Run libsignalgo tests
         # TODO add pipefail here after the tests don't fail
