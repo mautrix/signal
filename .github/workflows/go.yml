@@ -20,7 +20,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.20"
+          go-version: "1.21"
 
       - name: Install libolm
         run: sudo apt-get install libolm-dev libolm3
@@ -42,6 +42,10 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.20", "1.21"]
+
     steps:
       - uses: actions/checkout@v3
         with:
@@ -51,7 +55,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
-          go-version: "1.20"
+          go-version: ${{ matrix.go-version }}
 
       - name: Set up gotestfmt
         uses: GoTestTools/gotestfmt-action@v2
