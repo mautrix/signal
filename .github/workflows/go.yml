@@ -67,7 +67,12 @@ jobs:
           sudo apt-get install protobuf-compiler
           cargo build -p libsignal-ffi --release --verbose
 
-      - name: Run tests
+      - name: Run libsignalgo tests
         run: |
           export LIBRARY_PATH=libsignal/target/release
           go test -v -json ./pkg/libsignalgo -cover | gotestfmt
+
+      - name: Run bridge tests
+        run: |
+          export LIBRARY_PATH=libsignal/target/release
+          go test -v -json ./... -cover | gotestfmt
