@@ -117,6 +117,44 @@ func TestParse(t *testing.T) {
 			html: "<strong>Hel<em>l<del><span data-mx-spoiler>o</span></del></em></strong><em><del><span data-mx-spoiler>, <code>Wo</code></span></del></em><code>rld</code><strong>!</strong>",
 		},
 		{
+			name: "basic style with sorting",
+			ins:  "Hello, World!",
+			ine: []*signalpb.BodyRange{
+				{
+					Start:           proto.Uint32(12),
+					Length:          proto.Uint32(1),
+					AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_BOLD},
+				},
+				{
+					Start:           proto.Uint32(0),
+					Length:          proto.Uint32(5),
+					AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_BOLD},
+				},
+				{
+					Start:           proto.Uint32(4),
+					Length:          proto.Uint32(5),
+					AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_STRIKETHROUGH},
+				},
+				{
+					Start:           proto.Uint32(7),
+					Length:          proto.Uint32(5),
+					AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_MONOSPACE},
+				},
+				{
+					Start:           proto.Uint32(4),
+					Length:          proto.Uint32(4),
+					AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_SPOILER},
+				},
+				{
+					Start:           proto.Uint32(3),
+					Length:          proto.Uint32(6),
+					AssociatedValue: &signalpb.BodyRange_Style_{Style: signalpb.BodyRange_ITALIC},
+				},
+			},
+			body: "Hello, World!",
+			html: "<strong>Hel<em>l<del><span data-mx-spoiler>o</span></del></em></strong><em><del><span data-mx-spoiler>, <code>W</code></span><code>o</code></del></em><code>rld</code><strong>!</strong>",
+		},
+		{
 			name: "overflow",
 			ins:  "Hello, World!",
 			ine: []*signalpb.BodyRange{{
