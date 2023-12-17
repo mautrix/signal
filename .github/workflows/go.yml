@@ -73,11 +73,13 @@ jobs:
           cargo build -p libsignal-ffi --release --verbose
 
       - name: Run libsignalgo tests
+        # TODO add pipefail here after the tests don't fail
         run: |
           export LIBRARY_PATH=libsignal/target/release
-          go test -v -json ./pkg/libsignalgo -cover | gotestfmt
+          go test -v -ldflags "-extldflags -lm" -json ./pkg/libsignalgo -cover | gotestfmt
 
       - name: Run bridge tests
         run: |
+          set -euo pipefail
           export LIBRARY_PATH=libsignal/target/release
           go test -v -json ./... -cover | gotestfmt
