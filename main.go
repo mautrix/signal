@@ -5,20 +5,21 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
-
 	"sync"
 
 	"github.com/rs/zerolog"
-	"go.mau.fi/mautrix-signal/config"
-	"go.mau.fi/mautrix-signal/database"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/util/configupgrade"
+	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
+
+	"go.mau.fi/mautrix-signal/config"
+	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 //go:embed example-config.yaml
@@ -83,7 +84,7 @@ func (br *SignalBridge) Init() {
 	//signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Caller().Logger())
 
 	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
-	br.MeowStore = signalmeow.NewStoreWithDB(br.DB.RawDB, br.DB.Dialect.String())
+	br.MeowStore = signalmeow.NewStore(br.Bridge.DB, dbutil.ZeroLogger(br.ZLog.With().Str("db_section", "signalmeow").Logger()))
 
 	ss := br.Config.Bridge.Provisioning.SharedSecret
 	if len(ss) > 0 && ss != "disable" {

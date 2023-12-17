@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 
+	"go.mau.fi/util/dbutil"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/upgrades"
 )
 
 var _ DeviceStore = (*StoreContainer)(nil)
@@ -18,10 +21,7 @@ type DeviceStore interface {
 
 // StoreContainer is a wrapper for a SQL database that can contain multiple signalmeow sessions.
 type StoreContainer struct {
-	db      *sql.DB
-	dialect string
-
-	DatabaseErrorHandler func(device *DeviceData, action string, attemptIndex int, err error) (retry bool)
+	db *dbutil.Database
 }
 
 // Device is a wrapper for a signalmeow session, including device data,
@@ -50,45 +50,8 @@ type Device struct {
 	DeviceStore        DeviceStore
 }
 
-// New connects to the given SQL database and wraps it in a StoreContainer.
-// Only SQLite and Postgres are currently fully supported.
-// The logger can be nil and will default to a no-op logger.
-// When using SQLite, it's strongly recommended to enable foreign keys by adding `?_foreign_keys=true`:
-//
-//	container, err := sqlstore.New("sqlite3", "file:yoursqlitefile.db?_foreign_keys=on", nil)
-func NewStore(dialect, address string) (*StoreContainer, error) {
-	db, err := sql.Open(dialect, address)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
-	}
-	container := NewStoreWithDB(db, dialect)
-	err = container.Upgrade()
-	if err != nil {
-		return nil, fmt.Errorf("failed to upgrade database: %w", err)
-	}
-	return container, nil
-}
-
-// NewWithDB wraps an existing SQL connection in a StoreContainer.
-// Only SQLite and Postgres are currently fully supported.
-// The logger can be nil and will default to a no-op logger.
-// When using SQLite, it's strongly recommended to enable foreign keys by adding `?_foreign_keys=true`:
-//
-//	db, err := sql.Open("sqlite3", "file:yoursqlitefile.db?_foreign_keys=on")
-//	if err != nil {
-//	    panic(err)
-//	}
-//	container := sqlstore.NewWithDB(db, "sqlite3", nil)
-//
-// This method does not call Upgrade automatically like New does, so you must call it yourself:
-//
-//	container := sqlstore.NewWithDB(...)
-//	err := container.Upgrade()
-func NewStoreWithDB(db *sql.DB, dialect string) *StoreContainer {
-	return &StoreContainer{
-		db:      db,
-		dialect: dialect,
-	}
+func NewStore(db *dbutil.Database, log dbutil.DatabaseLogger) *StoreContainer {
+	return &StoreContainer{db: db.Child("signalmeow_version", upgrades.Table, log)}
 }
 
 const getAllDevicesQuery = `
@@ -103,6 +66,10 @@ const getDeviceQuery = getAllDevicesQuery + " WHERE aci_uuid=$1"
 
 type scannable interface {
 	Scan(dest ...interface{}) error
+}
+
+func (c *StoreContainer) Upgrade() error {
+	return c.db.Upgrade()
 }
 
 func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
