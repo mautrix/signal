@@ -44,6 +44,7 @@ type BridgeConfig struct {
 	MessageErrorNotices bool `yaml:"message_error_notices"`
 	SyncDirectChatList  bool `yaml:"sync_direct_chat_list"`
 	ResendBridgeInfo    bool `yaml:"resend_bridge_info"`
+	CaptionInMessage    bool `yaml:"caption_in_message"`
 	FederateRooms       bool `yaml:"federate_rooms"`
 
 	MessageHandlingTimeout struct {

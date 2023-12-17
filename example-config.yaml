@@ -118,6 +118,9 @@ bridge:
     # Set this to true to tell the bridge to re-send m.bridge events to all rooms on the next run.
     # This field will automatically be changed back to false after it, except if the config file is not writable.
     resend_bridge_info: false
+    # Send captions in the same message as images. This will send data compatible with both MSC2530.
+    # This is currently not supported in most clients.
+    caption_in_message: false
     # Whether or not created rooms should have federation enabled.
     # If false, created portal rooms will never be federated.
     federate_rooms: true

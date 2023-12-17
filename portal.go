@@ -1401,6 +1401,10 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 		content.FileName = fmt.Sprintf("%d", timestamp)
 		content.FileName = content.FileName + "." + strings.Split(msg.ContentType, "/")[1]
 	}
+	if content.Body == "" {
+		content.Body = content.FileName
+		content.FileName = ""
+	}
 	if strings.HasPrefix(msg.ContentType, "image") {
 		portal.log.Debug().Msgf("Received image attachment: %s", msg.ContentType)
 		content.MsgType = event.MsgImage
@@ -1413,9 +1417,6 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 	} else {
 		portal.log.Debug().Msgf("Received file attachment: %s", msg.ContentType)
 		content.MsgType = event.MsgFile
-		if content.Body == "" {
-			content.Body = content.FileName
-		}
 	}
 	portal.addSignalQuote(content, msg.Quote)
 	portal.addMentionsToMatrixBody(content, msg.Mentions)

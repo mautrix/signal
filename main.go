@@ -114,6 +114,8 @@ func (br *SignalBridge) Init() {
 
 	br.Metrics = NewMetricsHandler(br.Config.Metrics.Listen, br.Log.Sub("Metrics"), br.DB)
 	br.MatrixHandler.TrackEventDuration = br.Metrics.TrackMatrixEvent
+
+	signalmeow.HackyCaptionToggle = br.Config.Bridge.CaptionInMessage
 }
 
 func (br *SignalBridge) Start() {

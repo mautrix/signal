@@ -745,6 +745,11 @@ func contentFieldsString(c *signalpb.Content) string {
 	return builder.String()
 }
 
+// HackyCaptionToggle is a hack to pass the bridge caption_in_message config option to the library.
+// This won't be necessary after the redundant DataMessage -> custom struct conversion is removed
+// (messages should just be converted DataMessage -> Matrix instead of DataMessage -> custom struct -> Matrix).
+var HackyCaptionToggle bool
+
 func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) ([]uint64, error) {
 	deliveredTimestamps := make([]uint64, 0)
 
@@ -841,6 +846,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		}
 	}
 
+	tsIndex := 0
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
 		for index, attachmentPointer := range dataMessage.Attachments {
@@ -867,7 +873,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					ExpiresIn:     expiresIn,
 				},
 				Attachment:  bytes,
-				Caption:     dataMessage.GetBody(),
 				Filename:    attachmentPointer.GetFileName(),
 				ContentType: attachmentPointer.GetContentType(),
 				Size:        uint64(attachmentPointer.GetSize()),
@@ -875,18 +880,26 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Height:      attachmentPointer.GetHeight(),
 				BlurHash:    attachmentPointer.GetBlurHash(),
 			}
+			if HackyCaptionToggle && index == 0 {
+				incomingMessage.Caption = dataMessage.GetBody()
+			}
 			incomingMessages = append(incomingMessages, incomingMessage)
 		}
+		tsIndex += len(dataMessage.Attachments)
 	}
 
 	// If there's a body but no attachments, pass along as a text message
-	if dataMessage.Body != nil && dataMessage.Attachments == nil {
+	if dataMessage.Body != nil && (dataMessage.Attachments == nil || !HackyCaptionToggle) {
+		timestamp := dataMessage.GetTimestamp()
+		if tsIndex != 0 {
+			timestamp = (dataMessage.GetTimestamp() * 1000) + uint64(tsIndex+1)
+		}
 		incomingMessage := IncomingSignalMessageText{
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
 				RecipientUUID: recipientUUID,
 				GroupID:       gidPointer,
-				Timestamp:     dataMessage.GetTimestamp(),
+				Timestamp:     timestamp,
 				Quote:         quoteData,
 				Mentions:      mentions,
 				ExpiresIn:     expiresIn,
