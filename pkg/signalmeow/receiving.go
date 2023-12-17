@@ -824,28 +824,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		expiresIn = int64(dataMessage.GetExpireTimer())
 	}
 
-	// If there's mentions, add them
-	// TODO: also parse out styles here
-	var mentions []IncomingSignalMessageMentionData
-	if dataMessage.BodyRanges != nil {
-		for _, bodyRange := range dataMessage.BodyRanges {
-			mention := IncomingSignalMessageMentionData{
-				Start:  *bodyRange.Start,
-				Length: *bodyRange.Length,
-			}
-			if mentionUUID := bodyRange.GetMentionUuid(); mentionUUID != "" {
-				mention.MentionedUUID = mentionUUID
-				contact, err := device.ContactByID(mentionUUID)
-				if err != nil {
-					zlog.Err(err).Msg("Error getting contact for mention name")
-				} else {
-					mention.MentionedName = contact.ContactOrProfileName()
-				}
-			}
-			mentions = append(mentions, mention)
-		}
-	}
-
 	tsIndex := 0
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
@@ -869,7 +847,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					GroupID:       gidPointer,
 					Timestamp:     timestamp,
 					Quote:         quoteData,
-					Mentions:      mentions,
 					ExpiresIn:     expiresIn,
 				},
 				Attachment:  bytes,
@@ -882,6 +859,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 			}
 			if HackyCaptionToggle && index == 0 {
 				incomingMessage.Caption = dataMessage.GetBody()
+				incomingMessage.CaptionRanges = dataMessage.GetBodyRanges()
 			}
 			incomingMessages = append(incomingMessages, incomingMessage)
 		}
@@ -901,10 +879,10 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				GroupID:       gidPointer,
 				Timestamp:     timestamp,
 				Quote:         quoteData,
-				Mentions:      mentions,
 				ExpiresIn:     expiresIn,
 			},
-			Content: dataMessage.GetBody(),
+			Content:       dataMessage.GetBody(),
+			ContentRanges: dataMessage.GetBodyRanges(),
 		}
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}
@@ -922,7 +900,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					GroupID:       gidPointer,
 					Timestamp:     dataMessage.GetTimestamp(),
 					Quote:         quoteData,
-					Mentions:      mentions,
 					ExpiresIn:     expiresIn,
 				},
 				Width:       *dataMessage.Sticker.Data.Width,
@@ -947,7 +924,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				GroupID:       gidPointer,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
-				Mentions:      mentions,
 				ExpiresIn:     expiresIn,
 			},
 			Emoji:                  dataMessage.GetReaction().GetEmoji(),
@@ -967,7 +943,6 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				GroupID:       gidPointer,
 				Timestamp:     dataMessage.GetTimestamp(),
 				Quote:         quoteData,
-				Mentions:      mentions,
 				ExpiresIn:     expiresIn,
 			},
 			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),

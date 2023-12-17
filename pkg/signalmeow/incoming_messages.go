@@ -16,29 +16,25 @@
 
 package signalmeow
 
+import (
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+)
+
 // Below is a lot of boilerplate to have a nice ADTish type for incoming Signal messages
 
 type IncomingSignalMessageBase struct {
 	// When uniquely identifiying a chat, use GroupID if it is not nil, otherwise use SenderUUID.
-	SenderUUID    string                             // Always the UUID of the sender of the message
-	RecipientUUID string                             // Usually our UUID, unless this is a message we sent on another device
-	GroupID       *GroupIdentifier                   // Unique identifier for the group chat, or nil for 1:1 chats
-	Timestamp     uint64                             // With SenderUUID, treated as a unique identifier for a specific Signal message
-	Quote         *IncomingSignalMessageQuoteData    // If this message is a quote (reply), this will be non-nil
-	Mentions      []IncomingSignalMessageMentionData // If this message mentions other users, this will be len > 0
-	ExpiresIn     int64                              // If this message is ephemeral, this will be non-zero (in seconds)
+	SenderUUID    string                          // Always the UUID of the sender of the message
+	RecipientUUID string                          // Usually our UUID, unless this is a message we sent on another device
+	GroupID       *GroupIdentifier                // Unique identifier for the group chat, or nil for 1:1 chats
+	Timestamp     uint64                          // With SenderUUID, treated as a unique identifier for a specific Signal message
+	Quote         *IncomingSignalMessageQuoteData // If this message is a quote (reply), this will be non-nil
+	ExpiresIn     int64                           // If this message is ephemeral, this will be non-zero (in seconds)
 }
 
 type IncomingSignalMessageQuoteData struct {
 	QuotedTimestamp uint64
 	QuotedSender    string
-}
-
-type IncomingSignalMessageMentionData struct {
-	Start         uint32
-	Length        uint32
-	MentionedUUID string
-	MentionedName string
 }
 
 type IncomingSignalMessageType int
@@ -96,7 +92,8 @@ func (i IncomingSignalMessageUnhandled) Base() IncomingSignalMessageBase {
 // ** IncomingSignalMessageText **
 type IncomingSignalMessageText struct {
 	IncomingSignalMessageBase
-	Content string
+	Content       string
+	ContentRanges []*signalpb.BodyRange
 }
 
 func (IncomingSignalMessageText) MessageType() IncomingSignalMessageType {
@@ -117,6 +114,8 @@ type IncomingSignalMessageAttachment struct {
 	Width       uint32
 	Height      uint32
 	BlurHash    string
+
+	CaptionRanges []*signalpb.BodyRange
 }
 
 func (IncomingSignalMessageAttachment) MessageType() IncomingSignalMessageType {

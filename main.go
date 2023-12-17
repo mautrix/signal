@@ -35,6 +35,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
@@ -114,6 +115,26 @@ func (br *SignalBridge) Init() {
 
 	br.Metrics = NewMetricsHandler(br.Config.Metrics.Listen, br.Log.Sub("Metrics"), br.DB)
 	br.MatrixHandler.TrackEventDuration = br.Metrics.TrackMatrixEvent
+
+	formatParams = &signalfmt.FormatParams{
+		GetUserInfo: func(uuid string) signalfmt.UserInfo {
+			puppet := br.GetPuppetBySignalID(uuid)
+			if puppet == nil {
+				return signalfmt.UserInfo{}
+			}
+			user := br.GetUserBySignalID(uuid)
+			if user != nil {
+				return signalfmt.UserInfo{
+					MXID: user.MXID,
+					Name: puppet.Name,
+				}
+			}
+			return signalfmt.UserInfo{
+				MXID: puppet.MXID,
+				Name: puppet.Name,
+			}
+		},
+	}
 
 	signalmeow.HackyCaptionToggle = br.Config.Bridge.CaptionInMessage
 }
@@ -249,6 +270,7 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 	portal.UpdateBridgeInfo()
 	_, _ = intent.SendNotice(roomID, "Private chat portal created")
 }
+
 func main() {
 	br := &SignalBridge{
 		usersByMXID:     make(map[id.UserID]*User),

@@ -28,9 +28,9 @@
   * [ ] Read receipts (currently partial support, only marks last message)
   * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
-  * [ ] Message content
+  * [x] Message content
     * [x] Text
-	* [ ] Formatting
+    * [x] Formatting
     * [x] Mentions
     * [x] Media
       * [x] Images

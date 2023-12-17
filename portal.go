@@ -38,6 +38,7 @@ import (
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
 	cwebp "go.mau.fi/webp"
+	"golang.org/x/exp/slices"
 	"golang.org/x/image/webp"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
@@ -50,6 +51,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
@@ -992,6 +994,14 @@ func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *
 					EventID: eventID,
 				},
 			}
+			mentionMXID := portal.bridge.FormatPuppetMXID(originalMessage.Sender)
+			user := portal.bridge.GetUserBySignalID(originalMessage.Sender)
+			if user != nil {
+				mentionMXID = user.MXID
+			}
+			if !slices.Contains(content.Mentions.UserIDs, mentionMXID) {
+				content.Mentions.UserIDs = append(content.Mentions.UserIDs, mentionMXID)
+			}
 		} else {
 			portal.log.Warn().Msgf("Couldn't find event ID for message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
 		}
@@ -1000,43 +1010,6 @@ func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *
 
 func (portal *Portal) addDisappearingMessage(eventID id.EventID, expireInSeconds int64, startTimerNow bool) {
 	portal.bridge.disappearingMessagesManager.AddDisappearingMessage(eventID, portal.MXID, expireInSeconds, startTimerNow)
-}
-
-func (portal *Portal) addMentionsToMatrixBody(content *event.MessageEventContent, mentions []signalmeow.IncomingSignalMessageMentionData) {
-	matrixMentions := event.Mentions{
-		UserIDs: []id.UserID{},
-	}
-	for _, mention := range mentions {
-		if mention.MentionedUUID == "" {
-			// Not a mention, skip it
-			continue
-		}
-		puppet := portal.bridge.GetPuppetBySignalID(mention.MentionedUUID)
-		mxID := puppet.MXID
-
-		// If the mention is us, make sure we use our Matrix display name to make the client actually pings us
-		if puppet.CustomMXID != "" {
-			mxID = puppet.CustomMXID
-		}
-
-		// Prefer matrix display name if it exists
-		mentionName := mention.MentionedName
-		matrixName, err := portal.MainIntent().GetDisplayName(mxID)
-		if err != nil {
-			portal.log.Warn().Err(err).Msgf("Failed to get display name for %s", mxID)
-		}
-		if matrixName.DisplayName != "" {
-			mentionName = matrixName.DisplayName
-		}
-		htmlMentionName := fmt.Sprintf("<a href=\"https://matrix.to/#/%s\">%s</a>", mxID, mentionName)
-
-		content.Body = strings.Replace(content.Body, "\uFFFC", mentionName, 1)
-		content.FormattedBody = strings.Replace(content.FormattedBody, "\uFFFC", htmlMentionName, 1)
-		matrixMentions.UserIDs = append(matrixMentions.UserIDs, mxID)
-	}
-	if len(matrixMentions.UserIDs) > 0 {
-		content.Mentions = &matrixMentions
-	}
 }
 
 const mentionedSignalIDsContextKey = "fi.mau.signal.mentioned_ids"
@@ -1106,17 +1079,13 @@ func (portal *Portal) parseMentionsFromMatrixBody(content *event.MessageEventCon
 	return parsedBody, mentionedSignalIDs
 }
 
+var formatParams *signalfmt.FormatParams
+
 func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
-	content := &event.MessageEventContent{
-		MsgType:       event.MsgText,
-		Body:          msg.Content,
-		Format:        event.FormatHTML,
-		FormattedBody: msg.Content,
-	}
+	content := signalfmt.Parse(msg.Content, msg.ContentRanges, formatParams)
 	portal.addSignalQuote(content, msg.Quote)
-	portal.addMentionsToMatrixBody(content, msg.Mentions)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {
 		return err
@@ -1141,10 +1110,10 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 			Width:    int(msg.Width),
 			Height:   int(msg.Height),
 		},
+		Mentions: &event.Mentions{},
 	}
 
 	portal.addSignalQuote(content, msg.Quote)
-	portal.addMentionsToMatrixBody(content, msg.Mentions)
 	err := portal.uploadMediaToMatrix(intent, msg.Sticker, content)
 	if err != nil {
 		portal.log.Error().Err(err).Msg("Failed to upload media")
@@ -1385,17 +1354,15 @@ func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.Eve
 func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageAttachment)
-	content := &event.MessageEventContent{
-		Body:     msg.Caption,
-		FileName: msg.Filename,
-		Info: &event.FileInfo{
-			MimeType: msg.ContentType,
-			Size:     int(msg.Size),
-			Width:    int(msg.Width),
-			Height:   int(msg.Height),
-			// TODO: bridge blurhash! (needs mautrix-go update)
-		},
+	content := signalfmt.Parse(msg.Caption, msg.CaptionRanges, formatParams)
+	content.Info = &event.FileInfo{
+		MimeType: msg.ContentType,
+		Size:     int(msg.Size),
+		Width:    int(msg.Width),
+		Height:   int(msg.Height),
+		// TODO: bridge blurhash! (needs mautrix-go update)
 	}
+	content.FileName = msg.Filename
 	// Always need a filename, because filename needs to be set and different than body
 	// for the body to be interpreted as a caption
 	if content.FileName == "" {
@@ -1420,7 +1387,6 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 		content.MsgType = event.MsgFile
 	}
 	portal.addSignalQuote(content, msg.Quote)
-	portal.addMentionsToMatrixBody(content, msg.Mentions)
 	err := portal.uploadMediaToMatrix(intent, msg.Attachment, content)
 	if err != nil {
 		failureMessage := "Failed to bridge media: "
