@@ -16,7 +16,6 @@ jobs:
           path: libsignal
           ref: ${{ env.LIBSIGNAL_REF }}
 
-
       - name: Set up Go
         uses: actions/setup-go@v3
         with:
@@ -48,6 +47,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+
+      - uses: actions/checkout@v3
         with:
           repository: signalapp/libsignal
           path: libsignal
@@ -70,7 +71,6 @@ jobs:
           cd libsignal
           sudo apt-get install protobuf-compiler
           cargo build -p libsignal-ffi --release --verbose
-          cd ..
 
       - name: Run libsignalgo tests
         run: |
