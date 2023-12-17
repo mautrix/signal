@@ -1,4 +1,4 @@
--- v0 -> v14: Latest revision
+-- v0 -> v15: Latest revision
 
 CREATE TABLE portal (
     chat_id     TEXT,
@@ -32,8 +32,6 @@ CREATE TABLE puppet (
 
     custom_mxid  TEXT,
     access_token TEXT,
-    next_batch   TEXT,
-    base_url     TEXT,
     contact_info_set BOOLEAN NOT NULL DEFAULT false
 );
 

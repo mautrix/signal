@@ -55,8 +55,6 @@ type Puppet struct {
 
 	CustomMXID     id.UserID
 	AccessToken    string
-	NextBatch      string
-	BaseURL        string
 	ContactInfoSet bool
 }
 
@@ -74,13 +72,11 @@ func (p *Puppet) values() []interface{} {
 		p.IsRegistered,
 		p.CustomMXID.String(),
 		p.AccessToken,
-		p.NextBatch,
-		p.BaseURL,
 	}
 }
 
 func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
-	var number, name, avatarHash, avatarURL, customMXID, accessToken, nextBatch, baseURL sql.NullString
+	var number, name, avatarHash, avatarURL, customMXID, accessToken sql.NullString
 	err := row.Scan(
 		&p.SignalID,
 		&number,
@@ -94,8 +90,6 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 		&p.IsRegistered,
 		&customMXID,
 		&accessToken,
-		&nextBatch,
-		&baseURL,
 	)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -120,8 +114,6 @@ func (p *Puppet) Scan(row dbutil.Scannable) *Puppet {
 	p.AvatarHash = avatarHash.String
 	p.CustomMXID = id.UserID(customMXID.String)
 	p.AccessToken = accessToken.String
-	p.NextBatch = nextBatch.String
-	p.BaseURL = baseURL.String
 	return p
 }
 
@@ -137,9 +129,9 @@ func (p *Puppet) Insert() error {
 	q := `
 	INSERT INTO puppet (uuid, number, name, name_quality, avatar_hash, avatar_url,
 						name_set, avatar_set, contact_info_set, is_registered,
-						custom_mxid, access_token, next_batch, base_url)
+						custom_mxid, access_token)
 	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-			$11, $12, $13, $14)
+			$11, $12)
 	`
 	tx, err := p.db.Begin()
 	if err != nil {
@@ -188,7 +180,7 @@ func (p *Puppet) Update() error {
 	UPDATE puppet SET
 		number=$2, name=$3, name_quality=$4, avatar_hash=$5, avatar_url=$6,
 		name_set=$7, avatar_set=$8, contact_info_set=$9, is_registered=$10,
-		custom_mxid=$11, access_token=$12, next_batch=$13, base_url=$14
+		custom_mxid=$11, access_token=$12
 	WHERE uuid=$1
 	`
 	// check for db
@@ -205,7 +197,7 @@ func (p *Puppet) Update() error {
 const (
 	selectBase = `
         SELECT uuid, number, name, name_quality, avatar_hash, avatar_url, name_set, avatar_set,
-               contact_info_set, is_registered, custom_mxid, access_token, next_batch, base_url
+               contact_info_set, is_registered, custom_mxid, access_token
         FROM puppet
 	`
 )
