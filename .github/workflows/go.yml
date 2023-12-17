@@ -20,10 +20,6 @@ jobs:
       - name: Install libolm
         run: sudo apt-get install libolm-dev
 
-      - name: Download libsignal
-        run: |
-          curl https://mau.dev/tulir/gomuks-build-docker/-/jobs/artifacts/master/raw/libsignal_ffi.a?job=libsignal%20linux%20amd64 -o libsignal_ffi.a
-
       - name: Install dependencies
         run: |
           go install golang.org/x/tools/cmd/goimports@latest
@@ -63,11 +59,11 @@ jobs:
       - name: Run libsignalgo tests
         # TODO add pipefail here after the tests don't fail
         run: |
-          export LIBRARY_PATH=libsignal/target/release
+          export LIBRARY_PATH=.
           go test -v -ldflags "-extldflags -lm" -json ./pkg/libsignalgo -cover | gotestfmt
 
       - name: Run bridge tests
         run: |
           set -euo pipefail
-          export LIBRARY_PATH=libsignal/target/release
+          export LIBRARY_PATH=.
           go test -v -json ./... -cover | gotestfmt
