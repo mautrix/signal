@@ -1919,8 +1919,8 @@ func (portal *Portal) getBridgeInfoStateKey() string {
 }
 
 // ** DisappearingPortal interface **
-func (p *Portal) ScheduleDisappearing() {
-	p.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(p.MXID)
+func (portal *Portal) ScheduleDisappearing() {
+	portal.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(portal.MXID)
 }
 
 func humanReadableTime(seconds int) string {
