@@ -17,6 +17,8 @@
 package config
 
 import (
+	"strings"
+
 	up "go.mau.fi/util/configupgrade"
 	"go.mau.fi/util/random"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
@@ -25,11 +27,46 @@ import (
 func DoUpgrade(helper *up.Helper) {
 	bridgeconfig.Upgrader.DoUpgrade(helper)
 
+	legacyDB, ok := helper.Get(up.Str, "appservice", "database")
+	if ok {
+		if strings.HasPrefix(legacyDB, "postgres") {
+			helper.Set(up.Str, legacyDB, "appservice", "database", "uri")
+			helper.Set(up.Str, "postgres", "appservice", "database", "type")
+		} else {
+			dbPath := strings.TrimPrefix(strings.TrimPrefix(legacyDB, "sqlite:"), "///")
+			helper.Set(up.Str, dbPath, "appservice", "database", "uri")
+			helper.Set(up.Str, "sqlite3-fk-wal", "appservice", "database", "type")
+		}
+	}
+	if legacyDBMinSize, ok := helper.Get(up.Int, "appservice", "database_opts", "min_size"); ok {
+		helper.Set(up.Int, legacyDBMinSize, "appservice", "database", "max_idle_conns")
+	}
+	if legacyDBMaxSize, ok := helper.Get(up.Int, "appservice", "database_opts", "max_size"); ok {
+		helper.Set(up.Int, legacyDBMaxSize, "appservice", "database", "max_open_conns")
+	}
+	if legacyBotUsername, ok := helper.Get(up.Str, "appservice", "bot_username"); ok {
+		helper.Set(up.Str, legacyBotUsername, "appservice", "bot", "username")
+	}
+	if legacyBotDisplayname, ok := helper.Get(up.Str, "appservice", "bot_displayname"); ok {
+		helper.Set(up.Str, legacyBotDisplayname, "appservice", "bot", "displayname")
+	}
+	if legacyBotAvatar, ok := helper.Get(up.Str, "appservice", "bot_avatar"); ok {
+		helper.Set(up.Str, legacyBotAvatar, "appservice", "bot", "avatar")
+	}
+
 	helper.Copy(up.Bool, "metrics", "enabled")
 	helper.Copy(up.Str, "metrics", "listen")
 
-	helper.Copy(up.Str, "bridge", "username_template")
-	helper.Copy(up.Str, "bridge", "displayname_template")
+	if usernameTemplate, ok := helper.Get(up.Str, "bridge", "username_template"); ok && strings.Contains(usernameTemplate, "{userid}") {
+		helper.Set(up.Str, strings.ReplaceAll(usernameTemplate, "{userid}", "{{.}}"), "bridge", "username_template")
+	} else {
+		helper.Copy(up.Str, "bridge", "username_template")
+	}
+	if displaynameTemplate, ok := helper.Get(up.Str, "bridge", "displayname_template"); ok && strings.Contains(displaynameTemplate, "{displayname}") {
+		helper.Set(up.Str, strings.ReplaceAll(displaynameTemplate, "{displayname}", `{{or .ProfileName .PhoneNumber "Unknown user"}}`), "bridge", "displayname_template")
+	} else {
+		helper.Copy(up.Str, "bridge", "displayname_template")
+	}
 	helper.Copy(up.Str, "bridge", "private_chat_portal_meta")
 	helper.Copy(up.Bool, "bridge", "use_contact_avatars")
 	helper.Copy(up.Int, "bridge", "portal_message_buffer")
