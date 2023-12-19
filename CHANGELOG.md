@@ -1,6 +1,9 @@
 # v0.5.0 (unreleased)
 
 * Rewrote bridge in Go.
+  * The bridge doesn't use signald anymore.
+  * All users will have to re-link the bridge.
+  * Primary device mode is no longer supported.
 * Renamed main branch from `master` to `main`.
 
 # v0.4.3 (2023-05-17)
