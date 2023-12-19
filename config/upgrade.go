@@ -17,6 +17,7 @@
 package config
 
 import (
+	"net/url"
 	"strings"
 
 	up "go.mau.fi/util/configupgrade"
@@ -30,7 +31,18 @@ func DoUpgrade(helper *up.Helper) {
 	legacyDB, ok := helper.Get(up.Str, "appservice", "database")
 	if ok {
 		if strings.HasPrefix(legacyDB, "postgres") {
-			helper.Set(up.Str, legacyDB, "appservice", "database", "uri")
+			parsedDB, err := url.Parse(legacyDB)
+			if err != nil {
+				panic(err)
+			}
+			q := parsedDB.Query()
+			if parsedDB.Host == "" && !q.Has("host") {
+				q.Set("host", "/var/run/postgresql")
+			} else if !q.Has("sslmode") {
+				q.Set("sslmode", "disable")
+			}
+			parsedDB.RawQuery = q.Encode()
+			helper.Set(up.Str, parsedDB.String(), "appservice", "database", "uri")
 			helper.Set(up.Str, "postgres", "appservice", "database", "type")
 		} else {
 			dbPath := strings.TrimPrefix(strings.TrimPrefix(legacyDB, "sqlite:"), "///")
