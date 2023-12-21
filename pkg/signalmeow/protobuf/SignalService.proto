@@ -22,21 +22,22 @@ message Envelope {
     PLAINTEXT_CONTENT   = 8;
   }
 
-  optional Type   type            = 1;
-  reserved      /*sourceE164*/      2;
-  optional string sourceUuid      = 11;
-  optional uint32 sourceDevice    = 7;
-  optional string destinationUuid = 13;
-  reserved      /*relay*/           3;
-  optional uint64 timestamp       = 5;
-  reserved      /*legacyMessage*/   6;
-  optional bytes  content         = 8; // Contains an encrypted Content
-  optional string serverGuid      = 9;
-  optional uint64 serverTimestamp = 10;
-  optional bool   urgent          = 14 [default = true];
-  reserved      /*updatedPni*/      15; // Not used presently, may be used in the future
-  optional bool   story           = 16;
-  // NEXT ID: 17
+  optional Type   type                 = 1;
+  reserved      /*sourceE164*/           2;
+  optional string sourceServiceId      = 11;
+  optional uint32 sourceDevice         = 7;
+  optional string destinationServiceId = 13;
+  reserved      /*relay*/                3;
+  optional uint64 timestamp            = 5;
+  reserved      /*legacyMessage*/        6;
+  optional bytes  content              = 8; // Contains an encrypted Content
+  optional string serverGuid           = 9;
+  optional uint64 serverTimestamp      = 10;
+  optional bool   urgent               = 14 [default = true];
+  reserved      /*updatedPni*/           15; // Not used presently, may be used in the future
+  optional bool   story                = 16;
+  optional bytes  reportingToken       = 17;
+  // NEXT ID: 18
 }
 
 message Content {
@@ -50,6 +51,7 @@ message Content {
   optional bytes               decryptionErrorMessage       = 8;
   optional StoryMessage        storyMessage                 = 9;
   optional PniSignatureMessage pniSignatureMessage          = 10;
+  optional EditMessage         editMessage                  = 11;
 }
 
 message CallMessage {
@@ -120,7 +122,7 @@ message CallMessage {
   optional Busy      busy                = 5;
   reserved        /* profileKey */         6;
   optional Hangup    hangup              = 7;
-  optional bool      multiRing           = 8;
+  reserved        /* multiRing */          8;
   optional uint32    destinationDeviceId = 9;
   optional Opaque    opaque              = 10;
 }
@@ -139,8 +141,8 @@ message BodyRange {
   optional uint32 length = 2;
 
   oneof associatedValue {
-    string mentionUuid = 3;
-    Style  style       = 4;
+    string mentionAci = 3;
+    Style  style      = 4;
   }
 }
 
@@ -165,7 +167,7 @@ message DataMessage {
 
     optional uint64           id          = 1;
     reserved                /*authorE164*/  2;
-    optional string           authorUuid  = 5;
+    optional string           authorAci   = 5;
     optional string           text        = 3;
     repeated QuotedAttachment attachments = 4;
     repeated BodyRange        bodyRanges  = 6;
@@ -251,7 +253,7 @@ message DataMessage {
     optional string emoji               = 1;
     optional bool   remove              = 2;
     reserved      /*targetAuthorE164*/    3;
-    optional string targetAuthorUuid    = 4;
+    optional string targetAuthorAci     = 4;
     optional uint64 targetSentTimestamp = 5;
   }
 
@@ -264,22 +266,11 @@ message DataMessage {
   }
 
   message StoryContext {
-    optional string authorUuid = 1;
+    optional string authorAci     = 1;
     optional uint64 sentTimestamp = 2;
   }
 
   message Payment {
-
-    message Address {
-      message MobileCoin {
-        optional bytes address = 1;
-      }
-
-      oneof Address {
-        MobileCoin mobileCoin = 1;
-      }
-    }
-
     message Amount {
       message MobileCoin {
         optional uint64 picoMob = 1;
@@ -300,6 +291,7 @@ message DataMessage {
       }
 
       optional string note = 2;
+      reserved /*requestId*/ 1003;
     }
 
     message Activation {
@@ -315,6 +307,9 @@ message DataMessage {
       Notification notification = 1;
       Activation   activation   = 2;
     }
+
+    reserved /*request*/      1002;
+    reserved /*cancellation*/ 1003;
   }
 
   message GiftBadge {
@@ -440,7 +435,7 @@ message Verified {
   }
 
   reserved      /*destinationE164*/ 1;
-  optional string destinationUuid = 5;
+  optional string destinationAci  = 5;
   optional bytes  identityKey     = 2;
   optional State  state           = 3;
   optional bytes  nullMessage     = 4;
@@ -450,18 +445,18 @@ message SyncMessage {
   message Sent {
     message UnidentifiedDeliveryStatus {
       reserved      /*destinationE164*/ 1;
-      optional string destinationUuid = 3;
-      optional bool   unidentified    = 2;
+      optional string destinationServiceId = 3;
+      optional bool   unidentified         = 2;
     }
 
     message StoryMessageRecipient {
-      optional string destinationUuid     = 1;
-      repeated string distributionListIds = 2;
-      optional bool   isAllowedToReply    = 3;
+      optional string destinationServiceId = 1;
+      repeated string distributionListIds  = 2;
+      optional bool   isAllowedToReply     = 3;
     }
 
     optional string                     destinationE164          = 1;
-    optional string                     destinationUuid          = 7;
+    optional string                     destinationServiceId     = 7;
     optional uint64                     timestamp                = 2;
     optional DataMessage                message                  = 3;
     optional uint64                     expirationStartTimestamp = 4;
@@ -469,6 +464,7 @@ message SyncMessage {
     optional bool                       isRecipientUpdate        = 6 [default = false];
     optional StoryMessage               storyMessage             = 8;
     repeated StoryMessageRecipient      storyMessageRecipients   = 9;
+    optional EditMessage                editMessage              = 10;
   }
 
   message Contacts {
@@ -476,13 +472,9 @@ message SyncMessage {
     optional bool              complete = 2 [default = false];
   }
 
-  message Groups {
-    optional AttachmentPointer blob = 1;
-  }
-
   message Blocked {
     repeated string numbers  = 1;
-    repeated string uuids    = 3;
+    repeated string acis     = 3;
     repeated bytes  groupIds = 2;
   }
 
@@ -490,7 +482,7 @@ message SyncMessage {
     enum Type {
       UNKNOWN       = 0;
       CONTACTS      = 1;
-      GROUPS        = 2;
+//      GROUPS        = 2;
       BLOCKED       = 3;
       CONFIGURATION = 4;
       KEYS          = 5;
@@ -502,13 +494,13 @@ message SyncMessage {
 
   message Read {
     reserved      /*senderE164*/ 1;
-    optional string senderUuid = 3;
+    optional string senderAci  = 3;
     optional uint64 timestamp  = 2;
   }
 
   message Viewed {
     reserved      /*senderE164*/ 1;
-    optional string senderUuid = 3;
+    optional string senderAci  = 3;
     optional uint64 timestamp  = 2;
   }
 
@@ -534,7 +526,7 @@ message SyncMessage {
 
   message ViewOnceOpen {
     reserved      /*senderE164*/ 1;
-    optional string senderUuid = 3;
+    optional string senderAci  = 3;
     optional uint64 timestamp  = 2;
   }
 
@@ -550,12 +542,9 @@ message SyncMessage {
   }
 
   message Keys {
+    // @deprecated
     optional bytes storageService = 1;
-  }
-
-  message PniIdentity {
-    optional bytes publicKey  = 1;
-    optional bytes privateKey = 2;
+    optional bytes master         = 2;
   }
 
   message MessageRequestResponse {
@@ -568,7 +557,7 @@ message SyncMessage {
     }
 
     reserved      /*threadE164*/ 1;
-    optional string threadUuid = 2;
+    optional string threadAci  = 2;
     optional bytes  groupId    = 3;
     optional Type   type       = 4;
   }
@@ -587,8 +576,8 @@ message SyncMessage {
       repeated bytes  spentKeyImages       = 7;
       repeated bytes  outputPublicKeys     = 8;
     }
-    optional string recipientUuid = 1;
-    optional string note          = 2;
+    optional string recipientServiceId = 1;
+    optional string note               = 2;
 
     oneof paymentDetail {
       MobileCoin mobileCoin = 3;
@@ -596,9 +585,12 @@ message SyncMessage {
   }
 
   message PniChangeNumber {
-    optional bytes  identityKeyPair = 1; // Serialized libsignal-client IdentityKeyPair
-    optional bytes  signedPreKey    = 2; // Serialized libsignal-client SignedPreKeyRecord
-    optional uint32 registrationId  = 3;
+    optional bytes  identityKeyPair       = 1; // Serialized libsignal-client IdentityKeyPair
+    optional bytes  signedPreKey          = 2; // Serialized libsignal-client SignedPreKeyRecord
+    optional bytes  lastResortKyberPreKey = 5; // Serialized libsignal-client KyberPreKeyRecord
+    optional uint32 registrationId        = 3;
+    optional string newE164               = 4; // The e164 we have changed our number to
+    // Next ID: 6
   }
 
   message CallEvent {
@@ -606,6 +598,8 @@ message SyncMessage {
       UNKNOWN_TYPE = 0;
       AUDIO_CALL   = 1;
       VIDEO_CALL   = 2;
+      GROUP_CALL   = 3;
+      AD_HOC_CALL  = 4;
     }
 
     enum Direction {
@@ -618,19 +612,34 @@ message SyncMessage {
       UNKNOWN_ACTION = 0;
       ACCEPTED       = 1;
       NOT_ACCEPTED   = 2;
+      DELETE         = 3;
     }
 
-    optional bytes     peerUuid  = 1;
-    optional uint64    id        = 2;
-    optional uint64    timestamp = 3;
-    optional Type      type      = 4;
-    optional Direction direction = 5;
-    optional Event     event     = 6;
+    optional bytes     conversationId = 1;
+    optional uint64    id             = 2;
+    optional uint64    timestamp      = 3;
+    optional Type      type           = 4;
+    optional Direction direction      = 5;
+    optional Event     event          = 6;
+  }
+
+  message CallLinkUpdate {
+    optional bytes rootKey      = 1;
+    optional bytes adminPassKey = 2;
+  }
+
+  message CallLogEvent {
+    enum Type {
+      CLEAR = 0;
+    }
+
+    optional Type   type      = 1;
+    optional uint64 timestamp = 2;
   }
 
   optional Sent                   sent                   = 1;
   optional Contacts               contacts               = 2;
-  optional Groups                 groups                 = 3;
+  reserved                      /*groups*/                 3;
   optional Request                request                = 4;
   repeated Read                   read                   = 5;
   optional Blocked                blocked                = 6;
@@ -644,9 +653,11 @@ message SyncMessage {
   optional MessageRequestResponse messageRequestResponse = 14;
   optional OutgoingPayment        outgoingPayment        = 15;
   repeated Viewed                 viewed                 = 16;
-  optional PniIdentity            pniIdentity            = 17;
+  reserved                      /*pniIdentity*/            17;
   optional PniChangeNumber        pniChangeNumber        = 18;
   optional CallEvent              callEvent              = 19;
+  optional CallLinkUpdate         callLinkUpdate         = 20;
+  optional CallLogEvent           callLogEvent           = 21;
 }
 
 message AttachmentPointer {
@@ -661,20 +672,23 @@ message AttachmentPointer {
     fixed64        cdnId           = 1;
     string         cdnKey          = 15;
   }
-  optional string  contentType     = 2;
-  optional bytes   key             = 3;
-  optional uint32  size            = 4;
-  optional bytes   thumbnail       = 5;
-  optional bytes   digest          = 6;
-  optional string  fileName        = 7;
-  optional uint32  flags           = 8;
-  optional uint32  width           = 9;
-  optional uint32  height          = 10;
-  optional string  caption         = 11;
-  optional string  blurHash        = 12;
-  optional uint64  uploadTimestamp = 13;
-  optional uint32  cdnNumber       = 14;
-  // Next ID: 16
+  optional string  contentType             = 2;
+  optional bytes   key                     = 3;
+  optional uint32  size                    = 4;
+  optional bytes   thumbnail               = 5;
+  optional bytes   digest                  = 6;
+  reserved                                   16;
+  optional bytes   incrementalMac          = 18;
+  optional uint32  incrementalMacChunkSize = 17;
+  optional string  fileName                = 7;
+  optional uint32  flags                   = 8;
+  optional uint32  width                   = 9;
+  optional uint32  height                  = 10;
+  optional string  caption                 = 11;
+  optional string  blurHash                = 12;
+  optional uint64  uploadTimestamp         = 13;
+  optional uint32  cdnNumber               = 14;
+  // Next ID: 19
 }
 
 message GroupContext {
@@ -712,7 +726,7 @@ message ContactDetails {
   }
 
   optional string   number        = 1;
-  optional string   uuid          = 9;
+  optional string   aci           = 9;
   optional string   name          = 2;
   optional Avatar   avatar        = 3;
   optional string   color         = 4;
@@ -768,4 +782,9 @@ message DecryptionErrorMessage {
 message PniSignatureMessage {
   optional bytes pni       = 1;
   optional bytes signature = 2;
+}
+
+message EditMessage {
+  optional uint64      targetSentTimestamp = 1;
+  optional DataMessage dataMessage         = 2;
 }

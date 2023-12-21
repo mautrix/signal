@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-7275b95b583b64144fc7f935144b0a17c45244e7}
-DESKTOP_GIT_REVISION=${1:-d198ceda4bb5dfbc7c13a64b8355df6477952210}
+ANDROID_GIT_REVISION=${1:-e17b07bb12110c0ebeae193cb6fad35d33b57d40}
+DESKTOP_GIT_REVISION=${1:-c6c072319993fefd9fcfab55ca77dc75263bc875}
 
 update_proto() {
   case "$1" in
     Signal-Android)
-      prefix="libsignal/service/src/main/proto/"
+      prefix="libsignal-service/src/main/protowire/"
       GIT_REVISION=$ANDROID_GIT_REVISION
       ;;
     Signal-Desktop)
@@ -15,7 +15,8 @@ update_proto() {
       GIT_REVISION=$DESKTOP_GIT_REVISION
       ;;
   esac
-  curl -sLOf https://raw.githubusercontent.com/signalapp/${1}/${GIT_REVISION}/${prefix}${2}
+  echo https://raw.githubusercontent.com/signalapp/${1}/${GIT_REVISION}/${prefix}${2}
+  curl -LOf https://raw.githubusercontent.com/signalapp/${1}/${GIT_REVISION}/${prefix}${2}
 }
 
 

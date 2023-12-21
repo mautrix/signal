@@ -401,7 +401,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 			} else if *envelope.Type == signalpb.Envelope_PREKEY_BUNDLE {
 				zlog.Debug().Msgf("Received envelope type PREKEY_BUNDLE, verb: %v, path: %v", *req.Verb, *req.Path)
 				sender, err := libsignalgo.NewAddress(
-					*envelope.SourceUuid,
+					*envelope.SourceServiceId,
 					uint(*envelope.SourceDevice),
 				)
 				if err != nil {
@@ -425,7 +425,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 					zlog.Err(err).Msg("DeserializeMessage error")
 				}
 				senderAddress, err := libsignalgo.NewAddress(
-					*envelope.SourceUuid,
+					*envelope.SourceServiceId,
 					uint(*envelope.SourceDevice),
 				)
 				decryptedText, err := libsignalgo.Decrypt(
@@ -514,7 +514,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 				if content.SyncMessage != nil {
 					if content.SyncMessage.Sent != nil {
 						if content.SyncMessage.Sent.Message != nil {
-							destination := content.SyncMessage.Sent.DestinationUuid
+							destination := content.SyncMessage.Sent.DestinationServiceId
 							if content.SyncMessage.Sent.Message.GroupV2 != nil {
 								zlog.Debug().Msgf("sync message sent group: %v", content.SyncMessage.Sent.Message.GroupV2)
 								masterKeyBytes := libsignalgo.GroupMasterKey(content.SyncMessage.Sent.Message.GroupV2.MasterKey)
@@ -550,11 +550,11 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 							}
 							zlog.Debug().Msgf("Contacts Sync received %v contacts", len(contacts))
 							for i, signalContact := range contacts {
-								if signalContact.Uuid == nil || *signalContact.Uuid == "" {
+								if signalContact.Aci == nil || *signalContact.Aci == "" {
 									zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
 									continue
 								}
-								if _, err := uuid.Parse(*signalContact.Uuid); err != nil {
+								if _, err := uuid.Parse(*signalContact.Aci); err != nil {
 									zlog.Info().Msgf("Signal Contact UUID is not a UUID, skipping: %v", signalContact)
 									continue
 								}
@@ -589,7 +589,7 @@ func incomingRequestHandlerWithDevice(device *Device) web.RequestHandlerFunc {
 								},
 								ReceiptType:       IncomingSignalMessageReceiptTypeRead,
 								OriginalTimestamp: *read.Timestamp,
-								OriginalSender:    *read.SenderUuid,
+								OriginalSender:    *read.SenderAci,
 							}
 							device.Connection.IncomingSignalMessageHandler(receiptMessage)
 						}
@@ -813,7 +813,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	var quoteData *IncomingSignalMessageQuoteData
 	if dataMessage.Quote != nil {
 		quoteData = &IncomingSignalMessageQuoteData{
-			QuotedSender:    dataMessage.GetQuote().GetAuthorUuid(),
+			QuotedSender:    dataMessage.GetQuote().GetAuthorAci(),
 			QuotedTimestamp: dataMessage.GetQuote().GetId(),
 		}
 	}
@@ -916,7 +916,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	// Pass along reactions
 	if dataMessage.Reaction != nil {
 		// make sure target author UUID is lowercase
-		targetAuthor := strings.ToLower(dataMessage.GetReaction().GetTargetAuthorUuid())
+		targetAuthor := strings.ToLower(dataMessage.GetReaction().GetTargetAuthorAci())
 		incomingMessage := IncomingSignalMessageReaction{
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,

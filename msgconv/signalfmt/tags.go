@@ -38,8 +38,8 @@ func (m Mention) String() string {
 }
 
 func (m Mention) Proto() signalpb.BodyRangeAssociatedValue {
-	return &signalpb.BodyRange_MentionUuid{
-		MentionUuid: m.UUID,
+	return &signalpb.BodyRange_MentionAci{
+		MentionAci: m.UUID,
 	}
 }
 

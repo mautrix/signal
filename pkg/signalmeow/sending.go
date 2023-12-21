@@ -291,8 +291,8 @@ func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationUuid: &result.RecipientUuid,
-			Unidentified:    &result.Unidentified,
+			DestinationServiceId: &result.RecipientUuid,
+			Unidentified:         &result.Unidentified,
 		})
 	}
 	return &signalpb.Content{
@@ -310,13 +310,13 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				Message:         dataMessage,
-				DestinationUuid: &result.RecipientUuid,
-				Timestamp:       dataMessage.Timestamp,
+				Message:              dataMessage,
+				DestinationServiceId: &result.RecipientUuid,
+				Timestamp:            dataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationUuid: &result.RecipientUuid,
-						Unidentified:    &result.Unidentified,
+						DestinationServiceId: &result.RecipientUuid,
+						Unidentified:         &result.Unidentified,
 					},
 				},
 			},
@@ -342,8 +342,8 @@ func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, 
 	read := []*signalpb.SyncMessage_Read{}
 	for _, timestamp := range receiptMessage.Timestamp {
 		read = append(read, &signalpb.SyncMessage_Read{
-			Timestamp:  &timestamp,
-			SenderUuid: &messageSender,
+			Timestamp: &timestamp,
+			SenderAci: &messageSender,
 		})
 	}
 	return &signalpb.Content{
@@ -442,7 +442,7 @@ func DataMessageForReaction(reaction string, targetMessageSender string, targetM
 		Reaction: &signalpb.DataMessage_Reaction{
 			Emoji:               proto.String(reaction),
 			Remove:              proto.Bool(removing),
-			TargetAuthorUuid:    proto.String(targetMessageSender),
+			TargetAuthorAci:     proto.String(targetMessageSender),
 			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
 		},
 	}
@@ -465,42 +465,14 @@ func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender string, q
 	// but it only seems to be necessary to quote image messages on iOS and Desktop.
 	// Android seems to render every quote fine, and iOS and Desktop render text quotes fine.
 	content.DataMessage.Quote = &signalpb.DataMessage_Quote{
-		AuthorUuid: proto.String(quotedMessageSender),
-		Id:         proto.Uint64(quotedMessageTimestamp),
-		Type:       signalpb.DataMessage_Quote_NORMAL.Enum(),
+		AuthorAci: proto.String(quotedMessageSender),
+		Id:        proto.Uint64(quotedMessageTimestamp),
+		Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
 	}
 }
 
 func AddExpiryToDataMessage(content *SignalContent, expiresInSeconds uint32) {
 	content.DataMessage.ExpireTimer = proto.Uint32(expiresInSeconds)
-}
-
-func AddMentionsToDataMessage(content *SignalContent, mentions []string) {
-	dm := content.DataMessage
-	dm.BodyRanges = []*signalpb.BodyRange{}
-	// Iterate over the body string, and add a BodyRange for each Unicode replacement character
-	bodyString := *dm.Body
-	mentionIndex := 0
-	runePosition := 0
-	for i, c := range bodyString {
-		if c == '\uFFFC' {
-			if mentionIndex >= len(mentions) {
-				zlog.Warn().Msgf("No mention for replacement character at position %v", i)
-				continue
-			}
-			start := uint32(runePosition)
-			length := uint32(1)
-			dm.BodyRanges = append(dm.BodyRanges, &signalpb.BodyRange{
-				Start:  &start,
-				Length: &length,
-				AssociatedValue: &signalpb.BodyRange_MentionUuid{
-					MentionUuid: mentions[mentionIndex],
-				},
-			})
-			mentionIndex++
-		}
-		runePosition++
-	}
 }
 
 func UploadAttachment(d *Device, image []byte, mimeType string, filename string) (*AttachmentPointer, error) {

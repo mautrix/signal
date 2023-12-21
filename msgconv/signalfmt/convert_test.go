@@ -78,8 +78,8 @@ func TestParse(t *testing.T) {
 			ine: []*signalpb.BodyRange{{
 				Start:  proto.Uint32(6),
 				Length: proto.Uint32(1),
-				AssociatedValue: &signalpb.BodyRange_MentionUuid{
-					MentionUuid: realUser,
+				AssociatedValue: &signalpb.BodyRange_MentionAci{
+					MentionAci: realUser,
 				},
 			}},
 			body: "Hello Matrix User",

@@ -57,18 +57,18 @@ type ContactAvatar struct {
 
 func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDetails, avatar *[]byte) (Contact, *ContactAvatar, error) {
 	ctx := context.TODO()
-	existingContact, err := d.ContactStore.LoadContact(ctx, contactDetails.GetUuid())
+	existingContact, err := d.ContactStore.LoadContact(ctx, contactDetails.GetAci())
 	if err != nil {
 		zlog.Err(err).Msg("StoreContactDetailsAsContact error loading contact")
 		return Contact{}, nil, err
 	}
 	if existingContact == nil {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: creating new contact for uuid: %v", contactDetails.GetUuid())
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: creating new contact for uuid: %v", contactDetails.GetAci())
 		existingContact = &Contact{
-			UUID: contactDetails.GetUuid(),
+			UUID: contactDetails.GetAci(),
 		}
 	} else {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v", contactDetails.GetUuid())
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v", contactDetails.GetAci())
 	}
 
 	existingContact.E164 = contactDetails.GetNumber()
@@ -87,11 +87,11 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	var contactAvatar *ContactAvatar
 	avatarHash := ""
 	if avatar != nil && *avatar != nil && len(*avatar) > 0 {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: found avatar for uuid: %v", contactDetails.GetUuid())
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: found avatar for uuid: %v", contactDetails.GetAci())
 		rawHash := sha256.Sum256(*avatar)
 		avatarHash = hex.EncodeToString(rawHash[:])
 		if existingContact.ContactAvatarHash != avatarHash {
-			zlog.Debug().Msgf("StoreContactDetailsAsContact: avatar changed for uuid: %v", contactDetails.GetUuid())
+			zlog.Debug().Msgf("StoreContactDetailsAsContact: avatar changed for uuid: %v", contactDetails.GetAci())
 			var contentType string
 			if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil && !strings.HasSuffix(avatarDetails.GetContentType(), "/*") {
 				contentType = *avatarDetails.ContentType
@@ -109,13 +109,13 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 		}
 	} else {
 		// Avatar has been removed
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: no avatar found for uuid: %v", contactDetails.GetUuid())
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: no avatar found for uuid: %v", contactDetails.GetAci())
 		if existingContact.ContactAvatarHash != "" {
 			existingContact.ContactAvatarHash = ""
 		}
 	}
 
-	zlog.Debug().Msgf("StoreContactDetailsAsContact: storing contact for uuid: %v", contactDetails.GetUuid())
+	zlog.Debug().Msgf("StoreContactDetailsAsContact: storing contact for uuid: %v", contactDetails.GetAci())
 	storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
 	if storeErr != nil {
 		zlog.Err(storeErr).Msg("StoreContactDetailsAsContact: error storing contact")
