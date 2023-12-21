@@ -16,10 +16,39 @@
 
 package signalfmt
 
+import (
+	"fmt"
+	"sort"
+
+	"google.golang.org/protobuf/proto"
+
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+)
+
 type BodyRange struct {
 	Start  int
 	Length int
 	Value  BodyRangeValue
+}
+
+type BodyRangeList []BodyRange
+
+var _ sort.Interface = BodyRangeList(nil)
+
+func (b BodyRangeList) Len() int {
+	return len(b)
+}
+
+func (b BodyRangeList) Less(i, j int) bool {
+	return b[i].Start < b[j].Start || b[i].Length > b[j].Length
+}
+
+func (b BodyRangeList) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func (b BodyRange) String() string {
+	return fmt.Sprintf("%d:%d:%v", b.Start, b.Length, b.Value)
 }
 
 // End returns the end index of the range.
@@ -35,8 +64,10 @@ func (b BodyRange) Offset(offset int) *BodyRange {
 
 // TruncateStart changes the length of the range, so it starts at the given index and ends at the same index as before.
 func (b BodyRange) TruncateStart(startAt int) *BodyRange {
-	b.Length -= startAt - b.Start
-	b.Start = startAt
+	if b.Start < startAt {
+		b.Length -= startAt - b.Start
+		b.Start = startAt
+	}
 	return &b
 }
 
@@ -46,6 +77,14 @@ func (b BodyRange) TruncateEnd(maxEnd int) *BodyRange {
 		b.Length = maxEnd - b.Start
 	}
 	return &b
+}
+
+func (b BodyRange) Proto() *signalpb.BodyRange {
+	return &signalpb.BodyRange{
+		Start:           proto.Uint32(uint32(b.Start)),
+		Length:          proto.Uint32(uint32(b.Length)),
+		AssociatedValue: b.Value.Proto(),
+	}
 }
 
 // LinkedRangeTree is a linked tree of formatting entities.

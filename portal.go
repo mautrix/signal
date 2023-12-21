@@ -47,12 +47,13 @@ import (
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
 type portalSignalMessage struct {
@@ -649,34 +650,27 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 
 	switch content.MsgType {
 	case event.MsgText, event.MsgEmote, event.MsgNotice:
-		var text string
-		var mentions []string
-		if content.Format == event.FormatHTML {
-			text, mentions = portal.parseMentionsFromMatrixBody(content)
-		} else {
-			text = content.Body
-			mentions = nil
-		}
 		if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
 			return nil, errMNoticeDisabled
 		}
 		if content.MsgType == event.MsgEmote {
-			text = "/me " + text
+			content.Body = "/me " + content.Body
+			if content.FormattedBody != "" {
+				content.FormattedBody = "/me " + content.FormattedBody
+			}
 		}
+		outgoingMessage = signalmeow.DataMessageForText(matrixfmt.Parse(matrixFormatParams, content))
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
-		}
-		outgoingMessage = signalmeow.DataMessageForText(text)
-		if mentions != nil && len(mentions) > 0 {
-			signalmeow.AddMentionsToDataMessage(outgoingMessage, mentions)
 		}
 
 	case event.MsgImage:
 		fileName := content.Body
 		var caption string
+		var ranges []*signalpb.BodyRange
 		if content.FileName != "" && content.Body != content.FileName {
 			fileName = content.FileName
-			caption = content.Body
+			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
 		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
@@ -690,15 +684,9 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
 	case event.MessageType(event.EventSticker.Type):
-		fileName := content.Body
-		var caption string
-		if content.FileName != "" && content.Body != content.FileName {
-			fileName = content.FileName
-			caption = content.Body
-		}
 		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
 			return nil, err
@@ -707,17 +695,18 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedSticker, newMimeType, fileName)
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedSticker, newMimeType, content.FileName)
 		if err != nil {
 			return nil, err
 		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, "", nil)
 	case event.MsgVideo:
 		fileName := content.Body
 		var caption string
+		var ranges []*signalpb.BodyRange
 		if content.FileName != "" && content.Body != content.FileName {
 			fileName = content.FileName
-			caption = content.Body
+			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
 		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
@@ -731,14 +720,15 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
 	case event.MsgAudio:
 		fileName := content.Body
 		var caption string
+		var ranges []*signalpb.BodyRange
 		if content.FileName != "" && content.Body != content.FileName {
 			fileName = content.FileName
-			caption = content.Body
+			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
 		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
@@ -752,14 +742,15 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
 	case event.MsgFile:
 		fileName := content.Body
 		var caption string
+		var ranges []*signalpb.BodyRange
 		if content.FileName != "" && content.Body != content.FileName {
 			fileName = content.FileName
-			caption = content.Body
+			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
 		file, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
@@ -769,7 +760,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption)
+		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
 	case event.MsgLocation:
 		fallthrough
@@ -1012,79 +1003,13 @@ func (portal *Portal) addDisappearingMessage(eventID id.EventID, expireInSeconds
 	portal.bridge.disappearingMessagesManager.AddDisappearingMessage(eventID, portal.MXID, expireInSeconds, startTimerNow)
 }
 
-const mentionedSignalIDsContextKey = "fi.mau.signal.mentioned_ids"
-
-func (portal *Portal) parseMentionsFromMatrixBody(content *event.MessageEventContent) (string, []string) {
-	var allowedMentions map[string]bool = nil
-	var mentionedSignalIDs []string
-
-	// If the matrix event has explicit mentions, we only want to allow parsing mentions from those
-	if content.Mentions != nil {
-		allowedMentions = make(map[string]bool, len(content.Mentions.UserIDs))
-		mentionedSignalIDs = make([]string, 0, len(content.Mentions.UserIDs))
-		for _, userID := range content.Mentions.UserIDs {
-			var signalID string
-			if puppet := portal.bridge.GetPuppetByMXID(userID); puppet != nil {
-				signalID = puppet.SignalID
-				mentionedSignalIDs = append(mentionedSignalIDs, puppet.SignalID)
-			}
-			if signalID != "" && !allowedMentions[signalID] {
-				allowedMentions[signalID] = true
-				mentionedSignalIDs = append(mentionedSignalIDs, signalID)
-			}
-		}
-	}
-
-	// Parse what mentions we can find out of the HTML, and replace with unicode replacement character
-	matrixHTMLParser := &format.HTMLParser{
-		TabsToSpaces: 4,
-		Newline:      "\n",
-
-		PillConverter: func(displayname, mxid, eventID string, ctx format.Context) string {
-			if mxid[0] == '@' {
-				var signalID string
-				if puppet := portal.bridge.GetPuppetByMXID(id.UserID(mxid)); puppet != nil {
-					signalID = puppet.SignalID
-				}
-				if signalID != "" && (allowedMentions == nil || allowedMentions[signalID]) {
-					if allowedMentions == nil {
-						ids, ok := ctx.ReturnData[mentionedSignalIDsContextKey].([]string)
-						if !ok {
-							ctx.ReturnData[mentionedSignalIDsContextKey] = []string{signalID}
-						} else {
-							ctx.ReturnData[mentionedSignalIDsContextKey] = append(ids, signalID)
-						}
-					}
-					// Signal needs the Unicode replacement character, then it will add the name itself
-					return "\uFFFC"
-				}
-			}
-			return displayname
-		},
-		BoldConverter:           func(text string, _ format.Context) string { return fmt.Sprintf("*%s*", text) },
-		ItalicConverter:         func(text string, _ format.Context) string { return fmt.Sprintf("_%s_", text) },
-		StrikethroughConverter:  func(text string, _ format.Context) string { return fmt.Sprintf("~%s~", text) },
-		MonospaceConverter:      func(text string, _ format.Context) string { return fmt.Sprintf("```%s```", text) },
-		MonospaceBlockConverter: func(text, language string, _ format.Context) string { return fmt.Sprintf("```%s```", text) },
-	}
-
-	formatContext := format.NewContext()
-	parsedBody := matrixHTMLParser.Parse(content.FormattedBody, formatContext)
-
-	// If we didn't have any explicit mentions, we can use the ones we parsed from the HTML
-	if content.Mentions == nil {
-		mentionedSignalIDs, _ = formatContext.ReturnData[mentionedSignalIDsContextKey].([]string)
-	}
-
-	return parsedBody, mentionedSignalIDs
-}
-
-var formatParams *signalfmt.FormatParams
+var signalFormatParams *signalfmt.FormatParams
+var matrixFormatParams *matrixfmt.HTMLParser
 
 func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
-	content := signalfmt.Parse(msg.Content, msg.ContentRanges, formatParams)
+	content := signalfmt.Parse(msg.Content, msg.ContentRanges, signalFormatParams)
 	portal.addSignalQuote(content, msg.Quote)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {
@@ -1354,7 +1279,7 @@ func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.Eve
 func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageAttachment)
-	content := signalfmt.Parse(msg.Caption, msg.CaptionRanges, formatParams)
+	content := signalfmt.Parse(msg.Caption, msg.CaptionRanges, signalFormatParams)
 	content.Info = &event.FileInfo{
 		MimeType: msg.ContentType,
 		Size:     int(msg.Size),

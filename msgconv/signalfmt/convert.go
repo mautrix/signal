@@ -96,7 +96,7 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 			// Maybe use NewUTF16String and do index replacements for the plaintext body too,
 			// or just replace the plaintext body by parsing the generated HTML.
 			content.Body = strings.Replace(content.Body, "\uFFFC", userInfo.Name, 1)
-			br.Value = Mention(userInfo)
+			br.Value = Mention{UserInfo: userInfo, UUID: rv.MentionUuid}
 		}
 		lrt.Add(br)
 	}

@@ -25,12 +25,22 @@ import (
 type BodyRangeValue interface {
 	String() string
 	Format(message string) string
+	Proto() signalpb.BodyRangeAssociatedValue
 }
 
-type Mention UserInfo
+type Mention struct {
+	UserInfo
+	UUID string
+}
 
 func (m Mention) String() string {
 	return fmt.Sprintf("Mention{MXID: id.UserID(%q), Name: %q}", m.MXID, m.Name)
+}
+
+func (m Mention) Proto() signalpb.BodyRangeAssociatedValue {
+	return &signalpb.BodyRange_MentionUuid{
+		MentionUuid: m.UUID,
+	}
 }
 
 type Style int
@@ -44,8 +54,10 @@ const (
 	StyleMonospace
 )
 
-func (s Style) Proto() signalpb.BodyRange_Style {
-	return signalpb.BodyRange_Style(s)
+func (s Style) Proto() signalpb.BodyRangeAssociatedValue {
+	return &signalpb.BodyRange_Style_{
+		Style: signalpb.BodyRange_Style(s),
+	}
 }
 
 func (s Style) String() string {

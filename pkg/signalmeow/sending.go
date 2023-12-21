@@ -411,16 +411,17 @@ func ReadReceptMessageForTimestamps(timestamps []uint64) *SignalContent {
 	}
 }
 
-func DataMessageForText(text string) *SignalContent {
+func DataMessageForText(text string, ranges []*signalpb.BodyRange) *SignalContent {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
-		Body:      proto.String(text),
-		Timestamp: &timestamp,
+		Body:       proto.String(text),
+		BodyRanges: ranges,
+		Timestamp:  &timestamp,
 	}
 	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption string) *SignalContent {
+func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption string, ranges []*signalpb.BodyRange) *SignalContent {
 	ap := (*signalpb.AttachmentPointer)(attachmentPointer) // Cast back to signalpb, this is okay AttachmentPointer is an alias
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{

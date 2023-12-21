@@ -35,6 +35,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
@@ -116,7 +117,7 @@ func (br *SignalBridge) Init() {
 	br.Metrics = NewMetricsHandler(br.Config.Metrics.Listen, br.Log.Sub("Metrics"), br.DB)
 	br.MatrixHandler.TrackEventDuration = br.Metrics.TrackMatrixEvent
 
-	formatParams = &signalfmt.FormatParams{
+	signalFormatParams = &signalfmt.FormatParams{
 		GetUserInfo: func(uuid string) signalfmt.UserInfo {
 			puppet := br.GetPuppetBySignalID(uuid)
 			if puppet == nil {
@@ -133,6 +134,20 @@ func (br *SignalBridge) Init() {
 				MXID: puppet.MXID,
 				Name: puppet.Name,
 			}
+		},
+	}
+	matrixFormatParams = &matrixfmt.HTMLParser{
+		GetUUIDFromMXID: func(userID id.UserID) string {
+			parsed, ok := br.ParsePuppetMXID(userID)
+			if ok {
+				return parsed
+			}
+			// TODO only get if exists
+			user := br.GetUserByMXID(userID)
+			if user != nil && user.SignalID != "" {
+				return user.SignalID
+			}
+			return ""
 		},
 	}
 

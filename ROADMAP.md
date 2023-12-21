@@ -3,7 +3,7 @@
 * Matrix → Signal
   * [ ] Message content
     * [x] Text
-    * [ ] Formatting
+    * [x] Formatting
     * [x] Mentions
     * [ ] Media
       * [x] Images
