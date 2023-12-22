@@ -230,7 +230,7 @@ func (d *Device) incomingRequestHandler(ctx context.Context, req *signalpb.WebSo
 	}, nil
 }
 
-func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
+func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
 	responseCode := 200
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
@@ -246,7 +246,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 		ctx := context.Background()
 		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
 			envelope.GetContent(),
-			device.IdentityStore,
+			d.IdentityStore,
 			libsignalgo.NewCallbackContext(ctx),
 		)
 		if err != nil || usmc == nil {
@@ -287,7 +287,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 		}
 		zlog.Trace().Msgf("SealedSender senderUUID: %v, senderDeviceID: %v", senderUUID, senderDeviceID)
 
-		device.UpdateContactE164(senderUUID.String(), senderE164)
+		d.UpdateContactE164(senderUUID.String(), senderE164)
 
 		switch messageType {
 		case libsignalgo.CiphertextMessageTypeSenderKey:
@@ -295,7 +295,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 			decryptedText, err := libsignalgo.GroupDecrypt(
 				usmcContents,
 				senderAddress,
-				device.SenderKeyStore,
+				d.SenderKeyStore,
 				libsignalgo.NewCallbackContext(ctx),
 			)
 			if err != nil {
@@ -323,7 +323,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 
 		case libsignalgo.CiphertextMessageTypePreKey:
 			zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
-			result, err = prekeyDecrypt(*senderAddress, usmcContents, device, ctx)
+			result, err = prekeyDecrypt(*senderAddress, usmcContents, d, ctx)
 			if err != nil {
 				zlog.Err(err).Msg("prekeyDecrypt error")
 			}
@@ -337,8 +337,8 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 			decryptedText, err := libsignalgo.Decrypt(
 				message,
 				senderAddress,
-				device.SessionStore,
-				device.IdentityStore,
+				d.SessionStore,
+				d.IdentityStore,
 				libsignalgo.NewCallbackContext(ctx),
 			)
 			if err != nil {
@@ -396,13 +396,13 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 		if result == nil || responseCode != 200 {
 			zlog.Debug().Msg("Didn't decrypt with specific methods, trying sealedSenderDecrypt")
 			var err error
-			result, err = sealedSenderDecrypt(envelope, device, ctx)
+			result, err = sealedSenderDecrypt(envelope, d, ctx)
 			if err != nil {
 				if strings.Contains(err.Error(), "self send of a sealed sender message") {
 					zlog.Debug().Msg("Message sent by us, ignoring")
 				} else {
 					zlog.Err(err).Msg("sealedSenderDecrypt error")
-					checkDecryptionErrorAndDisconnect(err, device)
+					checkDecryptionErrorAndDisconnect(err, d)
 				}
 			} else {
 				zlog.Trace().Msgf("SealedSender decrypt result - address: %v, content: %v", result.SenderAddress, result.Content)
@@ -418,10 +418,10 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 		if err != nil {
 			return nil, fmt.Errorf("NewAddress error: %v", err)
 		}
-		result, err = prekeyDecrypt(*sender, envelope.Content, device, ctx)
+		result, err = prekeyDecrypt(*sender, envelope.Content, d, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("prekeyDecrypt error")
-			checkDecryptionErrorAndDisconnect(err, device)
+			checkDecryptionErrorAndDisconnect(err, d)
 		} else {
 			zlog.Trace().Msgf("prekey decrypt result -  address: %v, data: %v", result.SenderAddress, result.Content)
 		}
@@ -442,8 +442,8 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 		decryptedText, err := libsignalgo.Decrypt(
 			message,
 			senderAddress,
-			device.SessionStore,
-			device.IdentityStore,
+			d.SessionStore,
+			d.IdentityStore,
 			libsignalgo.NewCallbackContext(ctx),
 		)
 		if err != nil {
@@ -506,7 +506,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 			err = libsignalgo.ProcessSenderKeyDistributionMessage(
 				skdm,
 				&result.SenderAddress,
-				device.SenderKeyStore,
+				d.SenderKeyStore,
 				libsignalgo.NewCallbackContext(ctx),
 			)
 			if err != nil {
@@ -530,7 +530,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 						zlog.Debug().Msgf("sync message sent group: %v", content.SyncMessage.Sent.Message.GroupV2)
 						masterKeyBytes := libsignalgo.GroupMasterKey(content.SyncMessage.Sent.Message.GroupV2.MasterKey)
 						masterKey := masterKeyFromBytes(masterKeyBytes)
-						gid, err := StoreMasterKey(ctx, device, masterKey)
+						gid, err := StoreMasterKey(ctx, d, masterKey)
 						if err != nil {
 							zlog.Err(err).Msg("StoreMasterKey error")
 							return nil, err
@@ -540,7 +540,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 					}
 					if destination == nil {
 						zlog.Warn().Msg("sync message sent destination is nil")
-					} else if _, err = incomingDataMessage(ctx, device, content.SyncMessage.Sent.Message, device.Data.AciUuid, *destination); err != nil {
+					} else if _, err = incomingDataMessage(ctx, d, content.SyncMessage.Sent.Message, d.Data.AciUuid, *destination); err != nil {
 						zlog.Err(err).Msg("incomingDataMessage error")
 						return nil, err
 					}
@@ -569,7 +569,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 							zlog.Info().Msgf("Signal Contact UUID is not a UUID, skipping: %v", signalContact)
 							continue
 						}
-						contact, contactAvatar, err := StoreContactDetailsAsContact(device, signalContact, &avatars[i])
+						contact, contactAvatar, err := StoreContactDetailsAsContact(d, signalContact, &avatars[i])
 						if err != nil {
 							zlog.Err(err).Msg("StoreContactDetailsAsContact error")
 							continue
@@ -578,13 +578,13 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 						contactChange := IncomingSignalMessageContactChange{
 							IncomingSignalMessageBase: IncomingSignalMessageBase{
 								SenderUUID:    contact.UUID,
-								RecipientUUID: device.Data.AciUuid,
+								RecipientUUID: d.Data.AciUuid,
 								Timestamp:     currentMessageTimestamp(),
 							},
 							Contact: contact,
 							Avatar:  contactAvatar,
 						}
-						device.Connection.IncomingSignalMessageHandler(contactChange)
+						d.Connection.IncomingSignalMessageHandler(contactChange)
 					}
 				}
 			}
@@ -594,7 +594,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 				for _, read := range content.SyncMessage.Read {
 					var receiptMessage = IncomingSignalMessageReceipt{
 						IncomingSignalMessageBase: IncomingSignalMessageBase{
-							SenderUUID:    device.Data.AciUuid,
+							SenderUUID:    d.Data.AciUuid,
 							RecipientUUID: theirUuid,
 							Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
 						},
@@ -602,20 +602,20 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 						OriginalTimestamp: *read.Timestamp,
 						OriginalSender:    *read.SenderAci,
 					}
-					device.Connection.IncomingSignalMessageHandler(receiptMessage)
+					d.Connection.IncomingSignalMessageHandler(receiptMessage)
 				}
 			}
 
 		}
 
 		if content.DataMessage != nil {
-			deliveredTimestamps, err := incomingDataMessage(ctx, device, content.DataMessage, theirUuid, device.Data.AciUuid)
+			deliveredTimestamps, err := incomingDataMessage(ctx, d, content.DataMessage, theirUuid, d.Data.AciUuid)
 			if err != nil {
 				zlog.Err(err).Msg("incomingDataMessage error")
 				return nil, err
 			}
 			if len(deliveredTimestamps) > 0 {
-				err := sendDeliveryReceipts(ctx, device, deliveredTimestamps, theirUuid)
+				err := sendDeliveryReceipts(ctx, d, deliveredTimestamps, theirUuid)
 				if err != nil {
 					zlog.Err(err).Msg("sendDeliveryReceipts error")
 				}
@@ -627,7 +627,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 			var typingMessage = IncomingSignalMessageTyping{
 				IncomingSignalMessageBase: IncomingSignalMessageBase{
 					SenderUUID:    theirUuid,
-					RecipientUUID: device.Data.AciUuid,
+					RecipientUUID: d.Data.AciUuid,
 					Timestamp:     content.TypingMessage.GetTimestamp(),
 				},
 				IsTyping: isTyping,
@@ -638,7 +638,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 				typingMessage.GroupID = &gid
 			}
 
-			device.Connection.IncomingSignalMessageHandler(typingMessage)
+			d.Connection.IncomingSignalMessageHandler(typingMessage)
 		}
 
 		// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
@@ -646,7 +646,7 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 			callMessage := IncomingSignalMessageCall{
 				IncomingSignalMessageBase: IncomingSignalMessageBase{
 					SenderUUID:    theirUuid,
-					RecipientUUID: device.Data.AciUuid,
+					RecipientUUID: d.Data.AciUuid,
 					Timestamp:     currentMessageTimestamp(), // there is no timestmap on a callMessage
 				},
 			}
@@ -655,14 +655,14 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 			} else if content.CallMessage.Hangup != nil {
 				callMessage.IsRinging = false
 			}
-			device.Connection.IncomingSignalMessageHandler(callMessage)
+			d.Connection.IncomingSignalMessageHandler(callMessage)
 		}
 
 		// Read and delivery receipts
 		if content.ReceiptMessage != nil {
 			zlog.Debug().Msgf("Received receipt message: %v", content.ReceiptMessage)
 			// If this is a delivery receipt from one of our other devices, ignore it
-			if !(*content.ReceiptMessage.Type == signalpb.ReceiptMessage_DELIVERY && theirUuid == device.Data.AciUuid) {
+			if !(*content.ReceiptMessage.Type == signalpb.ReceiptMessage_DELIVERY && theirUuid == d.Data.AciUuid) {
 				var receiptType IncomingSignalMessageReceiptType
 				switch *content.ReceiptMessage.Type {
 				case signalpb.ReceiptMessage_READ:
@@ -678,14 +678,14 @@ func (device *Device) incomingAPIMessageHandler(ctx context.Context, req *signal
 					var receiptMessage = IncomingSignalMessageReceipt{
 						IncomingSignalMessageBase: IncomingSignalMessageBase{
 							SenderUUID:    theirUuid,
-							RecipientUUID: device.Data.AciUuid,
+							RecipientUUID: d.Data.AciUuid,
 							Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
 						},
 						ReceiptType:       receiptType,
 						OriginalTimestamp: timestamp,
-						OriginalSender:    device.Data.AciUuid, // this is a receipt for a message we sent
+						OriginalSender:    d.Data.AciUuid, // this is a receipt for a message we sent
 					}
-					device.Connection.IncomingSignalMessageHandler(receiptMessage)
+					d.Connection.IncomingSignalMessageHandler(receiptMessage)
 				}
 			} else {
 				zlog.Debug().Msgf("Ignoring delivery receipt from self")
