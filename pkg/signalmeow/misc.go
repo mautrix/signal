@@ -18,9 +18,6 @@ package signalmeow
 
 import (
 	"encoding/base64"
-	"encoding/hex"
-	"errors"
-	"strings"
 
 	"github.com/rs/zerolog"
 
@@ -93,28 +90,4 @@ func serverPublicParams() libsignalgo.ServerPublicParams {
 	var serverPublicParams libsignalgo.ServerPublicParams
 	copy(serverPublicParams[:], serverPublicParamsBytes)
 	return serverPublicParams
-}
-
-func convertUUIDToByteUUID(uuid string) (*libsignalgo.UUID, error) {
-	uuid = strings.Replace(uuid, "-", "", -1)
-	uuidBytes, err := hex.DecodeString(uuid)
-	if err != nil {
-		return nil, err
-	}
-	if len(uuidBytes) != 16 {
-		return nil, errors.New("invalid UUID length")
-	}
-	byteUUID := libsignalgo.UUID(uuidBytes)
-	return &byteUUID, nil
-}
-
-func convertByteUUIDToUUID(uuidBytes libsignalgo.UUID) string {
-	uuid := hex.EncodeToString(uuidBytes[:4]) + "-" +
-		hex.EncodeToString(uuidBytes[4:6]) + "-" +
-		hex.EncodeToString(uuidBytes[6:8]) + "-" +
-		hex.EncodeToString(uuidBytes[8:10]) + "-" +
-		hex.EncodeToString(uuidBytes[10:])
-	// ensure uuid is lowercase
-	uuid = strings.ToLower(uuid)
-	return uuid
 }

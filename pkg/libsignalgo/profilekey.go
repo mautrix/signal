@@ -26,6 +26,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"unsafe"
+
+	"github.com/google/uuid"
 )
 
 type ProfileKey [C.SignalPROFILE_KEY_LEN]byte
@@ -45,10 +47,10 @@ func (pk *ProfileKey) Slice() []byte {
 	return (*pk)[:]
 }
 
-func (pk *ProfileKey) GetCommitment(uuid UUID) (*ProfileKeyCommitment, error) {
+func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {
 	c_result := [C.SignalPROFILE_KEY_COMMITMENT_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIdFromUUID(uuid)
+	c_uuid, err := SignalServiceIdFromUUID(u)
 	if err != nil {
 		return nil, err
 	}
@@ -68,10 +70,10 @@ func (pk *ProfileKey) GetCommitment(uuid UUID) (*ProfileKeyCommitment, error) {
 	return &result, nil
 }
 
-func (pk *ProfileKey) GetProfileKeyVersion(uuid UUID) (*ProfileKeyVersion, error) {
+func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, error) {
 	c_result := [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIdFromUUID(uuid)
+	c_uuid, err := SignalServiceIdFromUUID(u)
 	if err != nil {
 		return nil, err
 	}
@@ -132,13 +134,13 @@ type ProfileKeyCredentialResponse []byte
 type ProfileKeyCredentialPresentation []byte
 type ServerPublicParams [C.SignalSERVER_PUBLIC_PARAMS_LEN]byte
 
-func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, uuid UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
+func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
 	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
 	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
 	random := [32]byte(randBytes(32))
 	c_random := (*[32]C.uchar)(unsafe.Pointer(&random[0]))
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
-	c_uuid, err := SignalServiceIdFromUUID(uuid)
+	c_uuid, err := SignalServiceIdFromUUID(u)
 	if err != nil {
 		return nil, err
 	}

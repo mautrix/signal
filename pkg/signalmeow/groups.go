@@ -28,6 +28,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -157,20 +158,20 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 	}
 
 	// Receive the auth credential
-	aciUuidBytes, err := convertUUIDToByteUUID(d.Data.AciUuid)
+	aciUuidBytes, err := uuid.Parse(d.Data.AciUuid)
 	if err != nil {
 		zlog.Err(err).Msg("aci convertUUIDToBytes error")
 		return nil, err
 	}
-	pniUuidBytes, err := convertUUIDToByteUUID(d.Data.PniUuid)
+	pniUuidBytes, err := uuid.Parse(d.Data.PniUuid)
 	if err != nil {
 		zlog.Err(err).Msg("pni convertUUIDToBytes error")
 		return nil, err
 	}
 	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
 		serverPublicParams(),
-		*aciUuidBytes,
-		*pniUuidBytes,
+		aciUuidBytes,
+		pniUuidBytes,
 		redemptionTime,
 		*authCredentialResponse,
 	)
@@ -306,7 +307,7 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 			return nil, err
 		}
 		decryptedGroup.Members = append(decryptedGroup.Members, &GroupMember{
-			UserId:           convertByteUUIDToUUID(*userID),
+			UserId:           userID.String(),
 			ProfileKey:       *profileKey,
 			Role:             GroupMemberRole(member.Role),
 			JoinedAtRevision: member.JoinedAtRevision,

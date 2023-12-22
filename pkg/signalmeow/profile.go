@@ -30,6 +30,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
@@ -67,12 +69,12 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string
 		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
 	}
-	uuid, err := convertUUIDToByteUUID(signalId)
+	parsedUUID, err := uuid.Parse(signalId)
 	serverPublicParams := serverPublicParams()
 
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
 		serverPublicParams,
-		*uuid,
+		parsedUUID,
 		*profileKey,
 	)
 	if err != nil {
@@ -179,13 +181,13 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID string) (*Profile
 		zlog.Err(err).Msg("profileKey is nil")
 		return nil, nil
 	}
-	uuid, err := convertUUIDToByteUUID(signalID)
+	u, err := uuid.Parse(signalID)
 	if err != nil {
 		zlog.Err(err).Msg("UUIDFromString error")
 		return nil, err
 	}
 
-	profileKeyVersion, err := profileKey.GetProfileKeyVersion(*uuid)
+	profileKeyVersion, err := profileKey.GetProfileKeyVersion(u)
 	if err != nil {
 		zlog.Err(err).Msg("profileKey error")
 		return nil, err

@@ -23,12 +23,19 @@ package libsignalgo
 */
 import "C"
 import (
+	"errors"
 	"unsafe"
+
+	"github.com/google/uuid"
 )
 
-type UUID [C.SignalUUID_LEN]byte
+func init() {
+	if C.SignalUUID_LEN != 16 {
+		panic("libsignal-ffi uuid type size mismatch")
+	}
+}
 
-func SignalServiceIdFromUUID(uuid UUID) (cPNIType, error) {
+func SignalServiceIdFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	var result C.SignalServiceIdFixedWidthBinaryBytes
 	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(uuid[:]))
 	if signalFfiError != nil {
@@ -37,7 +44,7 @@ func SignalServiceIdFromUUID(uuid UUID) (cPNIType, error) {
 	return cPNIType(unsafe.Pointer(&result)), nil
 }
 
-func SignalPNIServiceIdFromUUID(uuid UUID) (cPNIType, error) {
+func SignalPNIServiceIdFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	var result C.SignalServiceIdFixedWidthBinaryBytes
 	// Prepend a 0x01 to the UUID to indicate that it is a PNI UUID
 	pniUUID := append([]byte{0x01}, uuid[:]...)
@@ -48,15 +55,16 @@ func SignalPNIServiceIdFromUUID(uuid UUID) (cPNIType, error) {
 	return cPNIType(unsafe.Pointer(&result)), nil
 }
 
-func SignalServiceIdToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (UUID, error) {
+func SignalServiceIdToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (uuid.UUID, error) {
 	result := C.SignalOwnedBuffer{}
 	serviceIdBytes := cPNIType(unsafe.Pointer(serviceId)) // Hack around gcc bug, not needed for clang
 	signalFfiError := C.signal_service_id_service_id_binary(&result, serviceIdBytes)
 	if signalFfiError != nil {
-		return UUID{}, wrapError(signalFfiError)
+		return uuid.UUID{}, wrapError(signalFfiError)
 	}
-	UUIDBytes := CopySignalOwnedBufferToBytes(result)
-	var uuid UUID
-	copy(uuid[:], UUIDBytes)
-	return uuid, nil
+	uuidBytes := CopySignalOwnedBufferToBytes(result)
+	if len(uuidBytes) != 16 {
+		return uuid.UUID{}, errors.New("invalid UUID length")
+	}
+	return uuid.UUID(uuidBytes), nil
 }

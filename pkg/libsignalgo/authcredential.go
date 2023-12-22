@@ -24,6 +24,8 @@ package libsignalgo
 import "C"
 import (
 	"unsafe"
+
+	"github.com/google/uuid"
 )
 
 // type AuthCredential [C.SignalAUTH_CREDENTIAL_LEN]byte
@@ -38,8 +40,8 @@ func (ac *AuthCredentialWithPni) Slice() []byte {
 
 func ReceiveAuthCredentialWithPni(
 	serverPublicParams ServerPublicParams,
-	aci UUID,
-	pni UUID,
+	aci uuid.UUID,
+	pni uuid.UUID,
 	redemptionTime uint64,
 	authCredResponse AuthCredentialWithPniResponse,
 ) (*AuthCredentialWithPni, error) {
@@ -49,14 +51,9 @@ func ReceiveAuthCredentialWithPni(
 	if err != nil {
 		return nil, err
 	}
-	var c_pni cPNIType
-	if len(pni) != 16 {
-		c_pni = nil
-	} else {
-		c_pni, err = SignalPNIServiceIdFromUUID(pni)
-		if err != nil {
-			return nil, err
-		}
+	c_pni, err := SignalPNIServiceIdFromUUID(pni)
+	if err != nil {
+		return nil, err
 	}
 	c_authCredResponse := (*[C.SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]C.uchar)(unsafe.Pointer(&authCredResponse[0]))
 

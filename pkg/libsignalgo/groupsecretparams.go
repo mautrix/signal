@@ -24,6 +24,8 @@ import "C"
 import (
 	"crypto/rand"
 	"unsafe"
+
+	"github.com/google/uuid"
 )
 
 type Randomness [C.SignalRANDOMNESS_LEN]byte
@@ -108,10 +110,10 @@ func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error
 	return CopySignalOwnedBufferToBytes(plaintext), nil
 }
 
-func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*UUID, error) {
-	uuid := C.SignalServiceIdFixedWidthBinaryBytes{}
+func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*uuid.UUID, error) {
+	u := C.SignalServiceIdFixedWidthBinaryBytes{}
 	signalFfiError := C.signal_group_secret_params_decrypt_service_id(
-		&uuid,
+		&u,
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
 		(*[C.SignalUUID_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextUUID)),
 	)
@@ -119,16 +121,16 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*UUID,
 		return nil, wrapError(signalFfiError)
 	}
 
-	result, err := SignalServiceIdToUUID(&uuid)
+	result, err := SignalServiceIdToUUID(&u)
 	if err != nil {
 		return nil, err
 	}
 	return &result, nil
 }
 
-func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, uuid UUID) (*ProfileKey, error) {
+func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, u uuid.UUID) (*ProfileKey, error) {
 	profileKey := [C.SignalPROFILE_KEY_LEN]C.uchar{}
-	serviceId, err := SignalServiceIdFromUUID(uuid)
+	serviceId, err := SignalServiceIdFromUUID(u)
 	if err != nil {
 		return nil, err
 	}
