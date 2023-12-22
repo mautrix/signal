@@ -44,9 +44,9 @@ func NewAddress(name string, deviceID uint) (*Address, error) {
 	return wrapAddress(pa), nil
 }
 
-func (pk *Address) Clone() (*Address, error) {
+func (pa *Address) Clone() (*Address, error) {
 	var cloned *C.SignalProtocolAddress
-	signalFfiError := C.signal_address_clone(&cloned, pk.ptr)
+	signalFfiError := C.signal_address_clone(&cloned, pa.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

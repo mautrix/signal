@@ -35,7 +35,7 @@ func init() {
 	}
 }
 
-func SignalServiceIdFromUUID(uuid uuid.UUID) (cPNIType, error) {
+func SignalServiceIDFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	var result C.SignalServiceIdFixedWidthBinaryBytes
 	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(uuid[:]))
 	if signalFfiError != nil {
@@ -44,7 +44,7 @@ func SignalServiceIdFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	return cPNIType(unsafe.Pointer(&result)), nil
 }
 
-func SignalPNIServiceIdFromUUID(uuid uuid.UUID) (cPNIType, error) {
+func SignalPNIServiceIDFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	var result C.SignalServiceIdFixedWidthBinaryBytes
 	// Prepend a 0x01 to the UUID to indicate that it is a PNI UUID
 	pniUUID := append([]byte{0x01}, uuid[:]...)
@@ -55,7 +55,7 @@ func SignalPNIServiceIdFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	return cPNIType(unsafe.Pointer(&result)), nil
 }
 
-func SignalServiceIdToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (uuid.UUID, error) {
+func SignalServiceIDToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (uuid.UUID, error) {
 	result := C.SignalOwnedBuffer{}
 	serviceIdBytes := cPNIType(unsafe.Pointer(serviceId)) // Hack around gcc bug, not needed for clang
 	signalFfiError := C.signal_service_id_service_id_binary(&result, serviceIdBytes)

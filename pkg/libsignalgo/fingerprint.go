@@ -81,7 +81,7 @@ func (f *Fingerprint) DisplayString() (string, error) {
 	return CopyCStringToString(displayString), nil
 }
 
-func (k *Fingerprint) Compare(fingerprint1, fingerprint2 []byte) (bool, error) {
+func (f *Fingerprint) Compare(fingerprint1, fingerprint2 []byte) (bool, error) {
 	var compare C.bool
 	signalFfiError := C.signal_fingerprint_compare(&compare, BytesToBuffer(fingerprint1), BytesToBuffer(fingerprint2))
 	if signalFfiError != nil {

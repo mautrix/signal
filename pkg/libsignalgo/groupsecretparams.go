@@ -121,7 +121,7 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*uuid.
 		return nil, wrapError(signalFfiError)
 	}
 
-	result, err := SignalServiceIdToUUID(&u)
+	result, err := SignalServiceIDToUUID(&u)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*uuid.
 
 func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, u uuid.UUID) (*ProfileKey, error) {
 	profileKey := [C.SignalPROFILE_KEY_LEN]C.uchar{}
-	serviceId, err := SignalServiceIdFromUUID(u)
+	serviceId, err := SignalServiceIDFromUUID(u)
 	if err != nil {
 		return nil, err
 	}

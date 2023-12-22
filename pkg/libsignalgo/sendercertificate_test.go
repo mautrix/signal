@@ -96,7 +96,7 @@ func TestSenderCertificate_Operations(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, serverCertificate)
 
-		keyID, err := serverCertificate.GetKeyId()
+		keyID, err := serverCertificate.GetKeyID()
 		assert.NoError(t, err)
 		assert.Equal(t, uint32(1), keyID)
 

@@ -94,7 +94,7 @@ func (sc *ServerCertificate) GetSignature() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(signature), nil
 }
 
-func (sc *ServerCertificate) GetKeyId() (uint32, error) {
+func (sc *ServerCertificate) GetKeyID() (uint32, error) {
 	var keyID C.uint32_t
 	signalFfiError := C.signal_server_certificate_get_key_id(&keyID, sc.ptr)
 	if signalFfiError != nil {

@@ -47,11 +47,11 @@ func ReceiveAuthCredentialWithPni(
 ) (*AuthCredentialWithPni, error) {
 	c_result := [C.SignalAUTH_CREDENTIAL_WITH_PNI_LEN]C.uchar{}
 	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
-	c_aci, err := SignalServiceIdFromUUID(aci)
+	c_aci, err := SignalServiceIDFromUUID(aci)
 	if err != nil {
 		return nil, err
 	}
-	c_pni, err := SignalPNIServiceIdFromUUID(pni)
+	c_pni, err := SignalPNIServiceIDFromUUID(pni)
 	if err != nil {
 		return nil, err
 	}

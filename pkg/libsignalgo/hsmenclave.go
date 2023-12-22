@@ -70,9 +70,9 @@ func (hsm *HSMEnclaveClient) EstablishedSend(plaintext []byte) ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(resp), nil
 }
 
-func (cds *HSMEnclaveClient) EstablishedReceive(ciphertext []byte) ([]byte, error) {
+func (hsm *HSMEnclaveClient) EstablishedReceive(ciphertext []byte) ([]byte, error) {
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_hsm_enclave_client_established_recv(&resp, cds.ptr, BytesToBuffer(ciphertext))
+	signalFfiError := C.signal_hsm_enclave_client_established_recv(&resp, hsm.ptr, BytesToBuffer(ciphertext))
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

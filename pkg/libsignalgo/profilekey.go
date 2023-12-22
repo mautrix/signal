@@ -50,7 +50,7 @@ func (pk *ProfileKey) Slice() []byte {
 func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {
 	c_result := [C.SignalPROFILE_KEY_COMMITMENT_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIdFromUUID(u)
+	c_uuid, err := SignalServiceIDFromUUID(u)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) 
 func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, error) {
 	c_result := [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIdFromUUID(u)
+	c_uuid, err := SignalServiceIDFromUUID(u)
 	if err != nil {
 		return nil, err
 	}
@@ -111,14 +111,6 @@ func (pk *ProfileKey) DeriveAccessKey() (*AccessKey, error) {
 	return &result, nil
 }
 
-func cBytes(b []byte) *C.uchar {
-	return (*C.uchar)(unsafe.Pointer(&b[0]))
-}
-
-func cLen(b []byte) C.uint32_t {
-	return C.uint32_t(len(b))
-}
-
 func randBytes(length int) []byte {
 	buf := make([]byte, length)
 	if n, err := rand.Read(buf); err != nil {
@@ -140,7 +132,7 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicPar
 	random := [32]byte(randBytes(32))
 	c_random := (*[32]C.uchar)(unsafe.Pointer(&random[0]))
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
-	c_uuid, err := SignalServiceIdFromUUID(u)
+	c_uuid, err := SignalServiceIDFromUUID(u)
 	if err != nil {
 		return nil, err
 	}

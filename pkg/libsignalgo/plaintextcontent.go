@@ -51,18 +51,18 @@ func DeserializePlaintextContent(plaintextContentBytes []byte) (*PlaintextConten
 	return wrapPlaintextContent(pc), nil
 }
 
-func (pk *PlaintextContent) Clone() (*PlaintextContent, error) {
+func (pc *PlaintextContent) Clone() (*PlaintextContent, error) {
 	var cloned *C.SignalPlaintextContent
-	signalFfiError := C.signal_plaintext_content_clone(&cloned, pk.ptr)
+	signalFfiError := C.signal_plaintext_content_clone(&cloned, pc.ptr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
 	return wrapPlaintextContent(cloned), nil
 }
 
-func (p *PlaintextContent) Destroy() error {
-	runtime.SetFinalizer(p, nil)
-	return wrapError(C.signal_plaintext_content_destroy(p.ptr))
+func (pc *PlaintextContent) Destroy() error {
+	runtime.SetFinalizer(pc, nil)
+	return wrapError(C.signal_plaintext_content_destroy(pc.ptr))
 }
 
 func (pc *PlaintextContent) Serialize() ([]byte, error) {
