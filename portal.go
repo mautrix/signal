@@ -685,6 +685,8 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
+		attachmentPointer.Height = proto.Uint32(uint32(content.GetInfo().Height))
+		attachmentPointer.Width = proto.Uint32(uint32(content.GetInfo().Width))
 		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
 	case event.MessageType(event.EventSticker.Type):
@@ -705,6 +707,9 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
+		attachmentPointer.Height = proto.Uint32(uint32(content.GetInfo().Height))
+		attachmentPointer.Width = proto.Uint32(uint32(content.GetInfo().Width))
+		attachmentPointer.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_BORDERLESS))
 		outgoingMessage = &signalmeow.SignalContent{
 			DataMessage: &signalpb.DataMessage{
 				Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())),
@@ -761,6 +766,9 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedAudio, newMimeType, fileName)
 		if err != nil {
 			return nil, err
+		}
+		if _, isVoice := evt.Content.Raw["org.matrix.msc3245.voice"]; isVoice {
+			attachmentPointer.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
 		}
 		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
