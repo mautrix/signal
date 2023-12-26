@@ -263,7 +263,7 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	// If we have no SignalDevice, the bridge isn't logged in properly,
 	// so send BAD_CREDENTIALS so the user knows
 	if !msg.user.SignalDevice.IsDeviceLoggedIn() {
-		portal.sendMessageStatusCheckpointFailed(msg.evt, errUserNotLoggedIn)
+		go portal.sendMessageMetrics(msg.evt, errUserNotLoggedIn, "Ignoring", nil)
 		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 		return
 	}
