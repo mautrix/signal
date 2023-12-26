@@ -430,6 +430,8 @@ func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption stri
 	}
 	if caption != "" {
 		ap.Caption = proto.String(caption)
+		dm.Body = proto.String(caption)
+		dm.BodyRanges = ranges
 	}
 	dm.Attachments = append(dm.Attachments, ap)
 	return wrapDataMessageInContent(dm)
