@@ -85,6 +85,8 @@ type Portal struct {
 	currentlyTypingLock sync.Mutex
 
 	latestReadTimestamp uint64 // Cache the latest read timestamp to avoid unnecessary read receipts
+
+	relayUser *User
 }
 
 const recentMessageBufferSize = 32
@@ -117,9 +119,18 @@ func (portal *Portal) MarkEncrypted() {
 }
 
 func (portal *Portal) ReceiveMatrixEvent(user bridge.User, evt *event.Event) {
-	if user.GetPermissionLevel() >= bridgeconfig.PermissionLevelUser {
+	if user.GetPermissionLevel() >= bridgeconfig.PermissionLevelUser || portal.HasRelaybot() {
 		portal.matrixMessages <- portalMatrixMessage{user: user.(*User), evt: evt}
 	}
+}
+
+func (portal *Portal) GetRelayUser() *User {
+	if !portal.HasRelaybot() {
+		return nil
+	} else if portal.relayUser == nil {
+		portal.relayUser = portal.bridge.GetUserByMXID(portal.RelayUserID)
+	}
+	return portal.relayUser
 }
 
 func isUUID(s string) bool {
@@ -263,7 +274,7 @@ func (portal *Portal) messageLoop() {
 func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	// If we have no SignalDevice, the bridge isn't logged in properly,
 	// so send BAD_CREDENTIALS so the user knows
-	if !msg.user.SignalDevice.IsDeviceLoggedIn() {
+	if !msg.user.SignalDevice.IsDeviceLoggedIn() && !portal.HasRelaybot() {
 		go portal.sendMessageMetrics(msg.evt, errUserNotLoggedIn, "Ignoring", nil)
 		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 		return
@@ -367,7 +378,9 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	if portal.ExpirationTime > 0 {
 		signalmeow.AddExpiryToDataMessage(msg, uint32(portal.ExpirationTime))
 	}
-
+	if !sender.IsLoggedIn() {
+		sender = portal.GetRelayUser()
+	}
 	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 
 	timings.totalSend = time.Since(start)
@@ -395,6 +408,10 @@ func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
 		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message or reaction"))
 		portal.log.Error().Msgf("Could not find original message or reaction for redaction %s", evt.ID)
 		return
+	}
+
+	if !sender.IsLoggedIn() {
+		sender = portal.GetRelayUser()
 	}
 
 	// If this is a message redaction, send a redaction to Signal
@@ -428,6 +445,10 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	// Find the original signal message based on eventID
 	relatedEventID := evt.Content.AsReaction().RelatesTo.EventID
 	dbMessage := portal.bridge.DB.Message.GetByMXID(relatedEventID)
+	if !sender.IsLoggedIn() {
+		portal.log.Error().Msgf("Cannot relay reaction from non-logged-in user. Ignoring")
+		return
+	}
 	if dbMessage == nil {
 		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message for reaction"))
 		portal.log.Error().Msgf("Could not find original message for reaction %s", evt.ID)
@@ -438,6 +459,7 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 	targetAuthorUUID := dbMessage.Sender
 	targetTimestamp := dedupedTimestamp(dbMessage)
 	msg := signalmeow.DataMessageForReaction(signalEmoji, targetAuthorUUID, targetTimestamp, false)
+
 	err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(evt, err)
@@ -624,15 +646,39 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 	if evt.Type == event.EventSticker {
 		content.MsgType = event.MessageType(event.EventSticker.Type)
 	}
-
+	realSenderMXID := sender.MXID
+	isRelay := false
+	if !sender.IsLoggedIn() {
+		if !portal.HasRelaybot() {
+			return nil, errUserNotLoggedIn
+		}
+		sender = portal.GetRelayUser()
+		if !sender.IsLoggedIn() {
+			return nil, errRelaybotNotLoggedIn
+		}
+		isRelay = true
+	}
 	var outgoingMessage *signalmeow.SignalContent
+	relaybotFormatted := isRelay && portal.addRelaybotFormat(realSenderMXID, content)
+	if relaybotFormatted && content.FileName == "" {
+		content.FileName = content.Body
+	}
+
+	if evt.Type == event.EventSticker {
+		if relaybotFormatted {
+			// Stickers can't have captions, so force relaybot stickers to be images
+			content.MsgType = event.MsgImage
+		} else {
+			content.MsgType = event.MessageType(event.EventSticker.Type)
+		}
+	}
 
 	switch content.MsgType {
 	case event.MsgText, event.MsgEmote, event.MsgNotice:
 		if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
 			return nil, errMNoticeDisabled
 		}
-		if content.MsgType == event.MsgEmote {
+		if content.MsgType == event.MsgEmote && !relaybotFormatted {
 			content.Body = "/me " + content.Body
 			if content.FormattedBody != "" {
 				content.FormattedBody = "/me " + content.FormattedBody
@@ -1835,4 +1881,22 @@ func (portal *Portal) HandleNewDisappearingMessageTime(newTimer uint32) {
 	} else {
 		intent.SendNotice(portal.MXID, fmt.Sprintf("Disappearing messages set to %s", exfmt.Duration(time.Duration(newTimer)*time.Second)))
 	}
+}
+
+func (portal *Portal) HasRelaybot() bool {
+	return portal.bridge.Config.Bridge.Relay.Enabled && len(portal.RelayUserID) > 0
+}
+
+func (portal *Portal) addRelaybotFormat(userID id.UserID, content *event.MessageEventContent) bool {
+	member := portal.MainIntent().Member(portal.MXID, userID)
+	if member == nil {
+		member = &event.MemberEventContent{}
+	}
+	content.EnsureHasHTML()
+	data, err := portal.bridge.Config.Bridge.Relay.FormatMessage(content, userID, *member)
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to apply relaybot format")
+	}
+	content.FormattedBody = data
+	return true
 }

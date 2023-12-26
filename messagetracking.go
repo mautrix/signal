@@ -33,6 +33,7 @@ var (
 	errUserNotConnected            = errors.New("you are not connected to Signal")
 	errDifferentUser               = errors.New("user is not the recipient of this private chat portal")
 	errUserNotLoggedIn             = errors.New("user is not logged in and chat has no relay bot")
+	errRelaybotNotLoggedIn         = errors.New("neither user nor relay bot of chat are logged in")
 	errMNoticeDisabled             = errors.New("bridging m.notice messages is disabled")
 	errUnexpectedParsedContentType = errors.New("unexpected parsed content type")
 	errInvalidGeoURI               = errors.New("invalid `geo:` URI in message")
@@ -96,7 +97,8 @@ func errorToStatusReason(err error) (reason event.MessageStatusReason, status ev
 	case errors.Is(err, errUserNotConnected):
 		return event.MessageStatusGenericError, event.MessageStatusRetriable, true, true, ""
 	case errors.Is(err, errUserNotLoggedIn),
-		errors.Is(err, errDifferentUser):
+		errors.Is(err, errDifferentUser),
+		errors.Is(err, errRelaybotNotLoggedIn):
 		return event.MessageStatusGenericError, event.MessageStatusRetriable, true, false, ""
 	default:
 		return event.MessageStatusGenericError, event.MessageStatusRetriable, false, true, ""
@@ -267,8 +269,7 @@ func (mt *messageTimings) String() string {
 	mt.preproc = niceRound(mt.preproc)
 	mt.convert = niceRound(mt.convert)
 	mt.totalSend = niceRound(mt.totalSend)
-	whatsmeowTimings := "N/A"
-	return fmt.Sprintf("BRIDGE: receive: %s, decrypt: %s, queue: %s, total hs->portal: %s, implicit rr: %s -- PORTAL: preprocess: %s, convert: %s, total send: %s -- WHATSMEOW: %s", mt.initReceive, mt.decrypt, mt.implicitRR, mt.portalQueue, mt.totalReceive, mt.preproc, mt.convert, mt.totalSend, whatsmeowTimings)
+	return fmt.Sprintf("BRIDGE: receive: %s, decrypt: %s, queue: %s, total hs->portal: %s, implicit rr: %s -- PORTAL: preprocess: %s, convert: %s, total send: %s ", mt.initReceive, mt.decrypt, mt.implicitRR, mt.portalQueue, mt.totalReceive, mt.preproc, mt.convert, mt.totalSend)
 }
 
 type metricSender struct {
