@@ -1895,7 +1895,7 @@ func (portal *Portal) addRelaybotFormat(userID id.UserID, content *event.Message
 	content.EnsureHasHTML()
 	data, err := portal.bridge.Config.Bridge.Relay.FormatMessage(content, userID, *member)
 	if err != nil {
-		portal.log.Error().Msgf("Failed to apply relaybot format: %s", err)
+		portal.log.Err(err).Msg("Failed to apply relaybot format")
 	}
 	content.FormattedBody = data
 	return true
