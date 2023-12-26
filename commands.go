@@ -49,6 +49,8 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdLogin,
 		cmdPM,
 		cmdDisconnect,
+		cmdSetRelay,
+		cmdUnsetRelay,
 	)
 }
 
@@ -61,6 +63,51 @@ func wrapCommand(handler func(*WrappedCommandEvent)) func(*commands.Event) {
 		}
 		br := ce.Bridge.Child.(*SignalBridge)
 		handler(&WrappedCommandEvent{ce, br, user, portal})
+	}
+}
+
+var cmdSetRelay = &commands.FullHandler{
+	Func: wrapCommand(fnSetRelay),
+	Name: "set-relay",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Relay messages in this room through your Signal account.",
+	},
+	RequiresPortal: true,
+	RequiresLogin:  true,
+}
+
+func fnSetRelay(ce *WrappedCommandEvent) {
+	if !ce.Bridge.Config.Bridge.Relay.Enabled {
+		ce.Reply("Relay mode is not enabled on this instance of the bridge")
+	} else if ce.Bridge.Config.Bridge.Relay.AdminOnly && !ce.User.Admin {
+		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
+	} else {
+		ce.Portal.RelayUserID = ce.User.MXID
+		ce.Portal.Update()
+		ce.Reply("Messages from non-logged-in users in this room will now be bridged through your Signal account")
+	}
+}
+
+var cmdUnsetRelay = &commands.FullHandler{
+	Func: wrapCommand(fnUnsetRelay),
+	Name: "unset-relay",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Stop relaying messages in this room.",
+	},
+	RequiresPortal: true,
+}
+
+func fnUnsetRelay(ce *WrappedCommandEvent) {
+	if !ce.Bridge.Config.Bridge.Relay.Enabled {
+		ce.Reply("Relay mode is not enabled on this instance of the bridge")
+	} else if ce.Bridge.Config.Bridge.Relay.AdminOnly && !ce.User.Admin {
+		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
+	} else {
+		ce.Portal.RelayUserID = ""
+		ce.Portal.Update()
+		ce.Reply("Messages from non-logged-in users will no longer be bridged in this room")
 	}
 }
 

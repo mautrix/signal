@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
@@ -67,6 +69,8 @@ type BridgeConfig struct {
 	} `yaml:"provisioning"`
 
 	Permissions bridgeconfig.PermissionConfig `yaml:"permissions"`
+
+	Relay RelaybotConfig `yaml:"relay"`
 
 	usernameTemplate    *template.Template `yaml:"-"`
 	displaynameTemplate *template.Template `yaml:"-"`
@@ -168,4 +172,58 @@ func (bc BridgeConfig) FormatDisplayname(contact *signalmeow.Contact) string {
 		AboutEmoji:  contact.ProfileAboutEmoji,
 	})
 	return buffer.String()
+}
+
+type RelaybotConfig struct {
+	Enabled          bool                         `yaml:"enabled"`
+	AdminOnly        bool                         `yaml:"admin_only"`
+	MessageFormats   map[event.MessageType]string `yaml:"message_formats"`
+	messageTemplates *template.Template           `yaml:"-"`
+}
+
+type umRelaybotConfig RelaybotConfig
+
+func (rc *RelaybotConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	err := unmarshal((*umRelaybotConfig)(rc))
+	if err != nil {
+		return err
+	}
+
+	rc.messageTemplates = template.New("messageTemplates")
+	for key, format := range rc.MessageFormats {
+		_, err := rc.messageTemplates.New(string(key)).Parse(format)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+type Sender struct {
+	UserID string
+	event.MemberEventContent
+}
+
+type formatData struct {
+	Sender  Sender
+	Message string
+	Content *event.MessageEventContent
+}
+
+func (rc *RelaybotConfig) FormatMessage(content *event.MessageEventContent, sender id.UserID, member event.MemberEventContent) (string, error) {
+	if len(member.Displayname) == 0 {
+		member.Displayname = sender.String()
+	}
+	member.Displayname = template.HTMLEscapeString(member.Displayname)
+	var output strings.Builder
+	err := rc.messageTemplates.ExecuteTemplate(&output, string(content.MsgType), formatData{
+		Sender: Sender{
+			UserID:             template.HTMLEscapeString(sender.String()),
+			MemberEventContent: member,
+		},
+		Content: content,
+		Message: content.FormattedBody,
+	})
+	return output.String(), err
 }

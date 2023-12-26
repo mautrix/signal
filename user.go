@@ -54,6 +54,7 @@ type User struct {
 	bridge *SignalBridge
 	log    zerolog.Logger
 
+	Admin           bool
 	PermissionLevel bridgeconfig.PermissionLevel
 
 	SignalDevice *signalmeow.Device
@@ -187,6 +188,7 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 
 		PermissionLevel: br.Config.Bridge.Permissions.Get(dbUser.MXID),
 	}
+	user.Admin = user.PermissionLevel >= bridgeconfig.PermissionLevelAdmin
 	user.BridgeState = br.NewBridgeStateQueue(user)
 	return user
 }
