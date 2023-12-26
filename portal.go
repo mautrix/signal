@@ -647,7 +647,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		fileName := content.Body
 		var caption string
 		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && content.Body != content.FileName {
+		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
 			fileName = content.FileName
 			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
@@ -707,7 +707,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		fileName := content.Body
 		var caption string
 		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && content.Body != content.FileName {
+		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
 			fileName = content.FileName
 			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
@@ -729,7 +729,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		fileName := content.Body
 		var caption string
 		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && content.Body != content.FileName {
+		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
 			fileName = content.FileName
 			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
@@ -760,7 +760,7 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		fileName := content.Body
 		var caption string
 		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && content.Body != content.FileName {
+		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
 			fileName = content.FileName
 			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
