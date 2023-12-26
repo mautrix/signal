@@ -40,6 +40,7 @@ import (
 	cwebp "go.mau.fi/webp"
 	"golang.org/x/exp/slices"
 	"golang.org/x/image/webp"
+	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
@@ -687,6 +688,11 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
 
 	case event.MessageType(event.EventSticker.Type):
+		var emoji *string
+		// TODO check for single grapheme cluster?
+		if len([]rune(content.Body)) == 1 {
+			emoji = proto.String(variationselector.Remove(content.Body))
+		}
 		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
 			return nil, err
@@ -699,7 +705,21 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 		if err != nil {
 			return nil, err
 		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, "", nil)
+		outgoingMessage = &signalmeow.SignalContent{
+			DataMessage: &signalpb.DataMessage{
+				Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())),
+				Sticker: &signalpb.DataMessage_Sticker{
+					// Signal iOS validates that pack id/key are of the correct length.
+					// Android is fine with any non-nil values (like a zero-length byte string).
+					PackId:    make([]byte, 16),
+					PackKey:   make([]byte, 32),
+					StickerId: proto.Uint32(0),
+
+					Data:  (*signalpb.AttachmentPointer)(attachmentPointer),
+					Emoji: emoji,
+				},
+			},
+		}
 	case event.MsgVideo:
 		fileName := content.Body
 		var caption string
