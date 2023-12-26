@@ -615,28 +615,6 @@ func convertVideo(ctx context.Context, mimeType string, video []byte) (string, [
 	return outMimeType, outVideo, nil
 }
 
-func convertAudio(ctx context.Context, mimeType string, audio []byte) (string, []byte, error) {
-	var outMimeType string
-	var outAudio []byte
-	var err error
-	switch mimeType {
-	case "audio/aac", "audio/mp4", "audio/amr", "audio/mpeg", "audio/ogg; codecs=opus":
-		// Allowed
-		outMimeType = mimeType
-		outAudio = audio
-	case "audio/ogg":
-		// Hopefully it's opus already
-		outMimeType = "audio/ogg; codecs=opus"
-		outAudio = audio
-	default:
-		return "", nil, fmt.Errorf("%w %q in audio message", errMediaUnsupportedType, mimeType)
-	}
-	if err != nil {
-		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, "video/mp4")
-	}
-	return outMimeType, outAudio, nil
-}
-
 func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, evt *event.Event) (*signalmeow.SignalContent, error) {
 	content, ok := evt.Content.Parsed.(*event.MessageEventContent)
 	if !ok {
@@ -755,19 +733,25 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 			fileName = content.FileName
 			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
 		}
-		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
+		data, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
 		if err != nil {
 			return nil, err
 		}
-		newMimeType, convertedAudio, err := convertAudio(ctx, content.GetInfo().MimeType, image)
+		_, isVoice := evt.Content.Raw["org.matrix.msc3245.voice"]
+		mime := content.GetInfo().MimeType
+		if isVoice {
+			data, err = ffmpeg.ConvertBytes(ctx, data, ".m4a", []string{}, []string{"-c:a", "aac"}, mime)
+			if err != nil {
+				return nil, err
+			}
+			mime = "audio/aac"
+			fileName += ".m4a"
+		}
+		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, data, mime, fileName)
 		if err != nil {
 			return nil, err
 		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedAudio, newMimeType, fileName)
-		if err != nil {
-			return nil, err
-		}
-		if _, isVoice := evt.Content.Raw["org.matrix.msc3245.voice"]; isVoice {
+		if isVoice {
 			attachmentPointer.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
 		}
 		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
