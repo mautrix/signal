@@ -75,7 +75,7 @@ func (user *User) IsLoggedIn() bool {
 	user.Lock()
 	defer user.Unlock()
 
-	return user.SignalUsername != ""
+	return user.SignalDevice.IsDeviceLoggedIn()
 }
 
 func (user *User) GetManagementRoomID() id.RoomID {
