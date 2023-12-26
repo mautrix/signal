@@ -463,13 +463,15 @@ func DataMessageForDelete(targetMessageTimestamp uint64) *SignalContent {
 }
 
 func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender string, quotedMessageTimestamp uint64) {
-	// Note: We're supposed to send the quoted message content too as a fallback,
-	// but it only seems to be necessary to quote image messages on iOS and Desktop.
-	// Android seems to render every quote fine, and iOS and Desktop render text quotes fine.
 	content.DataMessage.Quote = &signalpb.DataMessage_Quote{
 		AuthorAci: proto.String(quotedMessageSender),
 		Id:        proto.Uint64(quotedMessageTimestamp),
 		Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
+
+		// This is a hack to make Signal iOS and desktop render replies to file messages.
+		// Unfortunately it also makes Signal Desktop show a file icon on replies to text messages.
+		// TODO store file or text flag in database and fill this field only when replying to file messages.
+		Attachments: []*signalpb.DataMessage_Quote_QuotedAttachment{{}},
 	}
 }
 
