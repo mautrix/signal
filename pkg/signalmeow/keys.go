@@ -315,7 +315,7 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 		return err
 	}
 	var prekeyResponse prekeyResponse
-	err = web.DecodeHTTPResponseBody(&prekeyResponse, resp)
+	err = web.DecodeHTTPResponseBody(ctx, &prekeyResponse, resp)
 	if err != nil {
 		zlog.Err(err).Msg("Fetching prekeys, error with response body")
 		return err

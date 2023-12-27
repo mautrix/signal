@@ -684,7 +684,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		return err
 	}
 	for _, member := range group.Members {
-		parsedUserID, err := uuid.Parse(member.UserId)
+		parsedUserID, err := uuid.Parse(member.UserID)
 		if err != nil {
 			// TODO log?
 			continue
@@ -694,7 +694,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		}
 		memberPuppet := portal.bridge.GetPuppetBySignalID(parsedUserID)
 		if memberPuppet == nil {
-			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserId)
+			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserID)
 			continue
 		}
 		_ = updatePuppetWithSignalContact(context.TODO(), user, memberPuppet, nil)

@@ -205,7 +205,9 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 	path := "/v1/profile/" + signalID.String()
 	useUnidentified := profileKeyVersion != nil && accessKey != nil
 	if useUnidentified {
-		zlog.Trace().Msgf("Using unidentified profile request with profileKeyVersion: %v", profileKeyVersion)
+		zlog.Trace().
+			Hex("profile_key_version", profileKeyVersion[:]).
+			Msg("Using unidentified profile request")
 		// Assuming we can just make the version bytes into a string
 		path += "/" + profileKeyVersion.String()
 	}
@@ -276,7 +278,7 @@ func fetchAndDecryptAvatarImage(d *Device, avatarPath string, profileKey *libsig
 		Username: &username,
 		Password: &password,
 	}
-	zlog.Info().Msgf("Fetching profile avatar from %v", avatarPath)
+	zlog.Info().Str("avatar_path", avatarPath).Msg("Fetching profile avatar")
 	resp, err := web.SendHTTPRequest(http.MethodGet, avatarPath, opts)
 	if err != nil {
 		zlog.Err(err).Msg("error fetching profile avatar")

@@ -112,16 +112,6 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
 		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
 
-		// For debugging purposes
-		//privateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
-		//publicKey, _ := privateKey.GetPublicKey()
-		//privateBytes, _ := privateKey.Serialize()
-		//publicBytes, _ := publicKey.Serialize()
-		//aciBytes, _ := aciIdentityKeyPair.Serialize()
-		//zlog.Debug().Msgf("privateKeyBytes: %v", privateBytes)
-		//zlog.Debug().Msgf("publicKeyBytes: %v", publicBytes)
-		//zlog.Debug().Msgf("aciIdentityKeyPairBytes: %v", aciBytes)
-
 		username := *provisioningMessage.Number
 		password, _ := generateRandomPassword(22)
 		code := provisioningMessage.ProvisioningCode

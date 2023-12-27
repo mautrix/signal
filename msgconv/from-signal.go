@@ -270,7 +270,7 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 }
 
 func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer) (*ConvertedMessagePart, error) {
-	data, err := signalmeow.DownloadAttachment(att)
+	data, err := signalmeow.DownloadAttachment(ctx, att)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download attachment: %w", err)
 	}

@@ -18,17 +18,18 @@ package web
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 )
 
 const proxyUrlStr = "" // Set this to proxy requests
@@ -149,27 +150,33 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	}
 
 	httpReqCounter++
-	zlog.Debug().Msgf("Sending HTTP request %v, %v url: %s", httpReqCounter, method, urlStr)
+	log := zlog.With().
+		Int("request_number", httpReqCounter).
+		Str("method", method).
+		Str("url", urlStr).
+		Logger()
+	log.Trace().Msg("Sending HTTP request")
 	resp, err := signalHTTPClient.Do(req)
 	if err != nil {
-		zlog.Err(err).Msg("Error sending request")
+		log.Err(err).Msg("Error sending request")
 		return nil, err
 	}
-	zlog.Debug().Msgf("Received HTTP response %v, status: %v", httpReqCounter, resp.StatusCode)
+	log.Debug().Int("status_code", resp.StatusCode).Msg("received HTTP response")
 	return resp, nil
 }
 
 // DecodeHTTPResponseBody checks status code, reads an http.Response's Body and decodes it into the provided interface.
-func DecodeHTTPResponseBody(out interface{}, resp *http.Response) error {
+func DecodeHTTPResponseBody(ctx context.Context, out any, resp *http.Response) error {
 	defer resp.Body.Close()
 
 	// Check if status code indicates success
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Read the whole body and log it
-		buf := new(bytes.Buffer)
-		buf.ReadFrom(resp.Body)
-		body := buf.String()
-		log.Debug().Msgf("Response body: %v", body)
+		body, _ := io.ReadAll(resp.Body)
+		zerolog.Ctx(ctx).Debug().
+			Str("body", string(body)).
+			Int("status_code", resp.StatusCode).
+			Msg("unexpected status code")
 		return fmt.Errorf("Unexpected status code: %d %s", resp.StatusCode, resp.Status)
 	}
 
@@ -182,7 +189,12 @@ func DecodeHTTPResponseBody(out interface{}, resp *http.Response) error {
 }
 
 // Download an attachment from the CDN
-func GetAttachment(path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Response, error) {
+func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Response, error) {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "get_attachment").
+		Str("path", path).
+		Uint32("cdn_number", cdnNumber).
+		Logger()
 	if opt == nil {
 		opt = &HTTPReqOpt{}
 	}
@@ -197,20 +209,32 @@ func GetAttachment(path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Respon
 			opt.Host = CDNHosts[cdnNumber]
 		} else {
 			opt.Host = CDNHosts[0]
-			log.Warn().Msgf("Invalid CDN index %v, using %s", cdnNumber, opt.Host)
+			log.Warn().Msg("Invalid CDN index")
 		}
 	}
+	log.Debug().Str("host", opt.Host).Msg("getting attachment")
 	urlStr := "https://" + opt.Host + path
 	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	//const SERVICE_REFLECTOR_HOST = "europe-west1-signal-cdn-reflector.cloudfunctions.net"
 	//req.Header.Add("Host", SERVICE_REFLECTOR_HOST)
 	req.Header.Add("Content-Type", "application/octet-stream")
 
 	httpReqCounter++
-	zlog.Debug().Msgf("Sending Attachment HTTP request %v, url: %s", httpReqCounter, urlStr)
+	log = log.With().
+		Int("request_number", httpReqCounter).
+		Str("url", urlStr).
+		Logger()
+
+	log.Debug().Msg("Sending Attachment HTTP request")
 	resp, err := signalHTTPClient.Do(req)
-	zlog.Debug().Msgf("Received Attachment HTTP response %v, status: %v", httpReqCounter, resp.StatusCode)
+	if err != nil {
+		return nil, err
+	}
+	log.Debug().Msg("Received Attachment HTTP response")
 
 	return resp, err
 }

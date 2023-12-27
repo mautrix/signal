@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/rs/zerolog"
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -86,13 +87,19 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 	if d.AuthedWS != nil {
 		return nil, errors.New("authed websocket already connected")
 	}
+
 	username, password := data.BasicAuthCreds()
+	log := zerolog.Ctx(ctx).With().
+		Str("websocket_type", "authed").
+		Str("username", username).
+		Logger()
+	ctx = log.WithContext(ctx)
 	username = url.QueryEscape(username)
 	password = url.QueryEscape(password)
 	path := web.WebsocketPath +
 		"?login=" + username +
 		"&password=" + password
-	authedWS := web.NewSignalWebsocket(ctx, "authed", path, &username, &password)
+	authedWS := web.NewSignalWebsocket(path, &username, &password)
 	statusChan := authedWS.Connect(ctx, &requestHandler)
 	d.AuthedWS = authedWS
 	return statusChan, nil
@@ -102,9 +109,13 @@ func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceDat
 	if d.UnauthedWS != nil {
 		return nil, errors.New("unauthed websocket already connected")
 	}
-	unauthedWS := web.NewSignalWebsocket(ctx, "unauthed", web.WebsocketPath, nil, nil)
+
+	log := zerolog.Ctx(ctx).With().
+		Str("websocket_type", "unauthed").
+		Logger()
+	ctx = log.WithContext(ctx)
+	unauthedWS := web.NewSignalWebsocket(web.WebsocketPath, nil, nil)
 	statusChan := unauthedWS.Connect(ctx, nil)
 	d.UnauthedWS = unauthedWS
-
 	return statusChan, nil
 }

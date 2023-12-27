@@ -560,7 +560,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				zlog.Debug().Msgf("Recieved sync message contacts")
 				blob := content.SyncMessage.Contacts.Blob
 				if blob != nil {
-					contactsBytes, err := DownloadAttachment(blob)
+					contactsBytes, err := DownloadAttachment(ctx, blob)
 					if err != nil {
 						zlog.Err(err).Msg("Contacts Sync DownloadAttachment error")
 					}

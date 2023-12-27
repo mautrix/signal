@@ -38,7 +38,7 @@ import (
 
 // Sending
 
-func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
+func senderCertificate(ctx context.Context, d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
 		// TODO: check for expired certificate
 		return d.Connection.SenderCertificate, nil
@@ -55,7 +55,7 @@ func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = web.DecodeHTTPResponseBody(&r, resp)
+	err = web.DecodeHTTPResponseBody(ctx, &r, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func buildAuthedMessageToSend(ctx context.Context, d *Device, recipientAddress *
 }
 
 func buildSSMessageToSend(ctx context.Context, d *Device, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
-	cert, err := senderCertificate(d)
+	cert, err := senderCertificate(ctx, d)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -499,23 +499,23 @@ func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdenti
 		FailedToSendTo:     []FailedSendResult{},
 	}
 	for _, member := range group.Members {
-		if member.UserId == device.Data.AciUuid {
+		if member.UserID == device.Data.AciUuid {
 			// Don't send normal DataMessages to ourselves
 			continue
 		}
-		sentUnidentified, err := sendContent(ctx, device, member.UserId, messageTimestamp, content, 0)
+		sentUnidentified, err := sendContent(ctx, device, member.UserID, messageTimestamp, content, 0)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
-				RecipientUuid: member.UserId,
+				RecipientUuid: member.UserID,
 				Error:         err,
 			})
-			zlog.Err(err).Msgf("Failed to send to %v", member.UserId)
+			zlog.Err(err).Msgf("Failed to send to %v", member.UserID)
 		} else {
 			result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
-				RecipientUuid: member.UserId,
+				RecipientUuid: member.UserID,
 				Unidentified:  sentUnidentified,
 			})
-			zlog.Trace().Msgf("Successfully sent to %v", member.UserId)
+			zlog.Trace().Msgf("Successfully sent to %v", member.UserID)
 		}
 	}
 
