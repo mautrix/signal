@@ -6,6 +6,7 @@ require (
 	github.com/google/uuid v1.5.0
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.10.9
+	github.com/mattn/go-pointer v0.0.1
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/prometheus/client_golang v1.17.0
 	github.com/rs/zerolog v1.31.0
@@ -14,11 +15,14 @@ require (
 	github.com/stretchr/testify v1.8.4
 	go.mau.fi/util v0.2.1
 	go.mau.fi/webp v0.1.0
+	golang.org/x/crypto v0.16.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa
 	golang.org/x/image v0.14.0
+	golang.org/x/net v0.18.0
 	google.golang.org/protobuf v1.31.0
 	maunium.net/go/maulogger/v2 v2.4.1
 	maunium.net/go/mautrix v0.16.3-0.20231219134117-a27bf782f377
+	nhooyr.io/websocket v1.8.10
 )
 
 require (
@@ -31,7 +35,6 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
-	github.com/mattn/go-pointer v0.0.1 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.4.1-0.20230718164431-9a2bf3000d16 // indirect
@@ -43,11 +46,8 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/yuin/goldmark v1.6.0 // indirect
 	go.mau.fi/zeroconfig v0.1.2 // indirect
-	golang.org/x/crypto v0.16.0 // indirect
-	golang.org/x/net v0.18.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	maunium.net/go/mauflag v1.0.0 // indirect
-	nhooyr.io/websocket v1.8.10 // indirect
 )
