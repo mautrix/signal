@@ -30,9 +30,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/beeper/libserv/pkg/requestlog"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/hlog"
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
@@ -54,10 +56,12 @@ type ProvisioningAPI struct {
 }
 
 func (prov *ProvisioningAPI) Init() {
-	prov.log.Debug().Msgf("Enabling provisioning API at %v", prov.bridge.Config.Bridge.Provisioning.Prefix)
+	prov.log.Debug().Str("prefix", prov.bridge.Config.Bridge.Provisioning.Prefix).Msg("Enabling provisioning API")
 	prov.provisioningUsers = make(map[string]int)
 	prov.provisioningMutexes = make(map[string]*sync.Mutex)
 	r := prov.bridge.AS.Router.PathPrefix(prov.bridge.Config.Bridge.Provisioning.Prefix).Subrouter()
+	r.Use(hlog.NewHandler(prov.log))
+	r.Use(requestlog.AccessLogger(true))
 	r.Use(prov.AuthMiddleware)
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
@@ -116,11 +120,8 @@ func (prov *ProvisioningAPI) AuthMiddleware(h http.Handler) http.Handler {
 		}
 		userID := r.URL.Query().Get("user_id")
 		user := prov.bridge.GetUserByMXID(id.UserID(userID))
-		start := time.Now()
 		wWrap := &responseWrap{w, 200}
 		h.ServeHTTP(wWrap, r.WithContext(context.WithValue(r.Context(), "user", user)))
-		duration := time.Now().Sub(start).Seconds()
-		prov.log.Info().Msgf("%s %s from %s took %.2f seconds and returned status %d", r.Method, r.URL.Path, user.MXID, duration, wWrap.statusCode)
 	})
 }
 
