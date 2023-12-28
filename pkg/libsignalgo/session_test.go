@@ -108,7 +108,12 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	signedPreKeyRecord, err := libsignalgo.NewSignedPreKeyRecordFromPrivateKey(signedPreKeyID, time.UnixMilli(42000), bobSignedPreKey, bobSignedPreKeySignature)
 	assert.NoError(t, err)
 	err = bobStore.StoreSignedPreKey(signedPreKeyID, signedPreKeyRecord, ctx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
+	kyberPreKeyRecord, err := libsignalgo.NewKyberPreKeyRecord(kyberPreKeyId, time.UnixMilli(42000), bobKyberPreKey, bobKyberPreKeySignature)
+	require.NoError(t, err)
+	err = bobStore.StoreKyberPreKey(kyberPreKeyId, kyberPreKeyRecord, ctx)
+	require.NoError(t, err)
 }
 
 // From SessionTests.swift:testSessionCipher

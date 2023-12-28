@@ -49,6 +49,7 @@ type InMemorySignalProtocolStore struct {
 	senderKeyMap    map[SenderKeyName]*libsignalgo.SenderKeyRecord
 	sessionMap      map[AddressKey]*libsignalgo.SessionRecord
 	signedPreKeyMap map[uint32]*libsignalgo.SignedPreKeyRecord
+	kyberPreKeyMap  map[uint32]*libsignalgo.KyberPreKeyRecord
 }
 
 func NewInMemorySignalProtocolStore() *InMemorySignalProtocolStore {
@@ -71,6 +72,7 @@ func NewInMemorySignalProtocolStore() *InMemorySignalProtocolStore {
 		senderKeyMap:    make(map[SenderKeyName]*libsignalgo.SenderKeyRecord),
 		sessionMap:      make(map[AddressKey]*libsignalgo.SessionRecord),
 		signedPreKeyMap: make(map[uint32]*libsignalgo.SignedPreKeyRecord),
+		kyberPreKeyMap:  make(map[uint32]*libsignalgo.KyberPreKeyRecord),
 	}
 }
 
@@ -258,19 +260,23 @@ func (ps *BadInMemorySignalProtocolStore) LoadPreKey(id uint32, ctx context.Cont
 	return nil, errors.New("Test error")
 }
 
+func (ps *BadInMemorySignalProtocolStore) LoadKyberPreKey(id uint32, ctx context.Context) (*libsignalgo.KyberPreKeyRecord, error) {
+	return nil, errors.New("Test error")
+}
+
 // Implementation of the KyberPreKeyStore interface
 // TODO: this is just stubs, not implemented yet
 
 func (ps *InMemorySignalProtocolStore) LoadKyberPreKey(id uint32, ctx context.Context) (*libsignalgo.KyberPreKeyRecord, error) {
-	return nil, nil //ps.kyberPreKeyMap[id], nil
+	return ps.kyberPreKeyMap[id], nil
 }
 
 func (ps *InMemorySignalProtocolStore) StoreKyberPreKey(id uint32, kyberPreKeyRecord *libsignalgo.KyberPreKeyRecord, ctx context.Context) error {
-	//ps.kyberPreKeyMap[id] = kyberPreKeyRecord
+	ps.kyberPreKeyMap[id] = kyberPreKeyRecord
 	return nil
 }
 
 func (ps *InMemorySignalProtocolStore) MarkKyberPreKeyUsed(id uint32, ctx context.Context) error {
-	//ps.kyberPreKeyMap[id].MarkUsed()
+	//delete(ps.kyberPreKeyMap, id)
 	return nil
 }
