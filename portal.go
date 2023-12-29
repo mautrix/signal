@@ -1622,10 +1622,12 @@ func (portal *Portal) sendMatrixReaction(intent *appservice.IntentAPI, eventType
 }
 func (portal *Portal) sendMatrixEventContent(intent *appservice.IntentAPI, eventType event.Type, content interface{}, extraContent map[string]interface{}, timestamp int64) (*mautrix.RespSendEvent, error) {
 	wrappedContent := event.Content{Parsed: content, Raw: extraContent}
-	var err error
-	eventType, err = portal.encrypt(intent, &wrappedContent, eventType)
-	if err != nil {
-		return nil, err
+	if eventType != event.EventReaction {
+		var err error
+		eventType, err = portal.encrypt(intent, &wrappedContent, eventType)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	_, _ = intent.UserTyping(portal.MXID, false, 0)
