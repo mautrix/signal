@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -13,11 +14,11 @@ import (
 )
 
 var formatParams = &matrixfmt.HTMLParser{
-	GetUUIDFromMXID: func(id id.UserID) string {
+	GetUUIDFromMXID: func(id id.UserID) uuid.UUID {
 		if id.Homeserver() == "signal" {
-			return id.Localpart()
+			return uuid.MustParse(id.Localpart())
 		}
-		return ""
+		return uuid.Nil
 	},
 }
 

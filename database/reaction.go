@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2023 Scott Weber, Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -17,103 +17,73 @@
 package database
 
 import (
-	"database/sql"
-	"errors"
+	"context"
+
+	"github.com/google/uuid"
+	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/util/dbutil"
-	log "maunium.net/go/maulogger/v2"
-	"maunium.net/go/mautrix/id"
+)
+
+const (
+	getReactionByMXIDQuery     = `SELECT msg_author, msg_timestamp, author, emoji, signal_chat_id, signal_receiver, mxid, mx_room FROM reaction WHERE mxid=$1`
+	getReactionBySignalIDQuery = `SELECT msg_author, msg_timestamp, author, emoji, signal_chat_id, signal_receiver, mxid, mx_room FROM reaction WHERE msg_author=$1 AND msg_timestamp=$2 AND author=$3 AND signal_receiver=$4`
+	insertReactionQuery        = `
+		INSERT INTO reaction (msg_author, msg_timestamp, author, emoji, signal_chat_id, signal_receiver, mxid, mx_room)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+	`
+	deleteReactionQuery = `
+		DELETE FROM reaction WHERE msg_author=$1 AND msg_timestamp=$2 AND author=$3 AND signal_receiver=$4
+	`
 )
 
 type ReactionQuery struct {
-	db  *Database
-	log log.Logger
+	*dbutil.QueryHelper[*Reaction]
 }
 
-func (mq *ReactionQuery) New() *Reaction {
-	return &Reaction{
-		db:  mq.db,
-		log: mq.log,
-	}
+func newReaction(qh *dbutil.QueryHelper[*Reaction]) *Reaction {
+	return &Reaction{qh: qh}
 }
 
 type Reaction struct {
-	db  *Database
-	log log.Logger
+	qh *dbutil.QueryHelper[*Reaction]
 
-	MXID   id.EventID
-	MXRoom id.RoomID
+	MsgAuthor    uuid.UUID
+	MsgTimestamp uint64
+	Author       uuid.UUID
+	Emoji        string
 
 	SignalChatID   string
-	SignalReceiver string
+	SignalReceiver uuid.UUID
 
-	Author       string
-	MsgAuthor    string
-	MsgTimestamp uint64
-	Emoji        string
+	MXID   id.EventID
+	RoomID id.RoomID
 }
 
-func (r *Reaction) Insert(txn dbutil.Execable) {
-	if txn == nil {
-		txn = r.db
-	}
-	_, err := txn.Exec(`
-		INSERT INTO reaction (mxid, mx_room, signal_chat_id, signal_receiver, author, msg_author, msg_timestamp, emoji)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`,
-		r.MXID.String(), r.MXRoom, r.SignalChatID, r.SignalReceiver, r.Author, r.MsgAuthor, r.MsgTimestamp, r.Emoji,
-	)
-	r.log.Debugfln("Inserting reaction", r.MXID, r.MXRoom, r.SignalChatID, r.SignalReceiver, r.Author, r.MsgAuthor, r.MsgTimestamp, r.Emoji)
-	if err != nil {
-		r.log.Warnfln("Failed to insert %s, %s: %v", r.SignalChatID, r.MXID, err)
-	}
+func (rq *ReactionQuery) GetByMXID(ctx context.Context, mxid id.EventID) (*Reaction, error) {
+	return rq.QueryOne(ctx, getReactionByMXIDQuery, mxid)
 }
 
-func (r *Reaction) Delete(txn dbutil.Execable) {
-	if txn == nil {
-		txn = r.db
-	}
-	_, err := txn.Exec(`
-        DELETE FROM reaction
-        WHERE signal_chat_id=$1 AND signal_receiver=$2 AND author=$3 AND msg_author=$4 AND msg_timestamp=$5
-	`,
-		r.SignalChatID, r.SignalReceiver, r.Author, r.MsgAuthor, r.MsgTimestamp,
-	)
-	if err != nil {
-		r.log.Warnfln("Failed to delete %s, %s: %v", r.SignalChatID, r.MXID, err)
+func (rq *ReactionQuery) GetBySignalID(ctx context.Context, msgAuthor uuid.UUID, msgTimestamp uint64, author, signalReceiver uuid.UUID) (*Reaction, error) {
+	return rq.QueryOne(ctx, getReactionBySignalIDQuery, msgAuthor, msgTimestamp, author, signalReceiver)
+}
+
+func (r *Reaction) Scan(row dbutil.Scannable) (*Reaction, error) {
+	return dbutil.ValueOrErr(r, row.Scan(
+		&r.MsgAuthor, &r.MsgTimestamp, &r.Author, &r.Emoji, &r.SignalChatID, &r.SignalReceiver, &r.MXID, &r.RoomID,
+	))
+}
+
+func (r *Reaction) sqlVariables() []any {
+	return []any{
+		r.MsgAuthor, r.MsgTimestamp, r.Author, r.Emoji, r.SignalChatID, r.SignalReceiver, r.MXID, r.RoomID,
 	}
 }
 
-func (r *Reaction) Scan(row dbutil.Scannable) *Reaction {
-	err := row.Scan(&r.MXID, &r.MXRoom, &r.SignalChatID, &r.SignalReceiver, &r.Author, &r.MsgAuthor, &r.MsgTimestamp, &r.Emoji)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			r.log.Errorln("Database scan failed:", err)
-		}
-		return nil
-	}
-	return r
+func (r *Reaction) Insert(ctx context.Context) error {
+	return r.qh.Exec(ctx, insertReactionQuery, r.sqlVariables()...)
 }
 
-func (rq *ReactionQuery) maybeScan(row *sql.Row) *Reaction {
-	if row == nil {
-		return nil
-	}
-	return rq.New().Scan(row)
-}
-
-func (rq *ReactionQuery) GetByMXID(mxid id.EventID, roomID id.RoomID) *Reaction {
-	const getReactionByMXIDQuery = `
-		SELECT mxid, mx_room, signal_chat_id, signal_receiver, author, msg_author, msg_timestamp, emoji FROM reaction
-		WHERE mxid=$1 and mx_room=$2
-	`
-	return rq.maybeScan(rq.db.QueryRow(getReactionByMXIDQuery, mxid, roomID))
-}
-
-func (rq *ReactionQuery) GetBySignalID(signalChatID string, signalReceiver string, author string, msgAuthor string, msgTimestamp uint64) *Reaction {
-	const getReactionBySignalIDQuery = `
-		SELECT mxid, mx_room, signal_chat_id, signal_receiver, author, msg_author, msg_timestamp, emoji FROM reaction
-        WHERE signal_chat_id=$1 AND signal_receiver=$2 AND author=$3 AND msg_author=$4 AND msg_timestamp=$5
-	`
-	return rq.maybeScan(rq.db.QueryRow(getReactionBySignalIDQuery, signalChatID, signalReceiver, author, msgAuthor, msgTimestamp))
+func (r *Reaction) Delete(ctx context.Context) error {
+	return r.qh.Exec(ctx, deleteReactionQuery, r.MsgAuthor, r.MsgTimestamp, r.Author, r.SignalReceiver)
 }

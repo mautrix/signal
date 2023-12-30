@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2023 Scott Weber, Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -21,8 +21,8 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+
 	"go.mau.fi/util/dbutil"
-	"maunium.net/go/maulogger/v2"
 
 	"go.mau.fi/mautrix-signal/database/upgrades"
 )
@@ -38,39 +38,15 @@ type Database struct {
 	DisappearingMessage *DisappearingMessageQuery
 }
 
-func New(baseDB *dbutil.Database, log maulogger.Logger) *Database {
-	db := &Database{Database: baseDB}
+func New(db *dbutil.Database) *Database {
 	db.UpgradeTable = upgrades.Table
-	db.User = &UserQuery{
-		db:  db,
-		log: log.Sub("User"),
+	return &Database{
+		Database:            db,
+		User:                &UserQuery{dbutil.MakeQueryHelper(db, newUser)},
+		Portal:              &PortalQuery{dbutil.MakeQueryHelper(db, newPortal)},
+		Puppet:              &PuppetQuery{dbutil.MakeQueryHelper(db, newPuppet)},
+		Message:             &MessageQuery{dbutil.MakeQueryHelper(db, newMessage)},
+		Reaction:            &ReactionQuery{dbutil.MakeQueryHelper(db, newReaction)},
+		DisappearingMessage: &DisappearingMessageQuery{dbutil.MakeQueryHelper(db, newDisappearingMessage)},
 	}
-	db.Portal = &PortalQuery{
-		db:  db,
-		log: log.Sub("Portal"),
-	}
-	db.Puppet = &PuppetQuery{
-		db:  db,
-		log: log.Sub("Puppet"),
-	}
-	db.Message = &MessageQuery{
-		db:  db,
-		log: log.Sub("Message"),
-	}
-	db.Reaction = &ReactionQuery{
-		db:  db,
-		log: log.Sub("Reaction"),
-	}
-	db.DisappearingMessage = &DisappearingMessageQuery{
-		db:  db,
-		log: log.Sub("DisappearingMessage"),
-	}
-	return db
-}
-
-func strPtr(val string) *string {
-	if val == "" {
-		return nil
-	}
-	return &val
 }

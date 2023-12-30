@@ -17,8 +17,10 @@
 package main
 
 import (
+	"context"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/skip2/go-qrcode"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/commands"
@@ -88,7 +90,7 @@ func fnSetRelay(ce *WrappedCommandEvent) {
 		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
 	} else {
 		ce.Portal.RelayUserID = ce.User.MXID
-		ce.Portal.Update()
+		ce.Portal.Update(context.TODO())
 		ce.Reply("Messages from non-logged-in users in this room will now be bridged through your Signal account")
 	}
 }
@@ -110,7 +112,7 @@ func fnUnsetRelay(ce *WrappedCommandEvent) {
 		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
 	} else {
 		ce.Portal.RelayUserID = ""
-		ce.Portal.Update()
+		ce.Portal.Update(context.TODO())
 		ce.Reply("Messages from non-logged-in users will no longer be bridged in this room")
 	}
 }
@@ -143,7 +145,7 @@ var cmdPing = &commands.FullHandler{
 }
 
 func fnPing(ce *WrappedCommandEvent) {
-	if ce.User.SignalID == "" {
+	if ce.User.SignalID == uuid.Nil {
 		ce.Reply("You're not logged in")
 	} else if !ce.User.SignalDevice.IsDeviceLoggedIn() {
 		ce.Reply("You were logged in at some point, but are not anymore")
@@ -306,13 +308,20 @@ func fnLogin(ce *WrappedCommandEvent) {
 
 	// Update user with SignalID
 	if signalID != "" {
-		ce.User.SignalID = signalID
+		ce.User.SignalID, err = uuid.Parse(signalID)
+		if err != nil {
+			ce.Reply("Problem logging in - SignalID is not a valid UUID")
+			return
+		}
 		ce.User.SignalUsername = signalUsername
 	} else {
 		ce.Reply("Problem logging in - No SignalID received")
 		return
 	}
-	ce.User.Update()
+	err = ce.User.Update(context.TODO())
+	if err != nil {
+		ce.ZLog.Err(err).Msg("Failed to save user to database")
+	}
 
 	// Connect to Signal
 	ce.User.Connect()
@@ -415,7 +424,7 @@ var cmdDeleteAllPortals = &commands.FullHandler{
 }
 
 func fnDeleteAllPortals(ce *WrappedCommandEvent) {
-	portals := ce.Bridge.getAllPortals()
+	portals := ce.Bridge.GetAllPortalsWithMXID()
 	var portalsToDelete []*Portal
 
 	if ce.User.Admin {

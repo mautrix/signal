@@ -90,12 +90,15 @@ func (user *User) SetManagementRoom(roomID id.RoomID) {
 	existing, ok := user.bridge.managementRooms[roomID]
 	if ok {
 		existing.ManagementRoom = ""
-		existing.Update()
+		err := existing.Update(context.TODO())
+		if err != nil {
+			existing.log.Err(err).Msg("Failed to update user when removing management room")
+		}
 	}
 
 	user.ManagementRoom = roomID
 	user.bridge.managementRooms[user.ManagementRoom] = user
-	err := user.Update()
+	err := user.Update(context.TODO())
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error setting management room")
 	}
@@ -119,14 +122,14 @@ func (user *User) GetIGhost() bridge.Ghost {
 
 // ** User creation and fetching **
 
-func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
+func (br *SignalBridge) loadUser(ctx context.Context, dbUser *database.User, mxid *id.UserID) *User {
 	if dbUser == nil {
 		if mxid == nil {
 			return nil
 		}
 		dbUser = br.DB.User.New()
 		dbUser.MXID = *mxid
-		err := dbUser.Insert()
+		err := dbUser.Insert(ctx)
 		if err != nil {
 			br.ZLog.Err(err).Msg("Error creating user %s")
 			return nil
@@ -135,7 +138,7 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 
 	user := br.NewUser(dbUser)
 	br.usersByMXID[user.MXID] = user
-	if user.SignalID != "" {
+	if user.SignalID != uuid.Nil {
 		br.usersBySignalID[user.SignalID] = user
 	}
 	if user.ManagementRoom != "" {
@@ -143,11 +146,12 @@ func (br *SignalBridge) loadUser(dbUser *database.User, mxid *id.UserID) *User {
 		br.managementRooms[user.ManagementRoom] = user
 		br.managementRoomsLock.Unlock()
 	}
+	// TODO this is completely wrong and shouldn't be here at all
 	// Ensure a puppet is created for this user
 	newPuppet := br.GetPuppetBySignalID(user.SignalID)
 	if newPuppet != nil && newPuppet.CustomMXID == "" {
 		newPuppet.CustomMXID = user.MXID
-		err := newPuppet.Update()
+		err := newPuppet.Update(ctx)
 		if err != nil {
 			br.ZLog.Err(err).Msg("Error updating puppet for user %s")
 		}
@@ -164,18 +168,28 @@ func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
 
 	user, ok := br.usersByMXID[userID]
 	if !ok {
-		return br.loadUser(br.DB.User.GetByMXID(userID), &userID)
+		dbUser, err := br.DB.User.GetByMXID(context.TODO(), userID)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get user from database")
+			return nil
+		}
+		return br.loadUser(context.TODO(), dbUser, &userID)
 	}
 	return user
 }
 
-func (br *SignalBridge) GetUserBySignalID(id string) *User {
+func (br *SignalBridge) GetUserBySignalID(id uuid.UUID) *User {
 	br.usersLock.Lock()
 	defer br.usersLock.Unlock()
 
 	user, ok := br.usersBySignalID[id]
 	if !ok {
-		return br.loadUser(br.DB.User.GetBySignalID(id), nil)
+		dbUser, err := br.DB.User.GetBySignalID(context.TODO(), id)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get user from database")
+			return nil
+		}
+		return br.loadUser(context.TODO(), dbUser, nil)
 	}
 	return user
 }
@@ -274,7 +288,7 @@ func (user *User) GetMXID() id.UserID {
 	return user.MXID
 }
 func (user *User) GetRemoteID() string {
-	return user.SignalID
+	return user.SignalID.String()
 }
 
 func (user *User) GetRemoteName() string {
@@ -287,13 +301,17 @@ func (br *SignalBridge) getAllLoggedInUsers() []*User {
 	br.usersLock.Lock()
 	defer br.usersLock.Unlock()
 
-	dbUsers := br.DB.User.AllLoggedIn()
+	dbUsers, err := br.DB.User.GetAllLoggedIn(context.TODO())
+	if err != nil {
+		br.ZLog.Err(err).Msg("Error getting all logged in users")
+		return nil
+	}
 	users := make([]*User, len(dbUsers))
 
 	for idx, dbUser := range dbUsers {
 		user, ok := br.usersByMXID[dbUser.MXID]
 		if !ok {
-			user = br.loadUser(dbUser, nil)
+			user = br.loadUser(context.TODO(), dbUser, nil)
 		}
 		users[idx] = user
 	}
@@ -488,11 +506,11 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 	user.Lock()
 	defer user.Unlock()
 
-	if user.SignalID == "" {
+	if user.SignalID == uuid.Nil {
 		return nil
 	}
 
-	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID)
+	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID.String())
 	if err != nil {
 		user.log.Err(err).Msgf("problem looking up aci %s", user.SignalID)
 		return nil
@@ -508,7 +526,7 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 }
 
 func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *signalmeow.ContactAvatar) error {
-	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID)
+	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID.String())
 	if err != nil {
 		user.log.Err(err).Msg("updatePuppetWithSignalContact: error retrieving contact")
 		return err
@@ -525,7 +543,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 			return err
 		}
 		puppet.NameSet = true
-		err = puppet.Update()
+		err = puppet.Update(ctx)
 		if err != nil {
 			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet with new name")
 			return err
@@ -553,7 +571,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 			user.log.Err(err).Msg("updatePuppetWithSignalContact: error clearing avatar url")
 			return err
 		}
-		err = puppet.Update()
+		err = puppet.Update(ctx)
 		if err != nil {
 			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet while clearing avatar")
 			return err
@@ -578,7 +596,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 			user.log.Err(err).Msg("updatePuppetWithSignalContact: error setting avatar url")
 			return err
 		}
-		err = puppet.Update()
+		err = puppet.Update(ctx)
 		if err != nil {
 			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet with new avatar")
 			return err
@@ -607,10 +625,15 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		return err
 	}
 	for _, member := range group.Members {
-		if member.UserId == user.SignalID {
+		parsedUserID, err := uuid.Parse(member.UserId)
+		if err != nil {
+			// TODO log?
 			continue
 		}
-		memberPuppet := portal.bridge.GetPuppetBySignalID(member.UserId)
+		if parsedUserID == user.SignalID {
+			continue
+		}
+		memberPuppet := portal.bridge.GetPuppetBySignalID(parsedUserID)
 		if memberPuppet == nil {
 			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserId)
 			continue
@@ -629,8 +652,12 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	m := incomingMessage.Base()
 	var chatID string
 	var senderPuppet *Puppet
+	parsedSenderUUID, err := uuid.Parse(m.SenderUUID)
+	if err != nil {
+		return err
+	}
 
-	isSyncMessage := m.SenderUUID == user.SignalID
+	isSyncMessage := parsedSenderUUID == user.SignalID
 
 	// Get and update the puppet for this message
 	user.tryAutomaticDoublePuppeting()
@@ -640,7 +667,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		chatID = m.RecipientUUID
 		senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
 		if senderPuppet == nil {
-			senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+			senderPuppet = user.bridge.GetPuppetBySignalID(parsedSenderUUID)
 			if senderPuppet == nil {
 				err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
 				user.log.Err(err).Msg("error getting puppet")
@@ -650,7 +677,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	} else {
 		user.log.Debug().Msgf("Message received from %s (group: %v)", m.SenderUUID, m.GroupID)
 		chatID = m.SenderUUID
-		senderPuppet = user.bridge.GetPuppetBySignalID(m.SenderUUID)
+		senderPuppet = user.bridge.GetPuppetBySignalID(parsedSenderUUID)
 		if senderPuppet == nil {
 			err := fmt.Errorf("no puppet found for sender: %s", m.SenderUUID)
 			user.log.Err(err).Msg("error getting puppet")
@@ -678,9 +705,16 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 	if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt {
 		receiptMessage := incomingMessage.(signalmeow.IncomingSignalMessageReceipt)
 		timestamp := receiptMessage.OriginalTimestamp
-		sender := receiptMessage.OriginalSender
-		dbMessage := user.bridge.DB.Message.FindBySenderAndTimestamp(sender, timestamp)
-		if dbMessage == nil {
+		sender, err := uuid.Parse(receiptMessage.OriginalSender)
+		if err != nil {
+			user.log.Err(err).Msg("Failed to parse sender UUID in receipt")
+			return nil
+		}
+		dbMessage, err := user.bridge.DB.Message.GetBySignalIDWithUnknownReceiver(context.TODO(), sender, timestamp, 0, user.SignalID)
+		if err != nil {
+			user.log.Err(err).Msg("Failed to get receipt target message from database")
+			return nil
+		} else if dbMessage == nil {
 			user.log.Warn().Msgf("Receipt received for unknown message %v %d", user.SignalID, timestamp)
 			return nil
 		}
@@ -701,7 +735,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 		portal.log.Debug().Msgf("Updating expiration time to %d (DM)", expireTimerMessage.NewExpireTimer)
 		if portal.ExpirationTime != int(expireTimerMessage.NewExpireTimer) {
 			portal.ExpirationTime = int(expireTimerMessage.NewExpireTimer)
-			err := portal.Update()
+			err := portal.Update(context.TODO())
 			if err != nil {
 				user.log.Err(err).Msg("error updating exipration time in portal")
 			}
@@ -768,7 +802,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 				user.log.Err(err).Msg("error setting room avatar")
 			}
 			portal.AvatarSet = err == nil
-			err = portal.Update()
+			err = portal.Update(context.TODO())
 			if err != nil {
 				user.log.Err(err).Msg("error updating portal")
 			}
@@ -796,7 +830,7 @@ func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSign
 func (user *User) GetPortalByChatID(signalID string) *Portal {
 	pk := database.PortalKey{
 		ChatID:   signalID,
-		Receiver: user.SignalUsername,
+		Receiver: user.SignalID,
 	}
 	return user.bridge.GetPortalByChatID(pk)
 }
@@ -894,10 +928,14 @@ func (user *User) UpdateDirectChats(chats map[id.UserID][]id.RoomID) {
 func (user *User) getDirectChats() map[id.UserID][]id.RoomID {
 	chats := map[id.UserID][]id.RoomID{}
 
-	privateChats := user.bridge.DB.Portal.FindPrivateChatsOf(user.SignalID)
+	privateChats, err := user.bridge.DB.Portal.FindPrivateChatsOf(context.TODO(), user.SignalID)
+	if err != nil {
+		user.log.Err(err).Msg("Failed to get private chats")
+		return chats
+	}
 	for _, portal := range privateChats {
 		if portal.MXID != "" {
-			puppetMXID := user.bridge.FormatPuppetMXID(portal.Key().Receiver)
+			puppetMXID := user.bridge.FormatPuppetMXID(portal.UserID())
 
 			chats[puppetMXID] = []id.RoomID{portal.MXID}
 		}

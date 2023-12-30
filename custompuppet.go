@@ -17,14 +17,20 @@
 package main
 
 import (
+	"context"
+	"fmt"
+
 	"maunium.net/go/mautrix/id"
 )
 
 func (puppet *Puppet) SwitchCustomMXID(accessToken string, mxid id.UserID) error {
 	puppet.CustomMXID = mxid
 	puppet.AccessToken = accessToken
-	puppet.Update()
-	err := puppet.StartCustomMXID(false)
+	err := puppet.Update(context.TODO())
+	if err != nil {
+		return fmt.Errorf("failed to save access token: %w", err)
+	}
+	err = puppet.StartCustomMXID(false)
 	if err != nil {
 		return err
 	}
@@ -44,7 +50,10 @@ func (puppet *Puppet) ClearCustomMXID() {
 	puppet.customIntent = nil
 	puppet.customUser = nil
 	if save {
-		puppet.Update()
+		err := puppet.Update(context.TODO())
+		if err != nil {
+			puppet.log.Err(err).Msg("Failed to clear custom MXID")
+		}
 	}
 }
 
@@ -59,11 +68,11 @@ func (puppet *Puppet) StartCustomMXID(reloginOnFail bool) error {
 	puppet.bridge.puppetsLock.Unlock()
 	if puppet.AccessToken != newAccessToken {
 		puppet.AccessToken = newAccessToken
-		puppet.Update()
+		err = puppet.Update(context.TODO())
 	}
 	puppet.customIntent = newIntent
 	puppet.customUser = puppet.bridge.GetUserByMXID(puppet.CustomMXID)
-	return nil
+	return err
 }
 
 func (user *User) tryAutomaticDoublePuppeting() {

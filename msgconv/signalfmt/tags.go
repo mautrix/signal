@@ -19,6 +19,8 @@ package signalfmt
 import (
 	"fmt"
 
+	"github.com/google/uuid"
+
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
@@ -30,7 +32,7 @@ type BodyRangeValue interface {
 
 type Mention struct {
 	UserInfo
-	UUID string
+	UUID uuid.UUID
 }
 
 func (m Mention) String() string {
@@ -39,7 +41,7 @@ func (m Mention) String() string {
 
 func (m Mention) Proto() signalpb.BodyRangeAssociatedValue {
 	return &signalpb.BodyRange_MentionAci{
-		MentionAci: m.UUID,
+		MentionAci: m.UUID.String(),
 	}
 }
 

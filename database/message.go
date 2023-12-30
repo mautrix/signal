@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2023 Scott Weber, Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -17,183 +17,134 @@
 package database
 
 import (
-	"database/sql"
-	"errors"
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/google/uuid"
+	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/util/dbutil"
-	log "maunium.net/go/maulogger/v2"
-	"maunium.net/go/mautrix/id"
 )
 
-type MessageQuery struct {
-	db  *Database
-	log log.Logger
-}
-
-func (mq *MessageQuery) New() *Message {
-	return &Message{
-		db:  mq.db,
-		log: mq.log,
-	}
-}
-
-type Message struct {
-	db  *Database
-	log log.Logger
-
-	MXID           id.EventID
-	MXRoom         id.RoomID
-	Sender         string
-	Timestamp      uint64
-	SignalChatID   string
-	SignalReceiver string
-}
-
 const (
-	getAllMessagesQuery = `
-		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
-		WHERE signal_chat_id=$1 AND signal_receiver=$2
-	`
 	getMessageByMXIDQuery = `
-		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
 		WHERE mxid=$1
 	`
-	getMessagesBySignalIDQuery = `
-        SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
-        WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
+	getMessagePartBySignalIDQuery = `
+        SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+        WHERE sender=$1 AND timestamp=$2 AND part_index=$3 AND signal_receiver=$4
 	`
-	findBySenderAndTimestampQuery = `
-		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
-		WHERE sender=$1 AND timestamp=$2
+	getMessagePartBySignalIDWithUnknownReceiverQuery = `
+        SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+        WHERE sender=$1 AND timestamp=$2 AND part_index=$3 AND (signal_receiver=$4 OR signal_receiver='00000000-0000-0000-0000-000000000000')
+	`
+	getLastMessagePartBySignalIDQuery = `
+        SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+        WHERE sender=$1 AND timestamp=$2 AND signal_receiver=$3
+        ORDER BY part_index DESC LIMIT 1
+	`
+	getAllMessagePartsBySignalIDQuery = `
+        SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+        WHERE sender=$1 AND timestamp=$2 AND signal_receiver=$3
+	`
+	getManyMessagesBySignalIDQueryPostgres = `
+		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+		WHERE sender=$1 AND signal_receiver=$2 AND timestamp=ANY($3)
+	`
+	getManyMessagesBySignalIDQuerySQLite = `
+		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+		WHERE sender=?1 AND signal_receiver=?2 AND timestamp IN (?3)
 	`
 	getFirstBeforeQuery = `
-		SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
+		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
 		WHERE mx_room=$1 AND timestamp <= $2
 		ORDER BY timestamp DESC
 		LIMIT 1
 	`
+	insertMessageQuery = `
+		INSERT INTO message (sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+	deleteMessageQuery = `
+        DELETE FROM message
+        WHERE sender=$1 AND timestamp=$2 AND part_index=$3 AND signal_receiver=$4
+	`
 )
 
-func (msg *Message) Insert(txn dbutil.Execable) {
-	if txn == nil {
-		txn = msg.db
-	}
-	_, err := txn.Exec(`
-		INSERT INTO message (mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`,
-		msg.MXID.String(), msg.MXRoom, msg.Sender, msg.Timestamp, msg.SignalChatID, msg.SignalReceiver)
-	msg.log.Debugfln("Inserting message", msg.MXID, msg.MXRoom, msg.Sender, msg.Timestamp, msg.SignalChatID, msg.SignalReceiver)
-	if err != nil {
-		msg.log.Warnfln("Failed to insert %s, %s: %v", msg.SignalChatID, msg.MXID, err)
-	}
+type MessageQuery struct {
+	*dbutil.QueryHelper[*Message]
 }
 
-func (msg *Message) Delete(txn dbutil.Execable) {
-	if txn == nil {
-		txn = msg.db
-	}
-	_, err := txn.Exec(`
-        DELETE FROM message
-        WHERE sender=$1 AND timestamp=$2 AND signal_chat_id=$3 AND signal_receiver=$4
-	`,
-		msg.Sender, msg.Timestamp, msg.SignalChatID, msg.SignalReceiver)
-	if err != nil {
-		msg.log.Warnfln("Failed to delete %s, %s: %v", msg.SignalChatID, msg.MXID, err)
-	}
+type Message struct {
+	qh *dbutil.QueryHelper[*Message]
+
+	Sender    uuid.UUID
+	Timestamp uint64
+	PartIndex int
+
+	SignalChatID   string
+	SignalReceiver uuid.UUID
+
+	MXID   id.EventID
+	RoomID id.RoomID
 }
 
-func (msg *Message) Scan(row dbutil.Scannable) *Message {
-	var timestamp sql.NullInt64
-	var signalChatID, signalReceiver sql.NullString
-	err := row.Scan(
-		&msg.MXID,
-		&msg.MXRoom,
-		&msg.Sender,
-		&timestamp,
-		&signalChatID,
-		&signalReceiver,
-	)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			msg.log.Errorln("Database scan failed:", err)
-		}
-		return nil
-	}
-	msg.Timestamp = uint64(timestamp.Int64)
-	msg.SignalChatID = signalChatID.String
-	msg.SignalReceiver = signalReceiver.String
-	return msg
+func newMessage(qh *dbutil.QueryHelper[*Message]) *Message {
+	return &Message{qh: qh}
 }
 
-func (mq *MessageQuery) maybeScan(row *sql.Row) *Message {
-	if row == nil {
-		return nil
-	}
-	return mq.New().Scan(row)
+func (mq *MessageQuery) GetByMXID(ctx context.Context, mxid id.EventID) (*Message, error) {
+	return mq.QueryOne(ctx, getMessageByMXIDQuery, mxid)
 }
 
-func (mq *MessageQuery) DeleteAll(roomID string) {
-	_, err := mq.db.Exec(`
-		DELETE FROM message WHERE mx_room=$1
-	`, roomID)
-	if err != nil {
-		mq.log.Warnfln("Failed to delete messages in %s: %v", roomID, err)
-	}
+func (mq *MessageQuery) GetBySignalIDWithUnknownReceiver(ctx context.Context, sender uuid.UUID, timestamp uint64, partIndex int, receiver uuid.UUID) (*Message, error) {
+	return mq.QueryOne(ctx, getMessagePartBySignalIDWithUnknownReceiverQuery, sender, timestamp, partIndex, receiver)
 }
 
-func (mq *MessageQuery) GetAll(chatID string, receiver string) (messages []*Message) {
-	rows, err := mq.db.Query(getAllMessagesQuery, chatID, receiver)
-	if err != nil || rows == nil {
-		return nil
-	}
-	for rows.Next() {
-		messages = append(messages, mq.New().Scan(rows))
-	}
-	return
+func (mq *MessageQuery) GetBySignalID(ctx context.Context, sender uuid.UUID, timestamp uint64, partIndex int, receiver uuid.UUID) (*Message, error) {
+	return mq.QueryOne(ctx, getMessagePartBySignalIDQuery, sender, timestamp, partIndex, receiver)
 }
 
-func (mq *MessageQuery) GetByMXID(mxid id.EventID) *Message {
-	return mq.maybeScan(mq.db.QueryRow(getMessageByMXIDQuery, mxid))
+func (mq *MessageQuery) GetLastPartBySignalID(ctx context.Context, sender uuid.UUID, timestamp uint64, receiver uuid.UUID) (*Message, error) {
+	return mq.QueryOne(ctx, getLastMessagePartBySignalIDQuery, sender, timestamp, receiver)
 }
 
-func (mq *MessageQuery) GetBySignalID(sender string, timestamp uint64, chatID string, receiver string) *Message {
-	return mq.maybeScan(mq.db.QueryRow(getMessagesBySignalIDQuery, sender, timestamp, chatID, receiver))
+func (mq *MessageQuery) GetAllPartsBySignalID(ctx context.Context, sender uuid.UUID, timestamp uint64, receiver uuid.UUID) ([]*Message, error) {
+	return mq.QueryMany(ctx, getAllMessagePartsBySignalIDQuery, sender, timestamp, receiver)
 }
 
-func (mq *MessageQuery) FindByTimestamps(timestamps []uint64) []*Message {
-	var messages []*Message
-	var rows dbutil.Rows
-	var err error
-
-	if mq.db.Dialect == dbutil.Postgres {
-		rows, err = mq.db.Query(`
-			SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
-			WHERE timestamp=ANY($1)
-			`, timestamps)
+func (mq *MessageQuery) GetManyBySignalID(ctx context.Context, sender uuid.UUID, timestamps []uint64, receiver uuid.UUID) ([]*Message, error) {
+	if mq.GetDB().Dialect == dbutil.Postgres {
+		return mq.QueryMany(ctx, getManyMessagesBySignalIDQueryPostgres, sender, receiver, timestamps)
 	} else {
-		placeholders := ""
-		for i := 0; i < len(timestamps); i++ {
-			placeholders += "?"
+		arguments := make([]any, len(timestamps)+2)
+		placeholders := make([]string, len(timestamps))
+		arguments[0] = sender
+		arguments[1] = receiver
+		for i, timestamp := range timestamps {
+			arguments[i+2] = timestamp
+			placeholders[i] = fmt.Sprintf("?%d", i+3)
 		}
-		rows, err = mq.db.Query(`
-			SELECT mxid, mx_room, sender, timestamp, signal_chat_id, signal_receiver FROM message
-			WHERE timestamp IN ($1)
-			`, timestamps)
+		return mq.QueryMany(ctx, strings.Replace(getManyMessagesBySignalIDQuerySQLite, "?3", strings.Join(placeholders, ", ?"), 1), arguments...)
 	}
-	if err != nil {
-		mq.log.Errorln("FindByTimestamps failed:", err)
-	}
-	for rows.Next() {
-		messages = append(messages, mq.New().Scan(rows))
-	}
-	return messages
 }
 
-func (mq *MessageQuery) FindBySenderAndTimestamp(sender string, timestamp uint64) *Message {
-	return mq.New().Scan(mq.db.QueryRow(findBySenderAndTimestampQuery, sender, timestamp))
+func (msg *Message) Scan(row dbutil.Scannable) (*Message, error) {
+	return dbutil.ValueOrErr(msg, row.Scan(
+		&msg.Sender, &msg.Timestamp, &msg.PartIndex, &msg.SignalChatID, &msg.SignalReceiver, &msg.MXID, &msg.RoomID,
+	))
 }
 
-func (mq *MessageQuery) GetFirstBefore(room string, timestamp uint64) *Message {
-	return mq.maybeScan(mq.db.QueryRow(getFirstBeforeQuery, room, timestamp))
+func (msg *Message) sqlVariables() []any {
+	return []any{msg.Sender, msg.Timestamp, msg.PartIndex, msg.SignalChatID, msg.SignalReceiver, msg.MXID, msg.RoomID}
+}
+
+func (msg *Message) Insert(ctx context.Context) error {
+	return msg.qh.Exec(ctx, insertMessageQuery, msg.sqlVariables()...)
+}
+
+func (msg *Message) Delete(ctx context.Context) error {
+	return msg.qh.Exec(ctx, deleteMessageQuery, msg.Sender, msg.Timestamp, msg.PartIndex, msg.SignalReceiver)
 }

@@ -114,7 +114,10 @@ func (portal *Portal) IsEncrypted() bool {
 
 func (portal *Portal) MarkEncrypted() {
 	portal.Encrypted = true
-	portal.Update()
+	err := portal.Update(context.TODO())
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to update portal in database after marking as encrypted")
+	}
 }
 
 func (portal *Portal) ReceiveMatrixEvent(user bridge.User, evt *event.Event) {
@@ -146,7 +149,7 @@ func (portal *Portal) IsPrivateChat() bool {
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
 	if portal.IsPrivateChat() {
-		return portal.bridge.GetPuppetBySignalID(portal.ChatID).DefaultIntent()
+		return portal.bridge.GetPuppetBySignalID(portal.UserID()).DefaultIntent()
 	}
 
 	return portal.bridge.Bot
@@ -168,14 +171,14 @@ func (portal *Portal) getBridgeInfo() (string, CustomBridgeInfoContent) {
 			ExternalURL: "https://signal.org/",
 		},
 		Channel: event.BridgeInfoSection{
-			ID:          portal.Key().ChatID,
+			ID:          portal.ChatID,
 			DisplayName: portal.Name,
 			AvatarURL:   portal.AvatarURL.CUString(),
 		},
 	}
 	var bridgeInfoStateKey string
-	bridgeInfoStateKey = fmt.Sprintf("fi.mau.signal://signal/%s", portal.Key().ChatID)
-	bridgeInfo.Channel.ExternalURL = fmt.Sprintf("https://signal.me/#p/%s", portal.Key().ChatID)
+	bridgeInfoStateKey = fmt.Sprintf("fi.mau.signal://signal/%s", portal.ChatID)
+	bridgeInfo.Channel.ExternalURL = fmt.Sprintf("https://signal.me/#p/%s", portal.ChatID)
 	var roomType string
 	if portal.IsPrivateChat() {
 		roomType = "dm"
@@ -203,8 +206,21 @@ func (portal *Portal) UpdateBridgeInfo() {
 
 // ** bridge.ChildOverride methods (for SignalBridge in main.go) **
 
+func (br *SignalBridge) GetAllPortalsWithMXID() []*Portal {
+	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
+		return nil
+	}
+	return portals
+}
+
 func (br *SignalBridge) GetAllIPortals() (iportals []bridge.Portal) {
-	portals := br.getAllPortals()
+	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
+		return nil
+	}
 	iportals = make([]bridge.Portal, len(portals))
 	for i, portal := range portals {
 		iportals[i] = portal
@@ -212,11 +228,10 @@ func (br *SignalBridge) GetAllIPortals() (iportals []bridge.Portal) {
 	return iportals
 }
 
-func (br *SignalBridge) getAllPortals() []*Portal {
-	return br.dbPortalsToPortals(br.DB.Portal.GetAll())
-}
-
-func (br *SignalBridge) dbPortalsToPortals(dbPortals []*database.Portal) []*Portal {
+func (br *SignalBridge) dbPortalsToPortals(dbPortals []*database.Portal, err error) ([]*Portal, error) {
+	if err != nil {
+		return nil, err
+	}
 	br.portalsLock.Lock()
 	defer br.portalsLock.Unlock()
 
@@ -226,15 +241,15 @@ func (br *SignalBridge) dbPortalsToPortals(dbPortals []*database.Portal) []*Port
 			continue
 		}
 
-		portal, ok := br.portalsByID[dbPortal.Key()]
+		portal, ok := br.portalsByID[dbPortal.PortalKey]
 		if !ok {
-			portal = br.loadPortal(dbPortal, nil)
+			portal = br.loadPortal(context.TODO(), dbPortal, nil)
 		}
 
 		output[index] = portal
 	}
 
-	return output
+	return output, nil
 }
 
 // ** Portal Creation and Message Handling **
@@ -243,12 +258,10 @@ func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
 	portal := &Portal{
 		Portal: dbPortal,
 		bridge: br,
-		log:    br.ZLog.With().Str("chat_id", dbPortal.Key().ChatID).Logger(),
+		log:    br.ZLog.With().Str("chat_id", dbPortal.ChatID).Logger(),
 
 		signalMessages: make(chan portalSignalMessage, br.Config.Bridge.PortalMessageBuffer),
 		matrixMessages: make(chan portalMatrixMessage, br.Config.Bridge.PortalMessageBuffer),
-
-		//commands: make(map[string]*discordgo.ApplicationCommand),
 	}
 
 	go portal.messageLoop()
@@ -258,13 +271,10 @@ func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
 
 func (portal *Portal) messageLoop() {
 	for {
-		portal.log.Debug().Msg("Waiting for message")
 		select {
 		case msg := <-portal.matrixMessages:
-			portal.log.Debug().Msg("Got message from matrix")
 			portal.handleMatrixMessages(msg)
 		case msg := <-portal.signalMessages:
-			portal.log.Debug().Msg("Got message from signal")
 			portal.handleSignalMessages(msg)
 		}
 	}
@@ -278,20 +288,22 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 		return
 	}
+	log := portal.log.With().Str("event_id", msg.evt.ID.String()).Logger()
+	ctx := log.WithContext(context.TODO())
 
 	switch msg.evt.Type {
 	case event.EventMessage, event.EventSticker:
-		portal.handleMatrixMessage(msg.user, msg.evt)
+		portal.handleMatrixMessage(ctx, msg.user, msg.evt)
 	case event.EventRedaction:
-		portal.handleMatrixRedaction(msg.user, msg.evt)
+		portal.handleMatrixRedaction(ctx, msg.user, msg.evt)
 	case event.EventReaction:
-		portal.handleMatrixReaction(msg.user, msg.evt)
+		portal.handleMatrixReaction(ctx, msg.user, msg.evt)
 	default:
-		portal.log.Warn().Str("type", msg.evt.Type.String()).Msg("Unhandled matrix message type")
+		log.Warn().Str("type", msg.evt.Type.String()).Msg("Unhandled matrix message type")
 	}
 }
 
-func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
+func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt *event.Event) {
 	evtTS := time.UnixMilli(evt.Timestamp)
 	timings := messageTimings{
 		initReceive:  evt.Mautrix.ReceivedAt.Sub(evtTS),
@@ -303,24 +315,7 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	start := time.Now()
 
 	messageAge := timings.totalReceive
-	origEvtID := evt.ID
 	ms := metricSender{portal: portal, timings: &timings}
-	var dbMsg *database.Message
-	if retryMeta := evt.Content.AsMessage().MessageSendRetry; retryMeta != nil {
-		origEvtID = retryMeta.OriginalEventID
-		dbMsg = portal.bridge.DB.Message.GetByMXID(origEvtID)
-		if dbMsg != nil {
-			//portal.log.Debugfln("Ignoring retry request %s (#%d, age: %s) for %s/%s from %s as message was already sent", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, dbMsg.JID, evt.Sender)
-			go ms.sendMessageMetrics(evt, nil, "", true)
-			return
-		} else if dbMsg != nil {
-			//portal.log.Debugfln("Got retry request %s (#%d, age: %s) for %s/%s from %s", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, dbMsg.JID, evt.Sender)
-		} else {
-			//portal.log.Debugfln("Got retry request %s (#%d, age: %s) for %s from %s (original message not known)", evt.ID, retryMeta.RetryCount, messageAge, origEvtID, evt.Sender)
-		}
-	} else {
-		//portal.log.Debugfln("Received message %s from %s (age: %s)", evt.ID, evt.Sender, messageAge)
-	}
 	portal.log.Debug().Msgf("Received message %s from %s (age: %s)", evt.ID, evt.Sender, messageAge)
 
 	errorAfter := portal.bridge.Config.Bridge.MessageHandlingTimeout.ErrorAfter
@@ -346,7 +341,6 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 		}()
 	}
 
-	ctx := context.Background()
 	if deadline > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, deadline)
@@ -385,27 +379,28 @@ func (portal *Portal) handleMatrixMessage(sender *User, evt *event.Event) {
 	timings.totalSend = time.Since(start)
 	go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
-		portal.storeMessageInDB(evt.ID, sender.SignalID, timestamp)
+		portal.storeMessageInDB(ctx, evt.ID, sender.SignalID, timestamp)
 		if portal.ExpirationTime > 0 {
-			portal.addDisappearingMessage(evt.ID, int64(portal.ExpirationTime), true)
+			portal.addDisappearingMessage(ctx, evt.ID, int64(portal.ExpirationTime), true)
 		}
 	}
 }
 
-func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
+func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, evt *event.Event) {
+	log := zerolog.Ctx(ctx)
 	// Find the original signal message based on eventID
-	dbMessage := portal.bridge.DB.Message.GetByMXID(evt.Redacts)
-	if dbMessage == nil {
-		portal.log.Info().Msgf("Could not find original message for redaction %s", evt.ID)
+	dbMessage, err := portal.bridge.DB.Message.GetByMXID(ctx, evt.Redacts)
+	if err != nil {
+		log.Err(err).Msg("Failed to get redaction target message")
 	}
 	// Might be a reaction redaction, find the original message for the reaction
-	dbReaction := portal.bridge.DB.Reaction.GetByMXID(evt.Redacts, evt.RoomID)
-	if dbReaction == nil {
-		portal.log.Info().Msgf("Could not find original reaction for redaction %s", evt.ID)
+	dbReaction, err := portal.bridge.DB.Reaction.GetByMXID(ctx, evt.Redacts)
+	if err != nil {
+		log.Err(err).Msg("Failed to get redaction target reaction")
 	}
 	if dbMessage == nil && dbReaction == nil {
 		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message or reaction"))
-		portal.log.Error().Msgf("Could not find original message or reaction for redaction %s", evt.ID)
+		log.Warn().Msg("No target message or reaction found for redaction")
 		return
 	}
 
@@ -415,51 +410,84 @@ func (portal *Portal) handleMatrixRedaction(sender *User, evt *event.Event) {
 
 	// If this is a message redaction, send a redaction to Signal
 	if dbMessage != nil {
-		msg := signalmeow.DataMessageForDelete(dedupedTimestamp(dbMessage))
-		err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
+		msg := signalmeow.DataMessageForDelete(dbMessage.Timestamp)
+		err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 		if err != nil {
 			portal.sendMessageStatusCheckpointFailed(evt, err)
-			portal.log.Error().Msgf("Failed to send redaction %s", evt.ID)
+			log.Err(err).Msg("Failed to send message redaction to Signal")
 			return
 		}
-		dbMessage.Delete(nil)
+		err = dbMessage.Delete(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to delete redacted message from database")
+		} else if otherParts, err := portal.bridge.DB.Message.GetAllPartsBySignalID(ctx, dbMessage.Sender, dbMessage.Timestamp, portal.Receiver); err != nil {
+			log.Err(err).Msg("Failed to get other parts of redacted message from database")
+		} else if len(otherParts) > 0 {
+			// If there are other parts of the message, send a redaction for each of them
+			for _, otherPart := range otherParts {
+				_, err = portal.MainIntent().RedactEvent(portal.MXID, otherPart.MXID, mautrix.ReqRedact{
+					Reason: "Other part of Signal message redacted",
+					TxnID:  "mxsg_partredact_" + otherPart.MXID.String(),
+				})
+				if err != nil {
+					log.Err(err).
+						Str("part_event_id", otherPart.MXID.String()).
+						Int("part_index", otherPart.PartIndex).
+						Msg("Failed to redact other part of redacted message")
+				}
+				err = otherPart.Delete(ctx)
+				if err != nil {
+					log.Err(err).
+						Str("part_event_id", otherPart.MXID.String()).
+						Int("part_index", otherPart.PartIndex).
+						Msg("Failed to delete other part of redacted message from database")
+				}
+			}
+		}
+
 	}
 
-	// If this is a reaction redaction, send a reaction to Signal with remove == true
 	if dbReaction != nil {
 		msg := signalmeow.DataMessageForReaction(dbReaction.Emoji, dbReaction.MsgAuthor, dbReaction.MsgTimestamp, true)
-		err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
+		err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 		if err != nil {
 			portal.sendMessageStatusCheckpointFailed(evt, err)
-			portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
+			log.Err(err).Msg("Failed to send reaction redaction to Signal")
 			return
 		}
-		dbReaction.Delete(nil)
+		err = dbReaction.Delete(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to delete redacted reaction from database")
+		}
 	}
 
 	portal.sendMessageStatusCheckpointSuccess(evt)
 }
 
-func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
-	// Find the original signal message based on eventID
-	relatedEventID := evt.Content.AsReaction().RelatesTo.EventID
-	dbMessage := portal.bridge.DB.Message.GetByMXID(relatedEventID)
+func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, evt *event.Event) {
+	log := zerolog.Ctx(ctx)
 	if !sender.IsLoggedIn() {
-		portal.log.Error().Msgf("Cannot relay reaction from non-logged-in user. Ignoring")
+		log.Error().Msg("Cannot relay reaction from non-logged-in user. Ignoring")
 		return
 	}
-	if dbMessage == nil {
+	// Find the original signal message based on eventID
+	relatedEventID := evt.Content.AsReaction().RelatesTo.EventID
+	dbMessage, err := portal.bridge.DB.Message.GetByMXID(ctx, relatedEventID)
+	if err != nil {
+		portal.sendMessageStatusCheckpointFailed(evt, err)
+		log.Err(err).Msg("Failed to get reaction target message")
+		return
+	} else if dbMessage == nil {
 		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message for reaction"))
-		portal.log.Error().Msgf("Could not find original message for reaction %s", evt.ID)
+		log.Warn().Msg("No target message found for reaction")
 		return
 	}
 	emoji := evt.Content.AsReaction().RelatesTo.Key
 	signalEmoji := variationselector.FullyQualify(emoji) // Signal seems to require fully qualified emojis
 	targetAuthorUUID := dbMessage.Sender
-	targetTimestamp := dedupedTimestamp(dbMessage)
+	targetTimestamp := dbMessage.Timestamp
 	msg := signalmeow.DataMessageForReaction(signalEmoji, targetAuthorUUID, targetTimestamp, false)
-
-	err := portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
+	err = portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(evt, err)
 		portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
@@ -468,27 +496,30 @@ func (portal *Portal) handleMatrixReaction(sender *User, evt *event.Event) {
 
 	// Signal only allows one reaction from each user
 	// Check if there's an existing reaction in the database for this sender and redact/delete it
-	dbReaction := portal.bridge.DB.Reaction.GetBySignalID(
-		portal.ChatID,
-		portal.Receiver,
-		sender.SignalID,
+	dbReaction, err := portal.bridge.DB.Reaction.GetBySignalID(
+		ctx,
 		targetAuthorUUID,
 		targetTimestamp,
+		sender.SignalID,
+		portal.Receiver,
 	)
-	if dbReaction != nil {
-		portal.log.Debug().Msgf("Deleting existing reaction with author %s, target %s, targettime: %d", sender.SignalID, targetAuthorUUID, targetTimestamp)
-		// Send a redaction to redact the existing reaction
-		intent := portal.MainIntent()
-		_, err := intent.RedactEvent(portal.MXID, dbReaction.MXID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get existing reaction from database")
+	} else if dbReaction != nil {
+		log.Debug().Str("existing_event_id", dbReaction.MXID.String()).Msg("Redacting existing reaction after sending new one")
+		_, err = portal.MainIntent().RedactEvent(portal.MXID, dbReaction.MXID)
 		if err != nil {
-			portal.sendMessageStatusCheckpointFailed(evt, err)
-			portal.log.Warn().Msgf("Failed to redact existing reaction: %v", err)
+			log.Err(err).Msg("Failed to redact existing reaction")
 		}
-		dbReaction.Delete(nil)
+		// TODO update instead of deleting
+		err = dbReaction.Delete(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to delete reaction from database")
+		}
 	}
 
 	// Store our new reaction in the database
-	portal.storeReactionInDB(evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, signalEmoji)
+	portal.storeReactionInDB(ctx, evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, signalEmoji)
 
 	portal.sendMessageStatusCheckpointSuccess(evt)
 }
@@ -828,15 +859,18 @@ func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, ev
 	// Include a quote if this is a reply
 	replyID := content.RelatesTo.GetReplyTo()
 	if replyID != "" {
-		originalMessage := portal.bridge.DB.Message.GetByMXID(replyID)
-		if originalMessage == nil {
-			return nil, fmt.Errorf("%v %s", "Reply not found", replyID)
+		originalMessage, err := portal.bridge.DB.Message.GetByMXID(ctx, replyID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get reply target: %w", err)
+		} else if originalMessage != nil {
+			signalmeow.AddQuoteToDataMessage(
+				outgoingMessage,
+				originalMessage.Sender,
+				originalMessage.Timestamp,
+			)
+		} else {
+			zerolog.Ctx(ctx).Warn().Str("reply_event_id", replyID.String()).Msg("Reply target not found")
 		}
-		signalmeow.AddQuoteToDataMessage(
-			outgoingMessage,
-			originalMessage.Sender,
-			dedupedTimestamp(originalMessage),
-		)
 	}
 	return outgoingMessage, nil
 }
@@ -902,22 +936,31 @@ func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err er
 }
 
 func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
-	if old_message := portal.bridge.DB.Message.GetBySignalID(
+	log := portal.log.With().
+		Str("action", "handle signal message").
+		Str("sender", portalMessage.sender.SignalID.String()).
+		Uint64("timestamp", portalMessage.message.Base().Timestamp).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	if existingMessage, err := portal.bridge.DB.Message.GetBySignalID(
+		ctx,
 		portalMessage.sender.SignalID,
 		portalMessage.message.Base().Timestamp,
-		portal.ChatID,
+		0,
 		portal.Receiver,
-	); old_message != nil {
-		portal.log.Info().Msgf("Ignoring message %d by %s as it was already handled", old_message.Timestamp, old_message.Sender)
+	); err != nil {
+		log.Err(err).Msg("Failed to check if message was already handled")
+		return
+	} else if existingMessage != nil {
+		log.Debug().Msg("Ignoring duplicate message")
 		return
 	}
 	if portal.MXID == "" {
-		portal.log.Debug().Msg("Creating Matrix room from incoming message")
+		log.Debug().Msg("Creating Matrix room from incoming message")
 		if err := portal.CreateMatrixRoom(portalMessage.user, nil); err != nil {
-			portal.log.Error().Err(err).Msg("Failed to create portal room")
+			log.Error().Err(err).Msg("Failed to create portal room")
 			return
 		}
-		portal.log.Info().Msgf("Created matrix room: %s", portal.MXID)
 		ensureGroupPuppetsAreJoinedToPortal(context.Background(), portalMessage.user, portal)
 		signalmeow.SendContactSyncRequest(context.TODO(), portalMessage.user.SignalDevice)
 	}
@@ -930,31 +973,23 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 
 	var err error
 	if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeText {
-		err = portal.handleSignalTextMessage(portalMessage, intent)
+		err = portal.handleSignalTextMessage(ctx, portalMessage, intent)
 		if err != nil {
 			portal.log.Error().Err(err).Msg("Failed to handle text message")
 			return
 		}
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeAttachment {
-		err = portal.handleSignalAttachmentMessage(portalMessage, intent)
+		err = portal.handleSignalAttachmentMessage(ctx, portalMessage, intent)
 		if err != nil {
 			portal.log.Error().Err(err).Msg("Failed to handle attachment message")
 			return
 		}
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeReaction {
-		err := portal.handleSignalReactionMessage(portalMessage, intent)
-		if err != nil {
-			portal.log.Error().Err(err).Msg("Failed to handle reaction message")
-			return
-		}
+		portal.handleSignalReactionMessage(ctx, portalMessage, intent)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeDelete {
-		err := portal.handleSignalDeleteMessage(portalMessage, intent)
-		if err != nil {
-			portal.log.Error().Err(err).Msg("Failed to handle redaction message")
-			return
-		}
+		portal.handleSignalDeleteMessage(ctx, portalMessage, intent)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeSticker {
-		err := portal.handleSignalStickerMessage(portalMessage, intent)
+		err := portal.handleSignalStickerMessage(ctx, portalMessage, intent)
 		if err != nil {
 			portal.log.Error().Err(err).Msg("Failed to handle sticker message")
 			return
@@ -966,12 +1001,7 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 			return
 		}
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt {
-		portal.log.Debug().Msg("Received receipt message")
-		err := portal.handleSignalReceiptMessage(portalMessage, intent)
-		if err != nil {
-			portal.log.Error().Err(err).Msg("Failed to handle receipt message")
-			return
-		}
+		portal.handleSignalReceiptMessage(ctx, portalMessage, intent)
 	} else if portalMessage.message.MessageType() == signalmeow.IncomingSignalMessageTypeCall {
 		err := portal.handleSignalCallMessage(portalMessage, intent)
 		if err != nil {
@@ -996,78 +1026,84 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 	}
 }
 
-func (portal *Portal) storeMessageInDB(eventID id.EventID, senderSignalID string, timestamp uint64) {
+func (portal *Portal) storeMessageInDB(ctx context.Context, eventID id.EventID, senderSignalID uuid.UUID, timestamp uint64) {
 	dbMessage := portal.bridge.DB.Message.New()
 	dbMessage.MXID = eventID
-	dbMessage.MXRoom = portal.MXID
+	dbMessage.RoomID = portal.MXID
 	dbMessage.Sender = senderSignalID
 	dbMessage.Timestamp = timestamp
 	dbMessage.SignalChatID = portal.ChatID
 	dbMessage.SignalReceiver = portal.Receiver
-	dbMessage.Insert(nil)
+	err := dbMessage.Insert(ctx)
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to insert message into database")
+	}
 }
 
 func (portal *Portal) storeReactionInDB(
+	ctx context.Context,
 	eventID id.EventID,
-	senderSignalID string,
-	msgAuthor string,
+	senderSignalID,
+	msgAuthor uuid.UUID,
 	msgTimestamp uint64,
 	emoji string,
 ) {
 	dbReaction := portal.bridge.DB.Reaction.New()
 	dbReaction.MXID = eventID
-	dbReaction.MXRoom = portal.MXID
+	dbReaction.RoomID = portal.MXID
 	dbReaction.SignalChatID = portal.ChatID
 	dbReaction.SignalReceiver = portal.Receiver
 	dbReaction.Author = senderSignalID
 	dbReaction.MsgAuthor = msgAuthor
 	dbReaction.MsgTimestamp = msgTimestamp
 	dbReaction.Emoji = emoji
-	dbReaction.Insert(nil)
-}
-
-func (portal *Portal) addSignalQuote(content *event.MessageEventContent, quote *signalmeow.IncomingSignalMessageQuoteData) {
-	if quote != nil {
-		originalMessage := portal.bridge.DB.Message.GetBySignalID(
-			quote.QuotedSender, quote.QuotedTimestamp, portal.ChatID, portal.Receiver,
-		)
-		if originalMessage == nil {
-			portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
-			return
-		}
-		eventID := originalMessage.MXID
-		if eventID != "" {
-			content.RelatesTo = &event.RelatesTo{
-				InReplyTo: &event.InReplyTo{
-					EventID: eventID,
-				},
-			}
-			mentionMXID := portal.bridge.FormatPuppetMXID(originalMessage.Sender)
-			user := portal.bridge.GetUserBySignalID(originalMessage.Sender)
-			if user != nil {
-				mentionMXID = user.MXID
-			}
-			if !slices.Contains(content.Mentions.UserIDs, mentionMXID) {
-				content.Mentions.UserIDs = append(content.Mentions.UserIDs, mentionMXID)
-			}
-		} else {
-			portal.log.Warn().Msgf("Couldn't find event ID for message with Signal ID %s/%d", quote.QuotedSender, quote.QuotedTimestamp)
-		}
+	err := dbReaction.Insert(ctx)
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to insert reaction into database")
 	}
 }
 
-func (portal *Portal) addDisappearingMessage(eventID id.EventID, expireInSeconds int64, startTimerNow bool) {
-	portal.bridge.disappearingMessagesManager.AddDisappearingMessage(eventID, portal.MXID, expireInSeconds, startTimerNow)
+func (portal *Portal) addSignalQuote(ctx context.Context, content *event.MessageEventContent, quote *signalmeow.IncomingSignalMessageQuoteData) {
+	if quote == nil {
+		return
+	}
+	originalMessage, err := portal.bridge.DB.Message.GetBySignalID(
+		ctx, uuid.MustParse(quote.QuotedSender), quote.QuotedTimestamp, 0, portal.Receiver,
+	)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Str("quoted_sender", quote.QuotedSender).Uint64("quoted_timestamp", quote.QuotedTimestamp).Msg("Failed to get quoted message from database")
+		return
+	} else if originalMessage == nil {
+		zerolog.Ctx(ctx).Warn().Str("quoted_sender", quote.QuotedSender).Uint64("quoted_timestamp", quote.QuotedTimestamp).Msg("Quote target message not found")
+		return
+	}
+	content.RelatesTo = &event.RelatesTo{
+		InReplyTo: &event.InReplyTo{
+			EventID: originalMessage.MXID,
+		},
+	}
+	mentionMXID := portal.bridge.FormatPuppetMXID(originalMessage.Sender)
+	user := portal.bridge.GetUserBySignalID(originalMessage.Sender)
+	if user != nil {
+		mentionMXID = user.MXID
+	}
+	if !slices.Contains(content.Mentions.UserIDs, mentionMXID) {
+		content.Mentions.UserIDs = append(content.Mentions.UserIDs, mentionMXID)
+	}
+}
+
+func (portal *Portal) addDisappearingMessage(ctx context.Context, eventID id.EventID, expireInSeconds int64, startTimerNow bool) {
+	portal.bridge.disappearingMessagesManager.AddDisappearingMessage(ctx, eventID, portal.MXID, time.Duration(expireInSeconds)*time.Second, startTimerNow)
 }
 
 var signalFormatParams *signalfmt.FormatParams
 var matrixFormatParams *matrixfmt.HTMLParser
 
-func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalTextMessage(ctx context.Context, portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
 	content := signalfmt.Parse(msg.Content, msg.ContentRanges, signalFormatParams)
-	portal.addSignalQuote(content, msg.Quote)
+	portal.addSignalQuote(ctx, content, msg.Quote)
 	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
 	if err != nil {
 		return err
@@ -1075,12 +1111,12 @@ func (portal *Portal) handleSignalTextMessage(portalMessage portalSignalMessage,
 	if resp.EventID == "" {
 		return errors.New("Didn't receive event ID from Matrix")
 	}
-	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
-	portal.addDisappearingMessage(resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
+	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.addDisappearingMessage(ctx, resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
 
-func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalStickerMessage(ctx context.Context, portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageSticker)
 	content := &event.MessageEventContent{
@@ -1095,7 +1131,7 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 		Mentions: &event.Mentions{},
 	}
 
-	portal.addSignalQuote(content, msg.Quote)
+	portal.addSignalQuote(ctx, content, msg.Quote)
 	err := portal.uploadMediaToMatrix(intent, msg.Sticker, content)
 	if err != nil {
 		portal.log.Error().Err(err).Msg("Failed to upload media")
@@ -1108,8 +1144,8 @@ func (portal *Portal) handleSignalStickerMessage(portalMessage portalSignalMessa
 	if resp.EventID == "" {
 		return errors.New("Didn't receive event ID from Matrix")
 	}
-	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
-	portal.addDisappearingMessage(resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
+	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.addDisappearingMessage(ctx, resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
 
@@ -1156,53 +1192,56 @@ func (portal *Portal) handleSignalUnhandledMessage(portalMessage portalSignalMes
 	return nil
 }
 
-func (portal *Portal) handleSignalReceiptMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalReceiptMessage(ctx context.Context, portalMessage portalSignalMessage, intent *appservice.IntentAPI) {
 	receiptMessage := (portalMessage.message).(signalmeow.IncomingSignalMessageReceipt)
-	messageSender := receiptMessage.OriginalSender
+	log := zerolog.Ctx(ctx)
+	messageSender, err := uuid.Parse(receiptMessage.OriginalSender)
+	// TODO handle err
 	timestamp := receiptMessage.OriginalTimestamp
-	dbMessages := portal.dbMessagesBySenderAndTimestamp(messageSender, timestamp)
-	if len(dbMessages) == 0 {
-		return fmt.Errorf("Couldn't find message with Signal ID %s/%d", messageSender, timestamp)
+	lastPart, err := portal.bridge.DB.Message.GetLastPartBySignalID(ctx, messageSender, timestamp, portal.Receiver)
+	if err != nil {
+		log.Err(err).Msg("Failed to get receipt target message")
+		return
+	} else if lastPart == nil {
+		log.Err(err).Msg("Receipt target message not found")
+		return
 	}
-	// If there are multiple dbMessages, we want the last one
-	dbMessage := dbMessages[len(dbMessages)-1]
 
 	if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeRead {
-		portal.log.Debug().Msgf("Received read receipt")
+		log.Debug().Msg("Received read receipt")
 
 		// Don't process read receipts for messages older than the latest one we've seen
 		if receiptMessage.OriginalTimestamp <= portal.latestReadTimestamp {
-			portal.log.Debug().Msgf("Ignoring read receipt for timestamp %d", receiptMessage.OriginalTimestamp)
-			return nil
+			log.Debug().Msgf("Ignoring read receipt for timestamp %d", receiptMessage.OriginalTimestamp)
+			return
 		}
 		portal.latestReadTimestamp = receiptMessage.OriginalTimestamp
 
-		portal.log.Debug().Msgf("Marking message %s as read", dbMessage.MXID)
-		err := portal.SetReadMarkers(dbMessage, portalMessage.sender)
+		log.Debug().Msgf("Marking message %s as read", lastPart.MXID)
+		err := portal.SetReadMarkers(lastPart, portalMessage.sender)
 		if err != nil {
-			err = fmt.Errorf("Failed to set read markers: %w", err)
-			portal.log.Error().Err(err).Msgf("Failed to set read markers for message %s", dbMessage.MXID)
-			return err
+			log.Error().Err(err).Msgf("Failed to set read markers for message %s", lastPart.MXID)
+			return
 		}
+		// TODO only schedule disappearing when user reads from other device
 		portal.ScheduleDisappearing()
-
 	} else if receiptMessage.ReceiptType == signalmeow.IncomingSignalMessageReceiptTypeDelivery {
-		portal.log.Debug().Msgf("Received delivery receipt")
+		log.Debug().Msg("Received delivery receipt")
 		// Only send delivery MSS for DMs, not groups
 		if portal.IsPrivateChat() {
 			time := jsontime.UMInt(int64(receiptMessage.Timestamp))
 			portal.bridge.SendRawMessageCheckpoint(&status.MessageCheckpoint{
-				EventID:    dbMessage.MXID,
+				EventID:    lastPart.MXID,
 				RoomID:     portal.MXID,
 				Step:       status.MsgStepRemote,
 				Timestamp:  time,
 				Status:     status.MsgStatusDelivered,
 				ReportedBy: status.MsgReportedByBridge,
 			})
-			portal.sendStatusEvent(dbMessage.MXID, "", nil, &[]id.UserID{portal.MainIntent().UserID})
+			portal.sendStatusEvent(lastPart.MXID, "", nil, &[]id.UserID{portal.MainIntent().UserID})
 		}
 	}
-	return nil
+	return
 }
 
 func (portal *Portal) SetReadMarkers(dbMessage *database.Message, sender *Puppet) error {
@@ -1307,16 +1346,25 @@ func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
 
 // mautrix-go ReadReceiptHandlingPortal interface
 func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.EventID, receipt event.ReadReceipt) {
-	portal.log.Debug().Msgf("Received read receipt for event %s", eventID)
+	log := portal.log.With().
+		Str("action", "handle matrix read receipt").
+		Str("event_id", eventID.String()).
+		Str("sender", sender.GetMXID().String()).
+		Logger()
+	log.Debug().Msg("Received read receipt")
 	portal.ScheduleDisappearing()
 
 	// Find event in the DB
-	dbMessage := portal.bridge.DB.Message.GetByMXID(eventID)
-	if dbMessage == nil {
-		portal.log.Info().Msgf("Read receipt: Couldn't find message with event ID %s", eventID)
+	dbMessage, err := portal.bridge.DB.Message.GetByMXID(context.TODO(), eventID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get read receipt target message")
+		return
+	} else if dbMessage == nil {
+		log.Warn().Msg("Read receipt target message not found")
 		return
 	}
-	msg := signalmeow.ReadReceptMessageForTimestamps([]uint64{dedupedTimestamp(dbMessage)})
+	// TODO find all messages that haven't been marked as read by the user
+	msg := signalmeow.ReadReceptMessageForTimestamps([]uint64{dbMessage.Timestamp})
 	receiptDestination := dbMessage.Sender
 	receiptSender := sender.(*User)
 
@@ -1324,16 +1372,17 @@ func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.Eve
 	// who sent the original message, not the portal's ChatID
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	result := signalmeow.SendMessage(ctx, receiptSender.SignalDevice, receiptDestination, msg)
+	result := signalmeow.SendMessage(ctx, receiptSender.SignalDevice, receiptDestination.String(), msg)
 	if !result.WasSuccessful {
-		err := result.FailedSendResult.Error
-		portal.log.Error().Msgf("Error sending read receipt to Signal %s: %s", receiptDestination, err)
-		return
+		log.Err(result.FailedSendResult.Error).
+			Str("receipt_destination", receiptDestination.String()).
+			Msg("Failed to send read receipt to Signal")
+	} else {
+		log.Debug().Str("receipt_destination", receiptDestination.String()).Msg("Sent read receipt to Signal")
 	}
-	portal.log.Debug().Msgf("Sent read receipt for event %s to Signal %s", eventID, receiptDestination)
 }
 
-func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalAttachmentMessage(ctx context.Context, portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
 	timestamp := portalMessage.message.Base().Timestamp
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageAttachment)
 	content := signalfmt.Parse(msg.Caption, msg.CaptionRanges, signalFormatParams)
@@ -1368,7 +1417,7 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 		portal.log.Debug().Msgf("Received file attachment: %s", msg.ContentType)
 		content.MsgType = event.MsgFile
 	}
-	portal.addSignalQuote(content, msg.Quote)
+	portal.addSignalQuote(ctx, content, msg.Quote)
 	err := portal.uploadMediaToMatrix(intent, msg.Attachment, content)
 	if err != nil {
 		failureMessage := "Failed to bridge media: "
@@ -1389,147 +1438,116 @@ func (portal *Portal) handleSignalAttachmentMessage(portalMessage portalSignalMe
 	if resp.EventID == "" {
 		return errors.New("Didn't receive event ID from Matrix")
 	}
-	portal.storeMessageInDB(resp.EventID, portalMessage.sender.SignalID, timestamp)
-	portal.addDisappearingMessage(resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
+	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.addDisappearingMessage(ctx, resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
 
-func dedupedTimestamp(msg *database.Message) uint64 {
-	// TODO: This is a hack to represent multiple attachments from one Signal message
-	// as multiple Matrix messages. Currently signalmeow/receiving.go will give the
-	// 2nd and subsequent attachments a fake timestamp that is the Signal message timestamp
-	// but multiplied by 1000 and with their index added. This method returns the timestamp
-	// of the Signal message it's based on even if it's a fake timestamp.
-	if msg.Timestamp > 1700000000000*1000 {
-		return msg.Timestamp / 1000
-	}
-	return msg.Timestamp
-}
-
-func (portal *Portal) dbMessagesBySenderAndTimestamp(sender string, timestamp uint64) []*database.Message {
-	var messages []*database.Message
-	firstMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(sender, timestamp)
-	if firstMessage != nil {
-		messages = append(messages, firstMessage)
-
-		// Check for subsequent messages with the same timestamp (see dedupedTimestamp)
-		i := uint64(1)
-		for {
-			nextMessage := portal.bridge.DB.Message.FindBySenderAndTimestamp(sender, timestamp*1000+i)
-			if nextMessage == nil {
-				break
-			}
-			messages = append(messages, nextMessage)
-			i++
-		}
-	}
-	portal.log.Debug().Msgf("Found %d messages with sender %s and timestamp %d", len(messages), sender, timestamp)
-	return messages
-}
-
-func (portal *Portal) dbReactionsBySignalID(chatID, receiver, author, msgAuthor string, msgTimestamp uint64) []*database.Reaction {
-	var reactions []*database.Reaction
-	firstReaction := portal.bridge.DB.Reaction.GetBySignalID(chatID, receiver, author, msgAuthor, msgTimestamp)
-	if firstReaction != nil {
-		reactions = append(reactions, firstReaction)
-
-		// Check for subsequent reactions with the same timestamp (see dedupedTimestamp)
-		i := uint64(1)
-		for {
-			nextReaction := portal.bridge.DB.Reaction.GetBySignalID(chatID, receiver, author, msgAuthor, msgTimestamp*1000+i)
-			if nextReaction == nil {
-				break
-			}
-			reactions = append(reactions, nextReaction)
-			i++
-		}
-	}
-	return reactions
-}
-
-func (portal *Portal) handleSignalReactionMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalReactionMessage(ctx context.Context, portalMessage portalSignalMessage, intent *appservice.IntentAPI) {
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageReaction)
-	portal.log.Debug().Msgf("Reaction message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
-	portal.log.Debug().Msgf("Incoming Reaction details: remove: %v, target author: %v, target timestamp: %d", msg.Remove, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-
 	matrixEmoji := variationselector.Add(msg.Emoji) // Add variation selector for Matrix
 
-	// Find the event ID of the message that was reacted to (or messages, if this is a group of images)
-	dbMessages := portal.dbMessagesBySenderAndTimestamp(msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-	if len(dbMessages) == 0 {
-		portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-		return fmt.Errorf("couldn't find message with Signal ID %s/%d", msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
+	log := zerolog.Ctx(ctx)
+	log.Debug().
+		Str("target_message_sender", msg.TargetAuthorUUID).
+		Uint64("target_message_timestamp", msg.TargetMessageTimestamp).
+		Msg("Received reaction from Signal")
+	parsedTargetAuthor, err := uuid.Parse(msg.TargetAuthorUUID)
+	// TODO handle err
+	senderUUID, err := uuid.Parse(msg.SenderUUID)
+	// TODO handle err
+	dbMessage, err := portal.bridge.DB.Message.GetBySignalID(ctx, parsedTargetAuthor, msg.TargetMessageTimestamp, 0, portal.Receiver)
+	if err != nil {
+		log.Err(err).Msg("Failed to get reaction target message")
+		return
+	} else if dbMessage == nil {
+		log.Warn().Msg("Reaction target message not found")
+		return
+	}
+	existingReaction, err := portal.bridge.DB.Reaction.GetBySignalID(
+		ctx,
+		parsedTargetAuthor,
+		msg.TargetMessageTimestamp,
+		senderUUID,
+		portal.Receiver,
+	)
+	if err != nil {
+		log.Err(err).Msg("Failed to get existing reaction from database")
+		return
+	}
+	if existingReaction != nil {
+		_, err = intent.RedactEvent(portal.MXID, existingReaction.MXID, mautrix.ReqRedact{
+			TxnID: "mxsg_unreact_" + existingReaction.MXID.String(),
+		})
+		if err != nil {
+			log.Err(err).Msg("Failed to redact reaction")
+		}
+		// TODO only delete when removing reaction, update row in db when changing
+		err = existingReaction.Delete(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to delete reaction from database")
+		}
+		if msg.Remove {
+			return
+		}
+	} else if msg.Remove {
+		log.Warn().Msg("Reaction removal target reaction not found")
+		return
+	}
+	// Create a new message event with the reaction
+	content := &event.ReactionEventContent{
+		RelatesTo: event.RelatesTo{
+			Type:    event.RelAnnotation,
+			Key:     matrixEmoji,
+			EventID: dbMessage.MXID,
+		},
+	}
+	resp, err := portal.sendMatrixReaction(intent, event.EventReaction, content, nil, 0)
+	if err != nil {
+		portal.log.Err(err).Msgf("Failed to send reaction: %v", err)
+		return
 	}
 
-	for _, dbMessage := range dbMessages {
-		dbReaction := portal.bridge.DB.Reaction.GetBySignalID(
-			portal.ChatID,
-			portal.Receiver,
-			msg.SenderUUID,
-			msg.TargetAuthorUUID,
-			dbMessage.Timestamp,
-		)
-		// If there's an existing reaction, delete it
-		if dbReaction != nil {
-			portal.log.Debug().Msgf("Deleting existing reaction with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-			// Send a redaction to redact the existing reaction
-			_, err := intent.RedactEvent(portal.MXID, dbReaction.MXID)
-			if err != nil {
-				portal.log.Warn().Msgf("Failed to redact existing reaction: %v", err)
-			}
-			dbReaction.Delete(nil)
-		} else if msg.Remove {
-			portal.log.Warn().Msgf("Couldn't find reaction to remove with author %s, target %s, targettime: %d", msg.SenderUUID, msg.TargetAuthorUUID, msg.TargetMessageTimestamp)
-		}
-
-		if !msg.Remove {
-			// Create a new message event with the reaction
-			content := &event.ReactionEventContent{
-				RelatesTo: event.RelatesTo{
-					Type:    event.RelAnnotation,
-					Key:     matrixEmoji,
-					EventID: dbMessage.MXID,
-				},
-			}
-			resp, err := portal.sendMatrixReaction(intent, event.EventReaction, content, nil, 0)
-			if err != nil {
-				portal.log.Err(err).Msgf("Failed to send reaction: %v", err)
-				continue
-			}
-
-			// Store our new reaction in the DB
-			portal.storeReactionInDB(
-				resp.EventID,
-				portalMessage.sender.SignalID,
-				msg.TargetAuthorUUID,
-				dbMessage.Timestamp,
-				msg.Emoji, // Store without variation selector, as they come from Signal
-			)
-		}
-	}
-	return nil
+	// Store our new reaction in the DB
+	portal.storeReactionInDB(
+		ctx,
+		resp.EventID,
+		portalMessage.sender.SignalID,
+		parsedTargetAuthor,
+		dbMessage.Timestamp,
+		msg.Emoji, // Store without variation selector, as they come from Signal
+	)
 }
 
-func (portal *Portal) handleSignalDeleteMessage(portalMessage portalSignalMessage, intent *appservice.IntentAPI) error {
+func (portal *Portal) handleSignalDeleteMessage(ctx context.Context, portalMessage portalSignalMessage, intent *appservice.IntentAPI) {
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageDelete)
-	portal.log.Debug().Msgf("Delete message received from %s (group: %v) at %v", msg.SenderUUID, msg.GroupID, msg.Timestamp)
 
+	senderUUID, err := uuid.Parse(msg.SenderUUID)
+	// TODO handle err
+
+	log := zerolog.Ctx(ctx)
 	// Find the event ID of the message to delete
-	dbMessages := portal.dbMessagesBySenderAndTimestamp(msg.SenderUUID, msg.TargetMessageTimestamp)
-	if len(dbMessages) == 0 {
-		portal.log.Warn().Msgf("Couldn't find message with Signal ID %s/%d", msg.SenderUUID, msg.TargetMessageTimestamp)
-		return fmt.Errorf("couldn't find message with Signal ID %s/%d", msg.SenderUUID, msg.TargetMessageTimestamp)
+	messages, err := portal.bridge.DB.Message.GetAllPartsBySignalID(ctx, senderUUID, msg.TargetMessageTimestamp, portal.Receiver)
+	if err != nil {
+		log.Err(err).Msg("Failed to get messages to delete")
+		return
+	} else if len(messages) == 0 {
+		log.Warn().Msg("Didn't find any messages to delete")
+		return
 	}
-	for _, dbMessage := range dbMessages {
-		_, err := intent.RedactEvent(portal.MXID, dbMessage.MXID)
+	for _, targetMsg := range messages {
+		_, err = intent.RedactEvent(portal.MXID, targetMsg.MXID)
 		if err != nil {
-			portal.log.Warn().Msgf("Failed to redact existing reaction: %v", err)
-			return err
+			log.Err(err).Msg("Failed to redact message")
+			continue
 		}
-		dbMessage.Delete(nil)
+		err = targetMsg.Delete(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to delete message from database")
+			continue
+		}
 	}
-
-	return nil
+	return
 }
 
 func (portal *Portal) sendMainIntentMessage(content *event.MessageEventContent) (*mautrix.RespSendEvent, error) {
@@ -1637,32 +1655,6 @@ func (portal *Portal) sendMatrixEventContent(intent *appservice.IntentAPI, event
 	}
 }
 
-func (portal *Portal) getMessagePuppet(user *User, senderUUID string) (puppet *Puppet) {
-	if portal.IsPrivateChat() {
-		puppet = portal.bridge.GetPuppetBySignalID(portal.ChatID)
-	} else if senderUUID != "" {
-		puppet = portal.bridge.GetPuppetBySignalID(senderUUID)
-	}
-	if puppet == nil {
-		return nil
-	}
-	return puppet
-}
-
-func (portal *Portal) getMessageIntent(user *User, senderUUID string) *appservice.IntentAPI {
-	puppet := portal.getMessagePuppet(user, senderUUID)
-	if puppet == nil {
-		portal.log.Debug().Msg("Not handling: puppet is nil")
-		return nil
-	}
-	intent := puppet.IntentFor(portal)
-	//if !intent.IsCustomPuppet && portal.IsPrivateChat() { //&& info.Sender.User == portal.Key.Receiver.User && portal.Key.Receiver != portal.Key.JID {
-	//	portal.log.Debugfln("Not handling: user doesn't have double puppeting enabled")
-	//	return nil
-	//}
-	return intent
-}
-
 func (portal *Portal) getEncryptionEventContent() (evt *event.EncryptionEventContent) {
 	evt = &event.EncryptionEventContent{Algorithm: id.AlgorithmMegolmV1}
 	if rot := portal.bridge.Config.Bridge.Encryption.Rotation; rot.EnableCustom {
@@ -1767,7 +1759,10 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	portal.bridge.portalsLock.Lock()
 	portal.bridge.portalsByMXID[portal.MXID] = portal
 	portal.bridge.portalsLock.Unlock()
-	portal.Update()
+	err = portal.Update(context.TODO())
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to save created portal mxid")
+	}
 	portal.log.Info().Msgf("Created matrix room %s", portal.MXID)
 
 	if portal.Encrypted && portal.IsPrivateChat() {
@@ -1794,14 +1789,6 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		user.UpdateDirectChats(chats)
 	}
 
-	_, err = portal.MainIntent().SendMessageEvent(portal.MXID, portalCreationDummyEvent, struct{}{})
-	if err != nil {
-		portal.log.Error().Err(err).Msg("Failed to send dummy event to mark portal creation")
-	} else {
-		portal.log.Debug().Msg("Sent dummy event to mark portal creation")
-		portal.Update()
-	}
-
 	return nil
 }
 
@@ -1814,15 +1801,15 @@ var (
 	portalCreationDummyEvent = event.Type{Type: "fi.mau.dummy.portal_created", Class: event.MessageEventType}
 )
 
-func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.PortalKey) *Portal {
+func (br *SignalBridge) loadPortal(ctx context.Context, dbPortal *database.Portal, key *database.PortalKey) *Portal {
 	if dbPortal == nil {
 		if key == nil {
 			return nil
 		}
 
 		dbPortal = br.DB.Portal.New()
-		dbPortal.SetPortalKey(*key)
-		err := dbPortal.Insert()
+		dbPortal.PortalKey = *key
+		err := dbPortal.Insert(ctx)
 		if err != nil {
 			br.ZLog.Err(err).Msg("Failed to insert new portal")
 			return nil
@@ -1831,7 +1818,7 @@ func (br *SignalBridge) loadPortal(dbPortal *database.Portal, key *database.Port
 
 	portal := br.NewPortal(dbPortal)
 
-	br.portalsByID[portal.Key()] = portal
+	br.portalsByID[portal.PortalKey] = portal
 	if portal.MXID != "" {
 		br.portalsByMXID[portal.MXID] = portal
 	}
@@ -1845,7 +1832,12 @@ func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
 
 	portal, ok := br.portalsByMXID[mxid]
 	if !ok {
-		return br.loadPortal(br.DB.Portal.GetByMXID(mxid), nil)
+		dbPortal, err := br.DB.Portal.GetByMXID(context.TODO(), mxid)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get portal from database")
+			return nil
+		}
+		return br.loadPortal(context.TODO(), dbPortal, nil)
 	}
 
 	return portal
@@ -1855,12 +1847,17 @@ func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 	br.portalsLock.Lock()
 	defer br.portalsLock.Unlock()
 	// If this PortalKey is for a group, Receiver should be empty
-	if !isUUID(key.ChatID) {
-		key.Receiver = ""
+	if key.UserID() == uuid.Nil {
+		key.Receiver = uuid.Nil
 	}
 	portal, ok := br.portalsByID[key]
 	if !ok {
-		return br.loadPortal(br.DB.Portal.GetByChatID(key), &key)
+		dbPortal, err := br.DB.Portal.GetByChatID(context.TODO(), key)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get portal from database")
+			return nil
+		}
+		return br.loadPortal(context.TODO(), dbPortal, &key)
 	}
 	return portal
 }
@@ -1871,7 +1868,7 @@ func (portal *Portal) getBridgeInfoStateKey() string {
 
 // ** DisappearingPortal interface **
 func (portal *Portal) ScheduleDisappearing() {
-	portal.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(portal.MXID)
+	portal.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(context.TODO(), portal.MXID)
 }
 
 func (portal *Portal) HandleNewDisappearingMessageTime(newTimer uint32) {
@@ -1903,12 +1900,12 @@ func (portal *Portal) addRelaybotFormat(userID id.UserID, content *event.Message
 }
 
 func (portal *Portal) Delete() {
-	err := portal.Portal.Delete()
+	err := portal.Portal.Delete(context.TODO())
 	if err != nil {
 		portal.log.Err(err).Msg("Failed to delete portal from db")
 	}
 	portal.bridge.portalsLock.Lock()
-	delete(portal.bridge.portalsByID, portal.Key())
+	delete(portal.bridge.portalsByID, portal.PortalKey)
 	if len(portal.MXID) > 0 {
 		delete(portal.bridge.portalsByMXID, portal.MXID)
 	}
