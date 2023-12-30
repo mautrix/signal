@@ -94,6 +94,10 @@ type SignalWebsocketConnectionStatus struct {
 	Err   error
 }
 
+func (s *SignalWebsocket) IsConnected() bool {
+	return s.ws != nil
+}
+
 func (s *SignalWebsocket) Close() error {
 	defer func() {
 		if s != nil {

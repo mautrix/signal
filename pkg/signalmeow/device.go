@@ -68,6 +68,13 @@ type DeviceConnection struct {
 	IncomingSignalMessageHandler func(IncomingSignalMessage) error
 }
 
+func (d *DeviceConnection) IsConnected() bool {
+	if d == nil {
+		return false
+	}
+	return d.AuthedWS.IsConnected() && d.UnauthedWS.IsConnected()
+}
+
 func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData, requestHandler web.RequestHandlerFunc) (chan web.SignalWebsocketConnectionStatus, error) {
 	if d.AuthedWS != nil {
 		return nil, errors.New("authed websocket already connected")

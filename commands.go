@@ -140,7 +140,15 @@ var cmdPing = &commands.FullHandler{
 }
 
 func fnPing(ce *WrappedCommandEvent) {
-	ce.Reply("A fake ping! Well done! 💥")
+	if ce.User.SignalID == "" {
+		ce.Reply("You're not logged in")
+	} else if !ce.User.SignalDevice.IsDeviceLoggedIn() {
+		ce.Reply("You were logged in at some point, but are not anymore")
+	} else if !ce.User.SignalDevice.Connection.IsConnected() {
+		ce.Reply("You're logged into Signal, but not connected to the server")
+	} else {
+		ce.Reply("You're logged into Signal and probably connected to the server")
+	}
 }
 
 var cmdPM = &commands.FullHandler{
