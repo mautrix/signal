@@ -31,7 +31,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/samber/lo"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/ffmpeg"
@@ -1140,8 +1139,8 @@ func (portal *Portal) handleSignalContactCardMessage(portalMessage portalSignalM
 	for _, address := range contactCardMessage.Addresses {
 		messageParts = append(messageParts, address)
 	}
-	messageParts = lo.Filter(messageParts, func(s string, i int) bool {
-		return s != ""
+	messageParts = slices.DeleteFunc(messageParts, func(s string) bool {
+		return s == ""
 	})
 	message := strings.Join(messageParts, "\n")
 	intent.SendNotice(portal.MXID, message)
