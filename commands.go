@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/skip2/go-qrcode"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -52,6 +53,8 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdDeleteSession,
 		cmdSetRelay,
 		cmdUnsetRelay,
+		cmdDeletePortal,
+		cmdDeleteAllPortals,
 	)
 }
 
@@ -354,4 +357,111 @@ func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI,
 		return id.ContentURI{}, false
 	}
 	return resp.ContentURI, true
+}
+
+func canDeletePortal(portal *Portal, userID id.UserID) bool {
+	if len(portal.MXID) == 0 {
+		return false
+	}
+
+	members, err := portal.MainIntent().JoinedMembers(portal.MXID)
+	if err != nil {
+		portal.log.Err(err).
+			Str("user_id", userID.String()).
+			Msg("Failed to get joined members to check if user can delete portal")
+		return false
+	}
+	for otherUser := range members.Joined {
+		_, isPuppet := portal.bridge.ParsePuppetMXID(otherUser)
+		if isPuppet || otherUser == portal.bridge.Bot.UserID || otherUser == userID {
+			continue
+		}
+		user := portal.bridge.GetUserByMXID(otherUser)
+		if user != nil && user.IsLoggedIn() {
+			return false
+		}
+	}
+	return true
+}
+
+var cmdDeletePortal = &commands.FullHandler{
+	Func: wrapCommand(fnDeletePortal),
+	Name: "delete-portal",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Delete the current portal. If the portal is used by other people, this is limited to bridge admins.",
+	},
+	RequiresPortal: true,
+}
+
+func fnDeletePortal(ce *WrappedCommandEvent) {
+	if !ce.User.Admin && !canDeletePortal(ce.Portal, ce.User.MXID) {
+		ce.Reply("Only bridge admins can delete portals with other Matrix users")
+		return
+	}
+
+	ce.Portal.log.Info().Str("user_id", ce.User.MXID.String()).Msg("User requested deletion of portal")
+	ce.Portal.Delete()
+	ce.Portal.Cleanup(false)
+}
+
+var cmdDeleteAllPortals = &commands.FullHandler{
+	Func: wrapCommand(fnDeleteAllPortals),
+	Name: "delete-all-portals",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Delete all portals.",
+	},
+}
+
+func fnDeleteAllPortals(ce *WrappedCommandEvent) {
+	portals := ce.Bridge.getAllPortals()
+	var portalsToDelete []*Portal
+
+	if ce.User.Admin {
+		portalsToDelete = portals
+	} else {
+		portalsToDelete = portals[:0]
+		for _, portal := range portals {
+			if canDeletePortal(portal, ce.User.MXID) {
+				portalsToDelete = append(portalsToDelete, portal)
+			}
+		}
+	}
+	if len(portalsToDelete) == 0 {
+		ce.Reply("Didn't find any portals to delete")
+		return
+	}
+
+	leave := func(portal *Portal) {
+		if len(portal.MXID) > 0 {
+			_, _ = portal.MainIntent().KickUser(portal.MXID, &mautrix.ReqKickUser{
+				Reason: "Deleting portal",
+				UserID: ce.User.MXID,
+			})
+		}
+	}
+	customPuppet := ce.Bridge.GetPuppetByCustomMXID(ce.User.MXID)
+	if customPuppet != nil && customPuppet.CustomIntent() != nil {
+		intent := customPuppet.CustomIntent()
+		leave = func(portal *Portal) {
+			if len(portal.MXID) > 0 {
+				_, _ = intent.LeaveRoom(portal.MXID)
+				_, _ = intent.ForgetRoom(portal.MXID)
+			}
+		}
+	}
+	ce.Reply("Found %d portals, deleting...", len(portalsToDelete))
+	for _, portal := range portalsToDelete {
+		portal.Delete()
+		leave(portal)
+	}
+	ce.Reply("Finished deleting portal info. Now cleaning up rooms in background.")
+
+	go func() {
+		for _, portal := range portalsToDelete {
+			portal.Cleanup(false)
+		}
+		ce.Reply("Finished background cleanup of deleted portal rooms.")
+	}()
 }

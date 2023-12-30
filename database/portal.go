@@ -173,6 +173,12 @@ func (p *Portal) Update() error {
 	return err
 }
 
+func (p *Portal) Delete() error {
+	q := "DELETE FROM portal WHERE chat_id=$1 AND receiver=$2"
+	_, err := p.db.Exec(q, p.ChatID, p.Receiver)
+	return err
+}
+
 const (
 	portalColumns = `
         chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,

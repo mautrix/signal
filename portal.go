@@ -1902,3 +1902,57 @@ func (portal *Portal) addRelaybotFormat(userID id.UserID, content *event.Message
 	content.FormattedBody = data
 	return true
 }
+
+func (portal *Portal) Delete() {
+	err := portal.Portal.Delete()
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to delete portal from db")
+	}
+	portal.bridge.portalsLock.Lock()
+	delete(portal.bridge.portalsByID, portal.Key())
+	if len(portal.MXID) > 0 {
+		delete(portal.bridge.portalsByMXID, portal.MXID)
+	}
+	//portal.resetChildSpaceStatus()
+	portal.bridge.portalsLock.Unlock()
+}
+
+func (portal *Portal) Cleanup(puppetsOnly bool) {
+	if len(portal.MXID) == 0 {
+		return
+	}
+	intent := portal.MainIntent()
+	if portal.bridge.SpecVersions.Supports(mautrix.BeeperFeatureRoomYeeting) {
+		err := intent.BeeperDeleteRoom(portal.MXID)
+		if err == nil || errors.Is(err, mautrix.MNotFound) {
+			return
+		}
+		portal.log.Warn().Err(err).Msg("Failed to delete room using beeper yeet endpoint, falling back to normal behavior")
+	}
+	members, err := intent.JoinedMembers(portal.MXID)
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to get portal members for cleanup")
+		return
+	}
+	for member := range members.Joined {
+		if member == intent.UserID {
+			continue
+		}
+		puppet := portal.bridge.GetPuppetByMXID(member)
+		if puppet != nil {
+			_, err = puppet.DefaultIntent().LeaveRoom(portal.MXID)
+			if err != nil {
+				portal.log.Err(err).Msg("Failed to leave as puppet while cleaning up portal")
+			}
+		} else if !puppetsOnly {
+			_, err = intent.KickUser(portal.MXID, &mautrix.ReqKickUser{UserID: member, Reason: "Deleting portal"})
+			if err != nil {
+				portal.log.Err(err).Msg("Failed to kick user while cleaning up portal")
+			}
+		}
+	}
+	_, err = intent.LeaveRoom(portal.MXID)
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to leave room while cleaning up portal")
+	}
+}
