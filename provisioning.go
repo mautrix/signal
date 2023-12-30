@@ -125,13 +125,13 @@ type Response struct {
 	Number string `json:"number,omitempty"`
 
 	// For response in ResolveIdentifier
-	ResolveIdentifierResponse
+	*ResolveIdentifierResponse
 }
 
 // ** Start New Chat ** //
 
 type ResolveIdentifierResponse struct {
-	RoomID      string                             `json:"room_id"`
+	RoomID      id.RoomID                          `json:"room_id"`
 	ChatID      ResolveIdentifierResponseChatID    `json:"chat_id"`
 	JustCreated bool                               `json:"just_created"`
 	OtherUser   ResolveIdentifierResponseOtherUser `json:"other_user"`
@@ -170,7 +170,7 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 	puppet := prov.bridge.GetPuppetBySignalID(contact.UUID)
 
 	return http.StatusOK, &ResolveIdentifierResponse{
-		RoomID: portal.MXID.String(),
+		RoomID: portal.MXID,
 		ChatID: ResolveIdentifierResponseChatID{
 			UUID:   contact.UUID.String(),
 			Number: phoneNum,
@@ -207,7 +207,7 @@ func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Re
 	jsonResponse(w, status, Response{
 		Success:                   true,
 		Status:                    "ok",
-		ResolveIdentifierResponse: *resp,
+		ResolveIdentifierResponse: resp,
 	})
 }
 
@@ -245,7 +245,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.JustCreated = true
-		resp.RoomID = portal.MXID.String()
+		resp.RoomID = portal.MXID
 	}
 	if resp.JustCreated {
 		status = http.StatusCreated
@@ -254,7 +254,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, status, Response{
 		Success:                   true,
 		Status:                    "ok",
-		ResolveIdentifierResponse: *resp,
+		ResolveIdentifierResponse: resp,
 	})
 }
 
