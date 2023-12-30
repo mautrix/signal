@@ -71,7 +71,7 @@ type ProvisioningResponse struct {
 	Err              error
 }
 
-func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) chan ProvisioningResponse {
+func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, deviceName string) chan ProvisioningResponse {
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
@@ -143,6 +143,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore) c
 			pniSignedPreKey,
 			&aciPQLastResortPreKey,
 			&pniPQLastResortPreKey,
+			aciIdentityKeyPair,
+			deviceName,
 		)
 		if err != nil {
 			zlog.Err(err).Msg("confirmDevice error")
@@ -320,7 +322,14 @@ func confirmDevice(
 	pniSignedPreKey *libsignalgo.SignedPreKeyRecord,
 	aciPQLastResortPreKey *libsignalgo.KyberPreKeyRecord,
 	pniPQLastResortPreKey *libsignalgo.KyberPreKeyRecord,
+	aciIdentityKeyPair *libsignalgo.IdentityKeyPair,
+	deviceName string,
 ) (*ConfirmDeviceResponse, error) {
+	encryptedDeviceName, err := EncryptDeviceName(deviceName, aciIdentityKeyPair.GetPublicKey())
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt device name: %w", err)
+	}
+
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
 	if err != nil {
 		zlog.Err(err).Msgf("openWebsocket error, resp : %v", resp)
@@ -337,8 +346,8 @@ func confirmDevice(
 	data := map[string]interface{}{
 		"verificationCode": code,
 		"accountAttributes": map[string]interface{}{
-			"fetchesMessages": true,
-			//"name":              "",
+			"fetchesMessages":   true,
+			"name":              encryptedDeviceName,
 			"registrationId":    registrationId,
 			"pniRegistrationId": pniRegistrationId,
 			"capabilities": map[string]interface{}{

@@ -47,6 +47,7 @@ func (br *SignalBridge) RegisterCommands() {
 	proc.AddHandlers(
 		cmdPing,
 		cmdLogin,
+		cmdSetDeviceName,
 		cmdPM,
 		cmdDeleteSession,
 		cmdSetRelay,
@@ -148,6 +149,32 @@ func fnPing(ce *WrappedCommandEvent) {
 	} else {
 		ce.Reply("You're logged into Signal and probably connected to the server")
 	}
+}
+
+var cmdSetDeviceName = &commands.FullHandler{
+	Func: wrapCommand(fnSetDeviceName),
+	Name: "set-device-name",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionConnectionManagement,
+		Description: "Set the name of this device in Signal",
+		Args:        "<name>",
+	},
+	RequiresLogin: true,
+}
+
+func fnSetDeviceName(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `set-device-name <name>`")
+		return
+	}
+
+	name := strings.Join(ce.Args, " ")
+	err := ce.User.SignalDevice.UpdateDeviceName(name)
+	if err != nil {
+		ce.Reply("Error setting device name: %v", err)
+		return
+	}
+	ce.Reply("Device name updated")
 }
 
 var cmdPM = &commands.FullHandler{

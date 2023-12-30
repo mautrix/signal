@@ -29,6 +29,10 @@ type Config struct {
 		Listen  string `yaml:"listen"`
 	} `yaml:"metrics"`
 
+	Signal struct {
+		DeviceName string `yaml:"device_name"`
+	} `yaml:"signal"`
+
 	Bridge BridgeConfig `yaml:"bridge"`
 }
 

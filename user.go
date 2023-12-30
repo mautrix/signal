@@ -475,7 +475,7 @@ func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
 	user.Lock()
 	defer user.Unlock()
 
-	provChan := signalmeow.PerformProvisioning(context.TODO(), user.bridge.MeowStore)
+	provChan := signalmeow.PerformProvisioning(context.TODO(), user.bridge.MeowStore, user.bridge.Config.Signal.DeviceName)
 
 	return provChan, nil
 }
