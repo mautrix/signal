@@ -212,7 +212,7 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 	br.Log.Debugln("CreatePrivatePortal", roomID, brInviter, brGhost)
 	inviter := brInviter.(*User)
 	puppet := brGhost.(*Puppet)
-	key := database.NewPortalKey(inviter.SignalID, puppet.SignalID)
+	key := database.NewPortalKey(puppet.SignalID, inviter.SignalUsername)
 	portal := br.GetPortalByChatID(key)
 
 	if len(portal.MXID) == 0 {
@@ -241,7 +241,7 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 	var encryptionEnabled bool
 	err := portal.MainIntent().StateEvent(roomID, event.StateEncryption, "", &existingEncryption)
 	if err != nil {
-		portal.log.Warn().Msgf("Failed to check if encryption is enabled in private chat room %s", roomID)
+		portal.log.Warn().Err(err).Msgf("Failed to check if encryption is enabled in private chat room %s", roomID)
 	} else {
 		encryptionEnabled = existingEncryption.Algorithm == id.AlgorithmMegolmV1
 	}

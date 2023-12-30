@@ -66,5 +66,5 @@
     * [x] When receiving message
   * [x] Linking as secondary device
   * [ ] Registering as primary device
-  * [ ] Private chat/group creation by inviting Matrix puppet of Signal user to new room
+  * [x] Private chat/group creation by inviting Matrix puppet of Signal user to new room
   * [x] Option to use own Matrix account for messages sent from other Signal clients
