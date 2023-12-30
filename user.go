@@ -204,7 +204,7 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 	user := &User{
 		User:   dbUser,
 		bridge: br,
-		log:    br.ZLog.With().Str("user_id", string(dbUser.MXID)).Logger(),
+		log:    br.ZLog.With().Str("user_id", dbUser.MXID.String()).Logger(),
 
 		PermissionLevel: br.Config.Bridge.Permissions.Get(dbUser.MXID),
 	}
@@ -214,6 +214,7 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 }
 
 func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
+	log := user.log.With().Str("action", "ensure_invited").Str("room_id", roomID.String()).Logger()
 	if user.bridge.StateStore.GetMembership(roomID, user.MXID) == event.MembershipJoin {
 		ok = true
 		return
@@ -224,10 +225,10 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 	}
 	customPuppet := user.bridge.GetPuppetByCustomMXID(user.MXID)
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
-		user.log.Debug().Msgf("adding will_auto_accept for %s", user.MXID)
+		log.Debug().Msg("adding will_auto_accept to invite content")
 		extraContent["fi.mau.will_auto_accept"] = true
 	} else {
-		user.log.Debug().Msgf("NOT adding will_auto_accept for %s", user.MXID)
+		log.Debug().Msg("NOT adding will_auto_accept to invite content")
 	}
 	_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
 	var httpErr mautrix.HTTPError
@@ -236,16 +237,16 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 		ok = true
 		return
 	} else if err != nil {
-		user.log.Warn().Err(err).Msgf("Failed to invite user to %s", roomID)
+		log.Warn().Err(err).Msg("Failed to invite user to room")
 	} else {
 		ok = true
 	}
 
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
-		user.log.Debug().Msgf("ensuring joined for %s", user.MXID)
+		log.Debug().Msg("ensuring custom puppet is joined")
 		err = customPuppet.CustomIntent().EnsureJoined(roomID, appservice.EnsureJoinedParams{IgnoreCache: true})
 		if err != nil {
-			user.log.Warn().Err(err).Msgf("Failed to auto-join %s", roomID)
+			log.Warn().Err(err).Msg("Failed to auto-join custom puppet")
 			ok = false
 		} else {
 			ok = true
@@ -414,7 +415,9 @@ func (user *User) startupTryConnect(retryCount int) {
 		for {
 			var connectionStatus signalmeow.SignalConnectionStatus
 			if peekedConnectionStatus.Event != signalmeow.SignalConnectionEventNone {
-				user.log.Debug().Msgf("Using peeked connectionStatus event: %v", peekedConnectionStatus.Event)
+				user.log.Debug().
+					Str("peeked_connection_status_event", peekedConnectionStatus.Event.String()).
+					Msg("Using peeked connectionStatus event")
 				connectionStatus = peekedConnectionStatus
 				peekedConnectionStatus = signalmeow.SignalConnectionStatus{}
 			} else {
@@ -564,6 +567,10 @@ func (user *User) Connect() {
 func (user *User) populateSignalDevice() *signalmeow.Device {
 	user.Lock()
 	defer user.Unlock()
+	log := user.log.With().
+		Str("action", "populate_signal_device").
+		Str("signal_id", user.SignalID.String()).
+		Logger()
 
 	if user.SignalID == uuid.Nil {
 		return nil
@@ -571,11 +578,11 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 
 	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID.String())
 	if err != nil {
-		user.log.Err(err).Msgf("problem looking up aci %s", user.SignalID)
+		log.Err(err).Msg("problem looking up ACI")
 		return nil
 	}
 	if device == nil {
-		user.log.Err(ErrNotLoggedIn).Msgf("no device found for aci %s", user.SignalID)
+		log.Err(ErrNotLoggedIn).Msg("no device found for ACI")
 		return nil
 	}
 
@@ -585,26 +592,30 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 }
 
 func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *types.ContactAvatar) error {
+	log := user.log.With().
+		Str("action", "update_puppet_with_signal_contact").
+		Str("signal_id", puppet.SignalID.String()).
+		Logger()
 	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID)
 	if err != nil {
-		user.log.Err(err).Msg("updatePuppetWithSignalContact: error retrieving contact")
+		log.Err(err).Msg("error retrieving contact")
 		return err
 	}
 
 	name := user.bridge.Config.Bridge.FormatDisplayname(contact)
 	if name != puppet.Name {
-		user.log.Debug().Msgf("updatePuppetWithSignalContact: updating puppet name to %s", name)
+		log.Debug().Str("new_name", name).Msg("updating puppet name")
 		puppet.Name = name
 		puppet.NameSet = false
 		err = puppet.DefaultIntent().SetDisplayName(name)
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error setting display name")
+			log.Err(err).Msg("error setting display name")
 			return err
 		}
 		puppet.NameSet = true
 		err = puppet.Update(ctx)
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet with new name")
+			log.Err(err).Msg("error updating puppet with new name")
 			return err
 		}
 	}
@@ -621,18 +632,18 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 	}
 
 	if preferredAvatarHash == "" && puppet.AvatarSet {
-		user.log.Debug().Msg("updatePuppetWithSignalContact: clearing avatar")
+		log.Debug().Msg("clearing avatar")
 		puppet.AvatarSet = false
 		puppet.AvatarURL = id.ContentURI{}
 		puppet.AvatarHash = ""
 		err = puppet.DefaultIntent().SetAvatarURL(id.ContentURI{})
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error clearing avatar url")
+			log.Err(err).Msg("error clearing avatar url")
 			return err
 		}
 		err = puppet.Update(ctx)
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet while clearing avatar")
+			log.Err(err).Msg("error updating puppet while clearing avatar")
 			return err
 		}
 		return nil
@@ -640,10 +651,10 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 
 	// If avatar is set, we must have a new avatar image, so update it
 	if newAvatar != nil {
-		user.log.Debug().Msg("updatePuppetWithSignalContact: uploading avatar")
+		log.Debug().Msg("uploading avatar")
 		avatarURL, err := puppet.DefaultIntent().UploadBytes(newAvatar.Image, newAvatar.ContentType)
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error uploading avatar")
+			log.Err(err).Msg("error uploading avatar")
 			return err
 		}
 		puppet.AvatarURL = avatarURL.ContentURI
@@ -652,12 +663,12 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 
 		err = puppet.DefaultIntent().SetAvatarURL(avatarURL.ContentURI)
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error setting avatar url")
+			log.Err(err).Msg("error setting avatar URL")
 			return err
 		}
 		err = puppet.Update(ctx)
 		if err != nil {
-			user.log.Err(err).Msg("updatePuppetWithSignalContact: error updating puppet with new avatar")
+			log.Err(err).Msg("error updating puppet with new avatar")
 			return err
 		}
 	}
