@@ -48,7 +48,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdPing,
 		cmdLogin,
 		cmdPM,
-		cmdDisconnect,
+		cmdDeleteSession,
 		cmdSetRelay,
 		cmdUnsetRelay,
 	)
@@ -111,17 +111,16 @@ func fnUnsetRelay(ce *WrappedCommandEvent) {
 	}
 }
 
-var cmdDisconnect = &commands.FullHandler{
-	Func: wrapCommand(fnDisconnect),
-	Name: "disconnect",
+var cmdDeleteSession = &commands.FullHandler{
+	Func: wrapCommand(fnDeleteSession),
+	Name: "delete-session",
 	Help: commands.HelpMeta{
 		Section:     HelpSectionConnectionManagement,
 		Description: "Disconnect from Signal, clearing sessions but keeping other data. Reconnect with `login`",
 	},
-	RequiresLogin: true,
 }
 
-func fnDisconnect(ce *WrappedCommandEvent) {
+func fnDeleteSession(ce *WrappedCommandEvent) {
 	if !ce.User.SignalDevice.IsDeviceLoggedIn() {
 		ce.Reply("You're not logged in")
 		return
