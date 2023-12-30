@@ -246,6 +246,9 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 		encryptionEnabled = existingEncryption.Algorithm == id.AlgorithmMegolmV1
 	}
 	portal.MXID = roomID
+	br.portalsLock.Lock()
+	br.portalsByMXID[portal.MXID] = portal
+	br.portalsLock.Unlock()
 	//portal.Topic = PrivateChatTopic
 	portal.Name = puppet.Name
 	portal.AvatarURL = puppet.AvatarURL
