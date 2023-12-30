@@ -193,7 +193,9 @@ func StopReceiveLoops(d *Device) error {
 	}()
 	authErr := d.Connection.AuthedWS.Close()
 	unauthErr := d.Connection.UnauthedWS.Close()
-	d.Connection.WSCancel()
+	if d.Connection.WSCancel != nil {
+		d.Connection.WSCancel()
+	}
 	if authErr != nil {
 		return authErr
 	}
