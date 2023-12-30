@@ -29,7 +29,7 @@ import (
 	"math"
 	"net/http"
 
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/random"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -108,6 +108,7 @@ type attachmentV3UploadAttributes struct {
 }
 
 func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
+	log := zerolog.Ctx(ctx)
 	keys := random.Bytes(64) // combined AES and MAC keys
 	plaintextLength := uint32(len(body))
 
@@ -208,10 +209,7 @@ func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
 	}
 
 	if len(ciphertext)%aes.BlockSize != 0 {
-		log.Debug().
-			Int("length", len(ciphertext)%aes.BlockSize).
-			Msg("aesDecrypt ciphertext not multiple of AES blocksize")
-		return nil, errors.New("ciphertext not multiple of AES blocksize")
+		return nil, fmt.Errorf("ciphertext not multiple of AES blocksize (%d extra bytes)", len(ciphertext)%aes.BlockSize)
 	}
 
 	iv := ciphertext[:aes.BlockSize]
