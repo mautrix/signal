@@ -128,7 +128,7 @@ func (p *Puppet) sqlVariables() []any {
 		p.Name,
 		p.NameQuality,
 		p.AvatarHash,
-		p.AvatarURL,
+		p.AvatarURL.String(),
 		p.NameSet,
 		p.AvatarSet,
 		p.ContactInfoSet,
