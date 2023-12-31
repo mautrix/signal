@@ -90,7 +90,7 @@ func (u *User) Scan(row dbutil.Scannable) (*User, error) {
 		&u.MXID,
 		&phone,
 		&signalID,
-		&u.ManagementRoom,
+		&managementRoom,
 	)
 	if err != nil {
 		return nil, err
