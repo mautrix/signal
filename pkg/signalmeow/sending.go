@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -437,14 +438,14 @@ func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption stri
 	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForReaction(reaction string, targetMessageSender string, targetMessageTimestamp uint64, removing bool) *SignalContent {
+func DataMessageForReaction(reaction string, targetMessageSender uuid.UUID, targetMessageTimestamp uint64, removing bool) *SignalContent {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
 		Timestamp: &timestamp,
 		Reaction: &signalpb.DataMessage_Reaction{
 			Emoji:               proto.String(reaction),
 			Remove:              proto.Bool(removing),
-			TargetAuthorAci:     proto.String(targetMessageSender),
+			TargetAuthorAci:     proto.String(targetMessageSender.String()),
 			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
 		},
 	}
@@ -462,9 +463,9 @@ func DataMessageForDelete(targetMessageTimestamp uint64) *SignalContent {
 	return wrapDataMessageInContent(dm)
 }
 
-func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender string, quotedMessageTimestamp uint64) {
+func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender uuid.UUID, quotedMessageTimestamp uint64) {
 	content.DataMessage.Quote = &signalpb.DataMessage_Quote{
-		AuthorAci: proto.String(quotedMessageSender),
+		AuthorAci: proto.String(quotedMessageSender.String()),
 		Id:        proto.Uint64(quotedMessageTimestamp),
 		Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
 
@@ -547,7 +548,7 @@ func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, 
 	return result, nil
 }
 
-func SendMessage(ctx context.Context, device *Device, recipientUuid string, message *SignalContent) SendMessageResult {
+func SendMessage(ctx context.Context, device *Device, recipientID string, message *SignalContent) SendMessageResult {
 	// Assemble the content to send
 	content := (*signalpb.Content)(message)
 	dataMessage := content.DataMessage
@@ -559,12 +560,12 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 	}
 
 	// Send to the recipient
-	sentUnidentified, err := sendContent(ctx, device, recipientUuid, messageTimestamp, content, 0)
+	sentUnidentified, err := sendContent(ctx, device, recipientID, messageTimestamp, content, 0)
 	if err != nil {
 		return SendMessageResult{
 			WasSuccessful: false,
 			FailedSendResult: &FailedSendResult{
-				RecipientUuid: recipientUuid,
+				RecipientUuid: recipientID,
 				Error:         err,
 			},
 		}
@@ -572,7 +573,7 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 	result := SendMessageResult{
 		WasSuccessful: true,
 		SuccessfulSendResult: &SuccessfulSendResult{
-			RecipientUuid: recipientUuid,
+			RecipientUuid: recipientID,
 			Unidentified:  sentUnidentified,
 		},
 	}
@@ -589,7 +590,7 @@ func SendMessage(ctx context.Context, device *Device, recipientUuid string, mess
 			syncContent = syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
 		}
 		if content.ReceiptMessage != nil && *content.ReceiptMessage.Type == signalpb.ReceiptMessage_READ {
-			syncContent = syncMessageFromReadReceiptMessage(content.ReceiptMessage, recipientUuid)
+			syncContent = syncMessageFromReadReceiptMessage(content.ReceiptMessage, recipientID)
 		}
 		if syncContent != nil {
 			_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)

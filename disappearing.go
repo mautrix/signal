@@ -35,12 +35,23 @@ type DisappearingMessagesManager struct {
 	checkMessagesChan chan struct{}
 }
 
-func (dmm *DisappearingMessagesManager) ScheduleDisappearingForRoom(roomID id.RoomID) {
-	dmm.Log.Debug().Msgf("Scheduling disappearing messages for %s", roomID)
-	disappearingMessages := dmm.DB.DisappearingMessage.GetUnscheduledForRoom(roomID)
+func (dmm *DisappearingMessagesManager) ScheduleDisappearingForRoom(ctx context.Context, roomID id.RoomID) {
+	log := dmm.Log.With().Str("room_id", roomID.String()).Logger()
+	disappearingMessages, err := dmm.DB.DisappearingMessage.GetUnscheduledForRoom(ctx, roomID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get unscheduled disappearing messages")
+		return
+	}
 	for _, disappearingMessage := range disappearingMessages {
-		dmm.Log.Debug().Msgf("Scheduling disappearing message %s", disappearingMessage.EventID)
-		disappearingMessage.StartExpirationTimer()
+		err = disappearingMessage.StartExpirationTimer(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to schedule disappearing message")
+		} else {
+			log.Debug().
+				Str("event_id", disappearingMessage.EventID.String()).
+				Time("expire_at", disappearingMessage.ExpireAt).
+				Msg("Scheduling disappearing message")
+		}
 	}
 
 	// Tell the disappearing messages loop to check again
@@ -50,69 +61,88 @@ func (dmm *DisappearingMessagesManager) ScheduleDisappearingForRoom(roomID id.Ro
 func (dmm *DisappearingMessagesManager) StartDisappearingLoop(ctx context.Context) {
 	dmm.checkMessagesChan = make(chan struct{}, 1)
 	go func() {
+		log := dmm.Log.With().Str("action", "loop").Logger()
+		ctx = log.WithContext(ctx)
 		for {
-			dmm.redactExpiredMessages()
+			dmm.redactExpiredMessages(ctx)
 
 			duration := 10 * time.Minute // Check again in 10 minutes just in case
-			nextMsg := dmm.DB.DisappearingMessage.GetNextScheduledMessage()
-			if nextMsg != nil {
-				dmm.Log.Debug().Msgf("Next message to expire is %s in %s", nextMsg.EventID, nextMsg.ExpireAt.Sub(time.Now()))
+			nextMsg, err := dmm.DB.DisappearingMessage.GetNextScheduledMessage(ctx)
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				log.Err(err).Msg("Failed to get next disappearing message")
+				continue
+			} else if nextMsg != nil {
 				duration = nextMsg.ExpireAt.Sub(time.Now())
 			}
 
 			select {
 			case <-time.After(duration):
-				// We should have at least one expired message now, so we should check again
-				dmm.Log.Debug().Msgf("Duration (%s) is up, checking for expired messages", duration)
 			case <-dmm.checkMessagesChan:
-				// There are new messages in the DB, so we should check again
-				dmm.Log.Debug().Msg("New messages in DB, checking again")
 			case <-ctx.Done():
-				// We've been told to stop
-				dmm.Log.Debug().Msg("Stopping disappearing messages loop")
 				return
 			}
 		}
 	}()
 }
 
-func (dmm *DisappearingMessagesManager) redactExpiredMessages() {
-	// Get all expired messages and redact them
-	expiredMessages := dmm.DB.DisappearingMessage.GetExpiredMessages()
+func (dmm *DisappearingMessagesManager) redactExpiredMessages(ctx context.Context) {
+	log := zerolog.Ctx(ctx)
+	expiredMessages, err := dmm.DB.DisappearingMessage.GetExpiredMessages(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to get expired disappearing messages")
+		return
+	}
 
 	for _, msg := range expiredMessages {
 		portal := dmm.Bridge.GetPortalByMXID(msg.RoomID)
 		if portal == nil {
-			dmm.Log.Warn().Msgf("Failed to redact message %s in room %s: portal not found", msg.EventID, msg.RoomID)
-			return
+			log.Warn().Str("event_id", msg.EventID.String()).Str("room_id", msg.RoomID.String()).Msg("Failed to redact message: portal not found")
+			continue
 		}
-		// Redact the message
-		_, err := portal.MainIntent().RedactEvent(msg.RoomID, msg.EventID, mautrix.ReqRedact{
+		_, err = portal.MainIntent().RedactEvent(msg.RoomID, msg.EventID, mautrix.ReqRedact{
 			Reason: "Message expired",
-			TxnID:  fmt.Sprintf("mxsig_disappear_%s", msg.EventID),
+			TxnID:  fmt.Sprintf("mxsg_disappear_%s", msg.EventID),
 		})
 		if err != nil {
-			portal.log.Warn().Msgf("Failed to make %s disappear: %v", msg.EventID, err)
+			log.Err(err).
+				Str("event_id", msg.EventID.String()).
+				Str("room_id", msg.RoomID.String()).
+				Msg("Failed to redact message")
 		} else {
-			portal.log.Debug().Msgf("Disappeared %s", msg.EventID)
+			log.Err(err).
+				Str("event_id", msg.EventID.String()).
+				Str("room_id", msg.RoomID.String()).
+				Msg("Redacted message")
 		}
-		msg.Delete()
+		err = msg.Delete(ctx)
+		if err != nil {
+			log.Err(err).
+				Str("event_id", msg.EventID.String()).
+				Msg("Failed to delete disappearing message row in database")
+		}
 	}
 }
 
-func (dmm *DisappearingMessagesManager) AddDisappearingMessage(eventID id.EventID, roomID id.RoomID, expireInSeconds int64, startTimerNow bool) {
-	if expireInSeconds == 0 {
-		dmm.Log.Debug().Msgf("Not adding disappearing message %s: expireIn is 0", eventID)
+func (dmm *DisappearingMessagesManager) AddDisappearingMessage(ctx context.Context, eventID id.EventID, roomID id.RoomID, expireIn time.Duration, startTimerNow bool) {
+	if expireIn == 0 {
 		return
 	}
-	dmm.Log.Debug().Msgf("Adding disappearing message %s", eventID)
-	expireAt := time.Time{}
+	var expireAt time.Time
 	if startTimerNow {
-		expireAt = time.Now().Add(time.Duration(expireInSeconds) * time.Second)
+		expireAt = time.Now().Add(expireIn)
 	}
-	disappearingMessage := dmm.DB.DisappearingMessage.NewWithValues(roomID, eventID, expireInSeconds, expireAt)
-	disappearingMessage.Insert(nil)
-
+	disappearingMessage := dmm.DB.DisappearingMessage.NewWithValues(roomID, eventID, expireIn, expireAt)
+	err := disappearingMessage.Insert(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Str("event_id", eventID.String()).
+			Msg("Failed to add disappearing message to database")
+		return
+	}
+	zerolog.Ctx(ctx).Debug().Str("event_id", eventID.String()).
+		Msg("Added disappearing message row to database")
 	if startTimerNow {
 		// Tell the disappearing messages loop to check again
 		dmm.checkMessagesChan <- struct{}{}

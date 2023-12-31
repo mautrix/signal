@@ -23,6 +23,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/configupgrade"
 	"go.mau.fi/util/dbutil"
@@ -62,7 +63,7 @@ type SignalBridge struct {
 	provisioning *ProvisioningAPI
 
 	usersByMXID     map[id.UserID]*User
-	usersBySignalID map[string]*User
+	usersBySignalID map[uuid.UUID]*User
 	usersLock       sync.Mutex
 
 	managementRooms     map[id.RoomID]*User
@@ -72,7 +73,7 @@ type SignalBridge struct {
 	portalsByID   map[database.PortalKey]*Portal
 	portalsLock   sync.Mutex
 
-	puppets             map[string]*Puppet
+	puppets             map[uuid.UUID]*Puppet
 	puppetsByCustomMXID map[id.UserID]*Puppet
 	puppetsByNumber     map[string]*Puppet
 	puppetsLock         sync.Mutex
@@ -101,7 +102,7 @@ func (br *SignalBridge) Init() {
 	signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Logger().Level(zerolog.DebugLevel))
 	//signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Caller().Logger())
 
-	br.DB = database.New(br.Bridge.DB, br.Log.Sub("Database"))
+	br.DB = database.New(br.Bridge.DB)
 	br.MeowStore = signalmeow.NewStore(br.Bridge.DB, dbutil.ZeroLogger(br.ZLog.With().Str("db_section", "signalmeow").Logger()))
 
 	ss := br.Config.Bridge.Provisioning.SharedSecret
@@ -110,7 +111,7 @@ func (br *SignalBridge) Init() {
 	}
 	br.disappearingMessagesManager = &DisappearingMessagesManager{
 		DB:     br.DB,
-		Log:    br.ZLog.With().Str("component", "disappearingMessagesManager").Logger(),
+		Log:    br.ZLog.With().Str("component", "disappearing messages").Logger(),
 		Bridge: br,
 	}
 
@@ -118,12 +119,12 @@ func (br *SignalBridge) Init() {
 	br.MatrixHandler.TrackEventDuration = br.Metrics.TrackMatrixEvent
 
 	signalFormatParams = &signalfmt.FormatParams{
-		GetUserInfo: func(uuid string) signalfmt.UserInfo {
-			puppet := br.GetPuppetBySignalID(uuid)
+		GetUserInfo: func(u uuid.UUID) signalfmt.UserInfo {
+			puppet := br.GetPuppetBySignalID(u)
 			if puppet == nil {
 				return signalfmt.UserInfo{}
 			}
-			user := br.GetUserBySignalID(uuid)
+			user := br.GetUserBySignalID(u)
 			if user != nil {
 				return signalfmt.UserInfo{
 					MXID: user.MXID,
@@ -137,24 +138,44 @@ func (br *SignalBridge) Init() {
 		},
 	}
 	matrixFormatParams = &matrixfmt.HTMLParser{
-		GetUUIDFromMXID: func(userID id.UserID) string {
+		GetUUIDFromMXID: func(userID id.UserID) uuid.UUID {
 			parsed, ok := br.ParsePuppetMXID(userID)
 			if ok {
 				return parsed
 			}
 			// TODO only get if exists
 			user := br.GetUserByMXID(userID)
-			if user != nil && user.SignalID != "" {
+			if user != nil && user.SignalID != uuid.Nil {
 				return user.SignalID
 			}
-			return ""
+			return uuid.Nil
 		},
 	}
 
 	signalmeow.HackyCaptionToggle = br.Config.Bridge.CaptionInMessage
 }
 
+func (br *SignalBridge) logLostPortals(ctx context.Context) {
+	lostPortals, err := br.DB.LostPortal.GetAll(ctx)
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get lost portals")
+		return
+	} else if len(lostPortals) == 0 {
+		return
+	}
+	lostCountByReceiver := make(map[string]int)
+	for _, lost := range lostPortals {
+		lostCountByReceiver[lost.Receiver]++
+	}
+	br.ZLog.Warn().
+		Any("count_by_receiver", lostCountByReceiver).
+		Msg("Some portals were discarded due to the receiver not being logged into the bridge anymore. " +
+			"Use `!signal cleanup-lost-portals` to remove them from the database. " +
+			"Alternatively, you can re-insert the data into the portal table with the appropriate receiver column to restore the portals.")
+}
+
 func (br *SignalBridge) Start() {
+	go br.logLostPortals(context.TODO())
 	err := br.MeowStore.Upgrade()
 	if err != nil {
 		br.Log.Fatalln("Failed to upgrade signalmeow database: %v", err)
@@ -212,7 +233,7 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 	br.Log.Debugln("CreatePrivatePortal", roomID, brInviter, brGhost)
 	inviter := brInviter.(*User)
 	puppet := brGhost.(*Puppet)
-	key := database.NewPortalKey(puppet.SignalID, inviter.SignalUsername)
+	key := database.NewPortalKey(puppet.SignalID.String(), inviter.SignalID)
 	portal := br.GetPortalByChatID(key)
 
 	if len(portal.MXID) == 0 {
@@ -284,7 +305,10 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 		_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
 		portal.AvatarSet = err == nil
 	}
-	portal.Update()
+	err = portal.Update(context.TODO())
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to update portal in database")
+	}
 	portal.UpdateBridgeInfo()
 	_, _ = intent.SendNotice(roomID, "Private chat portal created")
 }
@@ -292,14 +316,14 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 func main() {
 	br := &SignalBridge{
 		usersByMXID:     make(map[id.UserID]*User),
-		usersBySignalID: make(map[string]*User),
+		usersBySignalID: make(map[uuid.UUID]*User),
 
 		managementRooms: make(map[id.RoomID]*User),
 
 		portalsByMXID: make(map[id.RoomID]*Portal),
 		portalsByID:   make(map[database.PortalKey]*Portal),
 
-		puppets:             make(map[string]*Puppet),
+		puppets:             make(map[uuid.UUID]*Puppet),
 		puppetsByCustomMXID: make(map[id.UserID]*Puppet),
 		puppetsByNumber:     make(map[string]*Puppet),
 	}

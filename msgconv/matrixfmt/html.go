@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
 	"golang.org/x/net/html"
 	"maunium.net/go/mautrix/event"
@@ -223,7 +224,7 @@ func (ctx Context) WithWhitespace() Context {
 
 // HTMLParser is a somewhat customizable Matrix HTML parser.
 type HTMLParser struct {
-	GetUUIDFromMXID func(id.UserID) string
+	GetUUIDFromMXID func(id.UserID) uuid.UUID
 }
 
 // TaggedString is a string that also contains a HTML tag.
@@ -355,8 +356,8 @@ func (parser *HTMLParser) linkToString(node *html.Node, ctx Context) *EntityStri
 			// Mention not allowed, use name as-is
 			return str
 		}
-		uuid := parser.GetUUIDFromMXID(mxid)
-		if uuid == "" {
+		u := parser.GetUUIDFromMXID(mxid)
+		if u == uuid.Nil {
 			// Don't include the link for mentions of non-Signal users, the name is enough
 			return str
 		}
@@ -365,7 +366,7 @@ func (parser *HTMLParser) linkToString(node *html.Node, ctx Context) *EntityStri
 				MXID: mxid,
 				Name: str.String.String(),
 			},
-			UUID: uuid,
+			UUID: u,
 		})
 	}
 	if str.String.String() == href {

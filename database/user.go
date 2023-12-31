@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2023 Scott Weber, Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -17,124 +17,85 @@
 package database
 
 import (
+	"context"
 	"database/sql"
 
+	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
-	log "maunium.net/go/maulogger/v2"
 	"maunium.net/go/mautrix/id"
 )
 
-type UserQuery struct {
-	db  *Database
-	log log.Logger
-}
+const (
+	getUserByMXIDQuery       = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE mxid=$1`
+	getUserByPhoneQuery      = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE phone=$1`
+	getUserByUUIDQuery       = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE uuid=$1`
+	getAllLoggedInUsersQuery = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE phone IS NOT NULL`
+	insertUserQuery          = `INSERT INTO "user" (mxid, phone, uuid, management_room) VALUES ($1, $2, $3, $4)`
+	updateUserQuery          = `UPDATE "user" SET phone=$2, uuid=$3, management_room=$4 WHERE mxid=$1`
+)
 
-func (uq *UserQuery) New() *User {
-	return &User{
-		db:  uq.db,
-		log: uq.log,
-	}
+type UserQuery struct {
+	*dbutil.QueryHelper[*User]
 }
 
 type User struct {
-	db  *Database
-	log log.Logger
+	qh *dbutil.QueryHelper[*User]
 
 	MXID           id.UserID
 	SignalUsername string
-	SignalID       string
+	SignalID       uuid.UUID
 	ManagementRoom id.RoomID
 }
 
+func newUser(qh *dbutil.QueryHelper[*User]) *User {
+	return &User{qh: qh}
+}
+
+func (uq *UserQuery) GetByMXID(ctx context.Context, mxid id.UserID) (*User, error) {
+	return uq.QueryOne(ctx, getUserByMXIDQuery, mxid)
+}
+
+func (uq *UserQuery) GetByPhone(ctx context.Context, phone string) (*User, error) {
+	return uq.QueryOne(ctx, getUserByPhoneQuery, phone)
+}
+
+func (uq *UserQuery) GetBySignalID(ctx context.Context, uuid uuid.UUID) (*User, error) {
+	return uq.QueryOne(ctx, getUserByUUIDQuery, uuid)
+}
+
+func (uq *UserQuery) GetAllLoggedIn(ctx context.Context) ([]*User, error) {
+	return uq.QueryMany(ctx, getAllLoggedInUsersQuery)
+}
+
 func (u *User) sqlVariables() []any {
-	var username, signalID, managementRoom *string
-	if u.SignalUsername != "" {
-		username = &u.SignalUsername
-	}
-	if u.SignalID != "" {
-		signalID = &u.SignalID
-	}
-	if u.ManagementRoom != "" {
-		managementRoom = (*string)(&u.ManagementRoom)
-	}
-	return []any{u.MXID, username, signalID, managementRoom}
+	var nu uuid.NullUUID
+	nu.UUID = u.SignalID
+	nu.Valid = u.SignalID != uuid.Nil
+	return []any{u.MXID, dbutil.StrPtr(u.SignalUsername), nu, dbutil.StrPtr(u.ManagementRoom)}
 }
 
-func (u *User) Insert() error {
-	q := `INSERT INTO "user" (mxid, username, uuid, management_room) VALUES ($1, $2, $3, $4)`
-	_, err := u.db.Exec(q, u.sqlVariables()...)
-	return err
+func (u *User) Insert(ctx context.Context) error {
+	return u.qh.Exec(ctx, insertUserQuery, u.sqlVariables()...)
 }
 
-func (u *User) Update() error {
-	q := `UPDATE "user" SET username=$2, uuid=$3, management_room=$4 WHERE mxid=$1`
-	_, err := u.db.Exec(q, u.sqlVariables()...)
-	return err
+func (u *User) Update(ctx context.Context) error {
+	return u.qh.Exec(ctx, updateUserQuery, u.sqlVariables()...)
 }
 
-func (u *User) Scan(row dbutil.Scannable) *User {
-	var username, managementRoom, signalID sql.NullString
+func (u *User) Scan(row dbutil.Scannable) (*User, error) {
+	var phone, managementRoom sql.NullString
+	var signalID uuid.NullUUID
 	err := row.Scan(
 		&u.MXID,
-		&username,
+		&phone,
 		&signalID,
 		&managementRoom,
 	)
 	if err != nil {
-		if err != sql.ErrNoRows {
-			u.log.Errorln("Database scan failed:", err)
-		}
-		return nil
+		return nil, err
 	}
-	u.SignalUsername = username.String
-	u.SignalID = signalID.String
+	u.SignalUsername = phone.String
+	u.SignalID = signalID.UUID
 	u.ManagementRoom = id.RoomID(managementRoom.String)
-	return u
-}
-
-func (uq *UserQuery) GetByMXID(mxid id.UserID) *User {
-	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE mxid=$1`
-	row := uq.db.QueryRow(q, mxid)
-	if row == nil {
-		return nil
-	}
-	return uq.New().Scan(row)
-}
-
-func (uq *UserQuery) GetByUsername(username string) *User {
-	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE username=$1`
-	row := uq.db.QueryRow(q, username)
-	if row == nil {
-		return nil
-	}
-	return uq.New().Scan(row)
-}
-
-func (uq *UserQuery) GetBySignalID(uuid string) *User {
-	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE uuid=$1`
-	row := uq.db.QueryRow(q, uuid)
-	if row == nil {
-		return nil
-	}
-	return uq.New().Scan(row)
-}
-
-func (uq *UserQuery) AllLoggedIn() []*User {
-	q := `SELECT mxid, username, uuid, management_room FROM "user" WHERE username IS NOT NULL`
-	rows, err := uq.db.Query(q)
-	if err != nil {
-		uq.log.Errorln("Database query failed:", err)
-		return nil
-	}
-	defer rows.Close()
-
-	var users []*User
-	for rows.Next() {
-		u := uq.New().Scan(rows)
-		if u == nil {
-			continue
-		}
-		users = append(users, u)
-	}
-	return users
+	return u, nil
 }

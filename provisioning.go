@@ -30,6 +30,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/id"
@@ -184,7 +185,7 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 	}
 
 	portal := user.GetPortalByChatID(contact.UUID)
-	puppet := prov.bridge.GetPuppetBySignalID(contact.UUID)
+	puppet := prov.bridge.GetPuppetBySignalIDString(contact.UUID)
 
 	return http.StatusOK, &ResolveIdentifierResponse{
 		RoomID: portal.MXID.String(),
@@ -511,9 +512,13 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 
 		// Update user with SignalID
 		if resp.ProvisioningData.AciUuid != "" {
-			user.SignalID = resp.ProvisioningData.AciUuid
+			user.SignalID, err = uuid.Parse(resp.ProvisioningData.AciUuid)
+			// TODO handle err
 			user.SignalUsername = resp.ProvisioningData.Number
-			user.Update()
+			err = user.Update(r.Context())
+			if err != nil {
+				prov.log.Err(err).Msg("Failed to save user after login")
+			}
 		}
 		return
 	case <-time.After(45 * time.Second):
@@ -586,7 +591,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 		jsonResponse(w, http.StatusOK, Response{
 			Success: true,
 			Status:  "prekeys_registered",
-			UUID:    user.SignalID,
+			UUID:    user.SignalID.String(),
 			Number:  user.SignalUsername,
 		})
 

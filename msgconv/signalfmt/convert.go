@@ -20,6 +20,7 @@ import (
 	"html"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"maunium.net/go/mautrix/event"
@@ -34,7 +35,7 @@ type UserInfo struct {
 }
 
 type FormatParams struct {
-	GetUserInfo func(uuid string) UserInfo
+	GetUserInfo func(uuid uuid.UUID) UserInfo
 }
 
 type formatContext struct {
@@ -87,7 +88,11 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 		case *signalpb.BodyRange_Style_:
 			br.Value = Style(rv.Style)
 		case *signalpb.BodyRange_MentionAci:
-			userInfo := params.GetUserInfo(rv.MentionAci)
+			parsed, err := uuid.Parse(rv.MentionAci)
+			if err != nil {
+				continue
+			}
+			userInfo := params.GetUserInfo(parsed)
 			if userInfo.MXID == "" {
 				continue
 			}
@@ -96,7 +101,7 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 			// Maybe use NewUTF16String and do index replacements for the plaintext body too,
 			// or just replace the plaintext body by parsing the generated HTML.
 			content.Body = strings.Replace(content.Body, "\uFFFC", userInfo.Name, 1)
-			br.Value = Mention{UserInfo: userInfo, UUID: rv.MentionAci}
+			br.Value = Mention{UserInfo: userInfo, UUID: parsed}
 		}
 		lrt.Add(br)
 	}
