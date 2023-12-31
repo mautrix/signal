@@ -17,7 +17,8 @@ ALTER TABLE reaction ADD COLUMN _part_index INTEGER NOT NULL DEFAULT 0;
 
 -- Re-add the dropped constraints (but with part index and no chat)
 ALTER TABLE message ADD PRIMARY KEY (sender, timestamp, part_index, signal_receiver);
-ALTER TABLE message DROP CONSTRAINT message_signal_chat_id_signal_receiver_fkey;
+ALTER TABLE message DROP CONSTRAINT IF EXISTS message_signal_chat_id_signal_receiver_fkey;
+ALTER TABLE message DROP CONSTRAINT IF EXISTS message_signal_chat_id_fkey;
 ALTER TABLE message ADD CONSTRAINT message_portal_fkey
     FOREIGN KEY (signal_chat_id, signal_receiver)
         REFERENCES portal (chat_id, receiver)
