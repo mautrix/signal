@@ -226,7 +226,14 @@ func (br *SignalBridge) GetIGhost(mxid id.UserID) bridge.Ghost {
 }
 
 func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.User, brGhost bridge.Ghost) {
-	br.Log.Debugln("CreatePrivatePortal", roomID, brInviter, brGhost)
+	log := br.ZLog.With().
+		Str("action", "create_private_portal").
+		Str("room_id", roomID.String()).
+		Str("inviter", brInviter.GetMXID().String()).
+		Str("ghost", brGhost.GetMXID().String()).
+		Logger()
+
+	log.Debug().Msg("creating private portal")
 	inviter := brInviter.(*User)
 	puppet := brGhost.(*Puppet)
 	key := database.NewPortalKey(puppet.SignalID.String(), inviter.SignalID)
@@ -236,10 +243,14 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 		br.createPrivatePortalFromInvite(roomID, inviter, puppet, portal)
 		return
 	}
+	log = log.With().
+		Str("portal", portal.MXID.String()).
+		Str("ghost_signal_id", puppet.SignalID.String()).
+		Logger()
 
 	ok := portal.ensureUserInvited(inviter)
 	if !ok {
-		br.ZLog.Warn().Msgf("Failed to invite %s to existing private chat portal %s with %s. Redirecting portal to new room...", inviter.MXID, portal.MXID, puppet.SignalID)
+		log.Warn().Msg("Failed to invite user to existing private chat portal. Redirecting portal to new room")
 		br.createPrivatePortalFromInvite(roomID, inviter, puppet, portal)
 		return
 	}
@@ -247,18 +258,25 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 	errorMessage := fmt.Sprintf("You already have a private chat portal with me at [%[1]s](https://matrix.to/#/%[1]s)", portal.MXID)
 	errorContent := format.RenderMarkdown(errorMessage, true, false)
 	_, _ = intent.SendMessageEvent(roomID, event.EventMessage, errorContent)
-	br.Log.Debugfln("Leaving private chat room %s as %s after accepting invite from %s as we already have chat with the user", roomID, puppet.MXID, inviter.MXID)
+	log.Debug().Msg("Leaving ghost from private chat room after accepting invite because we already have a chat with the user")
 	_, _ = intent.LeaveRoom(roomID)
 }
 
 func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter *User, puppet *Puppet, portal *Portal) {
-	portal.log.Info().Msgf("Creating private chat portal in %s after invite from %s", roomID, inviter.MXID)
-	// TODO check if room is already encrypted
+	log := portal.log.With().
+		Str("action", "create_private_portal_from_invite").
+		Str("room_id", roomID.String()).
+		Str("inviter", inviter.MXID.String()).
+		Str("ghost", puppet.MXID.String()).
+		Logger()
+	log.Debug().Msg("Creating private portal from invite")
+
+	// Check if room is already encrypted
 	var existingEncryption event.EncryptionEventContent
 	var encryptionEnabled bool
 	err := portal.MainIntent().StateEvent(roomID, event.StateEncryption, "", &existingEncryption)
 	if err != nil {
-		portal.log.Warn().Err(err).Msgf("Failed to check if encryption is enabled in private chat room %s", roomID)
+		log.Warn().Err(err).Msg("Failed to check if encryption is enabled in private chat room")
 	} else {
 		encryptionEnabled = existingEncryption.Algorithm == id.AlgorithmMegolmV1
 	}
@@ -271,22 +289,22 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 	portal.AvatarURL = puppet.AvatarURL
 	portal.AvatarHash = puppet.AvatarHash
 	portal.AvatarSet = puppet.AvatarSet
-	portal.log.Info().Msgf("Created private chat portal in %s after invite from %s", roomID, inviter.MXID)
+	log.Info().Msg("Created private chat portal after invite")
 	intent := puppet.DefaultIntent()
 
 	if br.Config.Bridge.Encryption.Default || encryptionEnabled {
 		_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: br.Bot.UserID})
 		if err != nil {
-			portal.log.Warn().Msgf("Failed to invite bridge bot to enable e2be: %v", err)
+			log.Warn().Err(err).Msg("Failed to invite bridge bot to enable e2be")
 		}
 		err = br.Bot.EnsureJoined(roomID)
 		if err != nil {
-			portal.log.Warn().Msgf("Failed to join as bridge bot to enable e2be: %v", err)
+			log.Warn().Err(err).Msg("Failed to join as bridge bot to enable e2be")
 		}
 		if !encryptionEnabled {
 			_, err = intent.SendStateEvent(roomID, event.StateEncryption, "", portal.getEncryptionEventContent())
 			if err != nil {
-				portal.log.Warn().Msgf("Failed to enable e2be: %v", err)
+				log.Warn().Err(err).Msg("Failed to enable e2be")
 			}
 		}
 		br.AS.StateStore.SetMembership(roomID, inviter.MXID, event.MembershipJoin)
@@ -303,7 +321,7 @@ func (br *SignalBridge) createPrivatePortalFromInvite(roomID id.RoomID, inviter 
 	}
 	err = portal.Update(context.TODO())
 	if err != nil {
-		portal.log.Err(err).Msg("Failed to update portal in database")
+		log.Err(err).Msg("Failed to update portal in database")
 	}
 	portal.UpdateBridgeInfo()
 	_, _ = intent.SendNotice(roomID, "Private chat portal created")
