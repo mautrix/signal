@@ -1069,8 +1069,12 @@ func (portal *Portal) addSignalQuote(ctx context.Context, content *event.Message
 	if quote == nil {
 		return
 	}
+	quotedSender, err := uuid.Parse(quote.QuotedSender)
+	if err != nil {
+		return
+	}
 	originalMessage, err := portal.bridge.DB.Message.GetBySignalID(
-		ctx, uuid.MustParse(quote.QuotedSender), quote.QuotedTimestamp, 0, portal.Receiver,
+		ctx, quotedSender, quote.QuotedTimestamp, 0, portal.Receiver,
 	)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Str("quoted_sender", quote.QuotedSender).Uint64("quoted_timestamp", quote.QuotedTimestamp).Msg("Failed to get quoted message from database")
