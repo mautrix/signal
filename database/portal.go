@@ -150,7 +150,7 @@ func (p *Portal) sqlVariables() []any {
 		p.Name,
 		p.Topic,
 		p.AvatarHash,
-		p.AvatarURL,
+		&p.AvatarURL,
 		p.NameSet,
 		p.AvatarSet,
 		p.Revision,
