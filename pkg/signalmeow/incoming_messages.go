@@ -28,6 +28,7 @@ type IncomingSignalMessageBase struct {
 	RecipientUUID string                          // Usually our UUID, unless this is a message we sent on another device
 	GroupID       *GroupIdentifier                // Unique identifier for the group chat, or nil for 1:1 chats
 	Timestamp     uint64                          // With SenderUUID, treated as a unique identifier for a specific Signal message
+	PartIndex     int                             //
 	Quote         *IncomingSignalMessageQuoteData // If this message is a quote (reply), this will be non-nil
 	ExpiresIn     int64                           // If this message is ephemeral, this will be non-zero (in seconds)
 }

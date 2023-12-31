@@ -379,7 +379,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 	timings.totalSend = time.Since(start)
 	go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
-		portal.storeMessageInDB(ctx, evt.ID, sender.SignalID, timestamp)
+		portal.storeMessageInDB(ctx, evt.ID, sender.SignalID, timestamp, 0)
 		if portal.ExpirationTime > 0 {
 			portal.addDisappearingMessage(ctx, evt.ID, int64(portal.ExpirationTime), true)
 		}
@@ -940,13 +940,14 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 		Str("action", "handle signal message").
 		Str("sender", portalMessage.sender.SignalID.String()).
 		Uint64("timestamp", portalMessage.message.Base().Timestamp).
+		Int("part_index", portalMessage.message.Base().PartIndex).
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	if existingMessage, err := portal.bridge.DB.Message.GetBySignalID(
 		ctx,
 		portalMessage.sender.SignalID,
 		portalMessage.message.Base().Timestamp,
-		0,
+		portalMessage.message.Base().PartIndex,
 		portal.Receiver,
 	); err != nil {
 		log.Err(err).Msg("Failed to check if message was already handled")
@@ -1026,12 +1027,13 @@ func (portal *Portal) handleSignalMessages(portalMessage portalSignalMessage) {
 	}
 }
 
-func (portal *Portal) storeMessageInDB(ctx context.Context, eventID id.EventID, senderSignalID uuid.UUID, timestamp uint64) {
+func (portal *Portal) storeMessageInDB(ctx context.Context, eventID id.EventID, senderSignalID uuid.UUID, timestamp uint64, partIndex int) {
 	dbMessage := portal.bridge.DB.Message.New()
 	dbMessage.MXID = eventID
 	dbMessage.RoomID = portal.MXID
 	dbMessage.Sender = senderSignalID
 	dbMessage.Timestamp = timestamp
+	dbMessage.PartIndex = partIndex
 	dbMessage.SignalChatID = portal.ChatID
 	dbMessage.SignalReceiver = portal.Receiver
 	err := dbMessage.Insert(ctx)
@@ -1111,7 +1113,7 @@ func (portal *Portal) handleSignalTextMessage(ctx context.Context, portalMessage
 	if resp.EventID == "" {
 		return errors.New("Didn't receive event ID from Matrix")
 	}
-	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp, portalMessage.message.Base().PartIndex)
 	portal.addDisappearingMessage(ctx, resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
@@ -1144,7 +1146,7 @@ func (portal *Portal) handleSignalStickerMessage(ctx context.Context, portalMess
 	if resp.EventID == "" {
 		return errors.New("Didn't receive event ID from Matrix")
 	}
-	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp, portalMessage.message.Base().PartIndex)
 	portal.addDisappearingMessage(ctx, resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
@@ -1438,7 +1440,7 @@ func (portal *Portal) handleSignalAttachmentMessage(ctx context.Context, portalM
 	if resp.EventID == "" {
 		return errors.New("Didn't receive event ID from Matrix")
 	}
-	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp)
+	portal.storeMessageInDB(ctx, resp.EventID, portalMessage.sender.SignalID, timestamp, portalMessage.message.Base().PartIndex)
 	portal.addDisappearingMessage(ctx, resp.EventID, portalMessage.message.Base().ExpiresIn, portalMessage.sync)
 	return err
 }
