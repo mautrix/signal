@@ -156,7 +156,27 @@ func (br *SignalBridge) Init() {
 	signalmeow.HackyCaptionToggle = br.Config.Bridge.CaptionInMessage
 }
 
+func (br *SignalBridge) logLostPortals(ctx context.Context) {
+	lostPortals, err := br.DB.LostPortal.GetAll(ctx)
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get lost portals")
+		return
+	} else if len(lostPortals) == 0 {
+		return
+	}
+	lostCountByReceiver := make(map[string]int)
+	for _, lost := range lostPortals {
+		lostCountByReceiver[lost.Receiver]++
+	}
+	br.ZLog.Warn().
+		Any("count_by_receiver", lostCountByReceiver).
+		Msg("Some portals were discarded due to the receiver not being logged into the bridge anymore. " +
+			"Use `!signal cleanup-lost-portals` to remove them from the database. " +
+			"Alternatively, you can re-insert the data into the portal table with the appropriate receiver column to restore the portals.")
+}
+
 func (br *SignalBridge) Start() {
+	go br.logLostPortals(context.TODO())
 	err := br.MeowStore.Upgrade()
 	if err != nil {
 		br.Log.Fatalln("Failed to upgrade signalmeow database: %v", err)

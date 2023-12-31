@@ -32,6 +32,7 @@ type Database struct {
 
 	User                *UserQuery
 	Portal              *PortalQuery
+	LostPortal          *LostPortalQuery
 	Puppet              *PuppetQuery
 	Message             *MessageQuery
 	Reaction            *ReactionQuery
@@ -44,6 +45,7 @@ func New(db *dbutil.Database) *Database {
 		Database:            db,
 		User:                &UserQuery{dbutil.MakeQueryHelper(db, newUser)},
 		Portal:              &PortalQuery{dbutil.MakeQueryHelper(db, newPortal)},
+		LostPortal:          &LostPortalQuery{dbutil.MakeQueryHelper(db, newLostPortal)},
 		Puppet:              &PuppetQuery{dbutil.MakeQueryHelper(db, newPuppet)},
 		Message:             &MessageQuery{dbutil.MakeQueryHelper(db, newMessage)},
 		Reaction:            &ReactionQuery{dbutil.MakeQueryHelper(db, newReaction)},

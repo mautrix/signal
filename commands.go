@@ -57,6 +57,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdUnsetRelay,
 		cmdDeletePortal,
 		cmdDeleteAllPortals,
+		cmdCleanupLostPortals,
 	)
 }
 
@@ -473,4 +474,40 @@ func fnDeleteAllPortals(ce *WrappedCommandEvent) {
 		}
 		ce.Reply("Finished background cleanup of deleted portal rooms.")
 	}()
+}
+
+var cmdCleanupLostPortals = &commands.FullHandler{
+	Func: wrapCommand(fnCleanupLostPortals),
+	Name: "cleanup-lost-portals",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Clean up portals that were discarded due to the receiver not being logged into the bridge",
+	},
+	RequiresAdmin: true,
+}
+
+func fnCleanupLostPortals(ce *WrappedCommandEvent) {
+	portals, err := ce.Bridge.DB.LostPortal.GetAll(context.TODO())
+	if err != nil {
+		ce.Reply("Failed to get portals: %v", err)
+		return
+	} else if len(portals) == 0 {
+		ce.Reply("No lost portals found")
+		return
+	}
+
+	ce.Reply("Found %d lost portals, deleting...", len(portals))
+	for _, portal := range portals {
+		dmUUID, err := uuid.Parse(portal.ChatID)
+		intent := ce.Bot
+		if err == nil {
+			intent = ce.Bridge.GetPuppetBySignalID(dmUUID).DefaultIntent()
+		}
+		ce.Bridge.CleanupRoom(ce.ZLog, intent, portal.MXID, false)
+		err = portal.Delete(context.TODO())
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to delete lost portal from database after cleanup")
+		}
+	}
+	ce.Reply("Finished cleaning up portals")
 }

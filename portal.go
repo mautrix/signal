@@ -1914,41 +1914,44 @@ func (portal *Portal) Delete() {
 }
 
 func (portal *Portal) Cleanup(puppetsOnly bool) {
-	if len(portal.MXID) == 0 {
+	portal.bridge.CleanupRoom(&portal.log, portal.MainIntent(), portal.MXID, puppetsOnly)
+}
+
+func (br *SignalBridge) CleanupRoom(log *zerolog.Logger, intent *appservice.IntentAPI, mxid id.RoomID, puppetsOnly bool) {
+	if len(mxid) == 0 {
 		return
 	}
-	intent := portal.MainIntent()
-	if portal.bridge.SpecVersions.Supports(mautrix.BeeperFeatureRoomYeeting) {
-		err := intent.BeeperDeleteRoom(portal.MXID)
+	if br.SpecVersions.Supports(mautrix.BeeperFeatureRoomYeeting) {
+		err := intent.BeeperDeleteRoom(mxid)
 		if err == nil || errors.Is(err, mautrix.MNotFound) {
 			return
 		}
-		portal.log.Warn().Err(err).Msg("Failed to delete room using beeper yeet endpoint, falling back to normal behavior")
+		log.Warn().Err(err).Msg("Failed to delete room using beeper yeet endpoint, falling back to normal behavior")
 	}
-	members, err := intent.JoinedMembers(portal.MXID)
+	members, err := intent.JoinedMembers(mxid)
 	if err != nil {
-		portal.log.Err(err).Msg("Failed to get portal members for cleanup")
+		log.Err(err).Msg("Failed to get portal members for cleanup")
 		return
 	}
 	for member := range members.Joined {
 		if member == intent.UserID {
 			continue
 		}
-		puppet := portal.bridge.GetPuppetByMXID(member)
+		puppet := br.GetPuppetByMXID(member)
 		if puppet != nil {
-			_, err = puppet.DefaultIntent().LeaveRoom(portal.MXID)
+			_, err = puppet.DefaultIntent().LeaveRoom(mxid)
 			if err != nil {
-				portal.log.Err(err).Msg("Failed to leave as puppet while cleaning up portal")
+				log.Err(err).Msg("Failed to leave as puppet while cleaning up portal")
 			}
 		} else if !puppetsOnly {
-			_, err = intent.KickUser(portal.MXID, &mautrix.ReqKickUser{UserID: member, Reason: "Deleting portal"})
+			_, err = intent.KickUser(mxid, &mautrix.ReqKickUser{UserID: member, Reason: "Deleting portal"})
 			if err != nil {
-				portal.log.Err(err).Msg("Failed to kick user while cleaning up portal")
+				log.Err(err).Msg("Failed to kick user while cleaning up portal")
 			}
 		}
 	}
-	_, err = intent.LeaveRoom(portal.MXID)
+	_, err = intent.LeaveRoom(mxid)
 	if err != nil {
-		portal.log.Err(err).Msg("Failed to leave room while cleaning up portal")
+		log.Err(err).Msg("Failed to leave room while cleaning up portal")
 	}
 }
