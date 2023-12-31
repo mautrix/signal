@@ -21,7 +21,6 @@ import (
 
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
-
 	"go.mau.fi/util/dbutil"
 
 	"go.mau.fi/mautrix-signal/database/upgrades"

@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"go.mau.fi/util/dbutil"
-
 	"maunium.net/go/mautrix/id"
 )
 

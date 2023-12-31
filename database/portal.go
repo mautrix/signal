@@ -21,9 +21,8 @@ import (
 	"database/sql"
 
 	"github.com/google/uuid"
-	"maunium.net/go/mautrix/id"
-
 	"go.mau.fi/util/dbutil"
+	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
