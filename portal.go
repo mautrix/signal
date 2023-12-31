@@ -1106,7 +1106,7 @@ func (portal *Portal) handleSignalTextMessage(ctx context.Context, portalMessage
 	msg := (portalMessage.message).(signalmeow.IncomingSignalMessageText)
 	content := signalfmt.Parse(msg.Content, msg.ContentRanges, signalFormatParams)
 	portal.addSignalQuote(ctx, content, msg.Quote)
-	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
+	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, int64(timestamp))
 	if err != nil {
 		return err
 	}
@@ -1139,7 +1139,7 @@ func (portal *Portal) handleSignalStickerMessage(ctx context.Context, portalMess
 		portal.log.Error().Err(err).Msg("Failed to upload media")
 	}
 
-	resp, err := portal.sendMatrixMessage(intent, event.EventSticker, content, nil, 0)
+	resp, err := portal.sendMatrixMessage(intent, event.EventSticker, content, nil, int64(timestamp))
 	if err != nil {
 		return err
 	}
@@ -1433,7 +1433,7 @@ func (portal *Portal) handleSignalAttachmentMessage(ctx context.Context, portalM
 		portal.log.Error().Err(err).Msg(failureMessage)
 		portal.MainIntent().SendNotice(portal.MXID, failureMessage)
 	}
-	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, 0)
+	resp, err := portal.sendMatrixMessage(intent, event.EventMessage, content, nil, int64(timestamp))
 	if err != nil {
 		return err
 	}
