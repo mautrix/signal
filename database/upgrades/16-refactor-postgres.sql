@@ -1,6 +1,8 @@
 -- v16: Refactor types (Postgres)
 -- only: postgres
 
+DROP TABLE IF EXISTS user_portal;
+
 -- Drop constraints so we can fix timestamps.
 ALTER TABLE reaction DROP CONSTRAINT reaction_message_fkey;
 ALTER TABLE message DROP CONSTRAINT message_pkey;

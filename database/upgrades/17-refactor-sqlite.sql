@@ -5,6 +5,8 @@
 -- This is separate from v16 so that postgres can run with transaction: on
 -- (split upgrades by dialect don't currently allow disabling transaction in only one dialect)
 
+DROP TABLE IF EXISTS user_portal;
+
 PRAGMA foreign_keys = OFF;
 BEGIN;
 
