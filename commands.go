@@ -17,9 +17,12 @@
 package main
 
 import (
+	"context"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/skip2/go-qrcode"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -47,10 +50,14 @@ func (br *SignalBridge) RegisterCommands() {
 	proc.AddHandlers(
 		cmdPing,
 		cmdLogin,
+		cmdSetDeviceName,
 		cmdPM,
-		cmdDisconnect,
+		cmdDeleteSession,
 		cmdSetRelay,
 		cmdUnsetRelay,
+		cmdDeletePortal,
+		cmdDeleteAllPortals,
+		cmdCleanupLostPortals,
 	)
 }
 
@@ -84,7 +91,7 @@ func fnSetRelay(ce *WrappedCommandEvent) {
 		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
 	} else {
 		ce.Portal.RelayUserID = ce.User.MXID
-		ce.Portal.Update()
+		ce.Portal.Update(context.TODO())
 		ce.Reply("Messages from non-logged-in users in this room will now be bridged through your Signal account")
 	}
 }
@@ -106,22 +113,21 @@ func fnUnsetRelay(ce *WrappedCommandEvent) {
 		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
 	} else {
 		ce.Portal.RelayUserID = ""
-		ce.Portal.Update()
+		ce.Portal.Update(context.TODO())
 		ce.Reply("Messages from non-logged-in users will no longer be bridged in this room")
 	}
 }
 
-var cmdDisconnect = &commands.FullHandler{
-	Func: wrapCommand(fnDisconnect),
-	Name: "disconnect",
+var cmdDeleteSession = &commands.FullHandler{
+	Func: wrapCommand(fnDeleteSession),
+	Name: "delete-session",
 	Help: commands.HelpMeta{
 		Section:     HelpSectionConnectionManagement,
 		Description: "Disconnect from Signal, clearing sessions but keeping other data. Reconnect with `login`",
 	},
-	RequiresLogin: true,
 }
 
-func fnDisconnect(ce *WrappedCommandEvent) {
+func fnDeleteSession(ce *WrappedCommandEvent) {
 	if !ce.User.SignalDevice.IsDeviceLoggedIn() {
 		ce.Reply("You're not logged in")
 		return
@@ -140,7 +146,41 @@ var cmdPing = &commands.FullHandler{
 }
 
 func fnPing(ce *WrappedCommandEvent) {
-	ce.Reply("A fake ping! Well done! 💥")
+	if ce.User.SignalID == uuid.Nil {
+		ce.Reply("You're not logged in")
+	} else if !ce.User.SignalDevice.IsDeviceLoggedIn() {
+		ce.Reply("You were logged in at some point, but are not anymore")
+	} else if !ce.User.SignalDevice.Connection.IsConnected() {
+		ce.Reply("You're logged into Signal, but not connected to the server")
+	} else {
+		ce.Reply("You're logged into Signal and probably connected to the server")
+	}
+}
+
+var cmdSetDeviceName = &commands.FullHandler{
+	Func: wrapCommand(fnSetDeviceName),
+	Name: "set-device-name",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionConnectionManagement,
+		Description: "Set the name of this device in Signal",
+		Args:        "<name>",
+	},
+	RequiresLogin: true,
+}
+
+func fnSetDeviceName(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `set-device-name <name>`")
+		return
+	}
+
+	name := strings.Join(ce.Args, " ")
+	err := ce.User.SignalDevice.UpdateDeviceName(name)
+	if err != nil {
+		ce.Reply("Error setting device name: %v", err)
+		return
+	}
+	ce.Reply("Device name updated")
 }
 
 var cmdPM = &commands.FullHandler{
@@ -269,13 +309,20 @@ func fnLogin(ce *WrappedCommandEvent) {
 
 	// Update user with SignalID
 	if signalID != "" {
-		ce.User.SignalID = signalID
+		ce.User.SignalID, err = uuid.Parse(signalID)
+		if err != nil {
+			ce.Reply("Problem logging in - SignalID is not a valid UUID")
+			return
+		}
 		ce.User.SignalUsername = signalUsername
 	} else {
 		ce.Reply("Problem logging in - No SignalID received")
 		return
 	}
-	ce.User.Update()
+	err = ce.User.Update(context.TODO())
+	if err != nil {
+		ce.ZLog.Err(err).Msg("Failed to save user to database")
+	}
 
 	// Connect to Signal
 	ce.User.Connect()
@@ -320,4 +367,147 @@ func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI,
 		return id.ContentURI{}, false
 	}
 	return resp.ContentURI, true
+}
+
+func canDeletePortal(portal *Portal, userID id.UserID) bool {
+	if len(portal.MXID) == 0 {
+		return false
+	}
+
+	members, err := portal.MainIntent().JoinedMembers(portal.MXID)
+	if err != nil {
+		portal.log.Err(err).
+			Str("user_id", userID.String()).
+			Msg("Failed to get joined members to check if user can delete portal")
+		return false
+	}
+	for otherUser := range members.Joined {
+		_, isPuppet := portal.bridge.ParsePuppetMXID(otherUser)
+		if isPuppet || otherUser == portal.bridge.Bot.UserID || otherUser == userID {
+			continue
+		}
+		user := portal.bridge.GetUserByMXID(otherUser)
+		if user != nil && user.IsLoggedIn() {
+			return false
+		}
+	}
+	return true
+}
+
+var cmdDeletePortal = &commands.FullHandler{
+	Func: wrapCommand(fnDeletePortal),
+	Name: "delete-portal",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Delete the current portal. If the portal is used by other people, this is limited to bridge admins.",
+	},
+	RequiresPortal: true,
+}
+
+func fnDeletePortal(ce *WrappedCommandEvent) {
+	if !ce.User.Admin && !canDeletePortal(ce.Portal, ce.User.MXID) {
+		ce.Reply("Only bridge admins can delete portals with other Matrix users")
+		return
+	}
+
+	ce.Portal.log.Info().Str("user_id", ce.User.MXID.String()).Msg("User requested deletion of portal")
+	ce.Portal.Delete()
+	ce.Portal.Cleanup(false)
+}
+
+var cmdDeleteAllPortals = &commands.FullHandler{
+	Func: wrapCommand(fnDeleteAllPortals),
+	Name: "delete-all-portals",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Delete all portals.",
+	},
+}
+
+func fnDeleteAllPortals(ce *WrappedCommandEvent) {
+	portals := ce.Bridge.GetAllPortalsWithMXID()
+	var portalsToDelete []*Portal
+
+	if ce.User.Admin {
+		portalsToDelete = portals
+	} else {
+		portalsToDelete = portals[:0]
+		for _, portal := range portals {
+			if canDeletePortal(portal, ce.User.MXID) {
+				portalsToDelete = append(portalsToDelete, portal)
+			}
+		}
+	}
+	if len(portalsToDelete) == 0 {
+		ce.Reply("Didn't find any portals to delete")
+		return
+	}
+
+	leave := func(portal *Portal) {
+		if len(portal.MXID) > 0 {
+			_, _ = portal.MainIntent().KickUser(portal.MXID, &mautrix.ReqKickUser{
+				Reason: "Deleting portal",
+				UserID: ce.User.MXID,
+			})
+		}
+	}
+	customPuppet := ce.Bridge.GetPuppetByCustomMXID(ce.User.MXID)
+	if customPuppet != nil && customPuppet.CustomIntent() != nil {
+		intent := customPuppet.CustomIntent()
+		leave = func(portal *Portal) {
+			if len(portal.MXID) > 0 {
+				_, _ = intent.LeaveRoom(portal.MXID)
+				_, _ = intent.ForgetRoom(portal.MXID)
+			}
+		}
+	}
+	ce.Reply("Found %d portals, deleting...", len(portalsToDelete))
+	for _, portal := range portalsToDelete {
+		portal.Delete()
+		leave(portal)
+	}
+	ce.Reply("Finished deleting portal info. Now cleaning up rooms in background.")
+
+	go func() {
+		for _, portal := range portalsToDelete {
+			portal.Cleanup(false)
+		}
+		ce.Reply("Finished background cleanup of deleted portal rooms.")
+	}()
+}
+
+var cmdCleanupLostPortals = &commands.FullHandler{
+	Func: wrapCommand(fnCleanupLostPortals),
+	Name: "cleanup-lost-portals",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Clean up portals that were discarded due to the receiver not being logged into the bridge",
+	},
+	RequiresAdmin: true,
+}
+
+func fnCleanupLostPortals(ce *WrappedCommandEvent) {
+	portals, err := ce.Bridge.DB.LostPortal.GetAll(context.TODO())
+	if err != nil {
+		ce.Reply("Failed to get portals: %v", err)
+		return
+	} else if len(portals) == 0 {
+		ce.Reply("No lost portals found")
+		return
+	}
+
+	ce.Reply("Found %d lost portals, deleting...", len(portals))
+	for _, portal := range portals {
+		dmUUID, err := uuid.Parse(portal.ChatID)
+		intent := ce.Bot
+		if err == nil {
+			intent = ce.Bridge.GetPuppetBySignalID(dmUUID).DefaultIntent()
+		}
+		ce.Bridge.CleanupRoom(ce.ZLog, intent, portal.MXID, false)
+		err = portal.Delete(context.TODO())
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to delete lost portal from database after cleanup")
+		}
+	}
+	ce.Reply("Finished cleaning up portals")
 }

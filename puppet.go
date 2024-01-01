@@ -17,10 +17,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
@@ -66,7 +68,7 @@ func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
 
 func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
 	if puppet != nil {
-		if puppet.customIntent == nil || portal.Key().ChatID == puppet.SignalID {
+		if puppet.customIntent == nil || portal.UserID() == puppet.SignalID {
 			return puppet.DefaultIntent()
 		}
 		return puppet.customIntent
@@ -88,13 +90,13 @@ func (br *SignalBridge) NewPuppet(dbPuppet *database.Puppet) *Puppet {
 	return &Puppet{
 		Puppet: dbPuppet,
 		bridge: br,
-		log:    br.ZLog.With().Str("signal_user_id", dbPuppet.SignalID).Logger(),
+		log:    br.ZLog.With().Str("signal_user_id", dbPuppet.SignalID.String()).Logger(),
 
 		MXID: br.FormatPuppetMXID(dbPuppet.SignalID),
 	}
 }
 
-func (br *SignalBridge) ParsePuppetMXID(mxid id.UserID) (string, bool) {
+func (br *SignalBridge) ParsePuppetMXID(mxid id.UserID) (uuid.UUID, bool) {
 	if userIDRegex == nil {
 		pattern := fmt.Sprintf(
 			"^@%s:%s$",
@@ -109,10 +111,14 @@ func (br *SignalBridge) ParsePuppetMXID(mxid id.UserID) (string, bool) {
 
 	match := userIDRegex.FindStringSubmatch(string(mxid))
 	if len(match) == 2 {
-		return match[1], true
+		parsed, err := uuid.Parse(match[1])
+		if err != nil {
+			return uuid.Nil, false
+		}
+		return parsed, true
 	}
 
-	return "", false
+	return uuid.Nil, false
 }
 
 func (br *SignalBridge) GetPuppetByMXID(mxid id.UserID) *Puppet {
@@ -124,26 +130,37 @@ func (br *SignalBridge) GetPuppetByMXID(mxid id.UserID) *Puppet {
 	return br.GetPuppetBySignalID(signalID)
 }
 
-func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
+func (br *SignalBridge) GetPuppetBySignalIDString(id string) *Puppet {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return nil
+	}
+	return br.GetPuppetBySignalID(parsed)
+}
+
+func (br *SignalBridge) GetPuppetBySignalID(id uuid.UUID) *Puppet {
 	br.puppetsLock.Lock()
 	defer br.puppetsLock.Unlock()
 
-	if id == "" {
+	if id == uuid.Nil {
 		br.ZLog.Warn().Msg("Trying to get puppet with empty signal_user_id")
 		return nil
 	}
 
 	puppet, ok := br.puppets[id]
 	if !ok {
-		dbPuppet := br.DB.Puppet.GetBySignalID(id)
-		if dbPuppet == nil {
-			br.ZLog.Info().Str("signal_user_id", id).Msg("Puppet not found in database, creating new entry")
+		dbPuppet, err := br.DB.Puppet.GetBySignalID(context.TODO(), id)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get puppet from database")
+			return nil
+		} else if dbPuppet == nil {
+			br.ZLog.Info().Str("signal_user_id", id.String()).Msg("Puppet not found in database, creating new entry")
 			dbPuppet = br.DB.Puppet.New()
 			dbPuppet.SignalID = id
 			//dbPuppet.Number =
-			err := dbPuppet.Insert()
+			err = dbPuppet.Insert(context.TODO())
 			if err != nil {
-				br.ZLog.Error().Err(err).Str("signal_user_id", id).Msg("Error creating new puppet")
+				br.ZLog.Error().Err(err).Str("signal_user_id", id.String()).Msg("Error creating new puppet")
 				return nil
 			}
 		}
@@ -152,8 +169,8 @@ func (br *SignalBridge) GetPuppetBySignalID(id string) *Puppet {
 		if puppet.CustomMXID != "" {
 			br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
 		}
-		if puppet.Number != nil {
-			br.puppetsByNumber[*puppet.Number] = puppet
+		if puppet.Number != "" {
+			br.puppetsByNumber[puppet.Number] = puppet
 		}
 	}
 	return puppet
@@ -165,8 +182,11 @@ func (br *SignalBridge) GetPuppetByNumber(number string) *Puppet {
 
 	puppet, ok := br.puppetsByNumber[number]
 	if !ok {
-		dbPuppet := br.DB.Puppet.GetByNumber(number)
-		if dbPuppet == nil {
+		dbPuppet, err := br.DB.Puppet.GetByNumber(context.TODO(), number)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get puppet from database")
+			return nil
+		} else if dbPuppet == nil {
 			return nil
 		}
 
@@ -175,8 +195,8 @@ func (br *SignalBridge) GetPuppetByNumber(number string) *Puppet {
 		if puppet.CustomMXID != "" {
 			br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
 		}
-		if puppet.Number != nil {
-			br.puppetsByNumber[*puppet.Number] = puppet
+		if puppet.Number != "" {
+			br.puppetsByNumber[puppet.Number] = puppet
 		}
 	}
 	return puppet
@@ -188,23 +208,26 @@ func (br *SignalBridge) GetPuppetByCustomMXID(mxid id.UserID) *Puppet {
 
 	puppet, ok := br.puppetsByCustomMXID[mxid]
 	if !ok {
-		dbPuppet := br.DB.Puppet.GetByCustomMXID(mxid)
-		if dbPuppet == nil {
+		dbPuppet, err := br.DB.Puppet.GetByCustomMXID(context.TODO(), mxid)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get puppet from database")
+			return nil
+		} else if dbPuppet == nil {
 			return nil
 		}
 
 		puppet = br.NewPuppet(dbPuppet)
 		br.puppets[puppet.SignalID] = puppet
 		br.puppetsByCustomMXID[puppet.CustomMXID] = puppet
-		if puppet.Number != nil {
-			br.puppetsByNumber[*puppet.Number] = puppet
+		if puppet.Number != "" {
+			br.puppetsByNumber[puppet.Number] = puppet
 		}
 	}
 	return puppet
 }
 
 func (br *SignalBridge) GetAllPuppetsWithCustomMXID() []*Puppet {
-	puppets, err := br.DB.Puppet.GetAllWithCustomMXID()
+	puppets, err := br.DB.Puppet.GetAllWithCustomMXID(context.TODO())
 	if err != nil {
 		br.ZLog.Error().Err(err).Msg("Failed to get all puppets with custom MXID")
 		return nil
@@ -212,9 +235,9 @@ func (br *SignalBridge) GetAllPuppetsWithCustomMXID() []*Puppet {
 	return br.dbPuppetsToPuppets(puppets)
 }
 
-func (br *SignalBridge) FormatPuppetMXID(did string) id.UserID {
+func (br *SignalBridge) FormatPuppetMXID(u uuid.UUID) id.UserID {
 	return id.NewUserID(
-		br.Config.Bridge.FormatUsername(did),
+		br.Config.Bridge.FormatUsername(u.String()),
 		br.Config.Homeserver.Domain,
 	)
 }
@@ -232,8 +255,8 @@ func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Pupp
 		if !ok {
 			puppet = br.NewPuppet(dbPuppet)
 			br.puppets[dbPuppet.SignalID] = puppet
-			if dbPuppet.Number != nil {
-				br.puppetsByNumber[*dbPuppet.Number] = puppet
+			if dbPuppet.Number != "" {
+				br.puppetsByNumber[dbPuppet.Number] = puppet
 			}
 			if dbPuppet.CustomMXID != "" {
 				br.puppetsByCustomMXID[dbPuppet.CustomMXID] = puppet

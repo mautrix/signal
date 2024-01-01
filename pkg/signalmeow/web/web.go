@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/tls"
 	"crypto/x509"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -53,45 +54,39 @@ func SetLogger(l zerolog.Logger) {
 	zlog = l
 }
 
-func proxiedHTTPClient() *http.Client {
-	var proxyURL *url.URL
+//go:embed signal-root.crt.der
+var signalRootCertBytes []byte
+var signalTransport = &http.Transport{
+	ForceAttemptHTTP2: true,
+	TLSClientConfig: &tls.Config{
+		RootCAs: x509.NewCertPool(),
+	},
+}
+var signalHTTPClient = &http.Client{
+	Transport: signalTransport,
+}
+
+func init() {
+	cert, err := x509.ParseCertificate(signalRootCertBytes)
+	if err != nil {
+		panic(err)
+	}
+	signalTransport.TLSClientConfig.RootCAs.AddCert(cert)
+
 	if proxyUrlStr != "" {
-		var err error
-		proxyURL, err = url.Parse(proxyUrlStr)
+		proxyURL, err := url.Parse(proxyUrlStr)
 		if err != nil {
-			zlog.Err(err).Msg("Error parsing proxy URL")
 			panic(err)
 		}
+		signalTransport.Proxy = http.ProxyURL(proxyURL)
 	}
-
-	tlsConfig := &tls.Config{}
 	if caCertPath != "" {
-		var caCert []byte
-		var err error
-		caCert, err = os.ReadFile(caCertPath)
+		caCert, err := os.ReadFile(caCertPath)
 		if err != nil {
-			zlog.Err(err).Msg("Error reading CA certificate")
 			panic(err)
 		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
-
-		tlsConfig.RootCAs = caCertPool
+		signalTransport.TLSClientConfig.RootCAs.AppendCertsFromPEM(caCert)
 	}
-
-	// TODO: embed Signal's self-signed cert, and turn off InsecureSkipVerify
-	tlsConfig.InsecureSkipVerify = true
-
-	transport := &http.Transport{}
-	if proxyURL != nil {
-		transport.Proxy = http.ProxyURL(proxyURL)
-	}
-	transport.TLSClientConfig = tlsConfig
-
-	client := &http.Client{
-		Transport: transport,
-	}
-	return client
 }
 
 type ContentType string
@@ -155,8 +150,7 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 
 	httpReqCounter++
 	zlog.Debug().Msgf("Sending HTTP request %v, %v url: %s", httpReqCounter, method, urlStr)
-	client := proxiedHTTPClient()
-	resp, err := client.Do(req)
+	resp, err := signalHTTPClient.Do(req)
 	if err != nil {
 		zlog.Err(err).Msg("Error sending request")
 		return nil, err
@@ -215,8 +209,7 @@ func GetAttachment(path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Respon
 
 	httpReqCounter++
 	zlog.Debug().Msgf("Sending Attachment HTTP request %v, url: %s", httpReqCounter, urlStr)
-	client := proxiedHTTPClient()
-	resp, err := client.Do(req)
+	resp, err := signalHTTPClient.Do(req)
 	zlog.Debug().Msgf("Received Attachment HTTP response %v, status: %v", httpReqCounter, resp.StatusCode)
 
 	return resp, err

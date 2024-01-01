@@ -193,7 +193,9 @@ func StopReceiveLoops(d *Device) error {
 	}()
 	authErr := d.Connection.AuthedWS.Close()
 	unauthErr := d.Connection.UnauthedWS.Close()
-	d.Connection.WSCancel()
+	if d.Connection.WSCancel != nil {
+		d.Connection.WSCancel()
+	}
 	if authErr != nil {
 		return authErr
 	}
@@ -826,7 +828,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		expiresIn = int64(dataMessage.GetExpireTimer())
 	}
 
-	tsIndex := 0
+	partIndex := 0
 	// If there's attachements, handle them (one at a time for now)
 	if dataMessage.Attachments != nil {
 		for index, attachmentPointer := range dataMessage.Attachments {
@@ -835,19 +837,14 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				zlog.Err(err).Msg("fetchAndDecryptAttachment error")
 				continue
 			}
-			// TODO: this is a hack to make sure each attachment has a unique timestamp
-			// this allows us to associate up to 999 attachments with a single Signal message
-			var timestamp uint64 = dataMessage.GetTimestamp()
-			if index > 0 {
-				timestamp = (dataMessage.GetTimestamp() * 1000) + uint64(index)
-			}
 			// TODO: right now this will be one message per image, each with the same caption
 			incomingMessage := IncomingSignalMessageAttachment{
 				IncomingSignalMessageBase: IncomingSignalMessageBase{
 					SenderUUID:    senderUUID,
 					RecipientUUID: recipientUUID,
 					GroupID:       gidPointer,
-					Timestamp:     timestamp,
+					Timestamp:     dataMessage.GetTimestamp(),
+					PartIndex:     partIndex,
 					Quote:         quoteData,
 					ExpiresIn:     expiresIn,
 				},
@@ -859,33 +856,31 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Height:      attachmentPointer.GetHeight(),
 				BlurHash:    attachmentPointer.GetBlurHash(),
 			}
+			partIndex++
 			if HackyCaptionToggle && index == 0 {
 				incomingMessage.Caption = dataMessage.GetBody()
 				incomingMessage.CaptionRanges = dataMessage.GetBodyRanges()
 			}
 			incomingMessages = append(incomingMessages, incomingMessage)
 		}
-		tsIndex += len(dataMessage.Attachments)
 	}
 
 	// If there's a body but no attachments, pass along as a text message
 	if dataMessage.Body != nil && (dataMessage.Attachments == nil || !HackyCaptionToggle) {
-		timestamp := dataMessage.GetTimestamp()
-		if tsIndex != 0 {
-			timestamp = (dataMessage.GetTimestamp() * 1000) + uint64(tsIndex+1)
-		}
 		incomingMessage := IncomingSignalMessageText{
 			IncomingSignalMessageBase: IncomingSignalMessageBase{
 				SenderUUID:    senderUUID,
 				RecipientUUID: recipientUUID,
 				GroupID:       gidPointer,
-				Timestamp:     timestamp,
+				Timestamp:     dataMessage.GetTimestamp(),
+				PartIndex:     partIndex,
 				Quote:         quoteData,
 				ExpiresIn:     expiresIn,
 			},
 			Content:       dataMessage.GetBody(),
 			ContentRanges: dataMessage.GetBodyRanges(),
 		}
+		partIndex++
 		incomingMessages = append(incomingMessages, incomingMessage)
 	}
 
@@ -901,6 +896,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					RecipientUUID: recipientUUID,
 					GroupID:       gidPointer,
 					Timestamp:     dataMessage.GetTimestamp(),
+					PartIndex:     partIndex,
 					Quote:         quoteData,
 					ExpiresIn:     expiresIn,
 				},
@@ -912,6 +908,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				Emoji:       dataMessage.GetSticker().GetEmoji(),
 			}
 			incomingMessages = append(incomingMessages, incomingMessage)
+			partIndex++
 		}
 	}
 
@@ -976,6 +973,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 					RecipientUUID: recipientUUID,
 					GroupID:       gidPointer,
 					Timestamp:     dataMessage.GetTimestamp(),
+					PartIndex:     partIndex,
 				},
 				DisplayName:  contactCard.GetName().GetDisplayName(),
 				Organization: contactCard.GetOrganization(),
@@ -1015,6 +1013,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 				addressString := strings.Join(addressParts, ", ")
 				incomingMessage.Addresses = append(incomingMessage.Addresses, addressString)
 			}
+			partIndex++
 			incomingMessages = append(incomingMessages, incomingMessage)
 		}
 	}

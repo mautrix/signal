@@ -29,11 +29,11 @@ import (
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
-var realUser = uuid.NewString()
+var realUser = uuid.New()
 
 func TestParse(t *testing.T) {
 	formatParams := &signalfmt.FormatParams{
-		GetUserInfo: func(uuid string) signalfmt.UserInfo {
+		GetUserInfo: func(uuid uuid.UUID) signalfmt.UserInfo {
 			if uuid == realUser {
 				return signalfmt.UserInfo{
 					MXID: "@test:example.com",
@@ -41,7 +41,7 @@ func TestParse(t *testing.T) {
 				}
 			} else {
 				return signalfmt.UserInfo{
-					MXID: id.UserID("@signal_" + uuid + ":example.com"),
+					MXID: id.UserID("@signal_" + uuid.String() + ":example.com"),
 					Name: "Signal User",
 				}
 			}
@@ -79,7 +79,7 @@ func TestParse(t *testing.T) {
 				Start:  proto.Uint32(6),
 				Length: proto.Uint32(1),
 				AssociatedValue: &signalpb.BodyRange_MentionAci{
-					MentionAci: realUser,
+					MentionAci: realUser.String(),
 				},
 			}},
 			body: "Hello Matrix User",
