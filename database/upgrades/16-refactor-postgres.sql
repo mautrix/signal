@@ -12,6 +12,8 @@ ALTER TABLE message ADD COLUMN part_index INTEGER;
 UPDATE message
     SET timestamp=CASE WHEN timestamp > 1500000000000000 THEN timestamp / 1000 ELSE timestamp END,
         part_index=CASE WHEN timestamp > 1500000000000000 THEN timestamp % 1000 ELSE 0 END;
+-- If the bridge users have reacted to message parts, forget about those, not worth trying to deal with potential conflicts.
+DELETE FROM reaction WHERE msg_timestamp > 1500000000000000;
 ALTER TABLE message ALTER COLUMN part_index SET NOT NULL;
 ALTER TABLE reaction ADD COLUMN _part_index INTEGER NOT NULL DEFAULT 0;
 

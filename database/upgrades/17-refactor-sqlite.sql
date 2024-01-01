@@ -70,7 +70,8 @@ SELECT msg_author,
        COALESCE(signal_receiver, ''),
        mxid,
        mx_room
-FROM reaction;
+FROM reaction
+WHERE timestamp<1500000000000000;
 
 DROP TABLE message;
 DROP TABLE reaction;
