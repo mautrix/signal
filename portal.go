@@ -1590,6 +1590,7 @@ func (portal *Portal) uploadMediaToMatrix(intent *appservice.IntentAPI, data []b
 	if file != nil {
 		file.URL = mxc.CUString()
 		content.File = file
+		content.URL = mxc.CUString()
 	} else {
 		content.URL = mxc.CUString()
 	}
