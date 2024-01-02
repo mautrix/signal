@@ -1272,8 +1272,10 @@ func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, 
 	}
 	for i, part := range converted.Parts {
 		part.Content.SetEdit(targetMessage[i].MXID)
-		part.Extra = map[string]any{
-			"m.new_content": part.Extra,
+		if part.Extra != nil {
+			part.Extra = map[string]any{
+				"m.new_content": part.Extra,
+			}
 		}
 		_, err = portal.sendMatrixEvent(intent, part.Type, part.Content, part.Extra, int64(converted.Timestamp))
 		if err != nil {
