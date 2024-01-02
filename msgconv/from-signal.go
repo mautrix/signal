@@ -80,6 +80,9 @@ func calculateLength(dm *signalpb.DataMessage) int {
 	if dm.Payment != nil {
 		length++
 	}
+	if dm.GiftBadge != nil {
+		length++
+	}
 	if length == 0 && dm.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT) {
 		length = 1
 	}
@@ -116,6 +119,9 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 	}
 	if dm.Payment != nil {
 		cm.Parts = append(cm.Parts, mc.convertPaymentToMatrix(ctx, dm.Payment))
+	}
+	if dm.GiftBadge != nil {
+		cm.Parts = append(cm.Parts, mc.convertGiftBadgeToMatrix(ctx, dm.GiftBadge))
 	}
 	if dm.Body != nil {
 		cm.Parts = append(cm.Parts, mc.convertTextToMatrix(ctx, dm))
@@ -186,6 +192,19 @@ func (mc *MessageConverter) convertPaymentToMatrix(ctx context.Context, payment 
 		},
 		Extra: map[string]any{
 			"fi.mau.signal.payment": payment,
+		},
+	}
+}
+
+func (mc *MessageConverter) convertGiftBadgeToMatrix(ctx context.Context, giftBadge *signalpb.DataMessage_GiftBadge) *ConvertedMessagePart {
+	return &ConvertedMessagePart{
+		Type: event.EventMessage,
+		Content: &event.MessageEventContent{
+			MsgType: event.MsgNotice,
+			Body:    "Gift badges are not yet supported",
+		},
+		Extra: map[string]any{
+			"fi.mau.signal.gift_badge": giftBadge,
 		},
 	}
 }
