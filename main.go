@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"go.mau.fi/util/configupgrade"
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix"
@@ -99,8 +98,7 @@ func (br *SignalBridge) Init() {
 	br.CommandProcessor = commands.NewProcessor(&br.Bridge)
 	br.RegisterCommands()
 
-	signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Logger().Level(zerolog.DebugLevel))
-	//signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Caller().Logger())
+	signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Logger())
 
 	br.DB = database.New(br.Bridge.DB)
 	br.MeowStore = signalmeow.NewStore(br.Bridge.DB, dbutil.ZeroLogger(br.ZLog.With().Str("db_section", "signalmeow").Logger()))
