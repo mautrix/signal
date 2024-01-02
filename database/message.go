@@ -74,6 +74,9 @@ const (
         DELETE FROM message
         WHERE sender=$1 AND timestamp=$2 AND part_index=$3 AND signal_receiver=$4
 	`
+	updateMessageTimestampQuery = `
+		UPDATE message SET timestamp=$4 WHERE sender=$1 AND timestamp=$2 AND signal_receiver=$3
+	`
 )
 
 type MessageQuery struct {
@@ -160,4 +163,8 @@ func (msg *Message) Insert(ctx context.Context) error {
 
 func (msg *Message) Delete(ctx context.Context) error {
 	return msg.qh.Exec(ctx, deleteMessageQuery, msg.Sender, msg.Timestamp, msg.PartIndex, msg.SignalReceiver)
+}
+
+func (msg *Message) SetTimestamp(ctx context.Context, editTime uint64) error {
+	return msg.qh.Exec(ctx, updateMessageTimestampQuery, msg.Sender, msg.Timestamp, msg.SignalReceiver, editTime)
 }

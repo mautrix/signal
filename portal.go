@@ -1242,6 +1242,7 @@ func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, 
 		Str("action", "handle signal edit").
 		Str("sender_uuid", sender.SignalID.String()).
 		Uint64("target_msg_ts", timestamp).
+		Uint64("edit_msg_ts", msg.GetTimestamp()).
 		Logger()
 	if portal.MXID == "" {
 		log.Debug().Msg("Dropping edit message in chat with no portal")
@@ -1253,7 +1254,7 @@ func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, 
 		log.Err(err).Msg("Failed to get target message")
 		return
 	} else if len(targetMessage) == 0 {
-		log.Warn().Msg("Target message not found")
+		log.Debug().Msg("Target message not found (edit may have been already handled)")
 		return
 	}
 
@@ -1281,6 +1282,10 @@ func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, 
 		if err != nil {
 			log.Err(err).Int("part_index", i).Msg("Failed to send edit to Matrix")
 		}
+	}
+	err = targetMessage[0].SetTimestamp(ctx, msg.GetTimestamp())
+	if err != nil {
+		log.Err(err).Msg("Failed to update message edit timestamp in database")
 	}
 }
 
