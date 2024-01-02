@@ -29,6 +29,7 @@ import (
 )
 
 type SenderCertificate struct {
+	nc  noCopy
 	ptr *C.SignalSenderCertificate
 }
 

@@ -45,7 +45,7 @@ func scanSenderKey(row scannable) (*libsignalgo.SenderKeyRecord, error) {
 	return libsignalgo.DeserializeSenderKeyRecord(key)
 }
 
-func (s *SQLStore) LoadSenderKey(sender libsignalgo.Address, distributionID uuid.UUID, ctx context.Context) (*libsignalgo.SenderKeyRecord, error) {
+func (s *SQLStore) LoadSenderKey(sender *libsignalgo.Address, distributionID uuid.UUID, ctx context.Context) (*libsignalgo.SenderKeyRecord, error) {
 	distributionIdString := distributionID.String()
 	if distributionIdString == "" {
 		return nil, errors.New(fmt.Sprintf("distributionID did not parse: %v", distributionID))
@@ -61,7 +61,7 @@ func (s *SQLStore) LoadSenderKey(sender libsignalgo.Address, distributionID uuid
 	return scanSenderKey(s.db.QueryRow(loadSenderKeyQuery, s.AciUuid, senderUuid, deviceId, distributionIdString))
 }
 
-func (s *SQLStore) StoreSenderKey(sender libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord, ctx context.Context) error {
+func (s *SQLStore) StoreSenderKey(sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord, ctx context.Context) error {
 	distributionIdString := distributionID.String()
 	if distributionIdString == "" {
 		return errors.New(fmt.Sprintf("distributionID did not parse: %v", distributionID))

@@ -24,6 +24,7 @@ import "C"
 import "runtime"
 
 type PreKeyMessage struct {
+	nc  noCopy
 	ptr *C.SignalPreKeySignalMessage
 }
 

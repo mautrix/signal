@@ -44,6 +44,7 @@ func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionSt
 }
 
 type PreKeyRecord struct {
+	nc  noCopy
 	ptr *C.SignalPreKeyRecord
 }
 
@@ -89,9 +90,8 @@ func (pkr *PreKeyRecord) Clone() (*PreKeyRecord, error) {
 }
 
 func (pkr *PreKeyRecord) Destroy() error {
-	return nil
-	//runtime.SetFinalizer(pkr, nil)
-	//return wrapError(C.signal_pre_key_record_destroy(pkr.ptr))
+	runtime.SetFinalizer(pkr, nil)
+	return wrapError(C.signal_pre_key_record_destroy(pkr.ptr))
 }
 
 func (pkr *PreKeyRecord) Serialize() ([]byte, error) {

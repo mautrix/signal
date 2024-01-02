@@ -27,6 +27,7 @@ import (
 )
 
 type SessionRecord struct {
+	nc  noCopy
 	ptr *C.SignalSessionRecord
 }
 

@@ -28,6 +28,7 @@ import (
 )
 
 type Address struct {
+	nc  noCopy
 	ptr *C.SignalProtocolAddress
 }
 

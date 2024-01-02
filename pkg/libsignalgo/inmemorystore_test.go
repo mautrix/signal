@@ -108,7 +108,7 @@ func (ps *InMemorySignalProtocolStore) StoreSession(address *libsignalgo.Address
 
 // Implementation of the SenderKeyStore interface
 
-func (ps *InMemorySignalProtocolStore) LoadSenderKey(sender libsignalgo.Address, distributionID uuid.UUID, ctx context.Context) (*libsignalgo.SenderKeyRecord, error) {
+func (ps *InMemorySignalProtocolStore) LoadSenderKey(sender *libsignalgo.Address, distributionID uuid.UUID, ctx context.Context) (*libsignalgo.SenderKeyRecord, error) {
 	log.Debug().Msg("LoadSenderKey called")
 	name, err := sender.Name()
 	if err != nil {
@@ -121,7 +121,7 @@ func (ps *InMemorySignalProtocolStore) LoadSenderKey(sender libsignalgo.Address,
 	return ps.senderKeyMap[SenderKeyName{name, deviceID, distributionID}], nil
 }
 
-func (ps *InMemorySignalProtocolStore) StoreSenderKey(sender libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord, ctx context.Context) error {
+func (ps *InMemorySignalProtocolStore) StoreSenderKey(sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord, ctx context.Context) error {
 	log.Debug().Msg("StoreSenderKey called")
 	name, err := sender.Name()
 	if err != nil {

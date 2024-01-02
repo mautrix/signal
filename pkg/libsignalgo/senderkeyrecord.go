@@ -26,6 +26,7 @@ import (
 )
 
 type SenderKeyRecord struct {
+	nc  noCopy
 	ptr *C.SignalSenderKeyRecord
 }
 
@@ -63,7 +64,6 @@ func (skr *SenderKeyRecord) Clone() (*SenderKeyRecord, error) {
 }
 
 func (skr *SenderKeyRecord) Destroy() error {
-	return nil
-	//runtime.SetFinalizer(skr, nil)
-	//return wrapError(C.signal_sender_key_record_destroy(skr.ptr))
+	runtime.SetFinalizer(skr, nil)
+	return wrapError(C.signal_sender_key_record_destroy(skr.ptr))
 }

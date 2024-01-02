@@ -24,6 +24,7 @@ import "C"
 import "runtime"
 
 type PlaintextContent struct {
+	nc  noCopy
 	ptr *C.SignalPlaintextContent
 }
 
@@ -33,7 +34,7 @@ func wrapPlaintextContent(ptr *C.SignalPlaintextContent) *PlaintextContent {
 	return plaintextContent
 }
 
-func PlaintextContentFromDecryptionErrorMessage(message DecryptionErrorMessage) (*PlaintextContent, error) {
+func PlaintextContentFromDecryptionErrorMessage(message *DecryptionErrorMessage) (*PlaintextContent, error) {
 	var pc *C.SignalPlaintextContent
 	signalFfiError := C.signal_plaintext_content_from_decryption_error_message(&pc, message.ptr)
 	if signalFfiError != nil {

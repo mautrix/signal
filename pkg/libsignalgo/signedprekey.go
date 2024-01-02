@@ -27,6 +27,7 @@ import (
 )
 
 type SignedPreKeyRecord struct {
+	nc  noCopy
 	ptr *C.SignalSignedPreKeyRecord
 }
 
@@ -72,8 +73,8 @@ func (spkr *SignedPreKeyRecord) Clone() (*SignedPreKeyRecord, error) {
 }
 
 func (spkr *SignedPreKeyRecord) Destroy() error {
-	//runtime.SetFinalizer(spkr, nil)
-	return nil //wrapError(C.signal_signed_pre_key_record_destroy(spkr.ptr))
+	runtime.SetFinalizer(spkr, nil)
+	return wrapError(C.signal_signed_pre_key_record_destroy(spkr.ptr))
 }
 
 func (spkr *SignedPreKeyRecord) Serialize() ([]byte, error) {

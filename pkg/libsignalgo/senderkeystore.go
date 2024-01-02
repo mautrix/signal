@@ -38,8 +38,8 @@ import (
 )
 
 type SenderKeyStore interface {
-	LoadSenderKey(sender Address, distributionID uuid.UUID, ctx context.Context) (*SenderKeyRecord, error)
-	StoreSenderKey(sender Address, distributionID uuid.UUID, record *SenderKeyRecord, ctx context.Context) error
+	LoadSenderKey(sender *Address, distributionID uuid.UUID, ctx context.Context) (*SenderKeyRecord, error)
+	StoreSenderKey(sender *Address, distributionID uuid.UUID, record *SenderKeyRecord, ctx context.Context) error
 }
 
 func wrapSenderKeyStore(store SenderKeyStore) *C.SignalSenderKeyStore {
@@ -57,7 +57,7 @@ func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp **C.Signal
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store SenderKeyStore, ctx context.Context) error {
 		distributionID := uuid.UUID(*(*[16]byte)(unsafe.Pointer(distributionIDBytes)))
 		record, err := store.LoadSenderKey(
-			Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
+			&Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
 			distributionID,
 			ctx,
 		)
@@ -79,7 +79,7 @@ func signal_store_sender_key_callback(storeCtx unsafe.Pointer, address *C.const_
 		}
 
 		return store.StoreSenderKey(
-			Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
+			&Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
 			distributionID,
 			cloned,
 			ctx,

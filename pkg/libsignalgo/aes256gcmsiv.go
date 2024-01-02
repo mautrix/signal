@@ -24,6 +24,7 @@ import "C"
 import "runtime"
 
 type AES256_GCM_SIV struct {
+	nc  noCopy
 	ptr *C.SignalAes256GcmSiv
 }
 

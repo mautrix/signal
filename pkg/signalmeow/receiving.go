@@ -325,7 +325,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 					zlog.Err(err).Msg("Unmarshal error")
 				}
 				result = &DecryptionResult{
-					SenderAddress: *senderAddress,
+					SenderAddress: senderAddress,
 					Content:       &content,
 					SealedSender:  true,
 				}
@@ -333,7 +333,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		case libsignalgo.CiphertextMessageTypePreKey:
 			zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
-			result, err = prekeyDecrypt(*senderAddress, usmcContents, d, ctx)
+			result, err = prekeyDecrypt(senderAddress, usmcContents, d, ctx)
 			if err != nil {
 				zlog.Err(err).Msg("prekeyDecrypt error")
 			}
@@ -364,7 +364,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 					zlog.Err(err).Msg("Unmarshal error")
 				}
 				result = &DecryptionResult{
-					SenderAddress: *senderAddress,
+					SenderAddress: senderAddress,
 					Content:       &content,
 					SealedSender:  true,
 				}
@@ -428,7 +428,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		if err != nil {
 			return nil, fmt.Errorf("NewAddress error: %v", err)
 		}
-		result, err = prekeyDecrypt(*sender, envelope.Content, d, ctx)
+		result, err = prekeyDecrypt(sender, envelope.Content, d, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("prekeyDecrypt error")
 			checkDecryptionErrorAndDisconnect(err, d)
@@ -473,7 +473,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				zlog.Err(err).Msg("Unmarshal error")
 			}
 			result = &DecryptionResult{
-				SenderAddress: *senderAddress,
+				SenderAddress: senderAddress,
 				Content:       &content,
 			}
 		}
@@ -516,7 +516,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 			}
 			err = libsignalgo.ProcessSenderKeyDistributionMessage(
 				skdm,
-				&result.SenderAddress,
+				result.SenderAddress,
 				d.SenderKeyStore,
 				libsignalgo.NewCallbackContext(ctx),
 			)
@@ -827,7 +827,7 @@ func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestam
 }
 
 type DecryptionResult struct {
-	SenderAddress libsignalgo.Address
+	SenderAddress *libsignalgo.Address
 	Content       *signalpb.Content
 	SealedSender  bool
 }
@@ -892,13 +892,13 @@ func sealedSenderDecrypt(envelope *signalpb.Envelope, device *Device, ctx contex
 		return nil, err
 	}
 	DecryptionResult := &DecryptionResult{
-		SenderAddress: *address,
+		SenderAddress: address,
 		Content:       content,
 	}
 	return DecryptionResult, nil
 }
 
-func prekeyDecrypt(sender libsignalgo.Address, encryptedContent []byte, device *Device, ctx context.Context) (*DecryptionResult, error) {
+func prekeyDecrypt(sender *libsignalgo.Address, encryptedContent []byte, device *Device, ctx context.Context) (*DecryptionResult, error) {
 	preKeyMessage, err := libsignalgo.DeserializePreKeyMessage(encryptedContent)
 	if err != nil {
 		err = fmt.Errorf("DeserializePreKeyMessage error: %v", err)
@@ -911,7 +911,7 @@ func prekeyDecrypt(sender libsignalgo.Address, encryptedContent []byte, device *
 
 	data, err := libsignalgo.DecryptPreKey(
 		preKeyMessage,
-		&sender,
+		sender,
 		device.SessionStore,
 		device.IdentityStore,
 		device.PreKeyStore,

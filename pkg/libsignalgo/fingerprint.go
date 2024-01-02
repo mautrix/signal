@@ -31,6 +31,7 @@ const (
 )
 
 type Fingerprint struct {
+	nc  noCopy
 	ptr *C.SignalFingerprint
 }
 

@@ -39,6 +39,7 @@ func ProcessPreKeyBundle(bundle *PreKeyBundle, forAddress *Address, sessionStore
 }
 
 type PreKeyBundle struct {
+	nc  noCopy
 	ptr *C.SignalPreKeyBundle
 }
 

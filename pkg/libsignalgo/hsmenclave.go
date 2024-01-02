@@ -24,6 +24,7 @@ import "C"
 import "runtime"
 
 type HSMEnclaveClient struct {
+	nc  noCopy
 	ptr *C.SignalHsmEnclaveClient
 }
 

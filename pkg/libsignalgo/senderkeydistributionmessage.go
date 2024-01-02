@@ -38,6 +38,7 @@ func ProcessSenderKeyDistributionMessage(message *SenderKeyDistributionMessage, 
 }
 
 type SenderKeyDistributionMessage struct {
+	nc  noCopy
 	ptr *C.SignalSenderKeyDistributionMessage
 }
 

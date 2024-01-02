@@ -130,8 +130,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		pniSignedPreKey := GenerateSignedPreKey(2, UUID_KIND_PNI, pniIdentityKeyPair)
 		aciPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUID_KIND_ACI, aciIdentityKeyPair)
 		pniPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUID_KIND_PNI, pniIdentityKeyPair)
-		aciPQLastResortPreKey := (*aciPQLastResortPreKeys)[0]
-		pniPQLastResortPreKey := (*pniPQLastResortPreKeys)[0]
+		aciPQLastResortPreKey := aciPQLastResortPreKeys[0]
+		pniPQLastResortPreKey := pniPQLastResortPreKeys[0]
 		deviceResponse, err := confirmDevice(
 			ctx,
 			username,
@@ -141,8 +141,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 			pniRegistrationId,
 			aciSignedPreKey,
 			pniSignedPreKey,
-			&aciPQLastResortPreKey,
-			&pniPQLastResortPreKey,
+			aciPQLastResortPreKey,
+			pniPQLastResortPreKey,
 			aciIdentityKeyPair,
 			deviceName,
 		)
@@ -199,8 +199,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		// Store signed prekeys (now that we have a device)
 		StoreSignedPreKey(device, aciSignedPreKey, UUID_KIND_ACI)
 		StoreSignedPreKey(device, pniSignedPreKey, UUID_KIND_PNI)
-		StoreKyberLastResortPreKey(device, &aciPQLastResortPreKey, UUID_KIND_ACI)
-		StoreKyberLastResortPreKey(device, &pniPQLastResortPreKey, UUID_KIND_PNI)
+		StoreKyberLastResortPreKey(device, aciPQLastResortPreKey, UUID_KIND_ACI)
+		StoreKyberLastResortPreKey(device, pniPQLastResortPreKey, UUID_KIND_PNI)
 
 		// Store our profile key
 		err = device.ProfileKeyStore.StoreProfileKey(data.AciUuid, profileKey, ctx)

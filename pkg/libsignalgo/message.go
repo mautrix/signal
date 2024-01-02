@@ -41,6 +41,7 @@ func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, 
 }
 
 type Message struct {
+	nc  noCopy
 	ptr *C.SignalMessage
 }
 

@@ -24,6 +24,7 @@ import "C"
 import "runtime"
 
 type ServerCertificate struct {
+	nc  noCopy
 	ptr *C.SignalServerCertificate
 }
 

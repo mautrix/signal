@@ -24,6 +24,7 @@ import "C"
 import "runtime"
 
 type PublicKey struct {
+	nc  noCopy
 	ptr *C.SignalPublicKey
 }
 
@@ -61,9 +62,8 @@ func (pk *PublicKey) Serialize() ([]byte, error) {
 }
 
 func (k *PublicKey) Destroy() error {
-	return nil
-	//runtime.SetFinalizer(k, nil)
-	//return wrapError(C.signal_publickey_destroy(k.ptr))
+	runtime.SetFinalizer(k, nil)
+	return wrapError(C.signal_publickey_destroy(k.ptr))
 }
 
 func (k *PublicKey) Compare(other *PublicKey) (int, error) {

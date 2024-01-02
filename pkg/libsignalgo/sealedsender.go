@@ -159,6 +159,7 @@ const (
 )
 
 type UnidentifiedSenderMessageContent struct {
+	nc  noCopy
 	ptr *C.SignalUnidentifiedSenderMessageContent
 }
 

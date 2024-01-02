@@ -33,6 +33,7 @@ const (
 )
 
 type CiphertextMessage struct {
+	nc  noCopy
 	ptr *C.SignalCiphertextMessage
 }
 
@@ -42,7 +43,7 @@ func wrapCiphertextMessage(ptr *C.SignalCiphertextMessage) *CiphertextMessage {
 	return ciphertextMessage
 }
 
-func NewCiphertextMessage(plaintext PlaintextContent) (*CiphertextMessage, error) {
+func NewCiphertextMessage(plaintext *PlaintextContent) (*CiphertextMessage, error) {
 	var ciphertextMessage *C.SignalCiphertextMessage
 	signalFfiError := C.signal_ciphertext_message_from_plaintext_content(&ciphertextMessage, plaintext.ptr)
 	if signalFfiError != nil {

@@ -27,6 +27,7 @@ import (
 )
 
 type DecryptionErrorMessage struct {
+	nc  noCopy
 	ptr *C.SignalDecryptionErrorMessage
 }
 

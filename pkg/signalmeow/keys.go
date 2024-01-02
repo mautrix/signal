@@ -29,8 +29,8 @@ import (
 )
 
 type GeneratedPreKeys struct {
-	PreKeys      []libsignalgo.PreKeyRecord
-	KyberPreKeys []libsignalgo.KyberPreKeyRecord
+	PreKeys      []*libsignalgo.PreKeyRecord
+	KyberPreKeys []*libsignalgo.KyberPreKeyRecord
 	IdentityKey  []uint8
 }
 
@@ -57,11 +57,11 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyId, 100, uuidKind, identityKeyPair)
 
 	// Persist prekeys
-	for _, preKey := range *preKeys {
-		device.PreKeyStoreExtras.SavePreKey(uuidKind, &preKey, false)
+	for _, preKey := range preKeys {
+		device.PreKeyStoreExtras.SavePreKey(uuidKind, preKey, false)
 	}
-	for _, kyberPreKey := range *kyberPreKeys {
-		device.PreKeyStoreExtras.SaveKyberPreKey(uuidKind, &kyberPreKey, false)
+	for _, kyberPreKey := range kyberPreKeys {
+		device.PreKeyStoreExtras.SaveKyberPreKey(uuidKind, kyberPreKey, false)
 	}
 
 	// Register prekeys
@@ -71,8 +71,8 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 		return err
 	}
 	generatedPreKeys := GeneratedPreKeys{
-		PreKeys:      *preKeys,
-		KyberPreKeys: *kyberPreKeys,
+		PreKeys:      preKeys,
+		KyberPreKeys: kyberPreKeys,
 		IdentityKey:  identityKey,
 	}
 	preKeyUsername := device.Data.Number
@@ -88,7 +88,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 
 	// Mark prekeys as registered
 	// (kyber prekeys don't have "mark as uploaded" we just assume they always are)
-	lastPreKeyId, err := (*preKeys)[len(*preKeys)-1].GetID()
+	lastPreKeyId, err := preKeys[len(preKeys)-1].GetID()
 	err = device.PreKeyStoreExtras.MarkPreKeysAsUploaded(uuidKind, lastPreKeyId)
 
 	if err != nil {
@@ -98,8 +98,8 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	return err
 }
 
-func GeneratePreKeys(startKeyId uint, count uint, uuidKind UUIDKind) *[]libsignalgo.PreKeyRecord {
-	generatedPreKeys := []libsignalgo.PreKeyRecord{}
+func GeneratePreKeys(startKeyId uint, count uint, uuidKind UUIDKind) []*libsignalgo.PreKeyRecord {
+	generatedPreKeys := []*libsignalgo.PreKeyRecord{}
 	for i := startKeyId; i < startKeyId+count; i++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
 		if err != nil {
@@ -111,13 +111,13 @@ func GeneratePreKeys(startKeyId uint, count uint, uuidKind UUIDKind) *[]libsigna
 			zlog.Err(err).Msg("Error creating preKey record")
 			panic(err)
 		}
-		generatedPreKeys = append(generatedPreKeys, *preKey)
+		generatedPreKeys = append(generatedPreKeys, preKey)
 	}
-	return &generatedPreKeys
+	return generatedPreKeys
 }
 
-func GenerateKyberPreKeys(startKeyId uint, count uint, uuidKind UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *[]libsignalgo.KyberPreKeyRecord {
-	generatedKyberPreKeys := []libsignalgo.KyberPreKeyRecord{}
+func GenerateKyberPreKeys(startKeyId uint, count uint, uuidKind UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) []*libsignalgo.KyberPreKeyRecord {
+	generatedKyberPreKeys := []*libsignalgo.KyberPreKeyRecord{}
 	for i := startKeyId; i < startKeyId+count; i++ {
 		kyberPreKeyPair, err := libsignalgo.KyberKeyPairGenerate()
 		if err != nil {
@@ -145,9 +145,9 @@ func GenerateKyberPreKeys(startKeyId uint, count uint, uuidKind UUIDKind, identi
 			panic(err)
 
 		}
-		generatedKyberPreKeys = append(generatedKyberPreKeys, *preKey)
+		generatedKyberPreKeys = append(generatedKyberPreKeys, preKey)
 	}
-	return &generatedKyberPreKeys
+	return generatedKyberPreKeys
 }
 
 func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind UUIDKind, identityKeyPair *libsignalgo.IdentityKeyPair) *libsignalgo.SignedPreKeyRecord {
@@ -235,11 +235,11 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind UUIDKind, user
 	preKeysJson := []map[string]interface{}{}
 	kyberPreKeysJson := []map[string]interface{}{}
 	for _, preKey := range generatedPreKeys.PreKeys {
-		preKeyJson := PreKeyToJSON(&preKey)
+		preKeyJson := PreKeyToJSON(preKey)
 		preKeysJson = append(preKeysJson, preKeyJson)
 	}
 	for _, kyberPreKey := range generatedPreKeys.KyberPreKeys {
-		kyberPreKeyJson := KyberPreKeyToJSON(&kyberPreKey)
+		kyberPreKeyJson := KyberPreKeyToJSON(kyberPreKey)
 		kyberPreKeysJson = append(kyberPreKeysJson, kyberPreKeyJson)
 	}
 
