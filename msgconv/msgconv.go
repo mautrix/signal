@@ -26,6 +26,7 @@ import (
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
@@ -35,7 +36,7 @@ type PortalMethods interface {
 	GetMatrixReply(ctx context.Context, msg *signalpb.DataMessage_Quote) (replyTo id.EventID, replyTargetSender id.UserID)
 	GetSignalReply(ctx context.Context, content *event.MessageEventContent) *signalpb.DataMessage_Quote
 
-	//GetClient() *signalmeow.Device
+	GetClient(ctx context.Context) *signalmeow.Device
 
 	GetData(ctx context.Context) *database.Portal
 }

@@ -945,10 +945,15 @@ func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err er
 	portal.sendStatusEvent(evt.ID, "", err, nil)
 }
 
-const intentKey = "fi.mau.portal.intent"
+type msgconvContextKey int
+
+const (
+	msgconvContextKeyIntent msgconvContextKey = iota
+	msgconvContextKeyClient
+)
 
 func (portal *Portal) UploadMatrixMedia(ctx context.Context, data []byte, fileName, contentType string) (id.ContentURIString, error) {
-	intent := ctx.Value(intentKey).(*appservice.IntentAPI)
+	intent := ctx.Value(msgconvContextKeyIntent).(*appservice.IntentAPI)
 	req := mautrix.ReqUploadMedia{
 		ContentBytes: data,
 		ContentType:  contentType,
@@ -979,6 +984,10 @@ func (portal *Portal) DownloadMatrixMedia(ctx context.Context, uriString id.Cont
 
 func (portal *Portal) GetData(ctx context.Context) *database.Portal {
 	return portal.Portal
+}
+
+func (portal *Portal) GetClient(ctx context.Context) *signalmeow.Device {
+	return ctx.Value(msgconvContextKeyClient).(*signalmeow.Device)
 }
 
 func (portal *Portal) GetMatrixReply(ctx context.Context, msg *signalpb.DataMessage_Quote) (replyTo id.EventID, replyTargetSender id.UserID) {
@@ -1219,7 +1228,7 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 	}
 
 	intent := sender.IntentFor(portal)
-	ctx = context.WithValue(ctx, intentKey, intent)
+	ctx = context.WithValue(ctx, msgconvContextKeyIntent, intent)
 	converted := portal.MsgConv.ToMatrix(ctx, msg)
 	if portal.bridge.Config.Bridge.CaptionInMessage {
 		converted.MergeCaption()
@@ -1259,7 +1268,7 @@ func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, 
 	}
 
 	intent := sender.IntentFor(portal)
-	ctx = context.WithValue(ctx, intentKey, intent)
+	ctx = context.WithValue(ctx, msgconvContextKeyIntent, intent)
 	converted := portal.MsgConv.ToMatrix(ctx, msg)
 	if portal.bridge.Config.Bridge.CaptionInMessage {
 		converted.MergeCaption()

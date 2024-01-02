@@ -114,7 +114,7 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 		cm.Parts = append(cm.Parts, mc.convertPaymentToMatrix(ctx, dm.Payment))
 	}
 	if dm.Body != nil {
-		cm.Parts = append(cm.Parts, mc.convertTextToMatrix(ctx, dm.GetBody(), dm.GetBodyRanges()))
+		cm.Parts = append(cm.Parts, mc.convertTextToMatrix(ctx, dm))
 	}
 	if len(cm.Parts) == 0 && dm.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT) {
 		cm.Parts = append(cm.Parts, &ConvertedMessagePart{
@@ -160,11 +160,16 @@ func (mc *MessageConverter) convertDisappearingTimerChangeToMatrix(ctx context.C
 	return part
 }
 
-func (mc *MessageConverter) convertTextToMatrix(ctx context.Context, text string, ranges []*signalpb.BodyRange) *ConvertedMessagePart {
-	content := signalfmt.Parse(text, ranges, mc.SignalFmtParams)
+func (mc *MessageConverter) convertTextToMatrix(ctx context.Context, dm *signalpb.DataMessage) *ConvertedMessagePart {
+	content := signalfmt.Parse(dm.GetBody(), dm.GetBodyRanges(), mc.SignalFmtParams)
+	extra := map[string]any{}
+	if len(dm.Preview) > 0 {
+		extra["com.beeper.linkpreviews"] = mc.convertURLPreviewsToBeeper(ctx, dm.Preview)
+	}
 	return &ConvertedMessagePart{
 		Type:    event.EventMessage,
 		Content: content,
+		Extra:   extra,
 	}
 }
 
