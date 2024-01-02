@@ -61,4 +61,4 @@ jobs:
         run: |
           set -euo pipefail
           export LIBRARY_PATH=.
-          go test -v -ldflags "-extldflags -lm" -json ./... -cover | gotestfmt
+          go test -v -json ./... -cover | gotestfmt

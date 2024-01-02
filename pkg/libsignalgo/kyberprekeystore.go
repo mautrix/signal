@@ -17,7 +17,7 @@
 package libsignalgo
 
 /*
-#cgo LDFLAGS: -lsignal_ffi -ldl
+#cgo LDFLAGS: -lsignal_ffi -ldl -lm
 #include "./libsignal-ffi.h"
 
 typedef const SignalKyberPreKeyRecord const_kyber_pre_key_record;
