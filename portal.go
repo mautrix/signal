@@ -1358,11 +1358,6 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	}
 	portal.log.Debug().Msg("Creating matrix room")
 
-	//meta = portal.UpdateInfo(user, meta)
-	//if meta == nil {
-	//	return fmt.Errorf("didn't find metadata")
-	//}
-
 	intent := portal.MainIntent()
 
 	if err := intent.EnsureRegistered(); err != nil {
@@ -1411,6 +1406,9 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 			invite = append(invite, portal.bridge.Bot.UserID)
 		}
 	}
+
+	// FIXME slightly hacky
+	user.syncPortalInfo(portal)
 
 	resp, err := intent.CreateRoom(&mautrix.ReqCreateRoom{
 		Visibility:      "private",

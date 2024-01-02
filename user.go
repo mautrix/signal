@@ -836,8 +836,12 @@ func (user *User) syncPortalInfo(portal *Portal) {
 			portal.Revision = int(group.Revision)
 			updatePortal = true
 		}
-		if portal.Name != group.Title || portal.Topic != group.Description {
+		if portal.Name != group.Title {
 			portal.Name = group.Title
+			portal.NameSet = false
+			updatePortal = true
+		}
+		if portal.Topic != group.Description {
 			portal.Topic = group.Description
 			updatePortal = true
 		}
@@ -857,39 +861,50 @@ func (user *User) syncPortalInfo(portal *Portal) {
 				return
 			}
 			portal.AvatarURL = avatarURL.ContentURI
-			portal.AvatarSet = true
+			portal.AvatarSet = false
 			hash := sha256.Sum256(avatarImage)
 			portal.AvatarHash = hex.EncodeToString(hash[:])
 			updatePortal = true
 		}
 
-		// ensure everyone is invited to the group
-		portal.ensureUserInvited(user)
-		_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
-		go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
+		if portal.MXID != "" {
+			// ensure everyone is invited to the group
+			portal.ensureUserInvited(user)
+			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
+			go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
+		}
 	} else if portal.shouldSetDMRoomMetadata() {
 		puppet := user.bridge.GetPuppetBySignalID(portal.UserID())
 		if puppet.Name != portal.Name {
 			portal.Name = puppet.Name
+			portal.NameSet = false
+			updatePortal = true
+		}
+		if puppet.AvatarHash != portal.AvatarHash {
+			portal.AvatarHash = puppet.AvatarHash
+			portal.AvatarURL = puppet.AvatarURL
+			portal.AvatarSet = false
 			updatePortal = true
 		}
 	}
 	if updatePortal {
-		_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
-		if err != nil {
-			user.log.Err(err).Msg("error setting room name")
+		if portal.MXID != "" {
+			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+			if err != nil {
+				user.log.Err(err).Msg("error setting room name")
+			}
+			portal.NameSet = err == nil
+			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+			if err != nil {
+				user.log.Err(err).Msg("error setting room topic")
+			}
+			_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
+			if err != nil {
+				user.log.Err(err).Msg("error setting room avatar")
+			}
+			portal.AvatarSet = err == nil
 		}
-		portal.NameSet = err == nil
-		_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
-		if err != nil {
-			user.log.Err(err).Msg("error setting room topic")
-		}
-		_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
-		if err != nil {
-			user.log.Err(err).Msg("error setting room avatar")
-		}
-		portal.AvatarSet = err == nil
-		err = portal.Update(context.TODO())
+		err := portal.Update(context.TODO())
 		if err != nil {
 			user.log.Err(err).Msg("error updating portal")
 		}
