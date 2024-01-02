@@ -84,6 +84,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Str, "bridge", "private_chat_portal_meta")
 	helper.Copy(up.Bool, "bridge", "use_contact_avatars")
 	helper.Copy(up.Int, "bridge", "portal_message_buffer")
+	helper.Copy(up.Bool, "bridge", "personal_filtering_spaces")
 	helper.Copy(up.Bool, "bridge", "delivery_receipts")
 	helper.Copy(up.Bool, "bridge", "message_status_events")
 	helper.Copy(up.Bool, "bridge", "message_error_notices")
@@ -145,6 +146,7 @@ var SpacedBlocks = [][]string{
 	{"metrics"},
 	{"signal"},
 	{"bridge"},
+	{"bridge", "personal_filtering_spaces"},
 	{"bridge", "command_prefix"},
 	{"bridge", "management_room_text"},
 	{"bridge", "encryption"},

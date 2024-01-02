@@ -52,6 +52,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdLogin,
 		cmdSetDeviceName,
 		cmdPM,
+		cmdSyncSpace,
 		cmdDeleteSession,
 		cmdSetRelay,
 		cmdUnsetRelay,
@@ -228,6 +229,50 @@ func fnPM(ce *WrappedCommandEvent) {
 		return
 	}
 	ce.Reply("Created portal room with and invited you to it.")
+}
+
+var cmdSyncSpace = &commands.FullHandler{
+	Func: wrapCommand(fnSyncSpace),
+	Name: "sync-space",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionMiscellaneous,
+		Description: "Synchronize your personal filtering space",
+	},
+	RequiresLogin: true,
+}
+
+func fnSyncSpace(ce *WrappedCommandEvent) {
+	if !ce.Bridge.Config.Bridge.PersonalFilteringSpaces {
+		ce.Reply("Personal filtering spaces are not enabled on this instance of the bridge")
+		return
+	}
+	ctx := ce.ZLog.WithContext(context.TODO())
+	dmKeys, err := ce.Bridge.DB.Portal.FindPrivateChatsNotInSpace(ctx, ce.User.SignalID)
+	if err != nil {
+		ce.ZLog.Err(err).Msg("Failed to get private chat keys")
+		ce.Reply("Failed to get private chat IDs from database")
+		return
+	}
+	count := 0
+	allPortals := ce.Bridge.GetAllPortalsWithMXID()
+	for _, portal := range allPortals {
+		if portal.IsPrivateChat() {
+			continue
+		}
+		if ce.Bridge.StateStore.IsInRoom(portal.MXID, ce.User.MXID) && portal.addToPersonalSpace(ctx, ce.User) {
+			count++
+		}
+	}
+	for _, key := range dmKeys {
+		portal := ce.Bridge.GetPortalByChatID(key)
+		portal.addToPersonalSpace(ctx, ce.User)
+		count++
+	}
+	plural := "s"
+	if count == 1 {
+		plural = ""
+	}
+	ce.Reply("Added %d room%s to space", count, plural)
 }
 
 var cmdLogin = &commands.FullHandler{

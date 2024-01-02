@@ -19,6 +19,8 @@ package database
 import (
 	"context"
 	"database/sql"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
@@ -26,12 +28,12 @@ import (
 )
 
 const (
-	getUserByMXIDQuery       = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE mxid=$1`
-	getUserByPhoneQuery      = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE phone=$1`
-	getUserByUUIDQuery       = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE uuid=$1`
-	getAllLoggedInUsersQuery = `SELECT mxid, phone, uuid, management_room FROM "user" WHERE phone IS NOT NULL`
-	insertUserQuery          = `INSERT INTO "user" (mxid, phone, uuid, management_room) VALUES ($1, $2, $3, $4)`
-	updateUserQuery          = `UPDATE "user" SET phone=$2, uuid=$3, management_room=$4 WHERE mxid=$1`
+	getUserByMXIDQuery       = `SELECT mxid, phone, uuid, management_room, space_room FROM "user" WHERE mxid=$1`
+	getUserByPhoneQuery      = `SELECT mxid, phone, uuid, management_room, space_room FROM "user" WHERE phone=$1`
+	getUserByUUIDQuery       = `SELECT mxid, phone, uuid, management_room, space_room FROM "user" WHERE uuid=$1`
+	getAllLoggedInUsersQuery = `SELECT mxid, phone, uuid, management_room, space_room FROM "user" WHERE phone IS NOT NULL`
+	insertUserQuery          = `INSERT INTO "user" (mxid, phone, uuid, management_room, space_room) VALUES ($1, $2, $3, $4, $5)`
+	updateUserQuery          = `UPDATE "user" SET phone=$2, uuid=$3, management_room=$4, space_room=$5 WHERE mxid=$1`
 )
 
 type UserQuery struct {
@@ -45,10 +47,21 @@ type User struct {
 	SignalUsername string
 	SignalID       uuid.UUID
 	ManagementRoom id.RoomID
+	SpaceRoom      id.RoomID
+
+	lastReadCache     map[PortalKey]time.Time
+	lastReadCacheLock sync.Mutex
+	inSpaceCache      map[PortalKey]bool
+	inSpaceCacheLock  sync.Mutex
 }
 
 func newUser(qh *dbutil.QueryHelper[*User]) *User {
-	return &User{qh: qh}
+	return &User{
+		qh: qh,
+
+		lastReadCache: make(map[PortalKey]time.Time),
+		inSpaceCache:  make(map[PortalKey]bool),
+	}
 }
 
 func (uq *UserQuery) GetByMXID(ctx context.Context, mxid id.UserID) (*User, error) {
@@ -71,7 +84,7 @@ func (u *User) sqlVariables() []any {
 	var nu uuid.NullUUID
 	nu.UUID = u.SignalID
 	nu.Valid = u.SignalID != uuid.Nil
-	return []any{u.MXID, dbutil.StrPtr(u.SignalUsername), nu, dbutil.StrPtr(u.ManagementRoom)}
+	return []any{u.MXID, dbutil.StrPtr(u.SignalUsername), nu, dbutil.StrPtr(u.ManagementRoom), dbutil.StrPtr(u.SpaceRoom)}
 }
 
 func (u *User) Insert(ctx context.Context) error {
@@ -83,13 +96,14 @@ func (u *User) Update(ctx context.Context) error {
 }
 
 func (u *User) Scan(row dbutil.Scannable) (*User, error) {
-	var phone, managementRoom sql.NullString
+	var phone, managementRoom, spaceRoom sql.NullString
 	var signalID uuid.NullUUID
 	err := row.Scan(
 		&u.MXID,
 		&phone,
 		&signalID,
 		&managementRoom,
+		&spaceRoom,
 	)
 	if err != nil {
 		return nil, err
@@ -97,5 +111,6 @@ func (u *User) Scan(row dbutil.Scannable) (*User, error) {
 	u.SignalUsername = phone.String
 	u.SignalID = signalID.UUID
 	u.ManagementRoom = id.RoomID(managementRoom.String)
+	u.SpaceRoom = id.RoomID(spaceRoom.String)
 	return u, nil
 }

@@ -38,16 +38,17 @@ type BridgeConfig struct {
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 
-	DoublePuppetConfig bridgeconfig.DoublePuppetConfig `yaml:",inline"`
+	PersonalFilteringSpaces bool `yaml:"personal_filtering_spaces"`
+	BridgeNotices           bool `yaml:"bridge_notices"`
+	DeliveryReceipts        bool `yaml:"delivery_receipts"`
+	MessageStatusEvents     bool `yaml:"message_status_events"`
+	MessageErrorNotices     bool `yaml:"message_error_notices"`
+	SyncDirectChatList      bool `yaml:"sync_direct_chat_list"`
+	ResendBridgeInfo        bool `yaml:"resend_bridge_info"`
+	CaptionInMessage        bool `yaml:"caption_in_message"`
+	FederateRooms           bool `yaml:"federate_rooms"`
 
-	BridgeNotices       bool `yaml:"bridge_notices"`
-	DeliveryReceipts    bool `yaml:"delivery_receipts"`
-	MessageStatusEvents bool `yaml:"message_status_events"`
-	MessageErrorNotices bool `yaml:"message_error_notices"`
-	SyncDirectChatList  bool `yaml:"sync_direct_chat_list"`
-	ResendBridgeInfo    bool `yaml:"resend_bridge_info"`
-	CaptionInMessage    bool `yaml:"caption_in_message"`
-	FederateRooms       bool `yaml:"federate_rooms"`
+	DoublePuppetConfig bridgeconfig.DoublePuppetConfig `yaml:",inline"`
 
 	MessageHandlingTimeout struct {
 		ErrorAfterStr string `yaml:"error_after"`

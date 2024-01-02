@@ -1449,6 +1449,7 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 
 	user.ensureInvited(portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
 	user.syncChatDoublePuppetDetails(portal, true)
+	go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 
 	//portal.syncParticipants(user, channel.Recipients)
 
@@ -1546,6 +1547,30 @@ func (portal *Portal) ScheduleDisappearing() {
 	portal.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(context.TODO(), portal.MXID)
 }
 
+func (portal *Portal) addToPersonalSpace(ctx context.Context, user *User) bool {
+	spaceID := user.GetSpaceRoom()
+	if len(spaceID) == 0 || user.IsInSpace(ctx, portal.PortalKey) {
+		return false
+	}
+	_, err := portal.bridge.Bot.SendStateEvent(spaceID, event.StateSpaceChild, portal.MXID.String(), &event.SpaceChildEventContent{
+		Via: []string{portal.bridge.Config.Homeserver.Domain},
+	})
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).
+			Str("user_id", user.MXID.String()).
+			Str("space_id", spaceID.String()).
+			Msg("Failed to add room to user's personal filtering space")
+		return false
+	} else {
+		zerolog.Ctx(ctx).Debug().
+			Str("user_id", user.MXID.String()).
+			Str("space_id", spaceID.String()).
+			Msg("Added room to user's personal filtering space")
+		user.MarkInSpace(ctx, portal.PortalKey)
+		return true
+	}
+}
+
 func (portal *Portal) HasRelaybot() bool {
 	return portal.bridge.Config.Bridge.Relay.Enabled && len(portal.RelayUserID) > 0
 }
@@ -1574,7 +1599,18 @@ func (portal *Portal) Delete() {
 	if len(portal.MXID) > 0 {
 		delete(portal.bridge.portalsByMXID, portal.MXID)
 	}
-	//portal.resetChildSpaceStatus()
+	if portal.Receiver == uuid.Nil {
+		portal.bridge.usersLock.Lock()
+		for _, user := range portal.bridge.usersBySignalID {
+			user.RemoveInSpaceCache(portal.PortalKey)
+		}
+		portal.bridge.usersLock.Unlock()
+	} else {
+		user := portal.bridge.GetUserBySignalID(portal.Receiver)
+		if user != nil {
+			user.RemoveInSpaceCache(portal.PortalKey)
+		}
+	}
 	portal.bridge.portalsLock.Unlock()
 }
 

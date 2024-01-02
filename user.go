@@ -64,6 +64,9 @@ type User struct {
 
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
+
+	spaceMembershipChecked bool
+	spaceCreateLock        sync.Mutex
 }
 
 var _ bridge.User = (*User)(nil)
@@ -249,6 +252,59 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 		}
 	}
 	return
+}
+
+func (user *User) GetSpaceRoom() id.RoomID {
+	if !user.bridge.Config.Bridge.PersonalFilteringSpaces {
+		return ""
+	}
+
+	if len(user.SpaceRoom) == 0 {
+		user.spaceCreateLock.Lock()
+		defer user.spaceCreateLock.Unlock()
+		if len(user.SpaceRoom) > 0 {
+			return user.SpaceRoom
+		}
+
+		resp, err := user.bridge.Bot.CreateRoom(&mautrix.ReqCreateRoom{
+			Visibility: "private",
+			Name:       "Signal",
+			Topic:      "Your Signal bridged chats",
+			InitialState: []*event.Event{{
+				Type: event.StateRoomAvatar,
+				Content: event.Content{
+					Parsed: &event.RoomAvatarEventContent{
+						URL: user.bridge.Config.AppService.Bot.ParsedAvatar,
+					},
+				},
+			}},
+			CreationContent: map[string]interface{}{
+				"type": event.RoomTypeSpace,
+			},
+			PowerLevelOverride: &event.PowerLevelsEventContent{
+				Users: map[id.UserID]int{
+					user.bridge.Bot.UserID: 9001,
+					user.MXID:              50,
+				},
+			},
+		})
+
+		if err != nil {
+			user.log.Err(err).Msg("Failed to auto-create space room")
+		} else {
+			user.SpaceRoom = resp.RoomID
+			err = user.Update(context.TODO())
+			if err != nil {
+				user.log.Err(err).Msg("Failed to save user in database after creating space room")
+			}
+			user.ensureInvited(user.bridge.Bot, user.SpaceRoom, false)
+		}
+	} else if !user.spaceMembershipChecked {
+		user.ensureInvited(user.bridge.Bot, user.SpaceRoom, false)
+	}
+	user.spaceMembershipChecked = true
+
+	return user.SpaceRoom
 }
 
 func (user *User) syncChatDoublePuppetDetails(portal *Portal, justCreated bool) {
@@ -810,6 +866,7 @@ func (user *User) syncPortalInfo(portal *Portal) {
 		// ensure everyone is invited to the group
 		portal.ensureUserInvited(user)
 		_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
+		go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 	} else if portal.shouldSetDMRoomMetadata() {
 		puppet := user.bridge.GetPuppetBySignalID(portal.UserID())
 		if puppet.Name != portal.Name {

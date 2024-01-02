@@ -37,7 +37,12 @@ const (
 	getPortalByChatIDQuery     = portalBaseSelect + `WHERE chat_id=$1 AND receiver=$2`
 	getPortalsByReceiver       = portalBaseSelect + `WHERE receiver=$1`
 	getAllPortalsWithMXIDQuery = portalBaseSelect + `WHERE mxid IS NOT NULL`
-	insertPortalQuery          = `
+	getChatsNotInSpaceQuery    = `
+		SELECT chat_id FROM portal
+		    LEFT JOIN user_portal ON portal.chat_id=user_portal.portal_chat_id AND portal.receiver=user_portal.portal_receiver
+		WHERE mxid<>'' AND receiver=$1 AND (user_portal.in_space=false OR user_portal.in_space IS NULL)
+	`
+	insertPortalQuery = `
 		INSERT INTO portal (
 			chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,
 			revision, encrypted, relay_user_id, expiration_time
@@ -116,6 +121,18 @@ func (pq *PortalQuery) FindPrivateChatsOf(ctx context.Context, receiver uuid.UUI
 
 func (pq *PortalQuery) GetAllWithMXID(ctx context.Context) ([]*Portal, error) {
 	return pq.QueryMany(ctx, getAllPortalsWithMXIDQuery)
+}
+
+func (pq *PortalQuery) FindPrivateChatsNotInSpace(ctx context.Context, receiver uuid.UUID) ([]PortalKey, error) {
+	rows, err := pq.GetDB().QueryContext(ctx, getChatsNotInSpaceQuery, receiver)
+	if err != nil {
+		return nil, err
+	}
+	return dbutil.NewRowIter(rows, func(rows dbutil.Rows) (key PortalKey, err error) {
+		err = rows.Scan(&key.ChatID)
+		key.Receiver = receiver
+		return
+	}).AsList()
 }
 
 func (p *Portal) Scan(row dbutil.Scannable) (*Portal, error) {
