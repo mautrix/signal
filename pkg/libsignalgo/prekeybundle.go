@@ -105,8 +105,12 @@ func (pkb *PreKeyBundle) Clone() (*PreKeyBundle, error) {
 }
 
 func (pkb *PreKeyBundle) Destroy() error {
-	runtime.SetFinalizer(pkb, nil)
+	pkb.CancelFinalizer()
 	return wrapError(C.signal_pre_key_bundle_destroy(pkb.ptr))
+}
+
+func (pkb *PreKeyBundle) CancelFinalizer() {
+	runtime.SetFinalizer(pkb, nil)
 }
 
 func (pkb *PreKeyBundle) GetIdentityKey() (*IdentityKey, error) {

@@ -72,8 +72,12 @@ func DeserializeSenderKeyDistributionMessage(serialized []byte) (*SenderKeyDistr
 }
 
 func (sc *SenderKeyDistributionMessage) Destroy() error {
-	runtime.SetFinalizer(sc, nil)
+	sc.CancelFinalizer()
 	return wrapError(C.signal_sender_key_distribution_message_destroy(sc.ptr))
+}
+
+func (sc *SenderKeyDistributionMessage) CancelFinalizer() {
+	runtime.SetFinalizer(sc, nil)
 }
 
 func (sc *SenderKeyDistributionMessage) Serialize() ([]byte, error) {

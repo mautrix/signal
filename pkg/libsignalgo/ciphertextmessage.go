@@ -53,8 +53,12 @@ func NewCiphertextMessage(plaintext *PlaintextContent) (*CiphertextMessage, erro
 }
 
 func (c *CiphertextMessage) Destroy() error {
-	runtime.SetFinalizer(c, nil)
+	c.CancelFinalizer()
 	return wrapError(C.signal_ciphertext_message_destroy(c.ptr))
+}
+
+func (c *CiphertextMessage) CancelFinalizer() {
+	runtime.SetFinalizer(c, nil)
 }
 
 func (c *CiphertextMessage) Serialize() ([]byte, error) {

@@ -62,8 +62,12 @@ func (pk *PrivateKey) Clone() (*PrivateKey, error) {
 }
 
 func (pk *PrivateKey) Destroy() error {
-	runtime.SetFinalizer(pk, nil)
+	pk.CancelFinalizer()
 	return wrapError(C.signal_privatekey_destroy(pk.ptr))
+}
+
+func (pk *PrivateKey) CancelFinalizer() {
+	runtime.SetFinalizer(pk, nil)
 }
 
 func (pk *PrivateKey) GetPublicKey() (*PublicKey, error) {

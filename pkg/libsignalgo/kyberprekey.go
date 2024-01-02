@@ -53,8 +53,12 @@ func wrapKyberKeyPair(ptr *C.SignalKyberKeyPair) *KyberKeyPair {
 }
 
 func (kp *KyberKeyPair) Destroy() error {
-	runtime.SetFinalizer(kp, nil)
+	kp.CancelFinalizer()
 	return wrapError(C.signal_kyber_key_pair_destroy(kp.ptr))
+}
+
+func (kp *KyberKeyPair) CancelFinalizer() {
+	runtime.SetFinalizer(kp, nil)
 }
 
 func wrapKyberPublicKey(ptr *C.SignalKyberPublicKey) *KyberPublicKey {
@@ -64,8 +68,12 @@ func wrapKyberPublicKey(ptr *C.SignalKyberPublicKey) *KyberPublicKey {
 }
 
 func (k *KyberPublicKey) Destroy() error {
-	runtime.SetFinalizer(k, nil)
+	k.CancelFinalizer()
 	return wrapError(C.signal_publickey_destroy(k.ptr))
+}
+
+func (k *KyberPublicKey) CancelFinalizer() {
+	runtime.SetFinalizer(k, nil)
 }
 
 func wrapKyberSecretKey(ptr *C.SignalKyberSecretKey) *KyberSecretKey {
@@ -75,9 +83,14 @@ func wrapKyberSecretKey(ptr *C.SignalKyberSecretKey) *KyberSecretKey {
 }
 
 func (k *KyberSecretKey) Destroy() error {
-	runtime.SetFinalizer(k, nil)
+	k.CancelFinalizer()
 	return wrapError(C.signal_kyber_secret_key_destroy(k.ptr))
 }
+
+func (k *KyberSecretKey) CancelFinalizer() {
+	runtime.SetFinalizer(k, nil)
+}
+
 func wrapKyberPreKeyRecord(ptr *C.SignalKyberPreKeyRecord) *KyberPreKeyRecord {
 	kpkr := &KyberPreKeyRecord{ptr: ptr}
 	runtime.SetFinalizer(kpkr, (*KyberPreKeyRecord).Destroy)
@@ -139,8 +152,12 @@ func (kpkr *KyberPreKeyRecord) Clone() (*KyberPreKeyRecord, error) {
 }
 
 func (kpkr *KyberPreKeyRecord) Destroy() error {
-	runtime.SetFinalizer(kpkr, nil)
+	kpkr.CancelFinalizer()
 	return wrapError(C.signal_kyber_pre_key_record_destroy(kpkr.ptr))
+}
+
+func (kpkr *KyberPreKeyRecord) CancelFinalizer() {
+	runtime.SetFinalizer(kpkr, nil)
 }
 
 func (kpkr *KyberPreKeyRecord) Serialize() ([]byte, error) {

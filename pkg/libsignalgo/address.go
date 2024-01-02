@@ -57,8 +57,12 @@ func (pa *Address) Clone() (*Address, error) {
 }
 
 func (pa *Address) Destroy() error {
-	runtime.SetFinalizer(pa, nil)
+	pa.CancelFinalizer()
 	return wrapError(C.signal_address_destroy(pa.ptr))
+}
+
+func (pa *Address) CancelFinalizer() {
+	runtime.SetFinalizer(pa, nil)
 }
 
 func (pa *Address) Name() (string, error) {

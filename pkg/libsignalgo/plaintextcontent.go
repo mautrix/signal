@@ -62,8 +62,12 @@ func (pc *PlaintextContent) Clone() (*PlaintextContent, error) {
 }
 
 func (pc *PlaintextContent) Destroy() error {
-	runtime.SetFinalizer(pc, nil)
+	pc.CancelFinalizer()
 	return wrapError(C.signal_plaintext_content_destroy(pc.ptr))
+}
+
+func (pc *PlaintextContent) CancelFinalizer() {
+	runtime.SetFinalizer(pc, nil)
 }
 
 func (pc *PlaintextContent) Serialize() ([]byte, error) {

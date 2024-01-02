@@ -62,8 +62,12 @@ func (pk *PublicKey) Serialize() ([]byte, error) {
 }
 
 func (k *PublicKey) Destroy() error {
-	runtime.SetFinalizer(k, nil)
+	k.CancelFinalizer()
 	return wrapError(C.signal_publickey_destroy(k.ptr))
+}
+
+func (k *PublicKey) CancelFinalizer() {
+	runtime.SetFinalizer(k, nil)
 }
 
 func (k *PublicKey) Compare(other *PublicKey) (int, error) {

@@ -45,6 +45,7 @@ func signal_load_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalPreKey
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store PreKeyStore, ctx context.Context) error {
 		key, err := store.LoadPreKey(uint32(id), ctx)
 		if err == nil && key != nil {
+			key.CancelFinalizer()
 			*keyp = key.ptr
 		}
 		return err

@@ -53,8 +53,12 @@ func (m *PreKeyMessage) Clone() (*PreKeyMessage, error) {
 }
 
 func (m *PreKeyMessage) Destroy() error {
-	runtime.SetFinalizer(m, nil)
+	m.CancelFinalizer()
 	return wrapError(C.signal_pre_key_signal_message_destroy(m.ptr))
+}
+
+func (m *PreKeyMessage) CancelFinalizer() {
+	runtime.SetFinalizer(m, nil)
 }
 
 func (m *PreKeyMessage) Serialize() ([]byte, error) {

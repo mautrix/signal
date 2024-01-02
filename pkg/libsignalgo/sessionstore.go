@@ -47,6 +47,7 @@ func signal_load_session_callback(storeCtx unsafe.Pointer, recordp **C.SignalSes
 			ctx,
 		)
 		if err == nil && record != nil {
+			record.CancelFinalizer()
 			*recordp = record.ptr
 		}
 		return err

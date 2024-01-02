@@ -90,8 +90,12 @@ func (pkr *PreKeyRecord) Clone() (*PreKeyRecord, error) {
 }
 
 func (pkr *PreKeyRecord) Destroy() error {
-	runtime.SetFinalizer(pkr, nil)
+	pkr.CancelFinalizer()
 	return wrapError(C.signal_pre_key_record_destroy(pkr.ptr))
+}
+
+func (pkr *PreKeyRecord) CancelFinalizer() {
+	runtime.SetFinalizer(pkr, nil)
 }
 
 func (pkr *PreKeyRecord) Serialize() ([]byte, error) {

@@ -62,6 +62,7 @@ func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp **C.Signal
 			ctx,
 		)
 		if err == nil && record != nil {
+			record.CancelFinalizer()
 			*recordp = record.ptr
 		}
 		return err

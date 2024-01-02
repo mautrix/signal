@@ -70,8 +70,12 @@ func (m *Message) Clone() (*Message, error) {
 }
 
 func (m *Message) Destroy() error {
-	runtime.SetFinalizer(m, nil)
+	m.CancelFinalizer()
 	return wrapError(C.signal_message_destroy(m.ptr))
+}
+
+func (m *Message) CancelFinalizer() {
+	runtime.SetFinalizer(m, nil)
 }
 
 func (m *Message) GetBody() ([]byte, error) {

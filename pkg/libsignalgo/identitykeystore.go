@@ -66,6 +66,7 @@ func signal_get_identity_key_pair_callback(storeCtx unsafe.Pointer, keyp **C.Sig
 			if err != nil {
 				return err
 			}
+			clone.CancelFinalizer()
 			*keyp = clone.ptr
 		}
 		return err
@@ -124,6 +125,7 @@ func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.S
 			ctx,
 		)
 		if err == nil && key != nil {
+			key.publicKey.CancelFinalizer()
 			*public_keyp = key.publicKey.ptr
 		}
 		return err

@@ -45,6 +45,7 @@ func signal_load_kyber_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.Signal
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store KyberPreKeyStore, ctx context.Context) error {
 		key, err := store.LoadKyberPreKey(uint32(id), ctx)
 		if err == nil && key != nil {
+			key.CancelFinalizer()
 			*keyp = key.ptr
 		}
 		return err

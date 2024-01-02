@@ -56,9 +56,12 @@ func (sr *SessionRecord) Clone() (*SessionRecord, error) {
 }
 
 func (sr *SessionRecord) Destroy() error {
-	return nil //TODO: fix double free
-	//runtime.SetFinalizer(sr, nil)
-	//return wrapError(C.signal_session_record_destroy(sr.ptr))
+	sr.CancelFinalizer()
+	return wrapError(C.signal_session_record_destroy(sr.ptr))
+}
+
+func (sr *SessionRecord) CancelFinalizer() {
+	runtime.SetFinalizer(sr, nil)
 }
 
 func (sr *SessionRecord) ArchiveCurrentState() error {

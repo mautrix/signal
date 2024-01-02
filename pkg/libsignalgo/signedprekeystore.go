@@ -43,6 +43,7 @@ func signal_load_signed_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.Signa
 	return wrapStoreCallback(storeCtx, ctxPtr, func(store SignedPreKeyStore, ctx context.Context) error {
 		key, err := store.LoadSignedPreKey(uint32(id), ctx)
 		if err == nil && key != nil {
+			key.CancelFinalizer()
 			*keyp = key.ptr
 		}
 		return err
