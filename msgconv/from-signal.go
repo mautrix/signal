@@ -67,13 +67,13 @@ type ConvertedMessagePart struct {
 }
 
 func calculateLength(dm *signalpb.DataMessage) int {
-	length := len(dm.Attachments) + len(dm.Contact)
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
-		length++
+		return 1
 	}
 	if dm.Sticker != nil {
-		length++
+		return 1
 	}
+	length := len(dm.Attachments) + len(dm.Contact)
 	if dm.Body != nil {
 		length++
 	}
@@ -100,15 +100,19 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 		cm.Parts = append(cm.Parts, mc.convertDisappearingTimerChangeToMatrix(ctx, dm))
 		// Don't disappear disappearing timer changes
 		cm.DisappearIn = 0
+		// Don't allow any other parts in a disappearing timer change message
+		return cm
+	}
+	if dm.Sticker != nil {
+		cm.Parts = append(cm.Parts, mc.convertStickerToMatrix(ctx, dm.Sticker))
+		// Don't allow any other parts in a sticker message
+		return cm
 	}
 	for i, att := range dm.GetAttachments() {
 		cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att))
 	}
 	for _, contact := range dm.GetContact() {
 		cm.Parts = append(cm.Parts, mc.convertContactToMatrix(ctx, contact))
-	}
-	if dm.Sticker != nil {
-		cm.Parts = append(cm.Parts, mc.convertStickerToMatrix(ctx, dm.Sticker))
 	}
 	if dm.Payment != nil {
 		cm.Parts = append(cm.Parts, mc.convertPaymentToMatrix(ctx, dm.Payment))
