@@ -533,8 +533,9 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		// TODO: handle more sync messages
 		if content.SyncMessage != nil {
-			if content.SyncMessage.GetSent().GetMessage() != nil {
-				destination := content.SyncMessage.Sent.DestinationServiceId
+			syncSent := content.SyncMessage.GetSent()
+			if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
+				destination := syncSent.DestinationServiceId
 				var ourUUID, destinationUUID uuid.UUID
 				ourUUID, _ = uuid.Parse(d.Data.AciUuid)
 				if destination != nil {
@@ -544,7 +545,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 						return nil, err
 					}
 				}
-				if destination == nil {
+				if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
 					zlog.Warn().Msg("sync message sent destination is nil")
 				} else if content.SyncMessage.Sent.Message != nil {
 					// TODO handle expiration start ts, and maybe the sync message ts?
