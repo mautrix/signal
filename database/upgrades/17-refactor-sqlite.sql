@@ -71,7 +71,7 @@ SELECT msg_author,
        mxid,
        mx_room
 FROM reaction
-WHERE timestamp<1500000000000000;
+WHERE msg_timestamp<1500000000000000;
 
 DROP TABLE message;
 DROP TABLE reaction;
