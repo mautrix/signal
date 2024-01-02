@@ -1,6 +1,7 @@
 -- v18 (compatible with v17+): Add columns for personal filtering space info
 ALTER TABLE "user" ADD COLUMN space_room TEXT;
 
+DROP TABLE IF EXISTS user_portal;
 CREATE TABLE user_portal (
     user_mxid       TEXT,
     portal_chat_id  TEXT,
