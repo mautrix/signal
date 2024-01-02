@@ -498,6 +498,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 	// Handle content that is now decrypted
 	if result != nil && result.Content != nil {
 		content := result.Content
+		zlog.Trace().Any("raw_data", content).Msg("Raw event data")
 
 		name, _ := result.SenderAddress.Name()
 		deviceId, _ := result.SenderAddress.DeviceID()
