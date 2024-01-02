@@ -73,7 +73,6 @@ func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, trus
 			return nil, fmt.Errorf("failed to convert attachment: %w", err)
 		}
 		if content.FileName != "" && (content.FileName != content.Body || content.Format == event.FormatHTML) {
-			att.Caption = proto.String(body)
 			dm.Body = proto.String(body)
 			dm.BodyRanges = bodyRanges
 		}
