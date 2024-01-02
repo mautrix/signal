@@ -31,6 +31,11 @@ const (
 		INSERT INTO reaction (msg_author, msg_timestamp, author, emoji, signal_chat_id, signal_receiver, mxid, mx_room)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
+	updateReactionQuery = `
+		UPDATE reaction
+		SET mxid=$1, emoji=$2
+		WHERE msg_author=$3 AND msg_timestamp=$4 AND author=$5 AND signal_receiver=$6
+	`
 	deleteReactionQuery = `
 		DELETE FROM reaction WHERE msg_author=$1 AND msg_timestamp=$2 AND author=$3 AND signal_receiver=$4
 	`
@@ -81,6 +86,10 @@ func (r *Reaction) sqlVariables() []any {
 
 func (r *Reaction) Insert(ctx context.Context) error {
 	return r.qh.Exec(ctx, insertReactionQuery, r.sqlVariables()...)
+}
+
+func (r *Reaction) Update(ctx context.Context) error {
+	return r.qh.Exec(ctx, updateReactionQuery, r.MXID, r.Emoji, r.MsgAuthor, r.MsgTimestamp, r.Author, r.SignalReceiver)
 }
 
 func (r *Reaction) Delete(ctx context.Context) error {

@@ -27,7 +27,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 type BridgeConfig struct {
@@ -161,14 +161,14 @@ type DisplaynameParams struct {
 	AboutEmoji  string
 }
 
-func (bc BridgeConfig) FormatDisplayname(contact *signalmeow.Contact) string {
+func (bc BridgeConfig) FormatDisplayname(contact *types.Contact) string {
 	var buffer strings.Builder
 	_ = bc.displaynameTemplate.Execute(&buffer, DisplaynameParams{
 		ProfileName: contact.ProfileName,
 		ContactName: contact.ContactName,
 		//Username:    contact.Username,
 		PhoneNumber: contact.E164,
-		UUID:        contact.UUID,
+		UUID:        contact.UUID.String(),
 		AboutEmoji:  contact.ProfileAboutEmoji,
 	})
 	return buffer.String()

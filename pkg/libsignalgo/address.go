@@ -23,6 +23,8 @@ package libsignalgo
 import "C"
 import (
 	"runtime"
+
+	"github.com/google/uuid"
 )
 
 type Address struct {
@@ -65,6 +67,14 @@ func (pa *Address) Name() (string, error) {
 		return "", wrapError(signalFfiError)
 	}
 	return CopyCStringToString(name), nil
+}
+
+func (pa *Address) NameUUID() (uuid.UUID, error) {
+	name, err := pa.Name()
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return uuid.Parse(name)
 }
 
 func (pa *Address) DeviceID() (uint, error) {

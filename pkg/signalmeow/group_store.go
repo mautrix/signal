@@ -20,19 +20,21 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var _ GroupStore = (*SQLStore)(nil)
 
 type dbGroup struct {
 	OurAciUuid      string
-	GroupIdentifier GroupIdentifier
+	GroupIdentifier types.GroupIdentifier
 	GroupMasterKey  SerializedGroupMasterKey
 }
 
 type GroupStore interface {
-	MasterKeyFromGroupIdentifier(groupIdentifier GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error)
-	StoreMasterKey(groupIdentifier GroupIdentifier, key SerializedGroupMasterKey, ctx context.Context) error
+	MasterKeyFromGroupIdentifier(groupIdentifier types.GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error)
+	StoreMasterKey(groupIdentifier types.GroupIdentifier, key SerializedGroupMasterKey, ctx context.Context) error
 }
 
 func scanGroup(row scannable) (*dbGroup, error) {
@@ -46,7 +48,7 @@ func scanGroup(row scannable) (*dbGroup, error) {
 	return &g, nil
 }
 
-func (s *SQLStore) MasterKeyFromGroupIdentifier(groupIdentifier GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error) {
+func (s *SQLStore) MasterKeyFromGroupIdentifier(groupIdentifier types.GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error) {
 	loadGroupQuery := `SELECT our_aci_uuid, group_identifier, master_key FROM signalmeow_groups WHERE our_aci_uuid=$1 AND group_identifier=$2`
 	g, err := scanGroup(s.db.QueryRow(loadGroupQuery, s.AciUuid, groupIdentifier))
 	if err != nil {
@@ -58,7 +60,7 @@ func (s *SQLStore) MasterKeyFromGroupIdentifier(groupIdentifier GroupIdentifier,
 	return g.GroupMasterKey, nil
 }
 
-func (s *SQLStore) StoreMasterKey(groupIdentifier GroupIdentifier, key SerializedGroupMasterKey, ctx context.Context) error {
+func (s *SQLStore) StoreMasterKey(groupIdentifier types.GroupIdentifier, key SerializedGroupMasterKey, ctx context.Context) error {
 	// Insert, or update if already exists
 	storeMasterKeyQuery := `
 		INSERT INTO signalmeow_groups (our_aci_uuid, group_identifier, master_key)

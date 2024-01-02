@@ -31,14 +31,13 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 // Sending
 
-// We don't want to couple library users to signalpb, so just alias it
 type SignalContent signalpb.Content
-type AttachmentPointer signalpb.AttachmentPointer
 
 func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
@@ -422,8 +421,7 @@ func DataMessageForText(text string, ranges []*signalpb.BodyRange) *SignalConten
 	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForAttachment(attachmentPointer *AttachmentPointer, caption string, ranges []*signalpb.BodyRange) *SignalContent {
-	ap := (*signalpb.AttachmentPointer)(attachmentPointer) // Cast back to signalpb, this is okay AttachmentPointer is an alias
+func DataMessageForAttachment(ap *signalpb.AttachmentPointer, caption string, ranges []*signalpb.BodyRange) *SignalContent {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
 		Timestamp:   &timestamp,
@@ -480,18 +478,13 @@ func AddExpiryToDataMessage(content *SignalContent, expiresInSeconds uint32) {
 	content.DataMessage.ExpireTimer = proto.Uint32(expiresInSeconds)
 }
 
-func UploadAttachment(d *Device, image []byte, mimeType string, filename string) (*AttachmentPointer, error) {
-	ap, err := encryptAndUploadAttachment(d, image, mimeType, filename)
-	return (*AttachmentPointer)(ap), err
-}
-
 func wrapDataMessageInContent(dm *signalpb.DataMessage) *SignalContent {
 	return &SignalContent{
 		DataMessage: dm,
 	}
 }
 
-func SendGroupMessage(ctx context.Context, device *Device, gid GroupIdentifier, message *SignalContent) (*GroupMessageSendResult, error) {
+func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdentifier, message *SignalContent) (*GroupMessageSendResult, error) {
 	group, err := RetrieveGroupByID(ctx, device, gid)
 	if err != nil {
 		return nil, err

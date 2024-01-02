@@ -28,7 +28,9 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -101,33 +103,39 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 				lastAuthStatus = status
 				currentStatus = status
 
-				if status.Event == web.SignalWebsocketConnectionEventConnected {
+				switch status.Event {
+				case web.SignalWebsocketConnectionEventConnecting:
+					// do nothing?
+				case web.SignalWebsocketConnectionEventConnected:
 					zlog.Info().Msg("Authed websocket connected")
-				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
+				case web.SignalWebsocketConnectionEventDisconnected:
 					zlog.Err(status.Err).Msg("Authed websocket disconnected")
-				} else if status.Event == web.SignalWebsocketConnectionEventLoggedOut {
+				case web.SignalWebsocketConnectionEventLoggedOut:
 					zlog.Err(status.Err).Msg("Authed websocket logged out")
 					// TODO: Also make sure unauthed websocket is disconnected
 					//StopReceiveLoops(d)
-				} else if status.Event == web.SignalWebsocketConnectionEventError {
+				case web.SignalWebsocketConnectionEventError:
 					zlog.Err(status.Err).Msg("Authed websocket error")
-				} else if status.Event == web.SignalWebsocketConnectionEventCleanShutdown {
+				case web.SignalWebsocketConnectionEventCleanShutdown:
 					zlog.Info().Msg("Authed websocket clean shutdown")
 				}
 			case status := <-unauthChan:
 				lastUnauthStatus = status
 				currentStatus = status
 
-				if status.Event == web.SignalWebsocketConnectionEventConnected {
+				switch status.Event {
+				case web.SignalWebsocketConnectionEventConnecting:
+					// do nothing?
+				case web.SignalWebsocketConnectionEventConnected:
 					zlog.Info().Msg("Unauthed websocket connected")
 					zlog.Info().Msgf("lastUnauthStatus: %v, lastAuthStatus: %v, currentStatus: %v", lastUnauthStatus, lastAuthStatus, currentStatus)
-				} else if status.Event == web.SignalWebsocketConnectionEventDisconnected {
+				case web.SignalWebsocketConnectionEventDisconnected:
 					zlog.Err(status.Err).Msg("Unauthed websocket disconnected")
-				} else if status.Event == web.SignalWebsocketConnectionEventLoggedOut {
+				case web.SignalWebsocketConnectionEventLoggedOut:
 					zlog.Err(status.Err).Msg("Unauthed websocket logged out ** THIS SHOULD BE IMPOSSIBLE **")
-				} else if status.Event == web.SignalWebsocketConnectionEventError {
+				case web.SignalWebsocketConnectionEventError:
 					zlog.Err(status.Err).Msg("Unauthed websocket error")
-				} else if status.Event == web.SignalWebsocketConnectionEventCleanShutdown {
+				case web.SignalWebsocketConnectionEventCleanShutdown:
 					zlog.Info().Msg("Unauthed websocket clean shutdown")
 				}
 			}
@@ -289,7 +297,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		}
 		zlog.Trace().Msgf("SealedSender senderUUID: %v, senderDeviceID: %v", senderUUID, senderDeviceID)
 
-		d.UpdateContactE164(senderUUID.String(), senderE164)
+		d.UpdateContactE164(senderUUID, senderE164)
 
 		switch messageType {
 		case libsignalgo.CiphertextMessageTypeSenderKey:
@@ -517,7 +525,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 			}
 		}
 
-		theirUuid, err := result.SenderAddress.Name()
+		theirUUID, err := result.SenderAddress.NameUUID()
 		if err != nil {
 			zlog.Err(err).Msg("Name error")
 			return nil, err
@@ -525,36 +533,33 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		// TODO: handle more sync messages
 		if content.SyncMessage != nil {
-			if content.SyncMessage.Sent != nil {
-				if content.SyncMessage.Sent.Message != nil {
-					destination := content.SyncMessage.Sent.DestinationServiceId
-					if content.SyncMessage.Sent.Message.GroupV2 != nil {
-						zlog.Debug().Msgf("sync message sent group: %v", content.SyncMessage.Sent.Message.GroupV2)
-						masterKeyBytes := libsignalgo.GroupMasterKey(content.SyncMessage.Sent.Message.GroupV2.MasterKey)
-						masterKey := masterKeyFromBytes(masterKeyBytes)
-						gid, err := StoreMasterKey(ctx, d, masterKey)
-						if err != nil {
-							zlog.Err(err).Msg("StoreMasterKey error")
-							return nil, err
-						}
-						g := string(gid)
-						destination = &g
-					}
-					if destination == nil {
-						zlog.Warn().Msg("sync message sent destination is nil")
-					} else if _, err = incomingDataMessage(ctx, d, content.SyncMessage.Sent.Message, d.Data.AciUuid, *destination); err != nil {
-						zlog.Err(err).Msg("incomingDataMessage error")
+			if content.SyncMessage.GetSent().GetMessage() != nil {
+				destination := content.SyncMessage.Sent.DestinationServiceId
+				var ourUUID, destinationUUID uuid.UUID
+				ourUUID, _ = uuid.Parse(d.Data.AciUuid)
+				if destination != nil {
+					destinationUUID, err = uuid.Parse(*destination)
+					if err != nil {
+						zlog.Err(err).Msg("Sync message destination parse error")
 						return nil, err
 					}
+				}
+				if destination == nil {
+					zlog.Warn().Msg("sync message sent destination is nil")
+				} else if content.SyncMessage.Sent.Message != nil {
+					// TODO handle expiration start ts, and maybe the sync message ts?
+					incomingDataMessage(ctx, d, content.SyncMessage.Sent.Message, ourUUID, destinationUUID)
+				} else if content.SyncMessage.Sent.EditMessage != nil {
+					incomingEditMessage(ctx, d, content.SyncMessage.Sent.EditMessage, ourUUID, destinationUUID)
 				}
 			}
 			if content.SyncMessage.Contacts != nil {
 				zlog.Debug().Msgf("Recieved sync message contacts")
 				blob := content.SyncMessage.Contacts.Blob
 				if blob != nil {
-					contactsBytes, err := fetchAndDecryptAttachment(blob)
+					contactsBytes, err := DownloadAttachment(blob)
 					if err != nil {
-						zlog.Err(err).Msg("Contacts Sync fetchAndDecryptAttachment error")
+						zlog.Err(err).Msg("Contacts Sync DownloadAttachment error")
 					}
 					// unmarshall contacts
 					contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
@@ -567,131 +572,79 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 							zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
 							continue
 						}
-						if _, err := uuid.Parse(*signalContact.Aci); err != nil {
-							zlog.Info().Msgf("Signal Contact UUID is not a UUID, skipping: %v", signalContact)
-							continue
-						}
 						contact, contactAvatar, err := StoreContactDetailsAsContact(d, signalContact, &avatars[i])
 						if err != nil {
 							zlog.Err(err).Msg("StoreContactDetailsAsContact error")
 							continue
 						}
 						// Model each contact as an incoming contact change message
-						contactChange := IncomingSignalMessageContactChange{
-							IncomingSignalMessageBase: IncomingSignalMessageBase{
-								SenderUUID:    contact.UUID,
-								RecipientUUID: d.Data.AciUuid,
-								Timestamp:     currentMessageTimestamp(),
-							},
+						d.Connection.handleEvent(&events.ContactChange{
 							Contact: contact,
 							Avatar:  contactAvatar,
-						}
-						d.Connection.IncomingSignalMessageHandler(contactChange)
+						})
 					}
 				}
 			}
 			if content.SyncMessage.Read != nil {
-				zlog.Debug().Msgf("Recieved sync message read")
-				currentTimestamp := currentMessageTimestamp()
-				for _, read := range content.SyncMessage.Read {
-					var receiptMessage = IncomingSignalMessageReceipt{
-						IncomingSignalMessageBase: IncomingSignalMessageBase{
-							SenderUUID:    d.Data.AciUuid,
-							RecipientUUID: theirUuid,
-							Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
-						},
-						ReceiptType:       IncomingSignalMessageReceiptTypeRead,
-						OriginalTimestamp: *read.Timestamp,
-						OriginalSender:    *read.SenderAci,
-					}
-					d.Connection.IncomingSignalMessageHandler(receiptMessage)
-				}
+				d.Connection.handleEvent(&events.ReadSelf{
+					Messages: content.SyncMessage.GetRead(),
+				})
 			}
 
 		}
 
+		var sendDeliveryReceipt bool
 		if content.DataMessage != nil {
-			deliveredTimestamps, err := incomingDataMessage(ctx, d, content.DataMessage, theirUuid, d.Data.AciUuid)
+			sendDeliveryReceipt = incomingDataMessage(ctx, d, content.DataMessage, theirUUID, theirUUID)
+		} else if content.EditMessage != nil {
+			sendDeliveryReceipt = incomingEditMessage(ctx, d, content.EditMessage, theirUUID, theirUUID)
+		}
+		if sendDeliveryReceipt {
+			// TODO send delivery receipts after actually bridging instead of here
+			err = sendDeliveryReceipts(ctx, d, []uint64{content.DataMessage.GetTimestamp()}, theirUUID)
 			if err != nil {
-				zlog.Err(err).Msg("incomingDataMessage error")
-				return nil, err
-			}
-			if len(deliveredTimestamps) > 0 {
-				err := sendDeliveryReceipts(ctx, d, deliveredTimestamps, theirUuid)
-				if err != nil {
-					zlog.Err(err).Msg("sendDeliveryReceipts error")
-				}
+				zlog.Err(err).Msg("sendDeliveryReceipts error")
 			}
 		}
 
 		if content.TypingMessage != nil {
-			var isTyping = content.TypingMessage.GetAction() == signalpb.TypingMessage_STARTED
-			var typingMessage = IncomingSignalMessageTyping{
-				IncomingSignalMessageBase: IncomingSignalMessageBase{
-					SenderUUID:    theirUuid,
-					RecipientUUID: d.Data.AciUuid,
-					Timestamp:     content.TypingMessage.GetTimestamp(),
-				},
-				IsTyping: isTyping,
-			}
+			var groupID types.GroupIdentifier
 			if content.TypingMessage.GetGroupId() != nil {
 				gidBytes := content.TypingMessage.GetGroupId()
-				gid := GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
-				typingMessage.GroupID = &gid
+				groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
 			}
-
-			d.Connection.IncomingSignalMessageHandler(typingMessage)
+			d.Connection.handleEvent(&events.ChatEvent{
+				Info: events.MessageInfo{
+					Sender: theirUUID,
+					ChatID: groupOrUserID(groupID, theirUUID),
+				},
+				Event: content.TypingMessage,
+			})
 		}
 
 		// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
 		if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
-			callMessage := IncomingSignalMessageCall{
-				IncomingSignalMessageBase: IncomingSignalMessageBase{
-					SenderUUID:    theirUuid,
-					RecipientUUID: d.Data.AciUuid,
-					Timestamp:     currentMessageTimestamp(), // there is no timestmap on a callMessage
+			d.Connection.handleEvent(&events.Call{
+				Info: events.MessageInfo{
+					Sender: theirUUID,
+					ChatID: theirUUID.String(),
 				},
-			}
-			if content.CallMessage.Offer != nil {
-				callMessage.IsRinging = true
-			} else if content.CallMessage.Hangup != nil {
-				callMessage.IsRinging = false
-			}
-			d.Connection.IncomingSignalMessageHandler(callMessage)
+				IsRinging: content.CallMessage.Offer != nil,
+			})
 		}
 
 		// Read and delivery receipts
 		if content.ReceiptMessage != nil {
-			zlog.Debug().Msgf("Received receipt message: %v", content.ReceiptMessage)
-			// If this is a delivery receipt from one of our other devices, ignore it
-			if !(*content.ReceiptMessage.Type == signalpb.ReceiptMessage_DELIVERY && theirUuid == d.Data.AciUuid) {
-				var receiptType IncomingSignalMessageReceiptType
-				switch *content.ReceiptMessage.Type {
-				case signalpb.ReceiptMessage_READ:
-					receiptType = IncomingSignalMessageReceiptTypeRead
-				case signalpb.ReceiptMessage_DELIVERY:
-					receiptType = IncomingSignalMessageReceiptTypeDelivery
-				default:
-					zlog.Warn().Msgf("Unknown receipt type: %v", *content.ReceiptMessage.Type)
-				}
-				currentTimestamp := currentMessageTimestamp()
-				// Send one incoming message for each timestamp, so they can be sent to different portals if necessary
-				for _, timestamp := range content.ReceiptMessage.Timestamp {
-					var receiptMessage = IncomingSignalMessageReceipt{
-						IncomingSignalMessageBase: IncomingSignalMessageBase{
-							SenderUUID:    theirUuid,
-							RecipientUUID: d.Data.AciUuid,
-							Timestamp:     currentTimestamp, // there is no timestmap on a receiptMessage
-						},
-						ReceiptType:       receiptType,
-						OriginalTimestamp: timestamp,
-						OriginalSender:    d.Data.AciUuid, // this is a receipt for a message we sent
-					}
-					d.Connection.IncomingSignalMessageHandler(receiptMessage)
-				}
-			} else {
-				zlog.Debug().Msgf("Ignoring delivery receipt from self")
+			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirUUID.String() == d.Data.AciUuid {
+				// Ignore delivery receipts from other own devices
+				return &web.SimpleResponse{
+					Status: responseCode,
+				}, nil
 			}
+			d.Connection.handleEvent(&events.Receipt{
+				Sender:  theirUUID,
+				Content: content.ReceiptMessage,
+			})
 		}
 	}
 	return &web.SimpleResponse{
@@ -749,311 +702,121 @@ func contentFieldsString(c *signalpb.Content) string {
 	return builder.String()
 }
 
-// HackyCaptionToggle is a hack to pass the bridge caption_in_message config option to the library.
-// This won't be necessary after the redundant DataMessage -> custom struct conversion is removed
-// (messages should just be converted DataMessage -> Matrix instead of DataMessage -> custom struct -> Matrix).
-var HackyCaptionToggle bool
+func groupOrUserID(groupID types.GroupIdentifier, userID uuid.UUID) string {
+	if groupID == "" {
+		return userID.String()
+	}
+	return string(groupID)
+}
 
-func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, senderUUID string, recipientUUID string) ([]uint64, error) {
-	deliveredTimestamps := make([]uint64, 0)
+func incomingEditMessage(ctx context.Context, device *Device, editMessage *signalpb.EditMessage, messageSender, chatRecipient uuid.UUID) bool {
+	// If it's a group message, get the ID and invalidate cache if necessary
+	var groupID types.GroupIdentifier
+	var groupRevision int
+	if editMessage.GetDataMessage().GetGroupV2() != nil {
+		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
+		groupMasterKeyBytes := editMessage.GetDataMessage().GetGroupV2().GetMasterKey()
+		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
+		var err error
+		groupID, err = StoreMasterKey(ctx, device, masterKey)
+		if err != nil {
+			zlog.Err(err).Msg("StoreMasterKey error")
+			return false
+		}
+		groupRevision = int(editMessage.GetDataMessage().GetGroupV2().GetRevision())
+	}
+	device.Connection.handleEvent(&events.ChatEvent{
+		Info: events.MessageInfo{
+			Sender:        messageSender,
+			ChatID:        groupOrUserID(groupID, chatRecipient),
+			GroupRevision: groupRevision,
+		},
+		Event: editMessage,
+	})
+	return true
+}
 
+func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, messageSender, chatRecipient uuid.UUID) bool {
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := device.ProfileKeyStore.StoreProfileKey(senderUUID, profileKey, ctx)
+		err := device.ProfileKeyStore.StoreProfileKey(messageSender.String(), profileKey, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("StoreProfileKey error")
-			return deliveredTimestamps, err
+			return false
 		}
 	}
 
-	var incomingMessages []IncomingSignalMessage
-
 	// If it's a group message, get the ID and invalidate cache if necessary
-	var gidPointer *GroupIdentifier
+	var groupID types.GroupIdentifier
+	var groupRevision int
 	if dataMessage.GetGroupV2() != nil {
 		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
 		groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
 		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
-		gidValue, err := StoreMasterKey(ctx, device, masterKey)
+		var err error
+		groupID, err = StoreMasterKey(ctx, device, masterKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreMasterKey error")
-			return deliveredTimestamps, err
+			return false
 		}
-		gidPointer = &gidValue
+		groupRevision = int(dataMessage.GetGroupV2().GetRevision())
 
 		var groupHasChanged = false
 		if dataMessage.GetGroupV2().GroupChange != nil {
 			// TODO: don't parse the change	for now, just invalidate our cache
-			zlog.Debug().Msgf("Invalidating group %v due to change: %v", gidValue, dataMessage.GetGroupV2().GroupChange)
-			InvalidateGroupCache(device, gidValue)
+			zlog.Debug().Msgf("Invalidating group %v due to change: %v", groupID, dataMessage.GetGroupV2().GroupChange)
+			InvalidateGroupCache(device, groupID)
 			groupHasChanged = true
 		} else if dataMessage.GetGroupV2().GetRevision() > 0 {
 			// Compare revision, and if it's newer, invalidate our cache
-			ourGroup, err := RetrieveGroupByID(ctx, device, gidValue)
+			ourGroup, err := RetrieveGroupByID(ctx, device, groupID)
 			if err != nil {
 				zlog.Err(err).Msg("RetrieveGroupByID error")
 			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
-				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", gidValue, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
-				InvalidateGroupCache(device, gidValue)
+				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", groupID, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
+				InvalidateGroupCache(device, groupID)
 				groupHasChanged = true
 			}
 		}
 		if groupHasChanged {
-			// Send a group change message to trigger a group update in the portal
-			groupChangeMessage := &IncomingSignalMessageGroupChange{
-				IncomingSignalMessageBase: IncomingSignalMessageBase{
-					SenderUUID:    senderUUID,
-					RecipientUUID: recipientUUID,
-					GroupID:       gidPointer,
-					Timestamp:     dataMessage.GetTimestamp(),
-				},
-			}
-			incomingMessages = append(incomingMessages, groupChangeMessage)
+			device.Connection.handleEvent(&events.GroupChange{
+				SenderID:  messageSender,
+				Timestamp: dataMessage.GetTimestamp(),
+				GroupID:   groupID,
+				Revision:  groupRevision,
+			})
 		}
 	}
 
-	// Grab quote (reply) info if it exists
-	var quoteData *IncomingSignalMessageQuoteData
-	if dataMessage.Quote != nil {
-		quoteData = &IncomingSignalMessageQuoteData{
-			QuotedSender:    dataMessage.GetQuote().GetAuthorAci(),
-			QuotedTimestamp: dataMessage.GetQuote().GetId(),
-		}
+	evtInfo := events.MessageInfo{
+		Sender:        messageSender,
+		ChatID:        groupOrUserID(groupID, chatRecipient),
+		GroupRevision: groupRevision,
 	}
-
-	// If this message is disappearing, set ExpiresIn
-	expiresIn := int64(0)
-	if dataMessage.ExpireTimer != nil {
-		expiresIn = int64(dataMessage.GetExpireTimer())
-	}
-
-	partIndex := 0
-	// If there's attachements, handle them (one at a time for now)
-	if dataMessage.Attachments != nil {
-		for index, attachmentPointer := range dataMessage.Attachments {
-			bytes, err := fetchAndDecryptAttachment(attachmentPointer)
-			if err != nil {
-				zlog.Err(err).Msg("fetchAndDecryptAttachment error")
-				continue
-			}
-			// TODO: right now this will be one message per image, each with the same caption
-			incomingMessage := IncomingSignalMessageAttachment{
-				IncomingSignalMessageBase: IncomingSignalMessageBase{
-					SenderUUID:    senderUUID,
-					RecipientUUID: recipientUUID,
-					GroupID:       gidPointer,
-					Timestamp:     dataMessage.GetTimestamp(),
-					PartIndex:     partIndex,
-					Quote:         quoteData,
-					ExpiresIn:     expiresIn,
-				},
-				Attachment:  bytes,
-				Filename:    attachmentPointer.GetFileName(),
-				ContentType: attachmentPointer.GetContentType(),
-				Size:        uint64(attachmentPointer.GetSize()),
-				Width:       attachmentPointer.GetWidth(),
-				Height:      attachmentPointer.GetHeight(),
-				BlurHash:    attachmentPointer.GetBlurHash(),
-			}
-			partIndex++
-			if HackyCaptionToggle && index == 0 {
-				incomingMessage.Caption = dataMessage.GetBody()
-				incomingMessage.CaptionRanges = dataMessage.GetBodyRanges()
-			}
-			incomingMessages = append(incomingMessages, incomingMessage)
-		}
-	}
-
-	// If there's a body but no attachments, pass along as a text message
-	if dataMessage.Body != nil && (dataMessage.Attachments == nil || !HackyCaptionToggle) {
-		incomingMessage := IncomingSignalMessageText{
-			IncomingSignalMessageBase: IncomingSignalMessageBase{
-				SenderUUID:    senderUUID,
-				RecipientUUID: recipientUUID,
-				GroupID:       gidPointer,
-				Timestamp:     dataMessage.GetTimestamp(),
-				PartIndex:     partIndex,
-				Quote:         quoteData,
-				ExpiresIn:     expiresIn,
-			},
-			Content:       dataMessage.GetBody(),
-			ContentRanges: dataMessage.GetBodyRanges(),
-		}
-		partIndex++
-		incomingMessages = append(incomingMessages, incomingMessage)
-	}
-
-	// if a sticker and has data, send it
-	if dataMessage.Sticker != nil && dataMessage.Sticker.Data != nil {
-		bytes, err := fetchAndDecryptAttachment(dataMessage.Sticker.Data)
-		if err != nil {
-			zlog.Error().Err(err).Msgf("failed to decrypt sticker: %v", dataMessage.Sticker.Data)
-		} else {
-			incomingMessage := IncomingSignalMessageSticker{
-				IncomingSignalMessageBase: IncomingSignalMessageBase{
-					SenderUUID:    senderUUID,
-					RecipientUUID: recipientUUID,
-					GroupID:       gidPointer,
-					Timestamp:     dataMessage.GetTimestamp(),
-					PartIndex:     partIndex,
-					Quote:         quoteData,
-					ExpiresIn:     expiresIn,
-				},
-				Width:       dataMessage.Sticker.Data.GetWidth(),
-				Height:      dataMessage.Sticker.Data.GetHeight(),
-				ContentType: dataMessage.Sticker.Data.GetContentType(),
-				Filename:    dataMessage.Sticker.Data.GetFileName(),
-				Sticker:     bytes,
-				Emoji:       dataMessage.GetSticker().GetEmoji(),
-			}
-			incomingMessages = append(incomingMessages, incomingMessage)
-			partIndex++
-		}
-	}
-
-	// Pass along reactions
-	if dataMessage.Reaction != nil {
-		// make sure target author UUID is lowercase
-		targetAuthor := strings.ToLower(dataMessage.GetReaction().GetTargetAuthorAci())
-		incomingMessage := IncomingSignalMessageReaction{
-			IncomingSignalMessageBase: IncomingSignalMessageBase{
-				SenderUUID:    senderUUID,
-				RecipientUUID: recipientUUID,
-				GroupID:       gidPointer,
-				Timestamp:     dataMessage.GetTimestamp(),
-				Quote:         quoteData,
-				ExpiresIn:     expiresIn,
-			},
-			Emoji:                  dataMessage.GetReaction().GetEmoji(),
-			Remove:                 dataMessage.GetReaction().GetRemove(),
-			TargetAuthorUUID:       targetAuthor,
-			TargetMessageTimestamp: dataMessage.GetReaction().GetTargetSentTimestamp(),
-		}
-		incomingMessages = append(incomingMessages, incomingMessage)
-	}
-
-	// Pass along deletions
-	if dataMessage.Delete != nil {
-		incomingMessage := IncomingSignalMessageDelete{
-			IncomingSignalMessageBase: IncomingSignalMessageBase{
-				SenderUUID:    senderUUID,
-				RecipientUUID: recipientUUID,
-				GroupID:       gidPointer,
-				Timestamp:     dataMessage.GetTimestamp(),
-				Quote:         quoteData,
-				ExpiresIn:     expiresIn,
-			},
-			TargetMessageTimestamp: dataMessage.GetDelete().GetTargetSentTimestamp(),
-		}
-		incomingMessages = append(incomingMessages, incomingMessage)
-	}
-
-	// Pass along group calls
+	// Hacky special case for group calls to cache the state
 	if dataMessage.GroupCallUpdate != nil {
-		isRinging := device.UpdateActiveCalls(*gidPointer, *dataMessage.GroupCallUpdate.EraId)
-		incomingMessage := IncomingSignalMessageCall{
-			IncomingSignalMessageBase: IncomingSignalMessageBase{
-				SenderUUID:    senderUUID,
-				RecipientUUID: recipientUUID,
-				GroupID:       gidPointer,
-				Timestamp:     dataMessage.GetTimestamp(),
-			},
+		isRinging := device.UpdateActiveCalls(groupID, *dataMessage.GroupCallUpdate.EraId)
+		device.Connection.handleEvent(&events.Call{
+			Info:      evtInfo,
+			Timestamp: dataMessage.GetTimestamp(),
 			IsRinging: isRinging,
-		}
-		incomingMessages = append(incomingMessages, incomingMessage)
+		})
+	} else {
+		device.Connection.handleEvent(&events.ChatEvent{
+			Info:  evtInfo,
+			Event: dataMessage,
+		})
 	}
 
-	// If there's a contact card share, pass it along
-	if dataMessage.Contact != nil {
-		for _, contactCard := range dataMessage.GetContact() {
-			incomingMessage := IncomingSignalMessageContactCard{
-				IncomingSignalMessageBase: IncomingSignalMessageBase{
-					SenderUUID:    senderUUID,
-					RecipientUUID: recipientUUID,
-					GroupID:       gidPointer,
-					Timestamp:     dataMessage.GetTimestamp(),
-					PartIndex:     partIndex,
-				},
-				DisplayName:  contactCard.GetName().GetDisplayName(),
-				Organization: contactCard.GetOrganization(),
-				PhoneNumbers: make([]string, 0),
-				Emails:       make([]string, 0),
-				Addresses:    make([]string, 0),
-			}
-			for _, phone := range contactCard.Number {
-				incomingMessage.PhoneNumbers = append(incomingMessage.PhoneNumbers, *phone.Value)
-			}
-			for _, email := range contactCard.Email {
-				incomingMessage.Emails = append(incomingMessage.Emails, *email.Value)
-			}
-			for _, address := range contactCard.Address {
-				addressParts := make([]string, 0)
-				if address.Pobox != nil {
-					addressParts = append(addressParts, "P.O. Box: "+*address.Pobox)
-				}
-				if address.Street != nil {
-					addressParts = append(addressParts, *address.Street)
-				}
-				if address.Neighborhood != nil {
-					addressParts = append(addressParts, *address.Neighborhood)
-				}
-				if address.City != nil {
-					addressParts = append(addressParts, *address.City)
-				}
-				if address.Region != nil {
-					addressParts = append(addressParts, *address.Region)
-				}
-				if address.Postcode != nil {
-					addressParts = append(addressParts, *address.Postcode)
-				}
-				if address.Country != nil {
-					addressParts = append(addressParts, *address.Country)
-				}
-				addressString := strings.Join(addressParts, ", ")
-				incomingMessage.Addresses = append(incomingMessage.Addresses, addressString)
-			}
-			partIndex++
-			incomingMessages = append(incomingMessages, incomingMessage)
-		}
-	}
-
-	// If it's a expireTimer change, send that along (DMs only)
-	if dataMessage.Flags != nil && dataMessage.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
-		newTime := uint32(0)
-		if dataMessage.ExpireTimer != nil {
-			newTime = dataMessage.GetExpireTimer()
-		}
-		incomingMessage := IncomingSignalMessageExpireTimerChange{
-			IncomingSignalMessageBase: IncomingSignalMessageBase{
-				SenderUUID:    senderUUID,
-				RecipientUUID: recipientUUID,
-				GroupID:       gidPointer,
-				Timestamp:     dataMessage.GetTimestamp(),
-			},
-			NewExpireTimer: newTime,
-		}
-		incomingMessages = append(incomingMessages, incomingMessage)
-	}
-
-	if device.Connection.IncomingSignalMessageHandler != nil {
-		for _, incomingMessage := range incomingMessages {
-			err := device.Connection.IncomingSignalMessageHandler(incomingMessage)
-			if err != nil {
-				zlog.Err(err).Msg("IncomingSignalMessageHandler error")
-			} else {
-				deliveredTimestamps = append(deliveredTimestamps, incomingMessage.Base().Timestamp)
-			}
-		}
-	}
-	return deliveredTimestamps, nil
+	return true
 }
 
-func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestamps []uint64, senderUUID string) error {
+func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestamps []uint64, senderUUID uuid.UUID) error {
 	// Send delivery receipts
 	if len(deliveredTimestamps) > 0 {
 		receipt := DeliveredReceiptMessageForTimestamps(deliveredTimestamps)
-		result := SendMessage(ctx, device, senderUUID, receipt)
+		result := SendMessage(ctx, device, senderUUID.String(), receipt)
 		if !result.WasSuccessful {
 			zlog.Error().Msgf("Failed to send delivery receipts: %v", result)
 		}

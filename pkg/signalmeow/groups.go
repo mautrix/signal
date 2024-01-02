@@ -33,6 +33,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -54,7 +55,7 @@ type GroupMember struct {
 }
 type Group struct {
 	groupMasterKey  SerializedGroupMasterKey // We should keep this relatively private
-	GroupIdentifier GroupIdentifier          // This is what we should use to identify a group outside this file
+	GroupIdentifier types.GroupIdentifier    // This is what we should use to identify a group outside this file
 
 	Title                        string
 	AvatarPath                   string
@@ -78,9 +79,6 @@ type GroupAuth struct {
 
 // This is just base64 encoded group master key
 type SerializedGroupMasterKey string
-
-// This is some public identifier derived from the group master key
-type GroupIdentifier string
 
 func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*GroupCredentials, error) {
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
@@ -223,7 +221,7 @@ func masterKeyFromBytes(masterKey libsignalgo.GroupMasterKey) SerializedGroupMas
 	return SerializedGroupMasterKey(base64.StdEncoding.EncodeToString(masterKey[:]))
 }
 
-func groupIdentifierFromMasterKey(masterKey SerializedGroupMasterKey) (GroupIdentifier, error) {
+func groupIdentifierFromMasterKey(masterKey SerializedGroupMasterKey) (types.GroupIdentifier, error) {
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(masterKey))
 	if err != nil {
 		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
@@ -241,7 +239,7 @@ func groupIdentifierFromMasterKey(masterKey SerializedGroupMasterKey) (GroupIden
 		return "", err
 	}
 	base64GroupIdentifier := base64.StdEncoding.EncodeToString(groupIdentifier[:])
-	gid := GroupIdentifier(base64GroupIdentifier)
+	gid := types.GroupIdentifier(base64GroupIdentifier)
 	return gid, nil
 }
 
@@ -391,7 +389,7 @@ func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
 	}
 }
 
-func fetchGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, error) {
+func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, error) {
 	groupMasterKey, err := d.GroupStore.MasterKeyFromGroupIdentifier(gid, ctx)
 	if err != nil {
 		zlog.Err(err).Msg("Failed to get group master key")
@@ -484,7 +482,7 @@ func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey Serialize
 	return decryptedBytes, nil
 }
 
-func RetrieveGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, error) {
+func RetrieveGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, error) {
 	d.initGroupCache()
 
 	lastFetched, ok := d.Connection.GroupCache.lastFetched[gid]
@@ -503,7 +501,7 @@ func RetrieveGroupByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Gr
 	return group, nil
 }
 
-func RetrieveGroupAndAvatarByID(ctx context.Context, d *Device, gid GroupIdentifier) (*Group, []byte, error) {
+func RetrieveGroupAndAvatarByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, []byte, error) {
 	group, err := RetrieveGroupByID(ctx, d, gid)
 	if err != nil {
 		return nil, nil, err
@@ -526,7 +524,7 @@ func RetrieveGroupAndAvatarByID(ctx context.Context, d *Device, gid GroupIdentif
 	return group, avatarImage, nil
 }
 
-func InvalidateGroupCache(d *Device, gid GroupIdentifier) {
+func InvalidateGroupCache(d *Device, gid types.GroupIdentifier) {
 	if d.Connection.GroupCache == nil {
 		return
 	}
@@ -538,7 +536,7 @@ func InvalidateGroupCache(d *Device, gid GroupIdentifier) {
 // We should store the group master key in the group store as soon as we see it,
 // then use the group identifier to refer to groups. As a convenience, we return
 // the group identifier, which is derived from the group master key.
-func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGroupMasterKey) (GroupIdentifier, error) {
+func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGroupMasterKey) (types.GroupIdentifier, error) {
 	groupIdentifier, err := groupIdentifierFromMasterKey(groupMasterKey)
 	if err != nil {
 		zlog.Err(err).Msg("groupIdentifierFromMasterKey error")
@@ -555,7 +553,7 @@ func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGro
 // We need to track active calls so we don't send too many IncomingSignalMessageCalls
 // Of course for group calls Signal doesn't tell us *anything* so we're mostly just inferring
 // So we just jam a new call ID in, and return true if we *think* this is a new incoming call
-func (d *Device) UpdateActiveCalls(gid GroupIdentifier, callID string) (isActive bool) {
+func (d *Device) UpdateActiveCalls(gid types.GroupIdentifier, callID string) (isActive bool) {
 	d.initGroupCache()
 	// Check to see if we currently have an active call for this group
 	currentCallID, ok := d.Connection.GroupCache.activeCalls[gid]
@@ -573,17 +571,17 @@ func (d *Device) UpdateActiveCalls(gid GroupIdentifier, callID string) (isActive
 func (d *Device) initGroupCache() {
 	if d.Connection.GroupCache == nil {
 		d.Connection.GroupCache = &GroupCache{
-			groups:      make(map[GroupIdentifier]*Group),
-			lastFetched: make(map[GroupIdentifier]time.Time),
-			avatarPaths: make(map[GroupIdentifier]string),
-			activeCalls: make(map[GroupIdentifier]string),
+			groups:      make(map[types.GroupIdentifier]*Group),
+			lastFetched: make(map[types.GroupIdentifier]time.Time),
+			avatarPaths: make(map[types.GroupIdentifier]string),
+			activeCalls: make(map[types.GroupIdentifier]string),
 		}
 	}
 }
 
 type GroupCache struct {
-	groups      map[GroupIdentifier]*Group
-	lastFetched map[GroupIdentifier]time.Time
-	avatarPaths map[GroupIdentifier]string
-	activeCalls map[GroupIdentifier]string
+	groups      map[types.GroupIdentifier]*Group
+	lastFetched map[types.GroupIdentifier]time.Time
+	avatarPaths map[types.GroupIdentifier]string
+	activeCalls map[types.GroupIdentifier]string
 }

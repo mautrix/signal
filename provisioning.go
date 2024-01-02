@@ -184,13 +184,13 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 		return http.StatusNotFound, nil, fmt.Errorf("The bridge does not have the Signal ID for the number %s", phoneNum)
 	}
 
-	portal := user.GetPortalByChatID(contact.UUID)
-	puppet := prov.bridge.GetPuppetBySignalIDString(contact.UUID)
+	portal := user.GetPortalByChatID(contact.UUID.String())
+	puppet := prov.bridge.GetPuppetBySignalID(contact.UUID)
 
 	return http.StatusOK, &ResolveIdentifierResponse{
 		RoomID: portal.MXID.String(),
 		ChatID: ResolveIdentifierResponseChatID{
-			UUID:   contact.UUID,
+			UUID:   contact.UUID.String(),
 			Number: phoneNum,
 		},
 		OtherUser: ResolveIdentifierResponseOtherUser{

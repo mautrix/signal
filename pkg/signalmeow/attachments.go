@@ -21,7 +21,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
-	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -29,6 +28,7 @@ import (
 	"math"
 
 	"github.com/rs/zerolog/log"
+	"go.mau.fi/util/random"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -56,8 +56,9 @@ func getAttachmentPath(id uint64, key string, cdnNumber uint32) (string, error) 
 
 // ErrInvalidMACForAttachment signals that the downloaded attachment has an invalid MAC.
 var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
+var ErrInvalidDigestForAttachment = errors.New("invalid digest for attachment")
 
-func fetchAndDecryptAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
+func DownloadAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
 	path, err := getAttachmentPath(a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber())
 	if err != nil {
 		return nil, err
@@ -74,16 +75,19 @@ func fetchAndDecryptAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
 		return nil, err
 	}
 
-	return decryptAttachment(body, a.Key, *a.Size)
+	return decryptAttachment(body, a.Key, a.Digest, *a.Size)
 }
 
-func decryptAttachment(body, key []byte, size uint32) ([]byte, error) {
+func decryptAttachment(body, key, digest []byte, size uint32) ([]byte, error) {
+	hash := sha256.Sum256(body)
+	if !hmac.Equal(hash[:], digest) {
+		return nil, ErrInvalidDigestForAttachment
+	}
 	l := len(body) - 32
 	if !verifyMAC(key[32:], body[:l], body[l:]) {
 		return nil, ErrInvalidMACForAttachment
 	}
 
-	// TODO: verify digest?
 	decrypted, err := aesDecrypt(key[:32], body[:l])
 	if err != nil {
 		return nil, err
@@ -101,9 +105,8 @@ type attachmentV3UploadAttributes struct {
 	SignedUploadLocation string            `json:"signedUploadLocation"`
 }
 
-func encryptAndUploadAttachment(device *Device, body []byte, mimeType, filename string) (*signalpb.AttachmentPointer, error) {
-	keys := make([]byte, 64) // combined AES and MAC keys
-	randBytes(keys)
+func UploadAttachment(device *Device, body []byte, mimeType, filename string) (*signalpb.AttachmentPointer, error) {
+	keys := random.Bytes(64) // combined AES and MAC keys
 	plaintextLength := uint32(len(body))
 
 	// Padded length uses exponential bracketing
@@ -172,17 +175,14 @@ func encryptAndUploadAttachment(device *Device, body []byte, mimeType, filename 
 		return nil, err
 	}
 
-	// Calculate digest
-	hasher := sha256.New()
-	hasher.Write(encryptedWithMAC)
-	digest := hasher.Sum(nil)
+	digest := sha256.Sum256(encryptedWithMAC)
 
 	attachmentPointer := &signalpb.AttachmentPointer{
 		AttachmentIdentifier: &signalpb.AttachmentPointer_CdnKey{
 			CdnKey: uploadAttributes.Key,
 		},
 		Key:         keys,
-		Digest:      digest,
+		Digest:      digest[:],
 		Size:        &plaintextLength,
 		FileName:    &filename,
 		ContentType: &mimeType,
@@ -220,12 +220,6 @@ func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
 	return ciphertext[aes.BlockSize : len(ciphertext)-int(pad)], nil
 }
 
-func randBytes(data []byte) {
-	if _, err := io.ReadFull(rand.Reader, data); err != nil {
-		panic(err)
-	}
-}
-
 func appendMAC(key, body []byte) []byte {
 	m := hmac.New(sha256.New, key)
 	m.Write(body)
@@ -242,8 +236,7 @@ func aesEncrypt(key, plaintext []byte) ([]byte, error) {
 	plaintext = append(plaintext, bytes.Repeat([]byte{byte(pad)}, pad)...)
 
 	ciphertext := make([]byte, len(plaintext))
-	iv := make([]byte, 16)
-	randBytes(iv)
+	iv := random.Bytes(16)
 
 	mode := cipher.NewCBCEncrypter(block, iv)
 	mode.CryptBlocks(ciphertext, plaintext)

@@ -24,7 +24,7 @@ import (
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/id"
 
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 const (
@@ -67,9 +67,9 @@ func (pk *PortalKey) UserID() uuid.UUID {
 	return parsed
 }
 
-func (pk *PortalKey) GroupID() signalmeow.GroupIdentifier {
+func (pk *PortalKey) GroupID() types.GroupIdentifier {
 	if len(pk.ChatID) == 44 {
-		return signalmeow.GroupIdentifier(pk.ChatID)
+		return types.GroupIdentifier(pk.ChatID)
 	}
 	return ""
 }

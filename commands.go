@@ -212,7 +212,7 @@ func fnPM(ce *WrappedCommandEvent) {
 		return
 	}
 
-	portal := user.GetPortalByChatID(contact.UUID)
+	portal := user.GetPortalByChatID(contact.UUID.String())
 	if portal == nil {
 		ce.Reply("Error creating portal to %s", number)
 		ce.Log.Errorln("Error creating portal to", number)

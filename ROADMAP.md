@@ -13,6 +13,7 @@
       * [x] Gifs
       * [ ] Locations
       * [x] Stickers
+  * [ ] Message edits
   * [x] Message reactions
   * [x] Message redactions
   * [ ] Group info changes
@@ -28,17 +29,19 @@
   * [ ] Read receipts (currently partial support, only marks last message)
   * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
-  * [x] Message content
+  * [ ] Message content
     * [x] Text
     * [x] Formatting
     * [x] Mentions
-    * [x] Media
+    * [ ] Media
       * [x] Images
       * [x] Voice notes
       * [x] Files
       * [x] Gifs
-      * [x] Contacts
       * [x] Stickers
+      * [ ] Contacts
+      * [ ] Payment messages
+  * [x] Message edits
   * [x] Message reactions
   * [x] Remote deletions
   * [x] Initial profile/contact info

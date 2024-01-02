@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/id"
 )
@@ -35,10 +36,6 @@ const (
         SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
         WHERE sender=$1 AND timestamp=$2 AND part_index=$3 AND signal_receiver=$4
 	`
-	getMessagePartBySignalIDWithUnknownReceiverQuery = `
-        SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
-        WHERE sender=$1 AND timestamp=$2 AND part_index=$3 AND (signal_receiver=$4 OR signal_receiver='00000000-0000-0000-0000-000000000000')
-	`
 	getLastMessagePartBySignalIDQuery = `
         SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
         WHERE sender=$1 AND timestamp=$2 AND signal_receiver=$3
@@ -48,13 +45,20 @@ const (
         SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
         WHERE sender=$1 AND timestamp=$2 AND signal_receiver=$3
 	`
+	getMessageLastPartBySignalIDWithUnknownReceiverQuery = `
+        SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+        WHERE sender=$1 AND timestamp=$2 AND (signal_receiver=$3 OR signal_receiver='00000000-0000-0000-0000-000000000000')
+        ORDER BY part_index DESC LIMIT 1
+	`
 	getManyMessagesBySignalIDQueryPostgres = `
 		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
-		WHERE sender=$1 AND signal_receiver=$2 AND timestamp=ANY($3)
+		WHERE sender=$1 AND (signal_receiver=$2 OR signal_receiver=$3) AND timestamp=ANY($4)
+		ORDER BY timestamp DESC, part_index DESC
 	`
 	getManyMessagesBySignalIDQuerySQLite = `
 		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
-		WHERE sender=?1 AND signal_receiver=?2 AND timestamp IN (?3)
+		WHERE sender=?1 AND (signal_receiver=?2 OR signal_receiver=?3) AND timestamp IN (?4)
+		ORDER BY timestamp DESC, part_index DESC
 	`
 	getFirstBeforeQuery = `
 		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
@@ -98,10 +102,6 @@ func (mq *MessageQuery) GetByMXID(ctx context.Context, mxid id.EventID) (*Messag
 	return mq.QueryOne(ctx, getMessageByMXIDQuery, mxid)
 }
 
-func (mq *MessageQuery) GetBySignalIDWithUnknownReceiver(ctx context.Context, sender uuid.UUID, timestamp uint64, partIndex int, receiver uuid.UUID) (*Message, error) {
-	return mq.QueryOne(ctx, getMessagePartBySignalIDWithUnknownReceiverQuery, sender, timestamp, partIndex, receiver)
-}
-
 func (mq *MessageQuery) GetBySignalID(ctx context.Context, sender uuid.UUID, timestamp uint64, partIndex int, receiver uuid.UUID) (*Message, error) {
 	return mq.QueryOne(ctx, getMessagePartBySignalIDQuery, sender, timestamp, partIndex, receiver)
 }
@@ -114,19 +114,33 @@ func (mq *MessageQuery) GetAllPartsBySignalID(ctx context.Context, sender uuid.U
 	return mq.QueryMany(ctx, getAllMessagePartsBySignalIDQuery, sender, timestamp, receiver)
 }
 
-func (mq *MessageQuery) GetManyBySignalID(ctx context.Context, sender uuid.UUID, timestamps []uint64, receiver uuid.UUID) ([]*Message, error) {
+func (mq *MessageQuery) GetLastPartBySignalIDWithUnknownReceiver(ctx context.Context, sender uuid.UUID, timestamp uint64, receiver uuid.UUID) (*Message, error) {
+	return mq.QueryOne(ctx, getMessageLastPartBySignalIDWithUnknownReceiverQuery, sender, timestamp, receiver)
+}
+
+func (mq *MessageQuery) GetManyBySignalID(ctx context.Context, sender uuid.UUID, timestamps []uint64, receiver uuid.UUID, strictReceiver bool) ([]*Message, error) {
+	receiver2 := uuid.Nil
+	if strictReceiver {
+		receiver2 = receiver
+	}
 	if mq.GetDB().Dialect == dbutil.Postgres {
-		return mq.QueryMany(ctx, getManyMessagesBySignalIDQueryPostgres, sender, receiver, timestamps)
+		int64Array := make([]int64, len(timestamps))
+		for i, timestamp := range timestamps {
+			int64Array[i] = int64(timestamp)
+		}
+		return mq.QueryMany(ctx, getManyMessagesBySignalIDQueryPostgres, sender, receiver, receiver2, pq.Array(int64Array))
 	} else {
-		arguments := make([]any, len(timestamps)+2)
+		const varargIndex = 3
+		arguments := make([]any, len(timestamps)+varargIndex)
 		placeholders := make([]string, len(timestamps))
 		arguments[0] = sender
 		arguments[1] = receiver
+		arguments[2] = receiver2
 		for i, timestamp := range timestamps {
-			arguments[i+2] = timestamp
-			placeholders[i] = fmt.Sprintf("?%d", i+3)
+			arguments[i+varargIndex] = timestamp
+			placeholders[i] = fmt.Sprintf("?%d", i+varargIndex+1)
 		}
-		return mq.QueryMany(ctx, strings.Replace(getManyMessagesBySignalIDQuerySQLite, "?3", strings.Join(placeholders, ", ?"), 1), arguments...)
+		return mq.QueryMany(ctx, strings.Replace(getManyMessagesBySignalIDQuerySQLite, fmt.Sprintf("?%d", varargIndex+1), strings.Join(placeholders, ", ?"), 1), arguments...)
 	}
 }
 

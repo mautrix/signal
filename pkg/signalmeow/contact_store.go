@@ -20,19 +20,23 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
+	"github.com/google/uuid"
+
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var _ ContactStore = (*SQLStore)(nil)
 
 type ContactStore interface {
-	LoadContact(ctx context.Context, theirUuid string) (*Contact, error)
-	LoadContactByE164(ctx context.Context, e164 string) (*Contact, error)
-	StoreContact(ctx context.Context, contact Contact) error
-	AllContacts(ctx context.Context) ([]Contact, error)
+	LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error)
+	LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error)
+	StoreContact(ctx context.Context, contact types.Contact) error
+	AllContacts(ctx context.Context) ([]types.Contact, error)
 }
 
-func scanContact(row scannable) (*Contact, error) {
-	var contact Contact
+func scanContact(row scannable) (*types.Contact, error) {
+	var contact types.Contact
 	err := row.Scan(
 		&contact.UUID,
 		&contact.E164,
@@ -66,19 +70,19 @@ var commonSelectQuery = `
 	FROM signalmeow_contacts
 	`
 
-func (s *SQLStore) LoadContact(ctx context.Context, theirUuid string) (*Contact, error) {
+func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
 	contactQuery := commonSelectQuery +
 		`WHERE our_aci_uuid = $1 AND aci_uuid = $2`
-	return scanContact(s.db.QueryRow(contactQuery, s.AciUuid, theirUuid))
+	return scanContact(s.db.QueryRow(contactQuery, s.AciUuid, theirUUID))
 }
 
-func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*Contact, error) {
+func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
 	contactQuery := commonSelectQuery +
 		`WHERE our_aci_uuid = $1 AND e164_number = $2`
 	return scanContact(s.db.QueryRow(contactQuery, s.AciUuid, e164))
 }
 
-func (s *SQLStore) AllContacts(ctx context.Context) ([]Contact, error) {
+func (s *SQLStore) AllContacts(ctx context.Context) ([]types.Contact, error) {
 	contactQuery := commonSelectQuery +
 		`WHERE our_aci_uuid = $1`
 	rows, err := s.db.Query(contactQuery, s.AciUuid)
@@ -86,7 +90,7 @@ func (s *SQLStore) AllContacts(ctx context.Context) ([]Contact, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var contacts []Contact
+	var contacts []types.Contact
 	for rows.Next() {
 		contact, err := scanContact(rows)
 		if err != nil {
@@ -97,7 +101,7 @@ func (s *SQLStore) AllContacts(ctx context.Context) ([]Contact, error) {
 	return contacts, nil
 }
 
-func (s *SQLStore) StoreContact(ctx context.Context, contact Contact) error {
+func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) error {
 	storeContactQuery := `
 		INSERT INTO signalmeow_contacts (
 			our_aci_uuid,

@@ -21,7 +21,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"golang.org/x/exp/maps"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
@@ -39,6 +39,9 @@ import (
 
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var (
@@ -521,12 +524,12 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 	}
 
 	user.SignalDevice = device
-	device.Connection.IncomingSignalMessageHandler = user.incomingMessageHandler
+	device.Connection.EventHandler = user.eventHandler
 	return device
 }
 
-func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *signalmeow.ContactAvatar) error {
-	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID.String())
+func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *types.ContactAvatar) error {
+	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID)
 	if err != nil {
 		user.log.Err(err).Msg("updatePuppetWithSignalContact: error retrieving contact")
 		return err
@@ -619,7 +622,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		return nil
 	}
 	user.log.Info().Msgf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
-	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, signalmeow.GroupIdentifier(portal.ChatID))
+	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, types.GroupIdentifier(portal.ChatID))
 	if err != nil {
 		user.log.Err(err).Msg("error retrieving group")
 		return err
@@ -647,184 +650,234 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 	return nil
 }
 
-func (user *User) incomingMessageHandler(incomingMessage signalmeow.IncomingSignalMessage) error {
-	// Handle things common to all message types
-	m := incomingMessage.Base()
-	var chatID string
-	var senderPuppet *Puppet
-	parsedSenderUUID, err := uuid.Parse(m.SenderUUID)
+func (user *User) handleReceipt(evt *events.Receipt) {
+	log := user.log.With().
+		Str("action", "handle receipt").
+		Str("receipt_type", evt.Content.GetType().String()).
+		Str("sender_uuid", evt.Sender.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	messages, err := user.bridge.DB.Message.GetManyBySignalID(ctx, user.SignalID, evt.Content.GetTimestamp(), user.SignalID, false)
 	if err != nil {
-		return err
+		log.Err(err).Msg("Failed to get receipt target messages from database")
+		return
 	}
-
-	isSyncMessage := parsedSenderUUID == user.SignalID
-
-	// Get and update the puppet for this message
-	user.tryAutomaticDoublePuppeting()
-	if isSyncMessage {
-		// This is a message sent by us on another device
-		user.log.Debug().Msgf("Message received to %s (group: %v)", m.RecipientUUID, m.GroupID)
-		chatID = m.RecipientUUID
-		senderPuppet = user.bridge.GetPuppetByCustomMXID(user.MXID)
-		if senderPuppet == nil {
-			senderPuppet = user.bridge.GetPuppetBySignalID(parsedSenderUUID)
-			if senderPuppet == nil {
-				err := fmt.Errorf("no puppet found for me (%s)", user.MXID)
-				user.log.Err(err).Msg("error getting puppet")
-				//return err
+	sender := user.bridge.GetPuppetBySignalID(evt.Sender)
+	missingMessageIDMap := make(map[uint64]struct{}, len(evt.Content.GetTimestamp()))
+	for _, msg := range evt.Content.GetTimestamp() {
+		missingMessageIDMap[msg] = struct{}{}
+	}
+	foundMessageIDs := make([]uint64, len(messages))
+	switch evt.Content.GetType() {
+	case signalpb.ReceiptMessage_READ:
+		messageMap := make(map[string]*database.Message)
+		for i, msg := range messages {
+			foundMessageIDs[i] = msg.Timestamp
+			delete(missingMessageIDMap, msg.Timestamp)
+			// The database returns messages from newest to oldest, so only include the first message per chat
+			_, ok := messageMap[msg.SignalChatID]
+			if !ok {
+				messageMap[msg.SignalChatID] = msg
 			}
 		}
-	} else {
-		user.log.Debug().Msgf("Message received from %s (group: %v)", m.SenderUUID, m.GroupID)
-		chatID = m.SenderUUID
-		senderPuppet = user.bridge.GetPuppetBySignalID(parsedSenderUUID)
-		if senderPuppet == nil {
-			err := fmt.Errorf("no puppet found for sender: %s", m.SenderUUID)
-			user.log.Err(err).Msg("error getting puppet")
-			//return err
-		}
-
-		// If this is a contact change, it might have a new contact avatar, and if it does
-		// we'll need to pull it out there, since we can't get it any other time
-		var newAvatar *signalmeow.ContactAvatar
-		if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeContactChange {
-			contactChangeMessage := incomingMessage.(signalmeow.IncomingSignalMessageContactChange)
-			newAvatar = contactChangeMessage.Avatar
-		}
-
-		err := updatePuppetWithSignalContact(context.TODO(), user, senderPuppet, newAvatar)
-		if err != nil {
-			user.log.Err(err).Msg("error updating puppet with signal contact")
-		}
-		if m.GroupID != nil {
-			chatID = string(*m.GroupID)
-		}
-	}
-
-	// If this is a receipt, the chatID/portal is the room where the message was read
-	if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt {
-		receiptMessage := incomingMessage.(signalmeow.IncomingSignalMessageReceipt)
-		timestamp := receiptMessage.OriginalTimestamp
-		sender, err := uuid.Parse(receiptMessage.OriginalSender)
-		if err != nil {
-			user.log.Err(err).Msg("Failed to parse sender UUID in receipt")
-			return nil
-		}
-		dbMessage, err := user.bridge.DB.Message.GetBySignalIDWithUnknownReceiver(context.TODO(), sender, timestamp, 0, user.SignalID)
-		if err != nil {
-			user.log.Err(err).Msg("Failed to get receipt target message from database")
-			return nil
-		} else if dbMessage == nil {
-			user.log.Warn().Msgf("Receipt received for unknown message %v %d", user.SignalID, timestamp)
-			return nil
-		}
-		chatID = dbMessage.SignalChatID
-	}
-
-	// Get and update the portal for this message
-	portal := user.GetPortalByChatID(chatID)
-	if portal == nil {
-		err := fmt.Errorf("no portal found for chatID %s", chatID)
-		user.log.Err(err).Msg("error getting portal")
-		return err
-	}
-
-	// If this is an expireTimer change, update the portal and return (only for DMs, group expireTimer changes are handled below)
-	if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeExpireTimerChange {
-		expireTimerMessage := incomingMessage.(signalmeow.IncomingSignalMessageExpireTimerChange)
-		portal.log.Debug().Msgf("Updating expiration time to %d (DM)", expireTimerMessage.NewExpireTimer)
-		if portal.ExpirationTime != int(expireTimerMessage.NewExpireTimer) {
-			portal.ExpirationTime = int(expireTimerMessage.NewExpireTimer)
-			err := portal.Update(context.TODO())
+		log.Debug().
+			Uints64("found_message_ids", foundMessageIDs).
+			Uints64("not_found_message_ids", maps.Keys(missingMessageIDMap)).
+			Int("chat_count", len(messageMap)).
+			Msg("Received read receipt")
+		for _, msg := range messageMap {
+			portal := user.GetPortalByChatID(msg.SignalChatID)
+			if portal == nil {
+				continue
+			}
+			err = portal.SendReadReceipt(sender, msg)
 			if err != nil {
-				user.log.Err(err).Msg("error updating exipration time in portal")
+				log.Err(err).Msg("Failed to send read receipt")
 			}
 		}
-		portal.HandleNewDisappearingMessageTime(expireTimerMessage.NewExpireTimer)
-		return nil
+	case signalpb.ReceiptMessage_DELIVERY:
+		messageMap := make(map[string][]*database.Message)
+		for i, msg := range messages {
+			foundMessageIDs[i] = msg.Timestamp
+			delete(missingMessageIDMap, msg.Timestamp)
+			messageMap[msg.SignalChatID] = append(messageMap[msg.SignalChatID], msg)
+		}
+		log.Debug().
+			Uints64("found_message_ids", foundMessageIDs).
+			Uints64("not_found_message_ids", maps.Keys(missingMessageIDMap)).
+			Int("chat_count", len(messageMap)).
+			Msg("Received delivery receipt")
+		for _, msgs := range messageMap {
+			portal := user.GetPortalByChatID(msgs[0].SignalChatID)
+			if portal == nil {
+				continue
+			}
+			// There should always only be 1 part, but use the last part to be safe
+			portal.MarkDelivered(msgs[len(msgs)-1])
+		}
 	}
+}
 
-	// Don't bother with portal updates for receipts or typing notifications
-	// (esp. read receipts - they don't have GroupID set so it breaks)
-	if !(incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeReceipt || incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeTyping) {
-		updatePortal := false
-		if m.GroupID != nil {
-			group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(context.Background(), user.SignalDevice, *m.GroupID)
-			if err != nil {
-				user.log.Err(err).Msg("error retrieving group")
-				return err
-			}
-			if portal.Name != group.Title || portal.Topic != group.Description {
-				portal.Name = group.Title
-				portal.Topic = group.Description
-				updatePortal = true
-			}
-			if portal.ExpirationTime != int(group.DisappearingMessagesDuration) {
-				portal.ExpirationTime = int(group.DisappearingMessagesDuration)
-				updatePortal = true
-				portal.log.Debug().Msgf("Updating expiration time to %d (group)", group.DisappearingMessagesDuration)
-				portal.HandleNewDisappearingMessageTime(group.DisappearingMessagesDuration)
-			}
-			// avatarImage is only not nil if there's a new avatar to set
-			if avatarImage != nil {
-				user.log.Debug().Msg("Uploading new group avatar")
-				avatarURL, err := portal.MainIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
-				if err != nil {
-					user.log.Err(err).Msg("error uploading group avatar")
-					return err
-				}
-				portal.AvatarURL = avatarURL.ContentURI
-				portal.AvatarSet = true
-				hash := sha256.Sum256(avatarImage)
-				portal.AvatarHash = hex.EncodeToString(hash[:])
-				updatePortal = true
-			}
+func (user *User) handleReadSelf(evt *events.ReadSelf) {
+	messagesByChat := map[string]*database.Message{}
+	for _, part := range evt.Messages {
+		log := user.log.With().
+			Str("action", "handle read self").
+			Str("sender_uuid", part.GetSenderAci()).
+			Uint64("msg_timestamp", part.GetTimestamp()).
+			Logger()
+		ctx := log.WithContext(context.TODO())
+		if senderUUID, err := uuid.Parse(part.GetSenderAci()); err != nil {
+			log.Err(err).Msg("Failed to parse sender UUID")
+		} else if msg, err := user.bridge.DB.Message.GetLastPartBySignalIDWithUnknownReceiver(ctx, senderUUID, part.GetTimestamp(), user.SignalID); err != nil {
+			log.Err(err).Msg("Failed to get message from database")
+		} else if msg == nil {
+			log.Warn().Msg("Message not found in database")
+		} else if existingMsg, ok := messagesByChat[msg.SignalChatID]; ok && existingMsg.Timestamp > msg.Timestamp {
+			log.Debug().
+				Str("chat_id", msg.SignalChatID).
+				Uint64("newer_msg", existingMsg.Timestamp).
+				Msg("Receipt event contains a newer message, skipping this one")
+		} else {
+			log.Debug().Str("chat_id", msg.SignalChatID).Msg("Received own read receipt")
+			messagesByChat[msg.SignalChatID] = msg
+		}
+	}
+	puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
+	for _, msg := range messagesByChat {
+		portal := user.GetPortalByChatID(msg.SignalChatID)
+		if portal == nil {
+			continue
+		}
+		portal.ScheduleDisappearing()
+		err := portal.SendReadReceipt(puppet, msg)
+		if err != nil {
+			user.log.Err(err).Str("mxid", msg.MXID.String()).Msg("Failed to send read receipt")
+		}
+	}
+}
 
-			// ensure everyone is invited to the group
-			portal.ensureUserInvited(user)
-			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
-		} else if senderPuppet.SignalID != user.SignalID && senderPuppet.Name != portal.Name && portal.shouldSetDMRoomMetadata() {
-			portal.Name = senderPuppet.Name
+func (user *User) handleContactChange(evt *events.ContactChange) {
+	puppet := user.bridge.GetPuppetBySignalID(evt.UUID)
+	if puppet == nil {
+		return
+	}
+	err := updatePuppetWithSignalContact(context.TODO(), user, puppet, evt.Avatar)
+	if err != nil {
+		user.log.Err(err).Msg("error updating puppet with signal contact")
+	}
+}
+
+func (user *User) syncPortalInfo(portal *Portal) {
+	updatePortal := false
+	if !portal.IsPrivateChat() {
+		group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(context.Background(), user.SignalDevice, portal.GroupID())
+		if err != nil {
+			user.log.Err(err).Msg("error retrieving group")
+			return
+		}
+		if portal.Revision < int(group.Revision) {
+			portal.Revision = int(group.Revision)
 			updatePortal = true
 		}
-		if updatePortal {
-			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room name")
-			}
-			portal.NameSet = err == nil
-			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room topic")
-			}
-			_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room avatar")
-			}
-			portal.AvatarSet = err == nil
-			err = portal.Update(context.TODO())
-			if err != nil {
-				user.log.Err(err).Msg("error updating portal")
-			}
-			portal.UpdateBridgeInfo()
+		if portal.Name != group.Title || portal.Topic != group.Description {
+			portal.Name = group.Title
+			portal.Topic = group.Description
+			updatePortal = true
 		}
-		if incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeGroupChange ||
-			incomingMessage.MessageType() == signalmeow.IncomingSignalMessageTypeContactChange {
-			// This was just a group or contact change message, and we changed the group, so we're done
-			return nil
+		if portal.ExpirationTime != int(group.DisappearingMessagesDuration) {
+			portal.ExpirationTime = int(group.DisappearingMessagesDuration)
+			updatePortal = true
+			portal.log.Debug().Msgf("Updating expiration time to %d (group)", group.DisappearingMessagesDuration)
+			// TODO send message
+			//portal.HandleNewDisappearingMessageTime(group.DisappearingMessagesDuration)
+		}
+		// avatarImage is only not nil if there's a new avatar to set
+		if avatarImage != nil {
+			user.log.Debug().Msg("Uploading new group avatar")
+			avatarURL, err := portal.MainIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
+			if err != nil {
+				user.log.Err(err).Msg("error uploading group avatar")
+				return
+			}
+			portal.AvatarURL = avatarURL.ContentURI
+			portal.AvatarSet = true
+			hash := sha256.Sum256(avatarImage)
+			portal.AvatarHash = hex.EncodeToString(hash[:])
+			updatePortal = true
+		}
+
+		// ensure everyone is invited to the group
+		portal.ensureUserInvited(user)
+		_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
+	} else if portal.shouldSetDMRoomMetadata() {
+		puppet := user.bridge.GetPuppetBySignalID(portal.UserID())
+		if puppet.Name != portal.Name {
+			portal.Name = puppet.Name
+			updatePortal = true
 		}
 	}
-
-	// We've updated puppets and portals, now send the message along to the portal
-	portalSignalMessage := portalSignalMessage{
-		user:    user,
-		sender:  senderPuppet,
-		message: incomingMessage,
-		sync:    isSyncMessage,
+	if updatePortal {
+		_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+		if err != nil {
+			user.log.Err(err).Msg("error setting room name")
+		}
+		portal.NameSet = err == nil
+		_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+		if err != nil {
+			user.log.Err(err).Msg("error setting room topic")
+		}
+		_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
+		if err != nil {
+			user.log.Err(err).Msg("error setting room avatar")
+		}
+		portal.AvatarSet = err == nil
+		err = portal.Update(context.TODO())
+		if err != nil {
+			user.log.Err(err).Msg("error updating portal")
+		}
+		portal.UpdateBridgeInfo()
 	}
-	portal.signalMessages <- portalSignalMessage
+}
 
-	return nil
+func (user *User) eventHandler(rawEvt events.SignalEvent) {
+	switch evt := rawEvt.(type) {
+	case *events.ChatEvent:
+		portal := user.GetPortalByChatID(evt.Info.ChatID)
+		if portal != nil {
+			if portal.Revision < evt.Info.GroupRevision {
+				user.syncPortalInfo(portal)
+			}
+			portal.signalMessages <- portalSignalMessage{user: user, evt: evt}
+		} else {
+			user.log.Warn().Str("chat_id", evt.Info.ChatID).Msg("Couldn't get portal, dropping message")
+		}
+	case *events.Receipt:
+		user.handleReceipt(evt)
+	case *events.ReadSelf:
+		user.handleReadSelf(evt)
+	case *events.Call:
+		portal := user.GetPortalByChatID(evt.Info.ChatID)
+		content := &event.MessageEventContent{MsgType: event.MsgNotice}
+		if evt.IsRinging {
+			content.Body = "Incoming call"
+			if portal.IsPrivateChat() {
+				content.MsgType = event.MsgText
+			}
+		} else {
+			content.Body = "Call ended"
+		}
+		portal.sendMainIntentMessage(content)
+	case *events.ContactChange:
+		user.handleContactChange(evt)
+	case *events.GroupChange:
+		portal := user.GetPortalByChatID(evt.GroupID.String())
+		if portal != nil {
+			user.syncPortalInfo(portal)
+		}
+	default:
+		user.log.Warn().Type("event_type", evt).Msg("Unrecognized event type from signalmeow")
+	}
 }
 
 func (user *User) GetPortalByChatID(signalID string) *Portal {

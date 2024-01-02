@@ -151,8 +151,6 @@ func (br *SignalBridge) Init() {
 			return uuid.Nil
 		},
 	}
-
-	signalmeow.HackyCaptionToggle = br.Config.Bridge.CaptionInMessage
 }
 
 func (br *SignalBridge) logLostPortals(ctx context.Context) {

@@ -26,49 +26,32 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-// The Contact struct combines information from two sources:
-// - A Signal "contact": contact info harvested from our user's phone's contact list
-// - A Signal "profile": contact info entered by the target user when registering for Signal
-// Users of this Contact struct should prioritize "contact" information, but fall back
-// to "profile" information if the contact information is not available.
-type Contact struct {
-	UUID              string
-	E164              string
-	ContactName       string
-	ContactAvatarHash string
-	ProfileKey        []byte
-	ProfileName       string
-	ProfileAbout      string
-	ProfileAboutEmoji string
-	ProfileAvatarHash string
-}
-
-type ContactAvatar struct {
-	Image       []byte
-	ContentType string
-	Hash        string
-}
-
-func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDetails, avatar *[]byte) (Contact, *ContactAvatar, error) {
+func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDetails, avatar *[]byte) (types.Contact, *types.ContactAvatar, error) {
 	ctx := context.TODO()
-	existingContact, err := d.ContactStore.LoadContact(ctx, contactDetails.GetAci())
+	parsedUUID, err := uuid.Parse(contactDetails.GetAci())
+	if err != nil {
+		return types.Contact{}, nil, err
+	}
+	existingContact, err := d.ContactStore.LoadContact(ctx, parsedUUID)
 	if err != nil {
 		zlog.Err(err).Msg("StoreContactDetailsAsContact error loading contact")
-		return Contact{}, nil, err
+		return types.Contact{}, nil, err
 	}
 	if existingContact == nil {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: creating new contact for uuid: %v", contactDetails.GetAci())
-		existingContact = &Contact{
-			UUID: contactDetails.GetAci(),
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: creating new contact for uuid: %v", parsedUUID)
+		existingContact = &types.Contact{
+			UUID: parsedUUID,
 		}
 	} else {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v", contactDetails.GetAci())
+		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v", parsedUUID)
 	}
 
 	existingContact.E164 = contactDetails.GetNumber()
@@ -76,7 +59,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
 		existingContact.ProfileKey = profileKeyString
 		profileKey := libsignalgo.ProfileKey(profileKeyString)
-		err = d.ProfileKeyStore.StoreProfileKey(existingContact.UUID, profileKey, ctx)
+		err = d.ProfileKeyStore.StoreProfileKey(existingContact.UUID.String(), profileKey, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("StoreContactDetailsAsContact error storing profile key")
 			//return *existingContact, nil, err
@@ -84,7 +67,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	}
 
 	// Check for avatar changes, and return ContactAvatar if it's changed
-	var contactAvatar *ContactAvatar
+	var contactAvatar *types.ContactAvatar
 	avatarHash := ""
 	if avatar != nil && *avatar != nil && len(*avatar) > 0 {
 		zlog.Debug().Msgf("StoreContactDetailsAsContact: found avatar for uuid: %v", contactDetails.GetAci())
@@ -100,7 +83,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 				contentType = http.DetectContentType(*avatar)
 				zlog.Debug().Msgf("StoreContactDetailsAsContact: using autodetected contentType: %v", contentType)
 			}
-			contactAvatar = &ContactAvatar{
+			contactAvatar = &types.ContactAvatar{
 				Image:       *avatar,
 				ContentType: contentType,
 				Hash:        avatarHash,
@@ -124,7 +107,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	return *existingContact, contactAvatar, nil
 }
 
-func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetchProfileAvatar bool) (*Contact, *ContactAvatar, error) {
+func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid uuid.UUID, fetchProfileAvatar bool) (*types.Contact, *types.ContactAvatar, error) {
 	ctx := context.TODO()
 	contactChanged := false
 
@@ -135,7 +118,7 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetc
 	}
 	if existingContact == nil {
 		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: creating new contact for uuid: %v", profileUuid)
-		existingContact = &Contact{
+		existingContact = &types.Contact{
 			UUID: profileUuid,
 		}
 		contactChanged = true
@@ -180,13 +163,13 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetc
 		}
 	}
 
-	var profileAvatar *ContactAvatar
+	var profileAvatar *types.ContactAvatar
 	if len(profileAvatarImage) > 0 {
 		// Avatar has changed according to profile cache
 		rawHash := sha256.Sum256(profileAvatarImage)
 		avatarHash := hex.EncodeToString(rawHash[:])
 		if existingContact.ProfileAvatarHash != avatarHash {
-			profileAvatar = &ContactAvatar{
+			profileAvatar = &types.ContactAvatar{
 				Image:       profileAvatarImage,
 				ContentType: http.DetectContentType(profileAvatarImage),
 				Hash:        avatarHash,
@@ -205,7 +188,7 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid string, fetc
 	return existingContact, profileAvatar, nil
 }
 
-func (d *Device) UpdateContactE164(uuid string, e164 string) error {
+func (d *Device) UpdateContactE164(uuid uuid.UUID, e164 string) error {
 	ctx := context.TODO()
 	existingContact, err := d.ContactStore.LoadContact(ctx, uuid)
 	if err != nil {
@@ -214,7 +197,7 @@ func (d *Device) UpdateContactE164(uuid string, e164 string) error {
 	}
 	if existingContact == nil {
 		zlog.Debug().Msgf("UpdateContactE164: creating new contact for uuid: %v", uuid)
-		existingContact = &Contact{
+		existingContact = &types.Contact{
 			UUID: uuid,
 		}
 	} else {
@@ -234,19 +217,19 @@ func (d *Device) UpdateContactE164(uuid string, e164 string) error {
 
 // ContactAvatar is only populated if there is no contact avatar, and the profile the avatar has changed
 // If there is a contact avatar, it will have to have been updated when the contact is sent, we can't fetch on demand
-func (d *Device) ContactByIDWithProfileAvatar(uuid string) (*Contact, *ContactAvatar, error) {
+func (d *Device) ContactByIDWithProfileAvatar(uuid uuid.UUID) (*types.Contact, *types.ContactAvatar, error) {
 	// Update the profile (we can call this liberally, there's a cache backing it)
 	// We can just return the result of this, ContactAvatar will be nil if there's no change or if there is a contact avatar
 	return fetchContactThenTryAndUpdateWithProfile(d, uuid, true)
 }
 
-func (d *Device) ContactByID(uuid string) (*Contact, error) {
+func (d *Device) ContactByID(uuid uuid.UUID) (*types.Contact, error) {
 	// Update the profile (we can call this liberally, there's a cache backing it)
 	contact, _, err := fetchContactThenTryAndUpdateWithProfile(d, uuid, false)
 	return contact, err
 }
 
-func (d *Device) ContactByE164(e164 string) (*Contact, error) {
+func (d *Device) ContactByE164(e164 string) (*types.Contact, error) {
 	ctx := context.TODO()
 	contact, err := d.ContactStore.LoadContactByE164(ctx, e164)
 	if err != nil {
@@ -259,14 +242,6 @@ func (d *Device) ContactByE164(e164 string) (*Contact, error) {
 	// Update profile information (we can call this liberally, there's a cache backing it)
 	contact, _, err = fetchContactThenTryAndUpdateWithProfile(d, contact.UUID, false)
 	return contact, err
-}
-
-// Deprecated
-func (c Contact) ContactOrProfileName() string {
-	if c.ContactName != "" {
-		return c.ContactName
-	}
-	return c.ProfileName
 }
 
 // UnmarshalContactDetailsMessages unmarshals a slice of ContactDetails messages from a byte buffer.
@@ -307,6 +282,7 @@ func unmarshalContactDetailsMessages(byteStream []byte) ([]*signalpb.ContactDeta
 		// If the ContactDetails object has an avatar, read it into a byte slice
 		if contactDetails.Avatar != nil && contactDetails.Avatar.Length != nil && *contactDetails.Avatar.Length > 0 {
 			avatarBytes := buf.Next(int(*contactDetails.Avatar.Length))
+			// TODO why is this making a copy?
 			avatarBytesCopy := make([]byte, len(avatarBytes))
 			copy(avatarBytesCopy, avatarBytes)
 			avatarList = append(avatarList, avatarBytesCopy)

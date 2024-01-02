@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -65,7 +66,13 @@ type DeviceConnection struct {
 	UnauthedWS *web.SignalWebsocket
 	WSCancel   context.CancelFunc
 
-	IncomingSignalMessageHandler func(IncomingSignalMessage) error
+	EventHandler func(events.SignalEvent)
+}
+
+func (d *DeviceConnection) handleEvent(evt events.SignalEvent) {
+	if d.EventHandler != nil {
+		d.EventHandler(evt)
+	}
 }
 
 func (d *DeviceConnection) IsConnected() bool {
