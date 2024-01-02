@@ -52,6 +52,7 @@ type MessageConverter struct {
 	MatrixFmtParams *matrixfmt.HTMLParser
 
 	ConvertVoiceMessages bool
+	ConvertGIFToAPNG     bool
 	MaxFileSize          int64
 	AsyncFiles           bool
 }

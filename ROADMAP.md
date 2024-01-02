@@ -13,7 +13,7 @@
       * [x] Gifs
       * [ ] Locations
       * [x] Stickers
-  * [ ] Message edits
+  * [x] Message edits
   * [x] Message reactions
   * [x] Message redactions
   * [ ] Group info changes

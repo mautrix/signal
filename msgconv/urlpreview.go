@@ -128,11 +128,12 @@ func (mc *MessageConverter) convertURLPreviewToSignal(ctx context.Context, evt *
 					continue
 				}
 			}
-			uploaded, err := signalmeow.UploadAttachment(mc.GetClient(ctx), data, preview.ImageType, "")
+			uploaded, err := signalmeow.UploadAttachment(mc.GetClient(ctx), data)
 			if err != nil {
 				log.Err(err).Int("preview_index", i).Msg("Failed to reupload URL preview image")
 				continue
 			}
+			uploaded.ContentType = proto.String(preview.ImageType)
 			uploaded.Width = proto.Uint32(uint32(preview.ImageWidth))
 			uploaded.Height = proto.Uint32(uint32(preview.ImageHeight))
 			output[i].Image = uploaded

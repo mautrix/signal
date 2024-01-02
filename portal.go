@@ -22,8 +22,6 @@ import (
 	"errors"
 	"fmt"
 	"image"
-	"image/color"
-	"image/png"
 	"reflect"
 	"strings"
 	"sync"
@@ -31,12 +29,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/exerrors"
-	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
-	cwebp "go.mau.fi/webp"
-	"golang.org/x/image/webp"
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
@@ -298,7 +292,11 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 		return
 	}
-	log := portal.log.With().Str("event_id", msg.evt.ID.String()).Logger()
+	log := portal.log.With().
+		Str("action", "handle matrix event").
+		Str("event_id", msg.evt.ID.String()).
+		Str("event_type", msg.evt.Type.String()).
+		Logger()
 	ctx := log.WithContext(context.TODO())
 
 	switch msg.evt.Type {
@@ -314,6 +312,7 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 }
 
 func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt *event.Event) {
+	log := zerolog.Ctx(ctx)
 	evtTS := time.UnixMilli(evt.Timestamp)
 	timings := messageTimings{
 		initReceive:  evt.Mautrix.ReceivedAt.Sub(evtTS),
@@ -326,13 +325,16 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 
 	messageAge := timings.totalReceive
 	ms := metricSender{portal: portal, timings: &timings}
-	portal.log.Debug().Msgf("Received message %s from %s (age: %s)", evt.ID, evt.Sender, messageAge)
+	log.Debug().
+		Str("sender", evt.Sender.String()).
+		Dur("age", messageAge).
+		Msg("Received message")
 
 	errorAfter := portal.bridge.Config.Bridge.MessageHandlingTimeout.ErrorAfter
 	deadline := portal.bridge.Config.Bridge.MessageHandlingTimeout.Deadline
 	isScheduled, _ := evt.Content.Raw["com.beeper.scheduled"].(bool)
 	if isScheduled {
-		portal.log.Debug().Msgf("%s is a scheduled message, extending handling timeouts", evt.ID)
+		log.Debug().Msg("Message is a scheduled message, extending handling timeouts")
 		errorAfter *= 10
 		deadline *= 10
 	}
@@ -343,7 +345,10 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 			go ms.sendMessageMetrics(evt, errTimeoutBeforeHandling, "Timeout handling", true)
 			return
 		} else if remainingTime < 1*time.Second {
-			portal.log.Warn().Msgf("Message %s was delayed before reaching the bridge, only have %s (of %s timeout) until delay warning", evt.ID, remainingTime, errorAfter)
+			log.Warn().
+				Dur("remaining_time", remainingTime).
+				Dur("max_timeout", errorAfter).
+				Msg("Message was delayed before reaching the bridge")
 		}
 		go func() {
 			time.Sleep(remainingTime)
@@ -360,38 +365,107 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 	timings.preproc = time.Since(start)
 	start = time.Now()
 
-	msg, err := portal.convertMatrixMessage(ctx, sender, evt)
-	if err != nil || msg == nil {
-		if err == nil {
-			err = fmt.Errorf("msg is nil")
-		}
-		portal.log.Error().Msgf("Error converting message %s: %v", evt.ID, err)
-		go ms.sendMessageMetrics(evt, err, "Error converting", true)
+	content, ok := evt.Content.Parsed.(*event.MessageEventContent)
+	if !ok {
+		log.Error().Type("content_type", content).Msg("Unexpected parsed content type")
+		go ms.sendMessageMetrics(evt, fmt.Errorf("%w %T", errUnexpectedParsedContentType, evt.Content.Parsed), "Error converting", true)
 		return
 	}
 
-	timestamp := *msg.DataMessage.Timestamp
-	if timestamp == 0 {
-		timestamp = uint64(start.UnixMilli())
+	realSenderMXID := sender.MXID
+	isRelay := false
+	if !sender.IsLoggedIn() {
+		if !portal.HasRelaybot() {
+			go ms.sendMessageMetrics(evt, errUserNotLoggedIn, "Error converting", true)
+			return
+		}
+		sender = portal.GetRelayUser()
+		if !sender.IsLoggedIn() {
+			go ms.sendMessageMetrics(evt, errRelaybotNotLoggedIn, "Error converting", true)
+			return
+		}
+		isRelay = true
 	}
+
+	var editTargetMsg *database.Message
+	if editTarget := content.RelatesTo.GetReplaceID(); editTarget != "" {
+		var err error
+		editTargetMsg, err = portal.bridge.DB.Message.GetByMXID(ctx, editTarget)
+		if err != nil {
+			log.Err(err).Str("edit_target_mxid", editTarget.String()).Msg("Failed to get edit target message")
+			go ms.sendMessageMetrics(evt, errFailedToGetEditTarget, "Error converting", true)
+			return
+		} else if editTargetMsg == nil {
+			log.Err(err).Str("edit_target_mxid", editTarget.String()).Msg("Edit target message not found")
+			go ms.sendMessageMetrics(evt, errEditUnknownTarget, "Error converting", true)
+			return
+		} else if editTargetMsg.Sender != sender.SignalID {
+			go ms.sendMessageMetrics(evt, errEditDifferentSender, "Error converting", true)
+			return
+		}
+		if content.NewContent != nil {
+			content = content.NewContent
+			evt.Content.Parsed = content
+		}
+	}
+
+	if evt.Type == event.EventSticker {
+		content.MsgType = event.MessageType(event.EventSticker.Type)
+	}
+	relaybotFormatted := isRelay && portal.addRelaybotFormat(realSenderMXID, content)
+	if relaybotFormatted && content.FileName == "" {
+		content.FileName = content.Body
+	}
+	if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
+		go ms.sendMessageMetrics(evt, errMNoticeDisabled, "Error converting", true)
+		return
+	}
+	if content.MsgType == event.MsgEmote && !relaybotFormatted {
+		content.Body = "/me " + content.Body
+		if content.FormattedBody != "" {
+			content.FormattedBody = "/me " + content.FormattedBody
+		}
+	}
+	trustTimestamp := !relaybotFormatted
+	ctx = context.WithValue(ctx, msgconvContextKeyClient, sender.SignalDevice)
+	msg, err := portal.MsgConv.ToSignal(ctx, evt, trustTimestamp)
+	if err != nil {
+		log.Err(err).Msg("Failed to convert message")
+		go ms.sendMessageMetrics(evt, err, "Error converting", true)
+		return
+	}
+	var wrappedMsg *signalpb.Content
+	if editTargetMsg == nil {
+		wrappedMsg = &signalpb.Content{
+			DataMessage: msg,
+		}
+	} else {
+		wrappedMsg = &signalpb.Content{
+			EditMessage: &signalpb.EditMessage{
+				TargetSentTimestamp: proto.Uint64(editTargetMsg.Timestamp),
+				DataMessage:         msg,
+			},
+		}
+	}
+
 	timings.convert = time.Since(start)
 	start = time.Now()
 
-	// If the portal has disappearing messages enabled, set the expiration time
-	if portal.ExpirationTime > 0 {
-		signalmeow.AddExpiryToDataMessage(msg, uint32(portal.ExpirationTime))
-	}
-	if !sender.IsLoggedIn() {
-		sender = portal.GetRelayUser()
-	}
-	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
+	err = portal.sendSignalMessage(ctx, wrappedMsg, sender, evt.ID)
 
 	timings.totalSend = time.Since(start)
 	go ms.sendMessageMetrics(evt, err, "Error sending", true)
 	if err == nil {
-		portal.storeMessageInDB(ctx, evt.ID, sender.SignalID, timestamp, 0)
-		if portal.ExpirationTime > 0 {
-			portal.addDisappearingMessage(ctx, evt.ID, uint32(portal.ExpirationTime), true)
+		if editTargetMsg != nil {
+			err = editTargetMsg.SetTimestamp(ctx, msg.GetTimestamp())
+			if err != nil {
+				log.Err(err).Msg("Failed to update message timestamp in database after editing")
+			}
+		} else {
+			portal.storeMessageInDB(ctx, evt.ID, sender.SignalID, msg.GetTimestamp(), 0)
+			if portal.ExpirationTime > 0 {
+				portal.addDisappearingMessage(ctx, evt.ID, uint32(portal.ExpirationTime), true)
+			}
 		}
 	}
 }
@@ -497,7 +571,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	targetAuthorUUID := dbMessage.Sender
 	targetTimestamp := dbMessage.Timestamp
 	msg := signalmeow.DataMessageForReaction(signalEmoji, targetAuthorUUID, targetTimestamp, false)
-	err = portal.sendSignalMessage(context.Background(), msg, sender, evt.ID)
+	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(evt, err)
 		portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
@@ -534,358 +608,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	portal.sendMessageStatusCheckpointSuccess(evt)
 }
 
-func (portal *Portal) downloadAndDecryptMatrixMedia(ctx context.Context, content *event.MessageEventContent) ([]byte, error) {
-	var file *event.EncryptedFileInfo
-	rawMXC := content.URL
-	if content.File != nil {
-		file = content.File
-		rawMXC = file.URL
-	}
-	mxc, err := rawMXC.Parse()
-	if err != nil {
-		return nil, err
-	}
-	data, err := portal.MainIntent().DownloadBytesContext(ctx, mxc)
-	if err != nil {
-		return nil, exerrors.NewDualError(errMediaDownloadFailed, err)
-	}
-	if file != nil {
-		err = file.DecryptInPlace(data)
-		if err != nil {
-			return nil, exerrors.NewDualError(errMediaDecryptFailed, err)
-		}
-	}
-	return data, nil
-}
-
-func convertWebPtoPNG(webpImage []byte) ([]byte, error) {
-	webpDecoded, err := webp.Decode(bytes.NewReader(webpImage))
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode webp image: %w", err)
-	}
-
-	var pngBuffer bytes.Buffer
-	if err = png.Encode(&pngBuffer, webpDecoded); err != nil {
-		return nil, fmt.Errorf("failed to encode png image: %w", err)
-	}
-
-	return pngBuffer.Bytes(), nil
-}
-
-type PaddedImage struct {
-	image.Image
-	Size    int
-	OffsetX int
-	OffsetY int
-}
-
-func (img *PaddedImage) Bounds() image.Rectangle {
-	return image.Rect(0, 0, img.Size, img.Size)
-}
-
-func (img *PaddedImage) At(x, y int) color.Color {
-	return img.Image.At(x+img.OffsetX, y+img.OffsetY)
-}
-
-func convertToWebPSticker(img []byte) ([]byte, error) {
-	decodedImg, _, err := image.Decode(bytes.NewReader(img))
-	if err != nil {
-		return img, fmt.Errorf("failed to decode image: %w", err)
-	}
-
-	bounds := decodedImg.Bounds()
-	width, height := bounds.Dx(), bounds.Dy()
-	if width != height {
-		paddedImg := &PaddedImage{
-			Image:   decodedImg,
-			OffsetX: bounds.Min.Y,
-			OffsetY: bounds.Min.X,
-		}
-		if width > height {
-			paddedImg.Size = width
-			paddedImg.OffsetY -= (paddedImg.Size - height) / 2
-		} else {
-			paddedImg.Size = height
-			paddedImg.OffsetX -= (paddedImg.Size - width) / 2
-		}
-		decodedImg = paddedImg
-	}
-
-	var webpBuffer bytes.Buffer
-	if err = cwebp.Encode(&webpBuffer, decodedImg, nil); err != nil {
-		return img, fmt.Errorf("failed to encode webp image: %w", err)
-	}
-
-	return webpBuffer.Bytes(), nil
-}
-
-func convertImage(ctx context.Context, mimeType string, image []byte) (string, []byte, error) {
-	var outMimeType string
-	var outImage []byte
-	var err error
-	switch mimeType {
-	case "image/jpeg", "image/png", "image/gif":
-		// Allowed
-		outMimeType = mimeType
-		outImage = image
-	case "image/webp":
-		outMimeType = "image/png"
-		outImage, err = convertWebPtoPNG(image)
-	default:
-		return "", nil, fmt.Errorf("%w %q", errMediaUnsupportedType, mimeType)
-	}
-	if err != nil {
-		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, outMimeType)
-	}
-	return outMimeType, outImage, nil
-}
-
-func convertSticker(ctx context.Context, mimeType string, sticker []byte, width, height int) (string, []byte, error) {
-	var outMimeType string = mimeType
-	var outSticker []byte = sticker
-	var err error
-	if mimeType != "image/webp" || width != height {
-		outSticker, err = convertToWebPSticker(sticker)
-		outMimeType = "image/webp"
-	}
-	if err != nil {
-		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, outMimeType)
-	}
-	return outMimeType, outSticker, nil
-}
-
-func convertVideo(ctx context.Context, mimeType string, video []byte) (string, []byte, error) {
-	var outMimeType string
-	var outVideo []byte
-	var err error
-	switch mimeType {
-	case "video/mp4", "video/3gpp":
-		// Allowed
-		outMimeType = mimeType
-		outVideo = video
-	case "video/webm":
-		outMimeType = "video/mp4"
-		outVideo, err = ffmpeg.ConvertBytes(ctx, video, ".mp4", []string{"-f", "webm"}, []string{
-			"-pix_fmt", "yuv420p", "-c:v", "libx264",
-		}, mimeType)
-	default:
-		return "", nil, fmt.Errorf("%w %q in video message", errMediaUnsupportedType, mimeType)
-	}
-	if err != nil {
-		return "", nil, fmt.Errorf("%w (%s to %s)", errMediaConvertFailed, mimeType, outMimeType)
-	}
-	return outMimeType, outVideo, nil
-}
-
-func (portal *Portal) convertMatrixMessage(ctx context.Context, sender *User, evt *event.Event) (*signalmeow.SignalContent, error) {
-	content, ok := evt.Content.Parsed.(*event.MessageEventContent)
-	if !ok {
-		return nil, fmt.Errorf("%w %T", errUnexpectedParsedContentType, evt.Content.Parsed)
-	}
-
-	if evt.Type == event.EventSticker {
-		content.MsgType = event.MessageType(event.EventSticker.Type)
-	}
-	realSenderMXID := sender.MXID
-	isRelay := false
-	if !sender.IsLoggedIn() {
-		if !portal.HasRelaybot() {
-			return nil, errUserNotLoggedIn
-		}
-		sender = portal.GetRelayUser()
-		if !sender.IsLoggedIn() {
-			return nil, errRelaybotNotLoggedIn
-		}
-		isRelay = true
-	}
-	var outgoingMessage *signalmeow.SignalContent
-	relaybotFormatted := isRelay && portal.addRelaybotFormat(realSenderMXID, content)
-	if relaybotFormatted && content.FileName == "" {
-		content.FileName = content.Body
-	}
-
-	if evt.Type == event.EventSticker {
-		if relaybotFormatted {
-			// Stickers can't have captions, so force relaybot stickers to be images
-			content.MsgType = event.MsgImage
-		} else {
-			content.MsgType = event.MessageType(event.EventSticker.Type)
-		}
-	}
-
-	switch content.MsgType {
-	case event.MsgText, event.MsgEmote, event.MsgNotice:
-		if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
-			return nil, errMNoticeDisabled
-		}
-		if content.MsgType == event.MsgEmote && !relaybotFormatted {
-			content.Body = "/me " + content.Body
-			if content.FormattedBody != "" {
-				content.FormattedBody = "/me " + content.FormattedBody
-			}
-		}
-		outgoingMessage = signalmeow.DataMessageForText(matrixfmt.Parse(matrixFormatParams, content))
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-
-	case event.MsgImage:
-		fileName := content.Body
-		var caption string
-		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
-			fileName = content.FileName
-			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
-		}
-		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
-		if err != nil {
-			return nil, err
-		}
-		newMimeType, convertedImage, err := convertImage(ctx, content.GetInfo().MimeType, image)
-		if err != nil {
-			return nil, err
-		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedImage, newMimeType, fileName)
-		if err != nil {
-			return nil, err
-		}
-		attachmentPointer.Height = proto.Uint32(uint32(content.GetInfo().Height))
-		attachmentPointer.Width = proto.Uint32(uint32(content.GetInfo().Width))
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
-
-	case event.MessageType(event.EventSticker.Type):
-		var emoji *string
-		// TODO check for single grapheme cluster?
-		if len([]rune(content.Body)) == 1 {
-			emoji = proto.String(variationselector.Remove(content.Body))
-		}
-		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
-		if err != nil {
-			return nil, err
-		}
-		newMimeType, convertedSticker, err := convertSticker(ctx, content.GetInfo().MimeType, image, content.GetInfo().Width, content.GetInfo().Height)
-		if err != nil {
-			return nil, err
-		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedSticker, newMimeType, content.FileName)
-		if err != nil {
-			return nil, err
-		}
-		attachmentPointer.Height = proto.Uint32(uint32(content.GetInfo().Height))
-		attachmentPointer.Width = proto.Uint32(uint32(content.GetInfo().Width))
-		attachmentPointer.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_BORDERLESS))
-		outgoingMessage = &signalmeow.SignalContent{
-			DataMessage: &signalpb.DataMessage{
-				Timestamp: proto.Uint64(uint64(time.Now().UnixMilli())),
-				Sticker: &signalpb.DataMessage_Sticker{
-					// Signal iOS validates that pack id/key are of the correct length.
-					// Android is fine with any non-nil values (like a zero-length byte string).
-					PackId:    make([]byte, 16),
-					PackKey:   make([]byte, 32),
-					StickerId: proto.Uint32(0),
-
-					Data:  (*signalpb.AttachmentPointer)(attachmentPointer),
-					Emoji: emoji,
-				},
-			},
-		}
-	case event.MsgVideo:
-		fileName := content.Body
-		var caption string
-		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
-			fileName = content.FileName
-			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
-		}
-		image, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
-		if err != nil {
-			return nil, err
-		}
-		newMimeType, convertedVideo, err := convertVideo(ctx, content.GetInfo().MimeType, image)
-		if err != nil {
-			return nil, err
-		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, convertedVideo, newMimeType, fileName)
-		if err != nil {
-			return nil, err
-		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
-
-	case event.MsgAudio:
-		fileName := content.Body
-		var caption string
-		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
-			fileName = content.FileName
-			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
-		}
-		data, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
-		if err != nil {
-			return nil, err
-		}
-		_, isVoice := evt.Content.Raw["org.matrix.msc3245.voice"]
-		mime := content.GetInfo().MimeType
-		if isVoice {
-			data, err = ffmpeg.ConvertBytes(ctx, data, ".m4a", []string{}, []string{"-c:a", "aac"}, mime)
-			if err != nil {
-				return nil, err
-			}
-			mime = "audio/aac"
-			fileName += ".m4a"
-		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, data, mime, fileName)
-		if err != nil {
-			return nil, err
-		}
-		if isVoice {
-			attachmentPointer.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
-		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
-
-	case event.MsgFile:
-		fileName := content.Body
-		var caption string
-		var ranges []*signalpb.BodyRange
-		if content.FileName != "" && (content.Body != content.FileName || content.Format == event.FormatHTML) {
-			fileName = content.FileName
-			caption, ranges = matrixfmt.Parse(matrixFormatParams, content)
-		}
-		file, err := portal.downloadAndDecryptMatrixMedia(ctx, content)
-		if err != nil {
-			return nil, err
-		}
-		attachmentPointer, err := signalmeow.UploadAttachment(sender.SignalDevice, file, content.GetInfo().MimeType, fileName)
-		if err != nil {
-			return nil, err
-		}
-		outgoingMessage = signalmeow.DataMessageForAttachment(attachmentPointer, caption, ranges)
-
-	case event.MsgLocation:
-		fallthrough
-	default:
-		return nil, fmt.Errorf("%w %q", errUnknownMsgType, content.MsgType)
-	}
-
-	// Include a quote if this is a reply
-	replyID := content.RelatesTo.GetReplyTo()
-	if replyID != "" {
-		originalMessage, err := portal.bridge.DB.Message.GetByMXID(ctx, replyID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get reply target: %w", err)
-		} else if originalMessage != nil {
-			signalmeow.AddQuoteToDataMessage(
-				outgoingMessage,
-				originalMessage.Sender,
-				originalMessage.Timestamp,
-			)
-		} else {
-			zerolog.Ctx(ctx).Warn().Str("reply_event_id", replyID.String()).Msg("Reply target not found")
-		}
-	}
-	return outgoingMessage, nil
-}
-
-func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalmeow.SignalContent, sender *User, evtID id.EventID) error {
+func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Content, sender *User, evtID id.EventID) error {
 	recipientSignalID := portal.ChatID
 	portal.log.Debug().Msgf("Sending event %s to Signal %s", evtID, recipientSignalID)
 
@@ -1021,16 +744,24 @@ func (portal *Portal) GetSignalReply(ctx context.Context, content *event.Message
 	if len(replyToID) == 0 {
 		return nil
 	}
-	log := zerolog.Ctx(ctx)
 	replyToMsg, err := portal.bridge.DB.Message.GetByMXID(ctx, replyToID)
 	if err != nil {
-		log.Err(err).Str("reply_to_mxid", replyToID.String()).Msg("Failed to get reply target message from database")
+		zerolog.Ctx(ctx).Err(err).
+			Str("reply_to_mxid", replyToID.String()).
+			Msg("Failed to get reply target message from database")
 	} else if replyToMsg == nil {
-		log.Warn().Str("reply_to_mxid", replyToID.String()).Msg("Reply target message not found")
+		zerolog.Ctx(ctx).Warn().
+			Str("reply_to_mxid", replyToID.String()).
+			Msg("Reply target message not found")
 	} else {
 		return &signalpb.DataMessage_Quote{
-			Id:          proto.Uint64(replyToMsg.Timestamp),
-			AuthorAci:   proto.String(replyToMsg.Sender.String()),
+			Id:        proto.Uint64(replyToMsg.Timestamp),
+			AuthorAci: proto.String(replyToMsg.Sender.String()),
+			Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
+
+			// This is a hack to make Signal iOS and desktop render replies to file messages.
+			// Unfortunately it also makes Signal Desktop show a file icon on replies to text messages.
+			// TODO store file or text flag in database and fill this field only when replying to file messages.
 			Attachments: make([]*signalpb.DataMessage_Quote_QuotedAttachment, 0),
 		}
 	}

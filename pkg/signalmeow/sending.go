@@ -37,8 +37,6 @@ import (
 
 // Sending
 
-type SignalContent signalpb.Content
-
 func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
 		// TODO: check for expired certificate
@@ -305,6 +303,24 @@ func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results 
 		},
 	}
 }
+func syncMessageFromGroupEditMessage(editMessage *signalpb.EditMessage, results []SuccessfulSendResult) *signalpb.Content {
+	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
+	for _, result := range results {
+		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
+			DestinationServiceId: &result.RecipientUuid,
+			Unidentified:         &result.Unidentified,
+		})
+	}
+	return &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Sent: &signalpb.SyncMessage_Sent{
+				EditMessage:        editMessage,
+				Timestamp:          editMessage.GetDataMessage().Timestamp,
+				UnidentifiedStatus: unidentifiedStatuses,
+			},
+		},
+	}
+}
 
 func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result SuccessfulSendResult) *signalpb.Content {
 	return &signalpb.Content{
@@ -313,6 +329,24 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 				Message:              dataMessage,
 				DestinationServiceId: &result.RecipientUuid,
 				Timestamp:            dataMessage.Timestamp,
+				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
+					{
+						DestinationServiceId: &result.RecipientUuid,
+						Unidentified:         &result.Unidentified,
+					},
+				},
+			},
+		},
+	}
+}
+
+func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result SuccessfulSendResult) *signalpb.Content {
+	return &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Sent: &signalpb.SyncMessage_Sent{
+				EditMessage:          editMessage,
+				DestinationServiceId: &result.RecipientUuid,
+				Timestamp:            editMessage.DataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
 						DestinationServiceId: &result.RecipientUuid,
@@ -372,7 +406,7 @@ func SendContactSyncRequest(ctx context.Context, d *Device) error {
 	return nil
 }
 
-func TypingMessage(isTyping bool) *SignalContent {
+func TypingMessage(isTyping bool) *signalpb.Content {
 	// Note: not handling sending to a group ATM since that will require
 	// SenderKey sending to not be terrible
 	timestamp := currentMessageTimestamp()
@@ -386,60 +420,36 @@ func TypingMessage(isTyping bool) *SignalContent {
 		Timestamp: &timestamp,
 		Action:    &action,
 	}
-	return &SignalContent{
+	return &signalpb.Content{
 		TypingMessage: tm,
 	}
 }
 
-func DeliveredReceiptMessageForTimestamps(timestamps []uint64) *SignalContent {
+func DeliveredReceiptMessageForTimestamps(timestamps []uint64) *signalpb.Content {
 	rm := &signalpb.ReceiptMessage{
 		Timestamp: timestamps,
 		Type:      signalpb.ReceiptMessage_DELIVERY.Enum(),
 	}
-	return &SignalContent{
+	return &signalpb.Content{
 		ReceiptMessage: rm,
 	}
 }
 
-func ReadReceptMessageForTimestamps(timestamps []uint64) *SignalContent {
+func ReadReceptMessageForTimestamps(timestamps []uint64) *signalpb.Content {
 	rm := &signalpb.ReceiptMessage{
 		Timestamp: timestamps,
 		Type:      signalpb.ReceiptMessage_READ.Enum(),
 	}
-	return &SignalContent{
+	return &signalpb.Content{
 		ReceiptMessage: rm,
 	}
 }
 
-func DataMessageForText(text string, ranges []*signalpb.BodyRange) *SignalContent {
+func DataMessageForReaction(reaction string, targetMessageSender uuid.UUID, targetMessageTimestamp uint64, removing bool) *signalpb.Content {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
-		Body:       proto.String(text),
-		BodyRanges: ranges,
-		Timestamp:  &timestamp,
-	}
-	return wrapDataMessageInContent(dm)
-}
-
-func DataMessageForAttachment(ap *signalpb.AttachmentPointer, caption string, ranges []*signalpb.BodyRange) *SignalContent {
-	timestamp := currentMessageTimestamp()
-	dm := &signalpb.DataMessage{
-		Timestamp:   &timestamp,
-		Attachments: []*signalpb.AttachmentPointer{},
-	}
-	if caption != "" {
-		ap.Caption = proto.String(caption)
-		dm.Body = proto.String(caption)
-		dm.BodyRanges = ranges
-	}
-	dm.Attachments = append(dm.Attachments, ap)
-	return wrapDataMessageInContent(dm)
-}
-
-func DataMessageForReaction(reaction string, targetMessageSender uuid.UUID, targetMessageTimestamp uint64, removing bool) *SignalContent {
-	timestamp := currentMessageTimestamp()
-	dm := &signalpb.DataMessage{
-		Timestamp: &timestamp,
+		Timestamp:               &timestamp,
+		RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 		Reaction: &signalpb.DataMessage_Reaction{
 			Emoji:               proto.String(reaction),
 			Remove:              proto.Bool(removing),
@@ -450,7 +460,7 @@ func DataMessageForReaction(reaction string, targetMessageSender uuid.UUID, targ
 	return wrapDataMessageInContent(dm)
 }
 
-func DataMessageForDelete(targetMessageTimestamp uint64) *SignalContent {
+func DataMessageForDelete(targetMessageTimestamp uint64) *signalpb.Content {
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
 		Timestamp: &timestamp,
@@ -461,39 +471,26 @@ func DataMessageForDelete(targetMessageTimestamp uint64) *SignalContent {
 	return wrapDataMessageInContent(dm)
 }
 
-func AddQuoteToDataMessage(content *SignalContent, quotedMessageSender uuid.UUID, quotedMessageTimestamp uint64) {
-	content.DataMessage.Quote = &signalpb.DataMessage_Quote{
-		AuthorAci: proto.String(quotedMessageSender.String()),
-		Id:        proto.Uint64(quotedMessageTimestamp),
-		Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
-
-		// This is a hack to make Signal iOS and desktop render replies to file messages.
-		// Unfortunately it also makes Signal Desktop show a file icon on replies to text messages.
-		// TODO store file or text flag in database and fill this field only when replying to file messages.
-		Attachments: []*signalpb.DataMessage_Quote_QuotedAttachment{{}},
-	}
-}
-
-func AddExpiryToDataMessage(content *SignalContent, expiresInSeconds uint32) {
-	content.DataMessage.ExpireTimer = proto.Uint32(expiresInSeconds)
-}
-
-func wrapDataMessageInContent(dm *signalpb.DataMessage) *SignalContent {
-	return &SignalContent{
+func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
+	return &signalpb.Content{
 		DataMessage: dm,
 	}
 }
 
-func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdentifier, message *SignalContent) (*GroupMessageSendResult, error) {
+func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdentifier, content *signalpb.Content) (*GroupMessageSendResult, error) {
 	group, err := RetrieveGroupByID(ctx, device, gid)
 	if err != nil {
 		return nil, err
 	}
 
-	content := (*signalpb.Content)(message)
-	dataMessage := content.DataMessage
-	messageTimestamp := *dataMessage.Timestamp
-	dataMessage.GroupV2 = groupMetadataForDataMessage(*group)
+	var messageTimestamp uint64
+	if content.GetDataMessage() != nil {
+		messageTimestamp = content.DataMessage.GetTimestamp()
+		content.DataMessage.GroupV2 = groupMetadataForDataMessage(*group)
+	} else if content.GetEditMessage().GetDataMessage() != nil {
+		messageTimestamp = content.EditMessage.DataMessage.GetTimestamp()
+		content.EditMessage.DataMessage.GroupV2 = groupMetadataForDataMessage(*group)
+	}
 
 	// Send to each member of the group
 	result := &GroupMessageSendResult{
@@ -523,7 +520,12 @@ func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdenti
 
 	// No need to send to ourselves if we don't have any other devices
 	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
-		syncContent := syncMessageFromGroupDataMessage(dataMessage, result.SuccessfullySentTo)
+		var syncContent *signalpb.Content
+		if content.GetDataMessage() != nil {
+			syncContent = syncMessageFromGroupDataMessage(content.DataMessage, result.SuccessfullySentTo)
+		} else if content.GetEditMessage() != nil {
+			syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
+		}
 		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
 		if selfSendErr != nil {
 			zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
@@ -541,13 +543,13 @@ func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdenti
 	return result, nil
 }
 
-func SendMessage(ctx context.Context, device *Device, recipientID string, message *SignalContent) SendMessageResult {
+func SendMessage(ctx context.Context, device *Device, recipientID string, content *signalpb.Content) SendMessageResult {
 	// Assemble the content to send
-	content := (*signalpb.Content)(message)
-	dataMessage := content.DataMessage
 	var messageTimestamp uint64
-	if dataMessage != nil {
-		messageTimestamp = *dataMessage.Timestamp
+	if content.GetDataMessage() != nil {
+		messageTimestamp = *content.DataMessage.Timestamp
+	} else if content.GetEditMessage().GetDataMessage() != nil {
+		messageTimestamp = *content.EditMessage.DataMessage.Timestamp
 	} else {
 		messageTimestamp = currentMessageTimestamp()
 	}
@@ -579,10 +581,11 @@ func SendMessage(ctx context.Context, device *Device, recipientID string, messag
 	// If we have other devices, send Sync messages to them too
 	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
 		var syncContent *signalpb.Content
-		if dataMessage != nil {
-			syncContent = syncMessageFromSoloDataMessage(dataMessage, *result.SuccessfulSendResult)
-		}
-		if content.ReceiptMessage != nil && *content.ReceiptMessage.Type == signalpb.ReceiptMessage_READ {
+		if content.GetDataMessage() != nil {
+			syncContent = syncMessageFromSoloDataMessage(content.DataMessage, *result.SuccessfulSendResult)
+		} else if content.GetEditMessage() != nil {
+			syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result.SuccessfulSendResult)
+		} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
 			syncContent = syncMessageFromReadReceiptMessage(content.ReceiptMessage, recipientID)
 		}
 		if syncContent != nil {

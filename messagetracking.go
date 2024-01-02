@@ -52,6 +52,7 @@ var (
 	errPollDuplicateOption         = errors.New("poll options must be unique")
 
 	errEditUnknownTarget     = errors.New("unknown edit target message")
+	errFailedToGetEditTarget = errors.New("failed to get edit target message")
 	errEditUnknownTargetType = errors.New("unsupported edited message type")
 	errEditDifferentSender   = errors.New("can't edit message sent by another user")
 	errEditTooOld            = errors.New("message is too old to be edited")

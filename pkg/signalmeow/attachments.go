@@ -105,7 +105,7 @@ type attachmentV3UploadAttributes struct {
 	SignedUploadLocation string            `json:"signedUploadLocation"`
 }
 
-func UploadAttachment(device *Device, body []byte, mimeType, filename string) (*signalpb.AttachmentPointer, error) {
+func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
 	keys := random.Bytes(64) // combined AES and MAC keys
 	plaintextLength := uint32(len(body))
 
@@ -181,12 +181,10 @@ func UploadAttachment(device *Device, body []byte, mimeType, filename string) (*
 		AttachmentIdentifier: &signalpb.AttachmentPointer_CdnKey{
 			CdnKey: uploadAttributes.Key,
 		},
-		Key:         keys,
-		Digest:      digest[:],
-		Size:        &plaintextLength,
-		FileName:    &filename,
-		ContentType: &mimeType,
-		CdnNumber:   &uploadAttributes.Cdn,
+		Key:       keys,
+		Digest:    digest[:],
+		Size:      &plaintextLength,
+		CdnNumber: &uploadAttributes.Cdn,
 	}
 
 	return attachmentPointer, nil
