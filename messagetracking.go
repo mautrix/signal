@@ -172,7 +172,7 @@ func (portal *Portal) sendDeliveryReceipt(eventID id.EventID) {
 	if portal.bridge.Config.Bridge.DeliveryReceipts {
 		err := portal.bridge.Bot.SendReceipt(portal.MXID, eventID, event.ReceiptTypeRead, nil)
 		if err != nil {
-			portal.log.Debug().Msgf("Failed to send delivery receipt for %s: %v", eventID, err)
+			portal.log.Debug().Err(err).Stringer("event_id", eventID).Msg("Failed to send delivery receipt")
 		}
 	}
 }
@@ -193,24 +193,26 @@ func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part strin
 	default:
 		msgType = "unknown event"
 	}
-	evtDescription := evt.ID.String()
+	log := portal.log.With().
+		Str("part", part).
+		Str("msg_type", msgType).
+		Stringer("event_id", evt.ID).
+		Stringer("sender", evt.Sender).
+		Logger()
 	if evt.Type == event.EventRedaction {
-		evtDescription += fmt.Sprintf(" of %s", evt.Redacts)
+		log = log.With().Str("redacts", evt.Redacts.String()).Logger()
 	}
+
 	origEvtID := evt.ID
 	if retryMeta := evt.Content.AsMessage().MessageSendRetry; retryMeta != nil {
 		origEvtID = retryMeta.OriginalEventID
 	}
 	if err != nil {
-		logError := true
+		logEvt := portal.log.Error()
 		if part == "Ignoring" {
-			logError = false
+			logEvt = portal.log.Debug()
 		}
-		if logError {
-			portal.log.Err(err).Msgf("%s %s %s from %s", part, msgType, evtDescription, evt.Sender)
-		} else {
-			portal.log.Debug().Msgf("%s %s %s from %s: %v", part, msgType, evtDescription, evt.Sender, err)
-		}
+		logEvt.Err(err).Msg("Sending message metrics for event")
 		reason, statusCode, isCertain, sendNotice, _ := errorToStatusReason(err)
 		checkpointStatus := status.ReasonToCheckpointStatus(reason, statusCode)
 		portal.bridge.SendMessageCheckpoint(evt, status.MsgStepRemote, err, checkpointStatus, ms.getRetryNum())
@@ -219,7 +221,7 @@ func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part strin
 		}
 		portal.sendStatusEvent(origEvtID, evt.ID, err, nil)
 	} else {
-		portal.log.Debug().Msgf("Handled Matrix %s %s", msgType, evtDescription)
+		portal.log.Debug().Msg("Sending metrics for successfully handled Matrix event")
 		portal.sendDeliveryReceipt(evt.ID)
 		portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, ms.getRetryNum())
 		var deliveredTo *[]id.UserID
@@ -234,7 +236,7 @@ func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part strin
 		}
 	}
 	if ms != nil {
-		portal.log.Debug().Msgf("Timings for %s: %s", evt.ID, ms.timings.String())
+		portal.log.Debug().Stringer("timings", ms.timings).Msg("Timings for event")
 	}
 }
 
