@@ -21,6 +21,9 @@ package libsignalgo
 #include "./libsignal-ffi.h"
 */
 import "C"
+import (
+	"runtime"
+)
 
 type IdentityKey struct {
 	publicKey *PublicKey
@@ -45,6 +48,7 @@ func (i *IdentityKey) Serialize() ([]byte, error) {
 func DeserializeIdentityKey(bytes []byte) (*IdentityKey, error) {
 	var publicKey *C.SignalPublicKey
 	signalFfiError := C.signal_publickey_deserialize(&publicKey, BytesToBuffer(bytes))
+	runtime.KeepAlive(bytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -54,6 +58,9 @@ func DeserializeIdentityKey(bytes []byte) (*IdentityKey, error) {
 func (i *IdentityKey) VerifyAlternateIdentity(other *IdentityKey, signature []byte) (bool, error) {
 	var verify C.bool
 	signalFfiError := C.signal_identitykey_verify_alternate_identity(&verify, i.publicKey.ptr, other.publicKey.ptr, BytesToBuffer(signature))
+	runtime.KeepAlive(i)
+	runtime.KeepAlive(other)
+	runtime.KeepAlive(signature)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}
@@ -94,6 +101,7 @@ func DeserializeIdentityKeyPair(bytes []byte) (*IdentityKeyPair, error) {
 	var privateKey *C.SignalPrivateKey
 	var publicKey *C.SignalPublicKey
 	signalFfiError := C.signal_identitykeypair_deserialize(&privateKey, &publicKey, BytesToBuffer(bytes))
+	runtime.KeepAlive(bytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -107,6 +115,7 @@ func NewIdentityKeyPair(publicKey *PublicKey, privateKey *PrivateKey) (*Identity
 func (i *IdentityKeyPair) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_identitykeypair_serialize(&serialized, i.publicKey.ptr, i.privateKey.ptr)
+	runtime.KeepAlive(i)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -120,6 +129,8 @@ func (i *IdentityKeyPair) GetIdentityKey() *IdentityKey {
 func (i *IdentityKeyPair) SignAlternateIdentity(other *IdentityKey) ([]byte, error) {
 	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_identitykeypair_sign_alternate_identity(&signature, i.publicKey.ptr, i.privateKey.ptr, other.publicKey.ptr)
+	runtime.KeepAlive(i)
+	runtime.KeepAlive(other)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

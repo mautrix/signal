@@ -35,6 +35,8 @@ func ProcessPreKeyBundle(bundle *PreKeyBundle, forAddress *Address, sessionStore
 		wrapIdentityKeyStore(identityStore),
 		now,
 	)
+	runtime.KeepAlive(bundle)
+	runtime.KeepAlive(forAddress)
 	return wrapCallbackError(signalFfiError, ctx)
 }
 
@@ -89,6 +91,12 @@ func NewPreKeyBundle(
 		kyberPreKey.ptr,
 		kyberSignatureBuffer,
 	)
+	runtime.KeepAlive(preKey)
+	runtime.KeepAlive(signedPreKey)
+	runtime.KeepAlive(signedPreKeySignature)
+	runtime.KeepAlive(kyberPreKey)
+	runtime.KeepAlive(kyberPreKeySignature)
+	runtime.KeepAlive(identityKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -101,6 +109,7 @@ func (pkb *PreKeyBundle) Clone() (*PreKeyBundle, error) {
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
+	runtime.KeepAlive(pkb)
 	return wrapPreKeyBundle(cloned), nil
 }
 
@@ -119,5 +128,6 @@ func (pkb *PreKeyBundle) GetIdentityKey() (*IdentityKey, error) {
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
+	runtime.KeepAlive(pkb)
 	return NewIdentityKeyFromPublicKey(wrapPublicKey(pk))
 }

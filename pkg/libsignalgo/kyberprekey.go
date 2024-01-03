@@ -100,15 +100,17 @@ func wrapKyberPreKeyRecord(ptr *C.SignalKyberPreKeyRecord) *KyberPreKeyRecord {
 func (kp *KyberKeyPair) GetPublicKey() (*KyberPublicKey, error) {
 	var pub *C.SignalKyberPublicKey
 	signalFfiError := C.signal_kyber_key_pair_get_public_key(&pub, kp.ptr)
+	runtime.KeepAlive(kp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
 	return wrapKyberPublicKey(pub), nil
 }
 
-func (kyberPublicKey *KyberPublicKey) Serialize() ([]byte, error) {
+func (kp *KyberPublicKey) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_kyber_public_key_serialize(&serialized, kyberPublicKey.ptr)
+	signalFfiError := C.signal_kyber_public_key_serialize(&serialized, kp.ptr)
+	runtime.KeepAlive(kp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -118,6 +120,7 @@ func (kyberPublicKey *KyberPublicKey) Serialize() ([]byte, error) {
 func DeserializeKyberPublicKey(serialized []byte) (*KyberPublicKey, error) {
 	var kyberPublicKey *C.SignalKyberPublicKey
 	signalFfiError := C.signal_kyber_public_key_deserialize(&kyberPublicKey, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -127,6 +130,8 @@ func DeserializeKyberPublicKey(serialized []byte) (*KyberPublicKey, error) {
 func NewKyberPreKeyRecord(id uint32, timestamp time.Time, keyPair *KyberKeyPair, signature []byte) (*KyberPreKeyRecord, error) {
 	var kpkr *C.SignalKyberPreKeyRecord
 	signalFfiError := C.signal_kyber_pre_key_record_new(&kpkr, C.uint32_t(id), C.uint64_t(timestamp.UnixMilli()), keyPair.ptr, BytesToBuffer(signature))
+	runtime.KeepAlive(keyPair)
+	runtime.KeepAlive(signature)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -136,6 +141,7 @@ func NewKyberPreKeyRecord(id uint32, timestamp time.Time, keyPair *KyberKeyPair,
 func DeserializeKyberPreKeyRecord(serialized []byte) (*KyberPreKeyRecord, error) {
 	var kpkr *C.SignalKyberPreKeyRecord
 	signalFfiError := C.signal_kyber_pre_key_record_deserialize(&kpkr, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -145,6 +151,7 @@ func DeserializeKyberPreKeyRecord(serialized []byte) (*KyberPreKeyRecord, error)
 func (kpkr *KyberPreKeyRecord) Clone() (*KyberPreKeyRecord, error) {
 	var cloned *C.SignalKyberPreKeyRecord
 	signalFfiError := C.signal_kyber_pre_key_record_clone(&cloned, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -163,6 +170,7 @@ func (kpkr *KyberPreKeyRecord) CancelFinalizer() {
 func (kpkr *KyberPreKeyRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_kyber_pre_key_record_serialize(&serialized, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -172,6 +180,7 @@ func (kpkr *KyberPreKeyRecord) Serialize() ([]byte, error) {
 func (kpkr *KyberPreKeyRecord) GetSignature() ([]byte, error) {
 	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_kyber_pre_key_record_get_signature(&signature, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -181,6 +190,7 @@ func (kpkr *KyberPreKeyRecord) GetSignature() ([]byte, error) {
 func (kpkr *KyberPreKeyRecord) GetID() (uint, error) {
 	var id C.uint32_t
 	signalFfiError := C.signal_kyber_pre_key_record_get_id(&id, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -190,6 +200,7 @@ func (kpkr *KyberPreKeyRecord) GetID() (uint, error) {
 func (kpkr *KyberPreKeyRecord) GetTimestamp() (time.Time, error) {
 	var ts C.uint64_t
 	signalFfiError := C.signal_kyber_pre_key_record_get_timestamp(&ts, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return time.Time{}, wrapError(signalFfiError)
 	}
@@ -199,6 +210,7 @@ func (kpkr *KyberPreKeyRecord) GetTimestamp() (time.Time, error) {
 func (kpkr *KyberPreKeyRecord) GetPublicKey() (*KyberPublicKey, error) {
 	var pub *C.SignalKyberPublicKey
 	signalFfiError := C.signal_kyber_pre_key_record_get_public_key(&pub, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -208,6 +220,7 @@ func (kpkr *KyberPreKeyRecord) GetPublicKey() (*KyberPublicKey, error) {
 func (kpkr *KyberPreKeyRecord) GetSecretKey() (*KyberSecretKey, error) {
 	var sec *C.SignalKyberSecretKey
 	signalFfiError := C.signal_kyber_pre_key_record_get_secret_key(&sec, kpkr.ptr)
+	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

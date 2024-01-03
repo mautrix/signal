@@ -51,6 +51,7 @@ func (hsm *HSMEnclaveClient) Destroy() error {
 func (hsm *HSMEnclaveClient) InitialRequest() ([]byte, error) {
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_hsm_enclave_client_initial_request(&resp, hsm.ptr)
+	runtime.KeepAlive(hsm)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -59,12 +60,16 @@ func (hsm *HSMEnclaveClient) InitialRequest() ([]byte, error) {
 
 func (hsm *HSMEnclaveClient) CompleteHandshake(handshakeReceived []byte) error {
 	signalFfiError := C.signal_hsm_enclave_client_complete_handshake(hsm.ptr, BytesToBuffer(handshakeReceived))
+	runtime.KeepAlive(hsm)
+	runtime.KeepAlive(handshakeReceived)
 	return wrapError(signalFfiError)
 }
 
 func (hsm *HSMEnclaveClient) EstablishedSend(plaintext []byte) ([]byte, error) {
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_hsm_enclave_client_established_send(&resp, hsm.ptr, BytesToBuffer(plaintext))
+	runtime.KeepAlive(hsm)
+	runtime.KeepAlive(plaintext)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -74,6 +79,8 @@ func (hsm *HSMEnclaveClient) EstablishedSend(plaintext []byte) ([]byte, error) {
 func (hsm *HSMEnclaveClient) EstablishedReceive(ciphertext []byte) ([]byte, error) {
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_hsm_enclave_client_established_recv(&resp, hsm.ptr, BytesToBuffer(ciphertext))
+	runtime.KeepAlive(hsm)
+	runtime.KeepAlive(ciphertext)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

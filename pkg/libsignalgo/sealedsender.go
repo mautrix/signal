@@ -54,7 +54,6 @@ func SealedSenderEncryptPlaintext(message []byte, forAddress *Address, fromSende
 		UnidentifiedSenderMessageContentHintDefault,
 		nil,
 	)
-	defer runtime.KeepAlive(usmc)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +68,8 @@ func SealedSenderEncrypt(usmc *UnidentifiedSenderMessageContent, forRecipient *A
 		usmc.ptr,
 		wrapIdentityKeyStore(identityStore),
 	)
+	runtime.KeepAlive(usmc)
+	runtime.KeepAlive(forRecipient)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -95,6 +96,7 @@ func SealedSenderDecryptToUSMC(
 		BytesToBuffer(ciphertext),
 		wrapIdentityKeyStore(identityStore),
 	)
+	runtime.KeepAlive(ciphertext)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -133,6 +135,8 @@ func SealedSenderDecrypt(
 		wrapPreKeyStore(preKeyStore),
 		wrapSignedPreKeyStore(signedPreKeyStore),
 	)
+	runtime.KeepAlive(localAddress)
+	runtime.KeepAlive(trustRoot)
 	if signalFfiError != nil {
 		err = wrapCallbackError(signalFfiError, ctx)
 		return
@@ -173,6 +177,9 @@ func wrapUnidentifiedSenderMessageContent(ptr *C.SignalUnidentifiedSenderMessage
 func NewUnidentifiedSenderMessageContent(message *CiphertextMessage, senderCertificate *SenderCertificate, contentHint UnidentifiedSenderMessageContentHint, groupID []byte) (*UnidentifiedSenderMessageContent, error) {
 	var usmc *C.SignalUnidentifiedSenderMessageContent
 	signalFfiError := C.signal_unidentified_sender_message_content_new(&usmc, message.ptr, senderCertificate.ptr, C.uint32_t(contentHint), BytesToBuffer(groupID))
+	runtime.KeepAlive(message)
+	runtime.KeepAlive(senderCertificate)
+	runtime.KeepAlive(groupID)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -200,6 +207,7 @@ func NewUnidentifiedSenderMessageContent(message *CiphertextMessage, senderCerti
 func DeserializeUnidentifiedSenderMessageContent(serialized []byte) (*UnidentifiedSenderMessageContent, error) {
 	var usmc *C.SignalUnidentifiedSenderMessageContent
 	signalFfiError := C.signal_unidentified_sender_message_content_deserialize(&usmc, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -218,6 +226,7 @@ func (usmc *UnidentifiedSenderMessageContent) CancelFinalizer() {
 func (usmc *UnidentifiedSenderMessageContent) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_unidentified_sender_message_content_serialize(&serialized, usmc.ptr)
+	runtime.KeepAlive(usmc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -227,6 +236,7 @@ func (usmc *UnidentifiedSenderMessageContent) Serialize() ([]byte, error) {
 func (usmc *UnidentifiedSenderMessageContent) GetContents() ([]byte, error) {
 	var contents C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_unidentified_sender_message_content_get_contents(&contents, usmc.ptr)
+	runtime.KeepAlive(usmc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -249,6 +259,7 @@ func (usmc *UnidentifiedSenderMessageContent) GetContents() ([]byte, error) {
 func (usmc *UnidentifiedSenderMessageContent) GetSenderCertificate() (*SenderCertificate, error) {
 	var senderCertificate *C.SignalSenderCertificate
 	signalFfiError := C.signal_unidentified_sender_message_content_get_sender_cert(&senderCertificate, usmc.ptr)
+	runtime.KeepAlive(usmc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -258,6 +269,7 @@ func (usmc *UnidentifiedSenderMessageContent) GetSenderCertificate() (*SenderCer
 func (usmc *UnidentifiedSenderMessageContent) GetMessageType() (CiphertextMessageType, error) {
 	var messageType C.uint8_t
 	signalFfiError := C.signal_unidentified_sender_message_content_get_msg_type(&messageType, usmc.ptr)
+	runtime.KeepAlive(usmc)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -267,6 +279,7 @@ func (usmc *UnidentifiedSenderMessageContent) GetMessageType() (CiphertextMessag
 func (usmc *UnidentifiedSenderMessageContent) GetContentHint() (UnidentifiedSenderMessageContentHint, error) {
 	var contentHint C.uint32_t
 	signalFfiError := C.signal_unidentified_sender_message_content_get_content_hint(&contentHint, usmc.ptr)
+	runtime.KeepAlive(usmc)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}

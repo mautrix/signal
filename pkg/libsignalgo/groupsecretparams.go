@@ -23,6 +23,7 @@ package libsignalgo
 import "C"
 import (
 	"crypto/rand"
+	"runtime"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -55,6 +56,7 @@ func GenerateGroupSecretParams() (GroupSecretParams, error) {
 func GenerateGroupSecretParamsWithRandomness(randomness Randomness) (GroupSecretParams, error) {
 	var params [C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar
 	signalFfiError := C.signal_group_secret_params_generate_deterministic(&params, (*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)))
+	runtime.KeepAlive(randomness)
 	if signalFfiError != nil {
 		return GroupSecretParams{}, wrapError(signalFfiError)
 	}
@@ -66,6 +68,7 @@ func GenerateGroupSecretParamsWithRandomness(randomness Randomness) (GroupSecret
 func DeriveGroupSecretParamsFromMasterKey(groupMasterKey GroupMasterKey) (GroupSecretParams, error) {
 	var params [C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar
 	signalFfiError := C.signal_group_secret_params_derive_from_master_key(&params, (*[C.SignalGROUP_MASTER_KEY_LEN]C.uint8_t)(unsafe.Pointer(&groupMasterKey)))
+	runtime.KeepAlive(groupMasterKey)
 	if signalFfiError != nil {
 		return GroupSecretParams{}, wrapError(signalFfiError)
 	}
@@ -77,6 +80,7 @@ func DeriveGroupSecretParamsFromMasterKey(groupMasterKey GroupMasterKey) (GroupS
 func (gsp *GroupSecretParams) GetPublicParams() (*GroupPublicParams, error) {
 	var publicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]C.uchar
 	signalFfiError := C.signal_group_secret_params_get_public_params(&publicParams, (*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)))
+	runtime.KeepAlive(gsp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -88,6 +92,7 @@ func (gsp *GroupSecretParams) GetPublicParams() (*GroupPublicParams, error) {
 func GetGroupIdentifier(groupPublicParams GroupPublicParams) (*GroupIdentifier, error) {
 	var groupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]C.uchar
 	signalFfiError := C.signal_group_public_params_get_group_identifier(&groupIdentifier, (*[C.SignalGROUP_PUBLIC_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(&groupPublicParams)))
+	runtime.KeepAlive(groupPublicParams)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -104,6 +109,8 @@ func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
 		borrowedBlob,
 	)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(blob)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -117,6 +124,8 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*uuid.
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
 		(*[C.SignalUUID_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextUUID)),
 	)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(ciphertextUUID)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -140,6 +149,8 @@ func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyC
 		(*[C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextProfileKey)),
 		serviceId,
 	)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(ciphertextProfileKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

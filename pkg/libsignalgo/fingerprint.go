@@ -53,6 +53,7 @@ func NewFingerprint(iterations, version FingerprintVersion, localIdentifier []by
 func (f *Fingerprint) Clone() (*Fingerprint, error) {
 	var cloned *C.SignalFingerprint
 	signalFfiError := C.signal_fingerprint_clone(&cloned, f.ptr)
+	runtime.KeepAlive(f)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -67,6 +68,7 @@ func (f *Fingerprint) Destroy() error {
 func (f *Fingerprint) ScannableEncoding() ([]byte, error) {
 	var scannableEncoding C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_fingerprint_scannable_encoding(&scannableEncoding, f.ptr)
+	runtime.KeepAlive(f)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -76,6 +78,7 @@ func (f *Fingerprint) ScannableEncoding() ([]byte, error) {
 func (f *Fingerprint) DisplayString() (string, error) {
 	var displayString *C.char
 	signalFfiError := C.signal_fingerprint_display_string(&displayString, f.ptr)
+	runtime.KeepAlive(f)
 	if signalFfiError != nil {
 		return "", wrapError(signalFfiError)
 	}
@@ -85,6 +88,9 @@ func (f *Fingerprint) DisplayString() (string, error) {
 func (f *Fingerprint) Compare(fingerprint1, fingerprint2 []byte) (bool, error) {
 	var compare C.bool
 	signalFfiError := C.signal_fingerprint_compare(&compare, BytesToBuffer(fingerprint1), BytesToBuffer(fingerprint2))
+	runtime.KeepAlive(f)
+	runtime.KeepAlive(fingerprint1)
+	runtime.KeepAlive(fingerprint2)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}

@@ -23,11 +23,11 @@ package libsignalgo
 */
 import "C"
 import (
-	"crypto/rand"
-	"fmt"
+	"runtime"
 	"unsafe"
 
 	"github.com/google/uuid"
+	"go.mau.fi/util/random"
 )
 
 type ProfileKey [C.SignalPROFILE_KEY_LEN]byte
@@ -60,6 +60,8 @@ func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) 
 		c_profileKey,
 		c_uuid,
 	)
+	runtime.KeepAlive(pk)
+	runtime.KeepAlive(u)
 
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -83,6 +85,8 @@ func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, err
 		c_profileKey,
 		c_uuid,
 	)
+	runtime.KeepAlive(pk)
+	runtime.KeepAlive(u)
 
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -101,6 +105,7 @@ func (pk *ProfileKey) DeriveAccessKey() (*AccessKey, error) {
 		&c_result,
 		c_profileKey,
 	)
+	runtime.KeepAlive(pk)
 
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -109,15 +114,6 @@ func (pk *ProfileKey) DeriveAccessKey() (*AccessKey, error) {
 	var result AccessKey
 	copy(result[:], C.GoBytes(unsafe.Pointer(&c_result), C.int(C.SignalACCESS_KEY_LEN)))
 	return &result, nil
-}
-
-func randBytes(length int) []byte {
-	buf := make([]byte, length)
-	if n, err := rand.Read(buf); err != nil {
-		fmt.Printf("rand.Read() failed: %v\n n: %v\n", err, n)
-		panic(err)
-	}
-	return buf
 }
 
 type ProfileKeyCredentialRequestContext [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]byte
@@ -129,8 +125,8 @@ type ServerPublicParams [C.SignalSERVER_PUBLIC_PARAMS_LEN]byte
 func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
 	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
 	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
-	random := [32]byte(randBytes(32))
-	c_random := (*[32]C.uchar)(unsafe.Pointer(&random[0]))
+	randBytes := [32]byte(random.Bytes(32))
+	c_random := (*[32]C.uchar)(unsafe.Pointer(&randBytes[0]))
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
 	c_uuid, err := SignalServiceIDFromUUID(u)
 	if err != nil {
@@ -144,6 +140,10 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicPar
 		c_uuid,
 		c_profileKey,
 	)
+	runtime.KeepAlive(serverPublicParams)
+	runtime.KeepAlive(u)
+	runtime.KeepAlive(profileKey)
+	runtime.KeepAlive(randBytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -159,6 +159,7 @@ func (p *ProfileKeyCredentialRequestContext) ProfileKeyCredentialRequestContextG
 		&c_result,
 		c_context,
 	)
+	runtime.KeepAlive(p)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -169,6 +170,7 @@ func (p *ProfileKeyCredentialRequestContext) ProfileKeyCredentialRequestContextG
 func NewProfileKeyCredentialResponse(b []byte) (ProfileKeyCredentialResponse, error) {
 	borrowedBuffer := BytesToBuffer(b)
 	signalFfiError := C.signal_expiring_profile_key_credential_response_check_valid_contents(borrowedBuffer)
+	runtime.KeepAlive(b)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

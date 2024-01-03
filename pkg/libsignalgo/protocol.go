@@ -21,7 +21,10 @@ package libsignalgo
 #include "./libsignal-ffi.h"
 */
 import "C"
-import "time"
+import (
+	"runtime"
+	"time"
+)
 
 func Encrypt(plaintext []byte, forAddress *Address, sessionStore SessionStore, identityKeyStore IdentityKeyStore, ctx *CallbackContext) (*CiphertextMessage, error) {
 	var ciphertextMessage *C.SignalCiphertextMessage
@@ -34,6 +37,8 @@ func Encrypt(plaintext []byte, forAddress *Address, sessionStore SessionStore, i
 		wrapIdentityKeyStore(identityKeyStore),
 		now,
 	)
+	runtime.KeepAlive(plaintext)
+	runtime.KeepAlive(forAddress)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

@@ -44,6 +44,10 @@ func wrapSenderCertificate(ptr *C.SignalSenderCertificate) *SenderCertificate {
 func NewSenderCertificate(sender *SealedSenderAddress, publicKey *PublicKey, expiration time.Time, signerCertificate *ServerCertificate, signerKey *PrivateKey) (*SenderCertificate, error) {
 	var sc *C.SignalSenderCertificate
 	signalFfiError := C.signal_sender_certificate_new(&sc, C.CString(sender.UUID.String()), C.CString(sender.E164), C.uint32_t(sender.DeviceID), publicKey.ptr, C.uint64_t(expiration.UnixMilli()), signerCertificate.ptr, signerKey.ptr)
+	runtime.KeepAlive(sender)
+	runtime.KeepAlive(publicKey)
+	runtime.KeepAlive(signerCertificate)
+	runtime.KeepAlive(signerKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -53,6 +57,7 @@ func NewSenderCertificate(sender *SealedSenderAddress, publicKey *PublicKey, exp
 func DeserializeSenderCertificate(serialized []byte) (*SenderCertificate, error) {
 	var sc *C.SignalSenderCertificate
 	signalFfiError := C.signal_sender_certificate_deserialize(&sc, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -62,6 +67,7 @@ func DeserializeSenderCertificate(serialized []byte) (*SenderCertificate, error)
 func (sc *SenderCertificate) Clone() (*SenderCertificate, error) {
 	var cloned *C.SignalSenderCertificate
 	signalFfiError := C.signal_sender_certificate_clone(&cloned, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -80,6 +86,7 @@ func (sc *SenderCertificate) CancelFinalizer() {
 func (sc *SenderCertificate) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sender_certificate_get_serialized(&serialized, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -89,6 +96,7 @@ func (sc *SenderCertificate) Serialize() ([]byte, error) {
 func (sc *SenderCertificate) GetCertificate() ([]byte, error) {
 	var certificate C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sender_certificate_get_certificate(&certificate, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -98,6 +106,7 @@ func (sc *SenderCertificate) GetCertificate() ([]byte, error) {
 func (sc *SenderCertificate) GetSignature() ([]byte, error) {
 	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sender_certificate_get_signature(&signature, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -107,6 +116,7 @@ func (sc *SenderCertificate) GetSignature() ([]byte, error) {
 func (sc *SenderCertificate) GetSenderUUID() (uuid.UUID, error) {
 	var rawUUID *C.char
 	signalFfiError := C.signal_sender_certificate_get_sender_uuid(&rawUUID, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return uuid.UUID{}, wrapError(signalFfiError)
 	}
@@ -116,6 +126,7 @@ func (sc *SenderCertificate) GetSenderUUID() (uuid.UUID, error) {
 func (sc *SenderCertificate) GetSenderE164() (string, error) {
 	var e164 *C.char
 	signalFfiError := C.signal_sender_certificate_get_sender_e164(&e164, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return "", wrapError(signalFfiError)
 	}
@@ -128,6 +139,7 @@ func (sc *SenderCertificate) GetSenderE164() (string, error) {
 func (sc *SenderCertificate) GetExpiration() (time.Time, error) {
 	var expiration C.uint64_t
 	signalFfiError := C.signal_sender_certificate_get_expiration(&expiration, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return time.Time{}, wrapError(signalFfiError)
 	}
@@ -137,6 +149,7 @@ func (sc *SenderCertificate) GetExpiration() (time.Time, error) {
 func (sc *SenderCertificate) GetDeviceID() (uint32, error) {
 	var deviceID C.uint32_t
 	signalFfiError := C.signal_sender_certificate_get_device_id(&deviceID, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -146,6 +159,7 @@ func (sc *SenderCertificate) GetDeviceID() (uint32, error) {
 func (sc *SenderCertificate) GetKey() (*PublicKey, error) {
 	var key *C.SignalPublicKey
 	signalFfiError := C.signal_sender_certificate_get_key(&key, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -155,6 +169,8 @@ func (sc *SenderCertificate) GetKey() (*PublicKey, error) {
 func (sc *SenderCertificate) Validate(trustRoot *PublicKey, ts time.Time) (bool, error) {
 	var valid C.bool
 	signalFfiError := C.signal_sender_certificate_validate(&valid, sc.ptr, trustRoot.ptr, C.uint64_t(ts.UnixMilli()))
+	runtime.KeepAlive(sc)
+	runtime.KeepAlive(trustRoot)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}
@@ -164,6 +180,7 @@ func (sc *SenderCertificate) Validate(trustRoot *PublicKey, ts time.Time) (bool,
 func (sc *SenderCertificate) GetServerCertificate() (*ServerCertificate, error) {
 	var serverCertificate *C.SignalServerCertificate
 	signalFfiError := C.signal_sender_certificate_get_server_certificate(&serverCertificate, sc.ptr)
+	runtime.KeepAlive(sc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

@@ -46,6 +46,7 @@ func GeneratePrivateKey() (*PrivateKey, error) {
 func DeserializePrivateKey(keyData []byte) (*PrivateKey, error) {
 	var pk *C.SignalPrivateKey
 	signalFfiError := C.signal_privatekey_deserialize(&pk, BytesToBuffer(keyData))
+	runtime.KeepAlive(keyData)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -55,6 +56,7 @@ func DeserializePrivateKey(keyData []byte) (*PrivateKey, error) {
 func (pk *PrivateKey) Clone() (*PrivateKey, error) {
 	var cloned *C.SignalPrivateKey
 	signalFfiError := C.signal_privatekey_clone(&cloned, pk.ptr)
+	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -73,6 +75,7 @@ func (pk *PrivateKey) CancelFinalizer() {
 func (pk *PrivateKey) GetPublicKey() (*PublicKey, error) {
 	var pub *C.SignalPublicKey
 	signalFfiError := C.signal_privatekey_get_public_key(&pub, pk.ptr)
+	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -82,6 +85,7 @@ func (pk *PrivateKey) GetPublicKey() (*PublicKey, error) {
 func (pk *PrivateKey) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_privatekey_serialize(&serialized, pk.ptr)
+	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -91,6 +95,8 @@ func (pk *PrivateKey) Serialize() ([]byte, error) {
 func (pk *PrivateKey) Sign(message []byte) ([]byte, error) {
 	var signed C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_privatekey_sign(&signed, pk.ptr, BytesToBuffer(message))
+	runtime.KeepAlive(pk)
+	runtime.KeepAlive(message)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -100,6 +106,8 @@ func (pk *PrivateKey) Sign(message []byte) ([]byte, error) {
 func (pk *PrivateKey) Agree(publicKey *PublicKey) ([]byte, error) {
 	var agreed C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_privatekey_agree(&agreed, pk.ptr, publicKey.ptr)
+	runtime.KeepAlive(pk)
+	runtime.KeepAlive(publicKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

@@ -52,6 +52,7 @@ func (aes *AES256_GCM_SIV) Encrypt(plaintext, nonce, associatedData []byte) ([]b
 	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 
 	signalFfiError := C.signal_aes256_gcm_siv_encrypt(&encrypted, aes.ptr, BytesToBuffer(plaintext), BytesToBuffer(nonce), BytesToBuffer(associatedData))
+	runtime.KeepAlive(aes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

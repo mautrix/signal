@@ -35,8 +35,10 @@ func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionSt
 		wrapIdentityKeyStore(identityStore),
 		wrapPreKeyStore(preKeyStore),
 		wrapSignedPreKeyStore(signedPreKeyStore),
-		wrapKyberPreKeyStore(kyberPreKeyStore), // TODO: *actually* support Kyber prekeys I guess, this is a stub right now
+		wrapKyberPreKeyStore(kyberPreKeyStore),
 	)
+	runtime.KeepAlive(preKeyMessage)
+	runtime.KeepAlive(fromAddress)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -57,6 +59,8 @@ func wrapPreKeyRecord(ptr *C.SignalPreKeyRecord) *PreKeyRecord {
 func NewPreKeyRecord(id uint32, publicKey *PublicKey, privateKey *PrivateKey) (*PreKeyRecord, error) {
 	var pkr *C.SignalPreKeyRecord
 	signalFfiError := C.signal_pre_key_record_new(&pkr, C.uint32_t(id), publicKey.ptr, privateKey.ptr)
+	runtime.KeepAlive(publicKey)
+	runtime.KeepAlive(privateKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -74,6 +78,7 @@ func NewPreKeyRecordFromPrivateKey(id uint32, privateKey *PrivateKey) (*PreKeyRe
 func DeserializePreKeyRecord(serialized []byte) (*PreKeyRecord, error) {
 	var pkr *C.SignalPreKeyRecord
 	signalFfiError := C.signal_pre_key_record_deserialize(&pkr, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -83,6 +88,7 @@ func DeserializePreKeyRecord(serialized []byte) (*PreKeyRecord, error) {
 func (pkr *PreKeyRecord) Clone() (*PreKeyRecord, error) {
 	var cloned *C.SignalPreKeyRecord
 	signalFfiError := C.signal_pre_key_record_clone(&cloned, pkr.ptr)
+	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -101,6 +107,7 @@ func (pkr *PreKeyRecord) CancelFinalizer() {
 func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_pre_key_record_serialize(&serialized, pkr.ptr)
+	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -110,6 +117,7 @@ func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
 func (pkr *PreKeyRecord) GetID() (uint, error) {
 	var id C.uint32_t
 	signalFfiError := C.signal_pre_key_record_get_id(&id, pkr.ptr)
+	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -119,6 +127,7 @@ func (pkr *PreKeyRecord) GetID() (uint, error) {
 func (pkr *PreKeyRecord) GetPublicKey() (*PublicKey, error) {
 	var pub *C.SignalPublicKey
 	signalFfiError := C.signal_pre_key_record_get_public_key(&pub, pkr.ptr)
+	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -128,6 +137,7 @@ func (pkr *PreKeyRecord) GetPublicKey() (*PublicKey, error) {
 func (pkr *PreKeyRecord) GetPrivateKey() (*PrivateKey, error) {
 	var priv *C.SignalPrivateKey
 	signalFfiError := C.signal_pre_key_record_get_private_key(&priv, pkr.ptr)
+	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

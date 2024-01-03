@@ -22,6 +22,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"runtime"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -39,6 +40,8 @@ func GroupEncrypt(ptext []byte, sender *Address, distributionID uuid.UUID, store
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		BytesToBuffer(ptext),
 		wrapSenderKeyStore(store))
+	runtime.KeepAlive(ptext)
+	runtime.KeepAlive(sender)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -55,6 +58,8 @@ func GroupDecrypt(ctext []byte, sender *Address, store SenderKeyStore, ctx *Call
 		sender.ptr,
 		BytesToBuffer(ctext),
 		wrapSenderKeyStore(store))
+	runtime.KeepAlive(ctext)
+	runtime.KeepAlive(sender)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}

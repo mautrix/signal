@@ -64,6 +64,7 @@ func (c *CiphertextMessage) CancelFinalizer() {
 func (c *CiphertextMessage) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_ciphertext_message_serialize(&serialized, c.ptr)
+	runtime.KeepAlive(c)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -73,6 +74,7 @@ func (c *CiphertextMessage) Serialize() ([]byte, error) {
 func (c *CiphertextMessage) MessageType() (CiphertextMessageType, error) {
 	var messageType C.uint8_t
 	signalFfiError := C.signal_ciphertext_message_type(&messageType, c.ptr)
+	runtime.KeepAlive(c)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}

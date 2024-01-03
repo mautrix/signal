@@ -37,6 +37,7 @@ func wrapPublicKey(ptr *C.SignalPublicKey) *PublicKey {
 func (pk *PublicKey) Clone() (*PublicKey, error) {
 	var cloned *C.SignalPublicKey
 	signalFfiError := C.signal_publickey_clone(&cloned, pk.ptr)
+	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -46,6 +47,7 @@ func (pk *PublicKey) Clone() (*PublicKey, error) {
 func DeserializePublicKey(keyData []byte) (*PublicKey, error) {
 	var pk *C.SignalPublicKey
 	signalFfiError := C.signal_publickey_deserialize(&pk, BytesToBuffer(keyData))
+	runtime.KeepAlive(keyData)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -55,6 +57,7 @@ func DeserializePublicKey(keyData []byte) (*PublicKey, error) {
 func (pk *PublicKey) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_publickey_serialize(&serialized, pk.ptr)
+	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -73,6 +76,8 @@ func (k *PublicKey) CancelFinalizer() {
 func (k *PublicKey) Compare(other *PublicKey) (int, error) {
 	var comparison C.int
 	signalFfiError := C.signal_publickey_compare(&comparison, k.ptr, other.ptr)
+	runtime.KeepAlive(k)
+	runtime.KeepAlive(other)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -82,6 +87,7 @@ func (k *PublicKey) Compare(other *PublicKey) (int, error) {
 func (k *PublicKey) Bytes() ([]byte, error) {
 	var pub C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_publickey_get_public_key_bytes(&pub, k.ptr)
+	runtime.KeepAlive(k)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -91,6 +97,9 @@ func (k *PublicKey) Bytes() ([]byte, error) {
 func (k *PublicKey) Verify(message, signature []byte) (bool, error) {
 	var verify C.bool
 	signalFfiError := C.signal_publickey_verify(&verify, k.ptr, BytesToBuffer(message), BytesToBuffer(signature))
+	runtime.KeepAlive(k)
+	runtime.KeepAlive(message)
+	runtime.KeepAlive(signature)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}

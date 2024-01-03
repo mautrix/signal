@@ -34,6 +34,8 @@ func ProcessSenderKeyDistributionMessage(message *SenderKeyDistributionMessage, 
 		message.ptr,
 		wrapSenderKeyStore(store),
 	)
+	runtime.KeepAlive(message)
+	runtime.KeepAlive(fromSender)
 	return wrapCallbackError(signalFfiError, ctx)
 }
 
@@ -56,6 +58,8 @@ func NewSenderKeyDistributionMessage(sender *Address, distributionID uuid.UUID, 
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		wrapSenderKeyStore(store),
 	)
+	runtime.KeepAlive(sender)
+	runtime.KeepAlive(distributionID)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -65,6 +69,7 @@ func NewSenderKeyDistributionMessage(sender *Address, distributionID uuid.UUID, 
 func DeserializeSenderKeyDistributionMessage(serialized []byte) (*SenderKeyDistributionMessage, error) {
 	var skdm *C.SignalSenderKeyDistributionMessage
 	signalFfiError := C.signal_sender_key_distribution_message_deserialize(&skdm, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -95,6 +100,7 @@ func (sc *SenderKeyDistributionMessage) Process(sender *Address, store SenderKey
 		sc.ptr,
 		wrapSenderKeyStore(store),
 	)
+	runtime.KeepAlive(sender)
 	if signalFfiError != nil {
 		return wrapCallbackError(signalFfiError, ctx)
 	}

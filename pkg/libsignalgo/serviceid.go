@@ -24,6 +24,7 @@ package libsignalgo
 import "C"
 import (
 	"errors"
+	"runtime"
 	"unsafe"
 
 	"github.com/google/uuid"
@@ -38,6 +39,7 @@ func init() {
 func SignalServiceIDFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	var result C.SignalServiceIdFixedWidthBinaryBytes
 	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(uuid[:]))
+	runtime.KeepAlive(uuid)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -49,6 +51,7 @@ func SignalPNIServiceIDFromUUID(uuid uuid.UUID) (cPNIType, error) {
 	// Prepend a 0x01 to the UUID to indicate that it is a PNI UUID
 	pniUUID := append([]byte{0x01}, uuid[:]...)
 	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(pniUUID))
+	runtime.KeepAlive(pniUUID)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

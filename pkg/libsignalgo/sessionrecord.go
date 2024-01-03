@@ -40,6 +40,7 @@ func wrapSessionRecord(ptr *C.SignalSessionRecord) *SessionRecord {
 func DeserializeSessionRecord(serialized []byte) (*SessionRecord, error) {
 	var ptr *C.SignalSessionRecord
 	signalFfiError := C.signal_session_record_deserialize(&ptr, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -49,6 +50,7 @@ func DeserializeSessionRecord(serialized []byte) (*SessionRecord, error) {
 func (sr *SessionRecord) Clone() (*SessionRecord, error) {
 	var clone *C.SignalSessionRecord
 	signalFfiError := C.signal_session_record_clone(&clone, sr.ptr)
+	runtime.KeepAlive(sr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -65,12 +67,15 @@ func (sr *SessionRecord) CancelFinalizer() {
 }
 
 func (sr *SessionRecord) ArchiveCurrentState() error {
+	defer runtime.KeepAlive(sr)
 	return wrapError(C.signal_session_record_archive_current_state(sr.ptr))
 }
 
 func (sr *SessionRecord) CurrentRatchetKeyMatches(key *PublicKey) (bool, error) {
 	var result C.bool
 	signalFfiError := C.signal_session_record_current_ratchet_key_matches(&result, sr.ptr, key.ptr)
+	runtime.KeepAlive(sr)
+	runtime.KeepAlive(key)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}
@@ -80,6 +85,7 @@ func (sr *SessionRecord) CurrentRatchetKeyMatches(key *PublicKey) (bool, error) 
 func (sr *SessionRecord) HasCurrentState() (bool, error) {
 	var result C.bool
 	signalFfiError := C.signal_session_record_has_usable_sender_chain(&result, sr.ptr, C.uint64_t(time.Now().Unix()))
+	runtime.KeepAlive(sr)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}
@@ -89,6 +95,7 @@ func (sr *SessionRecord) HasCurrentState() (bool, error) {
 func (sr *SessionRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_session_record_serialize(&serialized, sr.ptr)
+	runtime.KeepAlive(sr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -98,6 +105,7 @@ func (sr *SessionRecord) Serialize() ([]byte, error) {
 func (sr *SessionRecord) GetLocalRegistrationID() (uint32, error) {
 	var result C.uint32_t
 	signalFfiError := C.signal_session_record_get_local_registration_id(&result, sr.ptr)
+	runtime.KeepAlive(sr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -107,6 +115,7 @@ func (sr *SessionRecord) GetLocalRegistrationID() (uint32, error) {
 func (sr *SessionRecord) GetRemoteRegistrationID() (uint32, error) {
 	var result C.uint32_t
 	signalFfiError := C.signal_session_record_get_remote_registration_id(&result, sr.ptr)
+	runtime.KeepAlive(sr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}

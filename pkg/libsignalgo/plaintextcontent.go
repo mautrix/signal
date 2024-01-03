@@ -37,6 +37,7 @@ func wrapPlaintextContent(ptr *C.SignalPlaintextContent) *PlaintextContent {
 func PlaintextContentFromDecryptionErrorMessage(message *DecryptionErrorMessage) (*PlaintextContent, error) {
 	var pc *C.SignalPlaintextContent
 	signalFfiError := C.signal_plaintext_content_from_decryption_error_message(&pc, message.ptr)
+	runtime.KeepAlive(message)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -46,6 +47,7 @@ func PlaintextContentFromDecryptionErrorMessage(message *DecryptionErrorMessage)
 func DeserializePlaintextContent(plaintextContentBytes []byte) (*PlaintextContent, error) {
 	var pc *C.SignalPlaintextContent
 	signalFfiError := C.signal_plaintext_content_deserialize(&pc, BytesToBuffer(plaintextContentBytes))
+	runtime.KeepAlive(plaintextContentBytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -55,6 +57,7 @@ func DeserializePlaintextContent(plaintextContentBytes []byte) (*PlaintextConten
 func (pc *PlaintextContent) Clone() (*PlaintextContent, error) {
 	var cloned *C.SignalPlaintextContent
 	signalFfiError := C.signal_plaintext_content_clone(&cloned, pc.ptr)
+	runtime.KeepAlive(pc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -73,6 +76,7 @@ func (pc *PlaintextContent) CancelFinalizer() {
 func (pc *PlaintextContent) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_plaintext_content_serialize(&serialized, pc.ptr)
+	runtime.KeepAlive(pc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -82,6 +86,7 @@ func (pc *PlaintextContent) Serialize() ([]byte, error) {
 func (pc *PlaintextContent) GetBody() ([]byte, error) {
 	var body C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_plaintext_content_get_body(&body, pc.ptr)
+	runtime.KeepAlive(pc)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

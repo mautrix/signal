@@ -39,6 +39,7 @@ func wrapSenderKeyRecord(ptr *C.SignalSenderKeyRecord) *SenderKeyRecord {
 func DeserializeSenderKeyRecord(serialized []byte) (*SenderKeyRecord, error) {
 	var sc *C.SignalSenderKeyRecord
 	signalFfiError := C.signal_sender_key_record_deserialize(&sc, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -48,6 +49,7 @@ func DeserializeSenderKeyRecord(serialized []byte) (*SenderKeyRecord, error) {
 func (skr *SenderKeyRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sender_key_record_serialize(&serialized, skr.ptr)
+	runtime.KeepAlive(skr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -57,6 +59,7 @@ func (skr *SenderKeyRecord) Serialize() ([]byte, error) {
 func (skr *SenderKeyRecord) Clone() (*SenderKeyRecord, error) {
 	var cloned *C.SignalSenderKeyRecord
 	signalFfiError := C.signal_sender_key_record_clone(&cloned, skr.ptr)
+	runtime.KeepAlive(skr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

@@ -37,6 +37,7 @@ func wrapPreKeyMessage(ptr *C.SignalPreKeySignalMessage) *PreKeyMessage {
 func DeserializePreKeyMessage(serialized []byte) (*PreKeyMessage, error) {
 	var m *C.SignalPreKeySignalMessage
 	signalFfiError := C.signal_pre_key_signal_message_deserialize(&m, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -46,6 +47,7 @@ func DeserializePreKeyMessage(serialized []byte) (*PreKeyMessage, error) {
 func (m *PreKeyMessage) Clone() (*PreKeyMessage, error) {
 	var cloned *C.SignalPreKeySignalMessage
 	signalFfiError := C.signal_pre_key_signal_message_clone(&cloned, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -64,6 +66,7 @@ func (m *PreKeyMessage) CancelFinalizer() {
 func (m *PreKeyMessage) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_pre_key_signal_message_serialize(&serialized, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -73,6 +76,7 @@ func (m *PreKeyMessage) Serialize() ([]byte, error) {
 func (m *PreKeyMessage) GetVersion() (uint32, error) {
 	var version C.uint
 	signalFfiError := C.signal_pre_key_signal_message_get_version(&version, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -82,6 +86,7 @@ func (m *PreKeyMessage) GetVersion() (uint32, error) {
 func (m *PreKeyMessage) GetRegistrationID() (uint32, error) {
 	var registrationID C.uint
 	signalFfiError := C.signal_pre_key_signal_message_get_registration_id(&registrationID, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -91,6 +96,7 @@ func (m *PreKeyMessage) GetRegistrationID() (uint32, error) {
 func (m *PreKeyMessage) GetPreKeyID() (*uint32, error) {
 	var preKeyID C.uint
 	signalFfiError := C.signal_pre_key_signal_message_get_pre_key_id(&preKeyID, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -103,6 +109,7 @@ func (m *PreKeyMessage) GetPreKeyID() (*uint32, error) {
 func (m *PreKeyMessage) GetSignedPreKeyID() (uint32, error) {
 	var signedPreKeyID C.uint
 	signalFfiError := C.signal_pre_key_signal_message_get_signed_pre_key_id(&signedPreKeyID, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -112,6 +119,7 @@ func (m *PreKeyMessage) GetSignedPreKeyID() (uint32, error) {
 func (m *PreKeyMessage) GetBaseKey() (*PublicKey, error) {
 	var publicKey *C.SignalPublicKey
 	signalFfiError := C.signal_pre_key_signal_message_get_base_key(&publicKey, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -121,6 +129,7 @@ func (m *PreKeyMessage) GetBaseKey() (*PublicKey, error) {
 func (m *PreKeyMessage) GetIdentityKey() (*IdentityKey, error) {
 	var publicKey *C.SignalPublicKey
 	signalFfiError := C.signal_pre_key_signal_message_get_identity_key(&publicKey, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -130,6 +139,7 @@ func (m *PreKeyMessage) GetIdentityKey() (*IdentityKey, error) {
 func (m *PreKeyMessage) GetSignalMessage() (*Message, error) {
 	var message *C.SignalMessage
 	signalFfiError := C.signal_pre_key_signal_message_get_signal_message(&message, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

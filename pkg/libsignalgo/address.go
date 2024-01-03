@@ -50,6 +50,7 @@ func NewAddress(name string, deviceID uint) (*Address, error) {
 func (pa *Address) Clone() (*Address, error) {
 	var cloned *C.SignalProtocolAddress
 	signalFfiError := C.signal_address_clone(&cloned, pa.ptr)
+	runtime.KeepAlive(pa)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -68,6 +69,7 @@ func (pa *Address) CancelFinalizer() {
 func (pa *Address) Name() (string, error) {
 	var name *C.char
 	signalFfiError := C.signal_address_get_name(&name, pa.ptr)
+	runtime.KeepAlive(pa)
 	if signalFfiError != nil {
 		return "", wrapError(signalFfiError)
 	}
@@ -85,6 +87,7 @@ func (pa *Address) NameUUID() (uuid.UUID, error) {
 func (pa *Address) DeviceID() (uint, error) {
 	var deviceID C.uint
 	signalFfiError := C.signal_address_get_device_id(&deviceID, pa.ptr)
+	runtime.KeepAlive(pa)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}

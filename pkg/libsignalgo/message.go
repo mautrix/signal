@@ -34,6 +34,8 @@ func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, 
 		wrapSessionStore(sessionStore),
 		wrapIdentityKeyStore(identityStore),
 	)
+	runtime.KeepAlive(message)
+	runtime.KeepAlive(fromAddress)
 	if signalFfiError != nil {
 		return nil, wrapCallbackError(signalFfiError, ctx)
 	}
@@ -54,6 +56,7 @@ func wrapMessage(ptr *C.SignalMessage) *Message {
 func DeserializeMessage(serialized []byte) (*Message, error) {
 	var m *C.SignalMessage
 	signalFfiError := C.signal_message_deserialize(&m, BytesToBuffer(serialized))
+	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -63,6 +66,7 @@ func DeserializeMessage(serialized []byte) (*Message, error) {
 func (m *Message) Clone() (*Message, error) {
 	var cloned *C.SignalMessage
 	signalFfiError := C.signal_message_clone(&cloned, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -81,6 +85,7 @@ func (m *Message) CancelFinalizer() {
 func (m *Message) GetBody() ([]byte, error) {
 	var body C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_message_get_body(&body, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -90,6 +95,7 @@ func (m *Message) GetBody() ([]byte, error) {
 func (m *Message) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_message_get_serialized(&serialized, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -99,6 +105,7 @@ func (m *Message) Serialize() ([]byte, error) {
 func (m *Message) GetMessageVersion() (uint32, error) {
 	var messageVersion C.uint32_t
 	signalFfiError := C.signal_message_get_message_version(&messageVersion, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -108,6 +115,7 @@ func (m *Message) GetMessageVersion() (uint32, error) {
 func (m *Message) GetCounter() (uint32, error) {
 	var counter C.uint32_t
 	signalFfiError := C.signal_message_get_counter(&counter, m.ptr)
+	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
@@ -117,6 +125,10 @@ func (m *Message) GetCounter() (uint32, error) {
 func (m *Message) VerifyMAC(sender, receiver *PublicKey, macKey []byte) (bool, error) {
 	var result C.bool
 	signalFfiError := C.signal_message_verify_mac(&result, m.ptr, sender.ptr, receiver.ptr, BytesToBuffer(macKey))
+	runtime.KeepAlive(m)
+	runtime.KeepAlive(sender)
+	runtime.KeepAlive(receiver)
+	runtime.KeepAlive(macKey)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}

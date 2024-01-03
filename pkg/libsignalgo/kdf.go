@@ -21,11 +21,17 @@ package libsignalgo
 #include "./libsignal-ffi.h"
 */
 import "C"
-import "unsafe"
+import (
+	"runtime"
+	"unsafe"
+)
 
 func HKDFDerive(outputLength int, inputKeyMaterial, salt, info []byte) ([]byte, error) {
 	output := BorrowedMutableBuffer(outputLength)
 	signalFfiError := C.signal_hkdf_derive(output, BytesToBuffer(inputKeyMaterial), BytesToBuffer(info), BytesToBuffer(salt))
+	runtime.KeepAlive(inputKeyMaterial)
+	runtime.KeepAlive(salt)
+	runtime.KeepAlive(info)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
