@@ -164,7 +164,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 			return nil, fmt.Errorf("unsupported content type for sticker %s", mime)
 		}
 	}
-	att, err := signalmeow.UploadAttachment(mc.GetClient(ctx), data)
+	att, err := signalmeow.UploadAttachment(ctx, mc.GetClient(ctx), data)
 	if err != nil {
 		log.Err(err).Msg("Failed to upload file")
 		return nil, fmt.Errorf("failed to upload: %w", err)

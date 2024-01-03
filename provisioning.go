@@ -153,16 +153,13 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 		phoneNum = "+" + phoneNum
 	}
 	if user.SignalDevice == nil {
-		prov.log.Debug().Msgf("ResolveIdentifier from %v, no device found", user.MXID)
 		return http.StatusUnauthorized, nil, fmt.Errorf("Not currently connected to Signal")
 	}
 	contact, err := user.SignalDevice.ContactByE164(phoneNum)
 	if err != nil {
-		prov.log.Err(err).Msgf("ResolveIdentifier from %v, error looking up contact", user.MXID)
 		return http.StatusInternalServerError, nil, fmt.Errorf("Error looking up number in local contact list: %w", err)
 	}
 	if contact == nil {
-		prov.log.Debug().Msgf("ResolveIdentifier from %v, contact not found", user.MXID)
 		return http.StatusNotFound, nil, fmt.Errorf("The bridge does not have the Signal ID for the number %s", phoneNum)
 	}
 
@@ -186,16 +183,22 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
 	phoneNum, _ := mux.Vars(r)["phonenum"]
-	prov.log.Debug().Msgf("ResolveIdentifier from %v, phone number: %v", user.MXID, phoneNum)
+
+	log := prov.log.With().
+		Str("action", "resolve_identifier").
+		Str("user_id", user.MXID.String()).
+		Str("phone_num", phoneNum).
+		Logger()
+	log.Debug().Msg("resolving identifier")
 
 	status, resp, err := prov.resolveIdentifier(user, phoneNum)
 	if err != nil {
 		errCode := "M_INTERNAL"
 		if status == http.StatusNotFound {
-			prov.log.Debug().Msgf("ResolveIdentifier from %v, contact not found", user.MXID)
+			log.Debug().Msg("contact not found")
 			errCode = "M_NOT_FOUND"
 		} else {
-			prov.log.Err(err).Msgf("ResolveIdentifier from %v, error looking up contact", user.MXID)
+			log.Err(err).Msg("error looking up contact")
 		}
 		jsonResponse(w, status, Error{
 			Success: false,
@@ -214,16 +217,22 @@ func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Re
 func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
 	phoneNum, _ := mux.Vars(r)["phonenum"]
-	prov.log.Debug().Msgf("StartPM from %v, phone number: %v", user.MXID, phoneNum)
+
+	log := prov.log.With().
+		Str("action", "start_pm").
+		Str("user_id", user.MXID.String()).
+		Str("phone_num", phoneNum).
+		Logger()
+	log.Debug().Msg("starting private message")
 
 	status, resp, err := prov.resolveIdentifier(user, phoneNum)
 	if err != nil {
 		errCode := "M_INTERNAL"
 		if status == http.StatusNotFound {
-			prov.log.Debug().Msgf("StartPM from %v, contact not found", user.MXID)
+			log.Debug().Msg("contact not found")
 			errCode = "M_NOT_FOUND"
 		} else {
-			prov.log.Err(err).Msgf("StartPM from %v, error looking up contact", user.MXID)
+			log.Err(err).Msg("error looking up contact")
 		}
 		jsonResponse(w, status, Error{
 			Success: false,
@@ -236,7 +245,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	portal := user.GetPortalByChatID(resp.ChatID.UUID)
 	if portal.MXID == "" {
 		if err := portal.CreateMatrixRoom(user, nil); err != nil {
-			prov.log.Err(err).Msgf("StartPM from %v, error creating Matrix room", user.MXID)
+			log.Err(err).Msg("error looking up contact")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   "Error creating Matrix room",
@@ -303,14 +312,15 @@ func (prov *ProvisioningAPI) existingSession(user *User) (handle *provisioningHa
 	return nil
 }
 
-func (prov *ProvisioningAPI) clearSession(user *User) {
+func (prov *ProvisioningAPI) clearSession(ctx context.Context, user *User) {
+	log := zerolog.Ctx(ctx).With().Str("function", "clearSession").Logger()
 	prov.mutexForUser(user).Lock()
 	defer prov.mutexForUser(user).Unlock()
 
 	if existingSessionID, ok := prov.provisioningUsers[user.MXID.String()]; ok {
-		prov.log.Debug().Msgf("clearSession called for %v, clearing session %v", user.MXID, existingSessionID)
+		log.Debug().Int("existing_session_id", existingSessionID).Msg("clearing existing session")
 		if existingSessionID >= len(prov.provisioningHandles) {
-			prov.log.Warn().Msgf("clearSession called for %v, session %v does not exist", user.MXID, existingSessionID)
+			log.Warn().Msg("session does not exist")
 			return
 		}
 		if prov.provisioningHandles[existingSessionID].cancel != nil {
@@ -319,45 +329,36 @@ func (prov *ProvisioningAPI) clearSession(user *User) {
 		prov.provisioningHandles[existingSessionID] = nil
 		delete(prov.provisioningUsers, user.MXID.String())
 	} else {
-		prov.log.Debug().Msgf("clearSession called for %v, no session found", user.MXID)
+		prov.log.Debug().Msg("no session found")
 	}
 }
 
 // ** Provisioning API Helpers ** //
 
-func (prov *ProvisioningAPI) loginOrSendError(w http.ResponseWriter, user *User) *provisioningHandle {
+func (prov *ProvisioningAPI) loginOrSendError(ctx context.Context, w http.ResponseWriter, user *User) (*provisioningHandle, error) {
 	newSessionLoggedIn, handle, err := prov.newOrExistingSession(user)
 	if err != nil {
-		prov.log.Err(err).Msg("Error logging in")
-		jsonResponse(w, http.StatusInternalServerError, Error{
-			Success: false,
-			Error:   "Error logging in",
-			ErrCode: "M_INTERNAL",
-		})
-		return nil
+		return nil, err
 	}
 	if !newSessionLoggedIn {
-		prov.log.Debug().Msgf("LinkNew from %v, user already has a pending provisioning request (%d), cancelling", user.MXID, handle.id)
-		prov.clearSession(user)
+		zerolog.Ctx(ctx).Debug().
+			Int("existing_provisioning_handle", handle.id).
+			Msg("user already has pending provisioning request, cancelling")
+		prov.clearSession(ctx, user)
 		newSessionLoggedIn, handle, err = prov.newOrExistingSession(user)
 		if err != nil {
-			prov.log.Err(err).Msg("Error logging in after cancelling existing session")
-			jsonResponse(w, http.StatusInternalServerError, Error{
-				Success: false,
-				Error:   "Error logging in",
-				ErrCode: "M_INTERNAL",
-			})
-			return nil
+			return nil, fmt.Errorf("error logging in after cancelling existing session: %w", err)
 		}
 	}
-	return handle
+	return handle, nil
 }
 
-func (prov *ProvisioningAPI) checkSessionAndReturnHandle(w http.ResponseWriter, r *http.Request, currentSession int) *provisioningHandle {
-	user := r.Context().Value(provisioningUserKey).(*User)
+func (prov *ProvisioningAPI) checkSessionAndReturnHandle(ctx context.Context, w http.ResponseWriter, currentSession int) *provisioningHandle {
+	log := zerolog.Ctx(ctx).With().Str("function", "checkSessionAndReturnHandle").Logger()
+	user := ctx.Value(provisioningUserKey).(*User)
 	handle := prov.existingSession(user)
 	if handle == nil {
-		prov.log.Warn().Msgf("checkSessionAndReturnHandle: from %v, no session found", user.MXID)
+		log.Warn().Msg("no session found")
 		jsonResponse(w, http.StatusNotFound, Error{
 			Success: false,
 			Error:   "No session found",
@@ -366,7 +367,10 @@ func (prov *ProvisioningAPI) checkSessionAndReturnHandle(w http.ResponseWriter, 
 		return nil
 	}
 	if handle.id != currentSession {
-		prov.log.Warn().Msgf("checkSessionAndReturnHandle: from %v, session_id %v does not match user's current session_id %v", user.MXID, currentSession, handle.id)
+		log.Warn().
+			Int("handle_id", handle.id).
+			Int("current_session", currentSession).
+			Msg("session_id does not match user's session_id")
 		jsonResponse(w, http.StatusBadRequest, Error{
 			Success: false,
 			Error:   "session_id does not match user's session_id",
@@ -381,16 +385,30 @@ func (prov *ProvisioningAPI) checkSessionAndReturnHandle(w http.ResponseWriter, 
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
+	log := prov.log.With().
+		Str("action", "link_new").
+		Str("user_id", user.MXID.String()).
+		Logger()
+	ctx := log.WithContext(r.Context())
+	log.Debug().Msg("starting login")
 
-	prov.log.Debug().Msgf("LinkNew from %v, starting login", user.MXID)
-	handle := prov.loginOrSendError(w, user)
+	handle, err := prov.loginOrSendError(ctx, w, user)
+	if err != nil {
+		jsonResponse(w, http.StatusInternalServerError, Error{
+			Success: false,
+			Error:   err.Error(),
+			ErrCode: "M_INTERNAL",
+		})
+		return
+	}
 
-	prov.log.Debug().Msgf("LinkNew from %v, waiting for provisioning response (session: %v)", user.MXID, handle.id)
+	log = log.With().Int("session_id", handle.id).Logger()
+	log.Debug().Msg("waiting for provisioning response")
 
 	select {
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
-			prov.log.Err(resp.Err).Msg("Error getting provisioning URL")
+			log.Err(resp.Err).Msg("Error getting provisioning URL")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   resp.Err.Error(),
@@ -399,39 +417,40 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningURLReceived {
-			prov.log.Error().Msgf("LinkNew from %v, unexpected state: %v", user.MXID, resp.State)
+			log.Err(resp.Err).Str("state", resp.State.String()).Msg("unexpected state")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
-				Error:   "Unexpected state",
+				Error:   fmt.Sprintf("Unexpected state %s", resp.State.String()),
 				ErrCode: "M_INTERNAL",
 			})
 			return
 		}
 
-		prov.log.Debug().Msgf("LinkNew from %v, provisioning URL received", user.MXID)
+		log.Debug().Str("provisioning_url", resp.ProvisioningUrl).Msg("provisioning URL received")
 		jsonResponse(w, http.StatusOK, Response{
 			Success:   true,
 			Status:    "provisioning_url_received",
-			SessionID: fmt.Sprintf("%v", handle.id),
+			SessionID: fmt.Sprintf("%d", handle.id),
 			URI:       resp.ProvisioningUrl,
 		})
-		return
 	case <-time.After(30 * time.Second):
-		prov.log.Warn().Msg("Timeout waiting for provisioning response (new)")
+		log.Warn().Msg("Timeout waiting for provisioning response (new)")
 		jsonResponse(w, http.StatusGatewayTimeout, Error{
 			Success: false,
 			Error:   "Timeout waiting for provisioning response (new)",
 			ErrCode: "M_TIMEOUT",
 		})
-		return
 	}
+}
+
+type LinkWaitForScanRequest struct {
+	SessionID string `json:"session_id"`
 }
 
 func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
-	body := struct {
-		SessionID string `json:"session_id"`
-	}{}
+
+	var body LinkWaitForScanRequest
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		jsonResponse(w, http.StatusBadRequest, Error{
@@ -451,9 +470,15 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	prov.log.Debug().Msgf("LinkWaitForScan from %v, session_id: %v", user.MXID, sessionID)
+	log := prov.log.With().
+		Str("action", "link_wait_for_scan").
+		Str("user_id", user.MXID.String()).
+		Str("session_id", body.SessionID).
+		Logger()
+	ctx := log.WithContext(r.Context())
+	log.Debug().Msg("waiting for scan")
 
-	handle := prov.checkSessionAndReturnHandle(w, r, sessionID)
+	handle := prov.checkSessionAndReturnHandle(ctx, w, sessionID)
 	if handle == nil {
 		return
 	}
@@ -461,10 +486,10 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 	select {
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
-			prov.log.Err(resp.Err).Msg("Error waiting for scan")
+			log.Err(resp.Err).Msg("Error waiting for scan")
 			// If context was cancelled be chill
 			if errors.Is(resp.Err, context.Canceled) {
-				prov.log.Debug().Msg("Context cancelled waiting for scan")
+				log.Debug().Msg("Context cancelled waiting for scan")
 				return
 			}
 			// If we error waiting for the scan, treat it as a normal error not 5xx
@@ -478,15 +503,15 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningDataReceived {
-			prov.log.Err(err).Msgf("LinkWaitForScan from %v, unexpected state: %v", user.MXID, resp.State)
+			log.Err(resp.Err).Str("state", resp.State.String()).Msg("unexpected state")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
-				Error:   "Unexpected state",
+				Error:   fmt.Sprintf("Unexpected state %s", resp.State.String()),
 				ErrCode: "M_INTERNAL",
 			})
 			return
 		}
-		prov.log.Debug().Msgf("LinkWaitForScan from %v, provisioning data received", user.MXID)
+		log.Debug().Msg("provisioning data received")
 		jsonResponse(w, http.StatusOK, Response{
 			Success: true,
 			Status:  "provisioning_data_received",
@@ -504,7 +529,7 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 		}
 		return
 	case <-time.After(45 * time.Second):
-		prov.log.Warn().Msg("Timeout waiting for provisioning response (scan)")
+		log.Warn().Msg("Timeout waiting for provisioning response (scan)")
 		// Using 400 here to match the old bridge
 		jsonResponse(w, http.StatusBadRequest, Error{
 			Success: false,
@@ -515,12 +540,15 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+type LinkWaitForAccountRequest struct {
+	SessionID  string `json:"session_id"`
+	DeviceName string `json:"device_name"` // TODO this seems to not be used anywhere
+}
+
 func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
-	body := struct {
-		SessionID  string `json:"session_id"`
-		DeviceName string `json:"device_name"`
-	}{}
+
+	var body LinkWaitForAccountRequest
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
 		jsonResponse(w, http.StatusBadRequest, Error{
@@ -541,9 +569,16 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	}
 	deviceName := body.DeviceName
 
-	prov.log.Debug().Msgf("LinkWaitForAccount from %v, session_id: %v, device_name: %v", user.MXID, sessionID, deviceName)
+	log := prov.log.With().
+		Str("action", "link_wait_for_account").
+		Str("user_id", user.MXID.String()).
+		Int("session_id", sessionID).
+		Str("device_name", deviceName).
+		Logger()
+	ctx := log.WithContext(r.Context())
+	log.Debug().Msg("waiting for account")
 
-	handle := prov.checkSessionAndReturnHandle(w, r, sessionID)
+	handle := prov.checkSessionAndReturnHandle(ctx, w, sessionID)
 	if handle == nil {
 		return
 	}
@@ -551,7 +586,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	select {
 	case resp := <-handle.channel:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
-			prov.log.Err(resp.Err).Msg("Error waiting for account")
+			log.Err(resp.Err).Msg("Error waiting for account")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   resp.Err.Error(),
@@ -560,16 +595,16 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningPreKeysRegistered {
-			prov.log.Err(err).Msgf("LinkWaitForAccount from %v, unexpected state: %v", user.MXID, resp.State)
+			log.Err(resp.Err).Str("state", resp.State.String()).Msg("unexpected state")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
-				Error:   "Unexpected state",
+				Error:   fmt.Sprintf("Unexpected state %s", resp.State.String()),
 				ErrCode: "M_INTERNAL",
 			})
 			return
 		}
 
-		prov.log.Debug().Msgf("LinkWaitForAccount from %v, prekeys registered", user.MXID)
+		log.Debug().Msg("prekeys registered")
 		jsonResponse(w, http.StatusOK, Response{
 			Success: true,
 			Status:  "prekeys_registered",
@@ -581,7 +616,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 		user.Connect()
 		return
 	case <-time.After(30 * time.Second):
-		prov.log.Warn().Msg("Timeout waiting for provisioning response (account)")
+		log.Warn().Msg("Timeout waiting for provisioning response (account)")
 		jsonResponse(w, http.StatusGatewayTimeout, Error{
 			Success: false,
 			Error:   "Timeout waiting for provisioning response (account)",
@@ -593,8 +628,14 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 
 func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
-	prov.log.Debug().Msgf("Logout called from %v (but not logging out)", user.MXID)
-	prov.clearSession(user)
+	log := prov.log.With().
+		Str("action", "logout").
+		Str("user_id", user.MXID.String()).
+		Logger()
+	ctx := log.WithContext(r.Context())
+	log.Debug().Msg("Logout called (but not logging out)")
+
+	prov.clearSession(ctx, user)
 
 	// For now do nothing - we need this API to return 200 to be compatible with
 	// the old Signal bridge, which needed a call to Logout before allowing LinkNew

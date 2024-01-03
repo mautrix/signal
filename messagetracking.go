@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/event"
@@ -106,13 +107,28 @@ func errorToStatusReason(err error) (reason event.MessageStatusReason, status ev
 	}
 }
 
-func (portal *Portal) sendErrorMessage(evt *event.Event, err error, msgType string, confirmed bool, editID id.EventID) id.EventID {
+func (portal *Portal) sendErrorMessage(evt *event.Event, err error, confirmed bool, editID id.EventID) id.EventID {
 	if !portal.bridge.Config.Bridge.MessageErrorNotices {
 		return ""
 	}
 	certainty := "may not have been"
 	if confirmed {
 		certainty = "was not"
+	}
+	var msgType string
+	switch evt.Type {
+	case event.EventMessage:
+		msgType = "message"
+	case event.EventReaction:
+		msgType = "reaction"
+	case event.EventRedaction:
+		msgType = "redaction"
+	//case TypeMSC3381PollResponse, TypeMSC3381V2PollResponse:
+	//	msgType = "poll response"
+	//case TypeMSC3381PollStart:
+	//	msgType = "poll start"
+	default:
+		msgType = "unknown event"
 	}
 	msg := fmt.Sprintf("\u26a0 Your %s %s bridged: %v", msgType, certainty, err)
 	if errors.Is(err, errMessageTakingLong) {
@@ -172,54 +188,41 @@ func (portal *Portal) sendDeliveryReceipt(eventID id.EventID) {
 	if portal.bridge.Config.Bridge.DeliveryReceipts {
 		err := portal.bridge.Bot.SendReceipt(portal.MXID, eventID, event.ReceiptTypeRead, nil)
 		if err != nil {
-			portal.log.Debug().Msgf("Failed to send delivery receipt for %s: %v", eventID, err)
+			portal.log.Debug().Err(err).Stringer("event_id", eventID).Msg("Failed to send delivery receipt")
 		}
 	}
 }
 
 func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part string, ms *metricSender) {
-	var msgType string
-	switch evt.Type {
-	case event.EventMessage:
-		msgType = "message"
-	case event.EventReaction:
-		msgType = "reaction"
-	case event.EventRedaction:
-		msgType = "redaction"
-	//case TypeMSC3381PollResponse, TypeMSC3381V2PollResponse:
-	//	msgType = "poll response"
-	//case TypeMSC3381PollStart:
-	//	msgType = "poll start"
-	default:
-		msgType = "unknown event"
-	}
-	evtDescription := evt.ID.String()
+	log := portal.log.With().
+		Str("handling_step", part).
+		Str("event_type", evt.Type.String()).
+		Stringer("event_id", evt.ID).
+		Stringer("sender", evt.Sender).
+		Logger()
 	if evt.Type == event.EventRedaction {
-		evtDescription += fmt.Sprintf(" of %s", evt.Redacts)
+		log = log.With().Str("redacts", evt.Redacts.String()).Logger()
 	}
+
 	origEvtID := evt.ID
 	if retryMeta := evt.Content.AsMessage().MessageSendRetry; retryMeta != nil {
 		origEvtID = retryMeta.OriginalEventID
 	}
 	if err != nil {
-		logError := true
+		logEvt := portal.log.Error()
 		if part == "Ignoring" {
-			logError = false
+			logEvt = portal.log.Debug()
 		}
-		if logError {
-			portal.log.Err(err).Msgf("%s %s %s from %s", part, msgType, evtDescription, evt.Sender)
-		} else {
-			portal.log.Debug().Msgf("%s %s %s from %s: %v", part, msgType, evtDescription, evt.Sender, err)
-		}
+		logEvt.Err(err).Msg("Sending message metrics for event")
 		reason, statusCode, isCertain, sendNotice, _ := errorToStatusReason(err)
 		checkpointStatus := status.ReasonToCheckpointStatus(reason, statusCode)
 		portal.bridge.SendMessageCheckpoint(evt, status.MsgStepRemote, err, checkpointStatus, ms.getRetryNum())
 		if sendNotice {
-			ms.setNoticeID(portal.sendErrorMessage(evt, err, msgType, isCertain, ms.getNoticeID()))
+			ms.setNoticeID(portal.sendErrorMessage(evt, err, isCertain, ms.getNoticeID()))
 		}
 		portal.sendStatusEvent(origEvtID, evt.ID, err, nil)
 	} else {
-		portal.log.Debug().Msgf("Handled Matrix %s %s", msgType, evtDescription)
+		portal.log.Debug().Msg("Sending metrics for successfully handled Matrix event")
 		portal.sendDeliveryReceipt(evt.ID)
 		portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, ms.getRetryNum())
 		var deliveredTo *[]id.UserID
@@ -234,7 +237,7 @@ func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part strin
 		}
 	}
 	if ms != nil {
-		portal.log.Debug().Msgf("Timings for %s: %s", evt.ID, ms.timings.String())
+		portal.log.Debug().Object("timings", ms.timings).Msg("Timings for event")
 	}
 }
 
@@ -261,16 +264,18 @@ func niceRound(dur time.Duration) time.Duration {
 	}
 }
 
-func (mt *messageTimings) String() string {
-	mt.initReceive = niceRound(mt.initReceive)
-	mt.decrypt = niceRound(mt.decrypt)
-	mt.portalQueue = niceRound(mt.portalQueue)
-	mt.totalReceive = niceRound(mt.totalReceive)
-	mt.implicitRR = niceRound(mt.implicitRR)
-	mt.preproc = niceRound(mt.preproc)
-	mt.convert = niceRound(mt.convert)
-	mt.totalSend = niceRound(mt.totalSend)
-	return fmt.Sprintf("BRIDGE: receive: %s, decrypt: %s, queue: %s, total hs->portal: %s, implicit rr: %s -- PORTAL: preprocess: %s, convert: %s, total send: %s ", mt.initReceive, mt.decrypt, mt.implicitRR, mt.portalQueue, mt.totalReceive, mt.preproc, mt.convert, mt.totalSend)
+func (mt *messageTimings) MarshalZerologObject(evt *zerolog.Event) {
+	evt.
+		Dict("bridge", zerolog.Dict().
+			Str("init_receive", niceRound(mt.initReceive).String()).
+			Str("decrypt", niceRound(mt.decrypt).String()).
+			Str("queue", niceRound(mt.portalQueue).String()).
+			Str("total_hs_to_portal", niceRound(mt.totalReceive).String())).
+		Dict("portal", zerolog.Dict().
+			Str("implicit_rr", niceRound(mt.implicitRR).String()).
+			Str("preproc", niceRound(mt.preproc).String()).
+			Str("convert", niceRound(mt.convert).String()).
+			Str("total_send", niceRound(mt.totalSend).String()))
 }
 
 type metricSender struct {

@@ -190,12 +190,12 @@ func (portal *Portal) UpdateBridgeInfo() {
 	stateKey, content := portal.getBridgeInfo()
 	_, err := portal.MainIntent().SendStateEvent(portal.MXID, event.StateBridge, stateKey, content)
 	if err != nil {
-		portal.log.Warn().Msgf("Failed to update m.bridge: %v", err)
+		portal.log.Warn().Err(err).Msg("Failed to update m.bridge")
 	}
 	// TODO remove this once https://github.com/matrix-org/matrix-doc/pull/2346 is in spec
 	_, err = portal.MainIntent().SendStateEvent(portal.MXID, event.StateHalfShotBridge, stateKey, content)
 	if err != nil {
-		portal.log.Warn().Msgf("Failed to update uk.half-shot.bridge: %v", err)
+		portal.log.Warn().Err(err).Msg("Failed to update uk.half-shot.bridge")
 	}
 }
 
@@ -609,43 +609,54 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 }
 
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Content, sender *User, evtID id.EventID) error {
-	recipientSignalID := portal.ChatID
-	portal.log.Debug().Msgf("Sending event %s to Signal %s", evtID, recipientSignalID)
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "send_signal_message").
+		Str("event_id", evtID.String()).
+		Str("portal_chat_id", portal.ChatID).
+		Logger()
+	ctx = log.WithContext(ctx)
 
-	// Check to see if recipientSignalID is a standard UUID (with dashes)
+	log.Debug().Msg("Sending event to Signal")
+
+	// Check to see if portal.ChatID is a standard UUID (with dashes)
 	var err error
-	if _, uuidErr := uuid.Parse(recipientSignalID); uuidErr == nil {
+	if _, uuidErr := uuid.Parse(portal.ChatID); uuidErr == nil {
 		// this is a 1:1 chat
-		result := signalmeow.SendMessage(ctx, sender.SignalDevice, recipientSignalID, msg)
+		result := signalmeow.SendMessage(ctx, sender.SignalDevice, portal.ChatID, msg)
 		if !result.WasSuccessful {
 			err = result.FailedSendResult.Error
-			portal.log.Error().Msgf("Error sending event %s to Signal %s: %s", evtID, recipientSignalID, err)
+			log.Err(err).Msg("Error sending event to Signal")
 		}
 	} else {
 		// this is a group chat
-		groupID := types.GroupIdentifier(recipientSignalID)
+		groupID := types.GroupIdentifier(portal.ChatID)
 		result, err := signalmeow.SendGroupMessage(ctx, sender.SignalDevice, groupID, msg)
 		if err != nil {
 			// check the start of the error string, see if it starts with "No group master key found for group identifier"
 			if strings.HasPrefix(err.Error(), "No group master key found for group identifier") {
 				portal.MainIntent().SendNotice(portal.MXID, "Missing group encryption key. Please ask a group member to send a message in this chat, then retry sending.")
 			}
-			portal.log.Error().Msgf("Error sending event %s to Signal group %s: %s", evtID, recipientSignalID, err)
+			log.Err(err).Msg("Error sending event to Signal group")
 			return err
 		}
 		totalRecipients := len(result.FailedToSendTo) + len(result.SuccessfullySentTo)
+		log = log.With().
+			Int("total_recipients", totalRecipients).
+			Int("failed_to_send_to_count", len(result.FailedToSendTo)).
+			Int("successfully_sent_to_count", len(result.SuccessfullySentTo)).
+			Logger()
 		if len(result.FailedToSendTo) > 0 {
-			portal.log.Error().Msgf("Failed to send event %s to %d of %d members of Signal group %s", evtID, len(result.FailedToSendTo), totalRecipients, recipientSignalID)
+			log.Error().Msg("Failed to send event to some members of Signal group")
 		}
 		if len(result.SuccessfullySentTo) == 0 && len(result.FailedToSendTo) == 0 {
-			portal.log.Debug().Msgf("No successes or failures - Probably sent to myself")
+			log.Debug().Msg("No successes or failures - Probably sent to myself")
 		} else if len(result.SuccessfullySentTo) == 0 {
-			portal.log.Error().Msgf("Failed to send event %s to all %d members of Signal group %s", evtID, totalRecipients, recipientSignalID)
+			log.Error().Msg("Failed to send event to all members of Signal group")
 			err = errors.New("failed to send to any members of Signal group")
 		} else if len(result.SuccessfullySentTo) < totalRecipients {
-			portal.log.Warn().Msgf("Only sent event %s to %d of %d members of Signal group %s", evtID, len(result.SuccessfullySentTo), totalRecipients, recipientSignalID)
+			log.Warn().Msg("Only sent event to some members of Signal group")
 		} else {
-			portal.log.Debug().Msgf("Sent event %s to all %d members of Signal group %s", evtID, totalRecipients, recipientSignalID)
+			log.Debug().Msgf("Sent event to all members of Signal group")
 		}
 	}
 	return err
@@ -1168,21 +1179,20 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 		if user == nil || !user.IsLoggedIn() {
 			continue
 		}
-		recipientSignalID := portal.ChatID
 
-		// Check to see if recipientSignalID is a standard UUID (with dashes)
+		// Check to see if portal.ChatID is a standard UUID (with dashes)
 		// Note: not handling sending to a group right now, since that will
 		// require SenderKey sending to not be terrible
 		var err error
-		if _, uuidErr := uuid.Parse(recipientSignalID); uuidErr == nil {
+		if _, uuidErr := uuid.Parse(portal.ChatID); uuidErr == nil {
 			// this is a 1:1 chat
-			portal.log.Debug().Msgf("Sending Typing event to Signal %s", recipientSignalID)
+			portal.log.Debug().Msgf("Sending Typing event to Signal %s", portal.ChatID)
 			ctx := context.Background()
 			typingMessage := signalmeow.TypingMessage(isTyping)
-			result := signalmeow.SendMessage(ctx, user.SignalDevice, recipientSignalID, typingMessage)
+			result := signalmeow.SendMessage(ctx, user.SignalDevice, portal.ChatID, typingMessage)
 			if !result.WasSuccessful {
 				err = result.FailedSendResult.Error
-				portal.log.Error().Msgf("Error sending event to Signal %s: %s", recipientSignalID, err)
+				portal.log.Err(err).Msg("Error sending event to Signal")
 			}
 		}
 	}

@@ -64,6 +64,21 @@ const (
 	StateProvisioningPreKeysRegistered
 )
 
+func (s ProvisioningState) String() string {
+	switch s {
+	case StateProvisioningError:
+		return "StateProvisioningError"
+	case StateProvisioningURLReceived:
+		return "StateProvisioningURLReceived"
+	case StateProvisioningDataReceived:
+		return "StateProvisioningDataReceived"
+	case StateProvisioningPreKeysRegistered:
+		return "StateProvisioningPreKeysRegistered"
+	default:
+		return fmt.Sprintf("ProvisioningState(%d)", s)
+	}
+}
+
 // Enum for the provisioningUrl, ProvisioningMessage, and error
 type ProvisioningResponse struct {
 	State            ProvisioningState
@@ -79,9 +94,9 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 
 		ctx, cancel := context.WithTimeout(incomingCtx, 2*time.Minute)
 		defer cancel()
-		ws, err := openProvisioningWebsocket(ctx)
+		ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketProvisioningPath)
 		if err != nil {
-			zlog.Err(err).Msg("openProvisioningWebsocket error")
+			zlog.Err(err).Any("resp", resp).Msg("error opening provisioning websocket")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -111,16 +126,6 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		pniPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate())
 		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
 		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
-
-		// For debugging purposes
-		//privateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
-		//publicKey, _ := privateKey.GetPublicKey()
-		//privateBytes, _ := privateKey.Serialize()
-		//publicBytes, _ := publicKey.Serialize()
-		//aciBytes, _ := aciIdentityKeyPair.Serialize()
-		//zlog.Debug().Msgf("privateKeyBytes: %v", privateBytes)
-		//zlog.Debug().Msgf("publicKeyBytes: %v", publicBytes)
-		//zlog.Debug().Msgf("aciIdentityKeyPairBytes: %v", aciBytes)
 
 		username := *provisioningMessage.Number
 		password, _ := generateRandomPassword(22)
@@ -229,15 +234,6 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 	return c
 }
 
-func openProvisioningWebsocket(ctx context.Context) (*websocket.Conn, error) {
-	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketProvisioningPath)
-	if err != nil {
-		zlog.Err(err).Msgf("openWebsocket error, resp : %v", resp)
-		return nil, err
-	}
-	return ws, nil
-}
-
 // Returns the provisioningUrl and an error
 func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher) (string, error) {
 	pubKey := provisioningCipher.GetPublicKey()
@@ -333,7 +329,7 @@ func confirmDevice(
 
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
 	if err != nil {
-		zlog.Err(err).Msgf("openWebsocket error, resp : %v", resp)
+		zlog.Err(err).Any("resp", resp).Msg("error opening websocket")
 		return nil, err
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
@@ -365,7 +361,7 @@ func confirmDevice(
 
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		zlog.Err(err).Msgf("failed to marshal json: %v", resp)
+		zlog.Err(err).Msg("failed to marshal JSON")
 		return nil, err
 	}
 
@@ -380,21 +376,21 @@ func confirmDevice(
 	}
 	err = wspb.Write(ctx, ws, message)
 	if err != nil {
-		zlog.Err(err).Msgf("failed on write %v", resp)
+		zlog.Err(err).Msg("failed on write protobuf data to websocket")
 		return nil, err
 	}
 
 	receivedMsg := &signalpb.WebSocketMessage{}
 	err = wspb.Read(ctx, ws, receivedMsg)
 	if err != nil {
-		zlog.Err(err).Msgf("failed to read after devices call: %v", resp)
+		zlog.Err(err).Msg("failed to read from websocket after devices call")
 		return nil, err
 	}
 
 	status := int(*receivedMsg.Response.Status)
 	if status < 200 || status >= 300 {
 		err := fmt.Errorf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
-		zlog.Err(err).Msg("")
+		zlog.Err(err).Msg("non-200 status code from devices response")
 		return nil, err
 	}
 
@@ -402,7 +398,7 @@ func confirmDevice(
 	deviceResp := ConfirmDeviceResponse{}
 	err = json.Unmarshal(receivedMsg.Response.Body, &deviceResp)
 	if err != nil {
-		zlog.Err(err).Msgf("failed to unmarshal json: %v", receivedMsg.Response.Body)
+		zlog.Err(err).Msg("failed to unmarshal JSON")
 		return nil, err
 	}
 

@@ -18,6 +18,7 @@ package signalmeow
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -28,7 +29,7 @@ import (
 	"math"
 	"net/http"
 
-	"github.com/rs/zerolog/log"
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/random"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -59,12 +60,12 @@ func getAttachmentPath(id uint64, key string, cdnNumber uint32) (string, error) 
 var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
 var ErrInvalidDigestForAttachment = errors.New("invalid digest for attachment")
 
-func DownloadAttachment(a *signalpb.AttachmentPointer) ([]byte, error) {
+func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]byte, error) {
 	path, err := getAttachmentPath(a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber())
 	if err != nil {
 		return nil, err
 	}
-	resp, err := web.GetAttachment(path, a.GetCdnNumber(), nil)
+	resp, err := web.GetAttachment(ctx, path, a.GetCdnNumber(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -106,14 +107,18 @@ type attachmentV3UploadAttributes struct {
 	SignedUploadLocation string            `json:"signedUploadLocation"`
 }
 
-func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
+func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
+	log := zerolog.Ctx(ctx).With().Str("func", "upload attachment").Logger()
 	keys := random.Bytes(64) // combined AES and MAC keys
 	plaintextLength := uint32(len(body))
 
 	// Padded length uses exponential bracketing
 	paddedLen := int(math.Max(541, math.Floor(math.Pow(1.05, math.Ceil(math.Log(float64(len(body)))/math.Log(1.05))))))
 	if paddedLen < len(body) {
-		log.Debug().Msgf("encryptAndUploadAttachment paddedLen %v < len %v. Continuing with a privacy risk.", paddedLen, len(body))
+		log.Debug().
+			Int("padded_len", paddedLen).
+			Int("len", len(body)).
+			Msg("Padded length is less than body length, continuing with a privacy risk")
 	} else {
 		body = append(body, bytes.Repeat([]byte{0}, int(paddedLen)-len(body))...)
 	}
@@ -134,7 +139,7 @@ func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer,
 		return nil, err
 	}
 	var uploadAttributes attachmentV3UploadAttributes
-	err = web.DecodeHTTPResponseBody(&uploadAttributes, resp)
+	err = web.DecodeHTTPResponseBody(ctx, &uploadAttributes, resp)
 	if err != nil {
 		log.Err(err).Msg("Error decoding response body fetching upload attributes")
 		return nil, err
@@ -153,9 +158,8 @@ func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer,
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := fmt.Errorf("Error allocating attachment: %v", resp.Status)
-		log.Err(err).Msg("Error allocating attachment")
-		return nil, err
+		log.Error().Int("status_code", resp.StatusCode).Msg("Error allocating attachment")
+		return nil, fmt.Errorf("error allocating attachment: %s", resp.Status)
 	}
 
 	// Upload attachment to CDN
@@ -171,9 +175,8 @@ func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer,
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := fmt.Errorf("Error uploading attachment: %v", resp.Status)
-		log.Err(err).Msg("Error uploading attachment")
-		return nil, err
+		log.Error().Int("status_code", resp.StatusCode).Msg("Error uploading attachment")
+		return nil, fmt.Errorf("error uploading attachment: %s", resp.Status)
 	}
 
 	digest := sha256.Sum256(encryptedWithMAC)
@@ -204,9 +207,7 @@ func aesDecrypt(key, ciphertext []byte) ([]byte, error) {
 	}
 
 	if len(ciphertext)%aes.BlockSize != 0 {
-		length := len(ciphertext) % aes.BlockSize
-		log.Debug().Msgf("aesDecrypt ciphertext not multiple of AES blocksize: %v", length)
-		return nil, errors.New("ciphertext not multiple of AES blocksize")
+		return nil, fmt.Errorf("ciphertext not multiple of AES blocksize (%d extra bytes)", len(ciphertext)%aes.BlockSize)
 	}
 
 	iv := ciphertext[:aes.BlockSize]

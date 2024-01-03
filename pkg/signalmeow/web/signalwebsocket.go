@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"nhooyr.io/websocket"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -41,21 +42,19 @@ type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage)
 
 type SignalWebsocket struct {
 	ws            *websocket.Conn
-	name          string // Purely for logging
 	path          string
 	basicAuth     *string
 	sendChannel   chan SignalWebsocketSendMessage
 	statusChannel chan SignalWebsocketConnectionStatus
 }
 
-func NewSignalWebsocket(ctx context.Context, name string, path string, username *string, password *string) *SignalWebsocket {
+func NewSignalWebsocket(path string, username *string, password *string) *SignalWebsocket {
 	var basicAuth *string
 	if username != nil && password != nil {
 		b := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
 		basicAuth = &b
 	}
 	return &SignalWebsocket{
-		name:          name,
 		path:          path,
 		basicAuth:     basicAuth,
 		sendChannel:   make(chan SignalWebsocketSendMessage),
@@ -119,6 +118,9 @@ func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
 	requestHandler *RequestHandlerFunc,
 ) {
+	log := zerolog.Ctx(ctx).With().
+		Str("loop", "signal_websocket_connect_loop").
+		Logger()
 	ctx, cancel := context.WithCancel(ctx)
 
 	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 10000)
@@ -145,26 +147,26 @@ func (s *SignalWebsocket) connectLoop(
 		for {
 			select {
 			case <-ctx.Done():
-				zlog.Info().Msg("ctx done, stopping request loop")
+				log.Info().Msg("ctx done, stopping request loop")
 				return
 			case request, ok := <-incomingRequestChan:
 				if !ok {
 					// Main connection loop must have closed, so we should stop
-					zlog.Info().Msg("incomingRequestChan closed, stopping request loop")
+					log.Info().Msg("incomingRequestChan closed, stopping request loop")
 					return
 				}
 				if request == nil {
-					zlog.Fatal().Msg("Received nil request")
+					log.Fatal().Msg("Received nil request")
 				}
 				if requestHandler == nil {
-					zlog.Fatal().Msg("Received request but no handler")
+					log.Fatal().Msg("Received request but no handler")
 				}
 
 				// Handle the request with the request handler function
 				response, err := (*requestHandler)(ctx, request)
 
 				if err != nil {
-					zlog.Err(err).Msg("Error handling request")
+					log.Err(err).Msg("Error handling request")
 					continue
 				}
 				if response != nil && s.sendChannel != nil {
@@ -187,12 +189,12 @@ func (s *SignalWebsocket) connectLoop(
 			if backoff > maxBackoff {
 				backoff = maxBackoff
 			}
-			zlog.Warn().Msgf("Failed to connect, retrying in %v seconds...\n", backoff.Seconds())
+			log.Warn().Dur("backoff", backoff).Msg("Failed to connect, waiting to retry...")
 			time.Sleep(backoff)
 			backoff += backoffIncrement
 		}
 		if ctx.Err() != nil {
-			zlog.Info().Msg("ctx done, stopping connection loop")
+			log.Info().Msg("ctx done, stopping connection loop")
 			return
 		}
 
@@ -262,24 +264,24 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
-			err := readLoop(loopCtx, ws, s.name, incomingRequestChan, &responseChannels)
+			err := readLoop(loopCtx, ws, incomingRequestChan, &responseChannels)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in readLoop: %w", err)
 			}
 			loopCancel(err)
-			zlog.Info().Msgf("readLoop exited (%s)", s.name)
+			log.Info().Msg("readLoop exited")
 		}()
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
-			err := writeLoop(loopCtx, ws, s.name, s.sendChannel, &responseChannels)
+			err := writeLoop(loopCtx, ws, s.sendChannel, &responseChannels)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in writeLoop: %w", err)
 			}
 			loopCancel(err)
-			zlog.Info().Msgf("writeLoop exited (%s)", s.name)
+			log.Info().Msg("writeLoop exited")
 		}()
 
 		// Ping loop (send a keepalive Ping every 30s)
@@ -295,7 +297,7 @@ func (s *SignalWebsocket) connectLoop(
 						loopCancel(fmt.Errorf("error sending keepalive: %w", err))
 						return
 					}
-					zlog.Info().Msgf("Sent keepalive (%s)", s.name)
+					log.Info().Msg("Sent keepalive")
 				case <-loopCtx.Done():
 					return
 				}
@@ -303,14 +305,14 @@ func (s *SignalWebsocket) connectLoop(
 		}()
 
 		// Wait for read or write or ping loop to exit (which means there was an error)
-		zlog.Info().Msgf("Waiting for read or write loop to exit (%s)", s.name)
+		log.Info().Msg("Waiting for read or write loop to exit")
 		select {
 		case <-loopCtx.Done():
-			zlog.Info().Msgf("received loopCtx done (%s)", s.name)
+			log.Info().Msg("received loopCtx done")
 			if context.Cause(loopCtx) != nil {
 				err := context.Cause(loopCtx)
 				if err != nil && err != context.Canceled {
-					zlog.Err(err).Msg("loopCtx error")
+					log.Err(err).Msg("loopCtx error")
 					errorCount++
 				}
 			}
@@ -325,9 +327,7 @@ func (s *SignalWebsocket) connectLoop(
 				}
 			}
 		case <-ctx.Done():
-			zlog.Info().Msgf("received ctx done (%s)", s.name)
-			zlog.Debug().Msgf("ctx error: %v", ctx.Err())
-			zlog.Debug().Msgf("ctx cause: %v", context.Cause(ctx))
+			log.Info().AnErr("ctx_err", ctx.Err()).AnErr("ctx_cause", context.Cause(ctx)).Msg("received ctx done")
 			if context.Cause(ctx) != nil && context.Cause(ctx) == context.Canceled {
 				s.statusChannel <- SignalWebsocketConnectionStatus{
 					Event: SignalWebsocketConnectionEventCleanShutdown,
@@ -340,7 +340,7 @@ func (s *SignalWebsocket) connectLoop(
 				}
 			}
 		}
-		zlog.Info().Msgf("Read or write loop exited (%s)", s.name)
+		log.Info().Msg("Read or write loop exited")
 
 		// Clean up
 		ws.Close(200, "Done")
@@ -348,12 +348,12 @@ func (s *SignalWebsocket) connectLoop(
 			close(responseChannel)
 		}
 		loopCancel(nil)
-		zlog.Debug().Msg("Finished websocket cleanup")
+		log.Debug().Msg("Finished websocket cleanup")
 		if errorCount > 500 {
 			// Something is really wrong, we better panic.
 			// This is a last defense against a runaway error loop,
 			// like the WS continually closing and reconnecting
-			zlog.Fatal().Msgf("Too many errors (%d), panicking (%s)", errorCount, s.name)
+			log.Fatal().Int("error_count", errorCount).Msg("Too many errors, panicking")
 		}
 	}
 }
@@ -361,10 +361,12 @@ func (s *SignalWebsocket) connectLoop(
 func readLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
-	name string,
 	incomingRequestChan chan *signalpb.WebSocketRequestMessage,
 	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
 ) error {
+	log := zerolog.Ctx(ctx).With().
+		Str("loop", "signal_websocket_read_loop").
+		Logger()
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -374,10 +376,10 @@ func readLoop(
 		err := wspb.Read(ctx, ws, msg)
 		if err != nil {
 			if err == context.Canceled {
-				zlog.Info().Msgf("readLoop context canceled (%s)", name)
+				log.Info().Msg("readLoop context canceled")
 			}
 			if strings.Contains(err.Error(), "StatusNormalClosure") {
-				zlog.Info().Msgf("readLoop received StatusNormalClosure (%s)", name)
+				log.Info().Msg("readLoop received StatusNormalClosure")
 				return nil
 			}
 			return fmt.Errorf("error reading message: %w", err)
@@ -388,24 +390,35 @@ func readLoop(
 			if msg.Request == nil {
 				return errors.New("Received request message with no request")
 			}
-			zlog.Debug().Msgf("Received WS request %v:%v, verb: %v, path: %v", name, *msg.Request.Id, *msg.Request.Verb, *msg.Request.Path)
+			log.Debug().
+				Uint64("request_id", *msg.Request.Id).
+				Str("request_verb", *msg.Request.Verb).
+				Str("request_path", *msg.Request.Path).
+				Msg("Received WS request")
 			incomingRequestChan <- msg.Request
 		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
 			if msg.Response == nil {
-				zlog.Fatal().Msg("Received response with no response")
+				log.Fatal().Msg("Received response with no response")
 			}
 			if msg.Response.Id == nil {
-				zlog.Fatal().Msg("Received response with no id")
+				log.Fatal().Msg("Received response with no id")
 			}
 			responseChannel, ok := (*responseChannels)[*msg.Response.Id]
 			if !ok {
-				zlog.Warn().Msgf("Received response with unknown id: %v", *msg.Response.Id)
+				log.Warn().
+					Uint64("response_id", *msg.Response.Id).
+					Msg("Received response with unknown id")
 				continue
 			}
-			zlog.Debug().Msgf("Received WS response %v:%v, status :%v", name, *msg.Response.Id, *msg.Response.Status)
+			log.Debug().
+				Uint64("response_id", *msg.Response.Id).
+				Uint32("response_status", *msg.Response.Status).
+				Msg("Received WS response")
 			responseChannel <- msg.Response
 			delete(*responseChannels, *msg.Response.Id)
-			zlog.Trace().Msgf("Deleted response channel for id: %v", *msg.Response.Id)
+			log.Debug().
+				Uint64("response_id", *msg.Response.Id).
+				Msg("Deleted response channel for ID")
 			close(responseChannel)
 		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
 			return fmt.Errorf("Received message with unknown type: %v", *msg.Type)
@@ -428,10 +441,12 @@ type SignalWebsocketSendMessage struct {
 func writeLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
-	name string,
 	sendChannel chan SignalWebsocketSendMessage,
 	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
 ) error {
+	log := zerolog.Ctx(ctx).With().
+		Str("loop", "signal_websocket_write_loop").
+		Logger()
 	for i := uint64(1); ; i++ {
 		select {
 		case <-ctx.Done():
@@ -460,9 +475,19 @@ func writeLoop(
 					if elapsed > 1*time.Minute {
 						return fmt.Errorf("Took too long, not sending (elapsed: %v)", elapsed)
 					} else if elapsed > 10*time.Second {
-						zlog.Warn().Msgf("Sending WS request %v:%v, verb: %v, path: %v, elapsed: %v", name, i, *request.RequestMessage.Verb, path, elapsed)
+						log.Warn().
+							Uint64("request_id", i).
+							Str("request_verb", *request.RequestMessage.Verb).
+							Str("request_path", path).
+							Dur("elapsed", elapsed).
+							Msg("Sending WS request")
 					} else {
-						zlog.Debug().Msgf("Sending WS request %v:%v, verb: %v, path: %v, elapsed: %v", name, i, *request.RequestMessage.Verb, path, elapsed)
+						log.Debug().
+							Uint64("request_id", i).
+							Str("request_verb", *request.RequestMessage.Verb).
+							Str("request_path", path).
+							Dur("elapsed", elapsed).
+							Msg("Sending WS request")
 					}
 				}
 				err := wspb.Write(ctx, ws, message)
@@ -474,7 +499,10 @@ func writeLoop(
 				}
 			} else if request.RequestMessage != nil && request.ResponseMessage != nil {
 				message := CreateWSResponse(*request.RequestMessage.Id, request.ResponseMessage.Status)
-				zlog.Debug().Msgf("Sending WS response %v:%v, status: %v", name, *request.RequestMessage.Id, request.ResponseMessage.Status)
+				log.Debug().
+					Uint64("request_id", *request.RequestMessage.Id).
+					Int("response_status", request.ResponseMessage.Status).
+					Msg("Sending WS response")
 				err := wspb.Write(ctx, ws, message)
 				if err != nil {
 					return fmt.Errorf("error writing response message: %w", err)
@@ -530,7 +558,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 				return nil, ctx.Err()
 			}
 		}
-		zlog.Warn().Msgf("Received nil response, retrying recursively (%v)", retryCount)
+		zerolog.Ctx(ctx).Warn().Int("retry_count", retryCount).Msg("Received nil response, retrying recursively")
 		return s.sendRequestInternal(ctx, request, startTime, retryCount+1)
 	}
 	return response, nil
@@ -551,7 +579,7 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 func CreateWSResponse(id uint64, status int) *signalpb.WebSocketMessage {
 	if status != 200 && status != 400 {
 		// TODO support more responses to Signal? Are there more?
-		zlog.Fatal().Msgf("Error creating response %v (non 200/400 not supported yet)", status)
+		zlog.Fatal().Int("status", status).Msg("Error creating response. Non 200/400 not supported yet.")
 		return nil
 	}
 	msg_type := signalpb.WebSocketMessage_RESPONSE

@@ -48,7 +48,7 @@ const (
 )
 
 type GroupMember struct {
-	UserId           string
+	UserID           string
 	Role             GroupMemberRole
 	ProfileKey       libsignalgo.ProfileKey
 	JoinedAtRevision uint32
@@ -306,7 +306,7 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 			return nil, err
 		}
 		decryptedGroup.Members = append(decryptedGroup.Members, &GroupMember{
-			UserId:           userID.String(),
+			UserID:           userID.String(),
 			ProfileKey:       *profileKey,
 			Role:             GroupMemberRole(member.Role),
 			JoinedAtRevision: member.JoinedAtRevision,
@@ -359,26 +359,6 @@ func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey SerializedGroupMa
 	decryptedImage := avatarBlob.GetAvatar()
 
 	return decryptedImage, nil
-}
-
-func printGroupMember(member *GroupMember) {
-	if member == nil {
-		zlog.Debug().Msg("GroupMember is nil")
-		return
-	}
-	zlog.Debug().Msgf("UserID: %v", member.UserId)
-	zlog.Debug().Msgf("ProfileKey: %v", member.ProfileKey)
-	zlog.Debug().Msgf("Role: %v", member.Role)
-	zlog.Debug().Msgf("JoinedAtRevision: %v", member.JoinedAtRevision)
-}
-func printGroup(group *Group) {
-	zlog.Debug().Msgf("GroupIdentifier: %v", group.GroupIdentifier)
-	zlog.Debug().Msgf("Title: %v", group.Title)
-	zlog.Debug().Msgf("AvatarPath: %v", group.AvatarPath)
-	zlog.Debug().Msgf("Members len: %v", len(group.Members))
-	for _, member := range group.Members {
-		printGroupMember(member)
-	}
 }
 
 func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
@@ -442,7 +422,7 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
-		err = d.ProfileKeyStore.StoreProfileKey(member.UserId, member.ProfileKey, ctx)
+		err = d.ProfileKeyStore.StoreProfileKey(member.UserID, member.ProfileKey, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("DecryptGroup StoreProfileKey error")
 			//return nil, err
@@ -459,7 +439,7 @@ func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey Serialize
 		Username: &username,
 		Password: &password,
 	}
-	zlog.Info().Msgf("Fetching group avatar from %v", path)
+	zlog.Info().Str("avatar_path", path).Msg("Fetching group avatar")
 	resp, err := web.SendHTTPRequest(http.MethodGet, path, opts)
 	if err != nil {
 		zlog.Err(err).Msg("error fetching group avatar")
