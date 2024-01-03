@@ -382,7 +382,7 @@ func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, 
 	read := []*signalpb.SyncMessage_Read{}
 	for _, timestamp := range receiptMessage.Timestamp {
 		read = append(read, &signalpb.SyncMessage_Read{
-			Timestamp: &timestamp,
+			Timestamp: proto.Uint64(timestamp),
 			SenderAci: &messageSender,
 		})
 	}

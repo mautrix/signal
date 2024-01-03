@@ -320,7 +320,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 		totalReceive: time.Since(evtTS),
 	}
 	implicitRRStart := time.Now()
-	// TODO send read receipt for previous messages
+	portal.handleMatrixReadReceipt(sender, "", uint64(evt.Timestamp), false)
 	timings.implicitRR = time.Since(implicitRRStart)
 	start := time.Now()
 
@@ -1186,41 +1186,86 @@ func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
 	portal.setTyping(stoppedTyping, false)
 }
 
-// mautrix-go ReadReceiptHandlingPortal interface
-func (portal *Portal) HandleMatrixReadReceipt(sender bridge.User, eventID id.EventID, receipt event.ReadReceipt) {
-	log := portal.log.With().
-		Str("action", "handle matrix read receipt").
-		Str("event_id", eventID.String()).
-		Str("sender", sender.GetMXID().String()).
-		Logger()
-	log.Debug().Msg("Received read receipt")
-	portal.ScheduleDisappearing()
+func (portal *Portal) HandleMatrixReadReceipt(brSender bridge.User, eventID id.EventID, receipt event.ReadReceipt) {
+	portal.handleMatrixReadReceipt(brSender.(*User), eventID, uint64(receipt.Timestamp.UnixMilli()), true)
+}
 
-	// Find event in the DB
-	dbMessage, err := portal.bridge.DB.Message.GetByMXID(context.TODO(), eventID)
-	if err != nil {
-		log.Err(err).Msg("Failed to get read receipt target message")
-		return
-	} else if dbMessage == nil {
-		log.Debug().Msg("Read receipt target message not found")
+func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, maxTimestamp uint64, isExplicit bool) {
+	logWith := portal.log.With().
+		Str("event_id", eventID.String()).
+		Str("sender", sender.MXID.String()).
+		Bool("explicit", isExplicit)
+	if isExplicit {
+		logWith = logWith.Str("action", "handle matrix read receipt")
+	}
+	log := logWith.Logger()
+	log.Debug().Msg("Handling Matrix read receipt")
+	portal.ScheduleDisappearing()
+	ctx := log.WithContext(context.TODO())
+
+	if isExplicit {
+		dbMessage, _ := portal.bridge.DB.Message.GetByMXID(ctx, eventID)
+		if dbMessage != nil {
+			maxTimestamp = dbMessage.Timestamp
+		}
+	}
+	prevLastReadTS := sender.GetLastReadTS(ctx, portal.PortalKey)
+	if maxTimestamp <= prevLastReadTS {
+		log.Debug().
+			Uint64("prev_last_read_ts", prevLastReadTS).
+			Uint64("max_timestamp", maxTimestamp).
+			Msg("Ignoring read receipt older than last read timestamp")
 		return
 	}
-	// TODO find all messages that haven't been marked as read by the user
-	msg := signalmeow.ReadReceptMessageForTimestamps([]uint64{dbMessage.Timestamp})
-	receiptDestination := dbMessage.Sender
-	receiptSender := sender.(*User)
+	minTimestamp := prevLastReadTS
+	if minTimestamp == 0 {
+		minTimestamp = maxTimestamp - 2000
+	}
+	dbMessages, err := portal.bridge.DB.Message.GetAllBetweenTimestamps(ctx, portal.PortalKey, minTimestamp, maxTimestamp)
+	if err != nil {
+		log.Err(err).Msg("Failed to get messages between timestamps to mark as read")
+		return
+	}
+	messagesToRead := map[uuid.UUID][]uint64{}
+	for _, msg := range dbMessages {
+		messagesToRead[msg.Sender] = append(messagesToRead[msg.Sender], msg.Timestamp)
+	}
+	// Always update last read ts for non-explicit read receipts, because that means there's a message about to be sent
+	if (len(dbMessages) > 0 || !isExplicit) && maxTimestamp != prevLastReadTS {
+		sender.SetLastReadTS(ctx, portal.PortalKey, maxTimestamp)
+	}
+	if isExplicit || len(messagesToRead) > 0 {
+		log.Debug().
+			Any("targets", messagesToRead).
+			Uint64("prev_last_read_ts", prevLastReadTS).
+			Uint64("min_timestamp", minTimestamp).
+			Uint64("max_timestamp", maxTimestamp).
+			Msg("Collected read receipt target messages")
+	}
 
-	// Don't use portal.sendSignalMessage because we're sending this straight to
-	// who sent the original message, not the portal's ChatID
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	result := signalmeow.SendMessage(ctx, receiptSender.SignalDevice, receiptDestination.String(), msg)
-	if !result.WasSuccessful {
-		log.Err(result.FailedSendResult.Error).
-			Str("receipt_destination", receiptDestination.String()).
-			Msg("Failed to send read receipt to Signal")
-	} else {
-		log.Debug().Str("receipt_destination", receiptDestination.String()).Msg("Sent read receipt to Signal")
+	// TODO send sync message manually containing all read receipts instead of a separate message for each recipient
+
+	for destination, messages := range messagesToRead {
+		// Don't send read receipts for own messages
+		if destination == sender.SignalID {
+			continue
+		}
+		// Don't use portal.sendSignalMessage because we're sending this straight to
+		// who sent the original message, not the portal's ChatID
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		result := signalmeow.SendMessage(ctx, sender.SignalDevice, destination.String(), signalmeow.ReadReceptMessageForTimestamps(messages))
+		cancel()
+		if !result.WasSuccessful {
+			log.Err(result.FailedSendResult.Error).
+				Str("destination", destination.String()).
+				Uints64("message_ids", messages).
+				Msg("Failed to send read receipt to Signal")
+		} else {
+			log.Debug().
+				Str("destination", destination.String()).
+				Uints64("message_ids", messages).
+				Msg("Sent read receipt to Signal")
+		}
 	}
 }
 

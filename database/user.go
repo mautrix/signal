@@ -20,7 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
@@ -49,7 +48,7 @@ type User struct {
 	ManagementRoom id.RoomID
 	SpaceRoom      id.RoomID
 
-	lastReadCache     map[PortalKey]time.Time
+	lastReadCache     map[PortalKey]uint64
 	lastReadCacheLock sync.Mutex
 	inSpaceCache      map[PortalKey]bool
 	inSpaceCacheLock  sync.Mutex
@@ -59,7 +58,7 @@ func newUser(qh *dbutil.QueryHelper[*User]) *User {
 	return &User{
 		qh: qh,
 
-		lastReadCache: make(map[PortalKey]time.Time),
+		lastReadCache: make(map[PortalKey]uint64),
 		inSpaceCache:  make(map[PortalKey]bool),
 	}
 }

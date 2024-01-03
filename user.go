@@ -786,6 +786,7 @@ func (user *User) handleReceipt(evt *events.Receipt) {
 }
 
 func (user *User) handleReadSelf(evt *events.ReadSelf) {
+	ctx := context.TODO()
 	messagesByChat := map[string]*database.Message{}
 	for _, part := range evt.Messages {
 		log := user.log.With().
@@ -801,12 +802,12 @@ func (user *User) handleReadSelf(evt *events.ReadSelf) {
 		} else if msg == nil {
 			log.Warn().Msg("Message not found in database")
 		} else if existingMsg, ok := messagesByChat[msg.SignalChatID]; ok && existingMsg.Timestamp > msg.Timestamp {
-			log.Debug().
+			log.Trace().
 				Str("chat_id", msg.SignalChatID).
 				Uint64("newer_msg", existingMsg.Timestamp).
 				Msg("Receipt event contains a newer message, skipping this one")
 		} else {
-			log.Debug().Str("chat_id", msg.SignalChatID).Msg("Received own read receipt")
+			log.Trace().Str("chat_id", msg.SignalChatID).Msg("Received own read receipt")
 			messagesByChat[msg.SignalChatID] = msg
 		}
 	}
@@ -816,7 +817,14 @@ func (user *User) handleReadSelf(evt *events.ReadSelf) {
 		if portal == nil {
 			continue
 		}
+		user.log.Debug().
+			Str("action", "handle read self").
+			Str("chat_id", msg.SignalChatID).
+			Uint64("msg_timestamp", msg.Timestamp).
+			Str("msg_mxid", msg.MXID.String()).
+			Msg("Bridging own read receipt")
 		portal.ScheduleDisappearing()
+		user.SetLastReadTS(ctx, portal.PortalKey, msg.Timestamp)
 		err := portal.SendReadReceipt(puppet, msg)
 		if err != nil {
 			user.log.Err(err).Str("mxid", msg.MXID.String()).Msg("Failed to send read receipt")

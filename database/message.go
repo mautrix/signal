@@ -66,6 +66,11 @@ const (
 		ORDER BY timestamp DESC
 		LIMIT 1
 	`
+	getMessagesBetweenTimeQuery = `
+		SELECT sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room FROM message
+		WHERE signal_chat_id=$1 AND signal_receiver=$2 AND timestamp>$3 AND timestamp<=$4 AND part_index=0
+		ORDER BY timestamp ASC
+	`
 	insertMessageQuery = `
 		INSERT INTO message (sender, timestamp, part_index, signal_chat_id, signal_receiver, mxid, mx_room)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -115,6 +120,10 @@ func (mq *MessageQuery) GetLastPartBySignalID(ctx context.Context, sender uuid.U
 
 func (mq *MessageQuery) GetAllPartsBySignalID(ctx context.Context, sender uuid.UUID, timestamp uint64, receiver uuid.UUID) ([]*Message, error) {
 	return mq.QueryMany(ctx, getAllMessagePartsBySignalIDQuery, sender, timestamp, receiver)
+}
+
+func (mq *MessageQuery) GetAllBetweenTimestamps(ctx context.Context, key PortalKey, min, max uint64) ([]*Message, error) {
+	return mq.QueryMany(ctx, getMessagesBetweenTimeQuery, key.ChatID, key.Receiver, int64(min), int64(max))
 }
 
 func (mq *MessageQuery) GetLastPartBySignalIDWithUnknownReceiver(ctx context.Context, sender uuid.UUID, timestamp uint64, receiver uuid.UUID) (*Message, error) {

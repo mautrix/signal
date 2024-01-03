@@ -20,7 +20,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"time"
 
 	"github.com/rs/zerolog"
 )
@@ -39,7 +38,7 @@ const (
 	`
 )
 
-func (u *User) GetLastReadTS(ctx context.Context, portal PortalKey) time.Time {
+func (u *User) GetLastReadTS(ctx context.Context, portal PortalKey) uint64 {
 	u.lastReadCacheLock.Lock()
 	defer u.lastReadCacheLock.Unlock()
 	if cached, ok := u.lastReadCache[portal]; ok {
@@ -52,20 +51,16 @@ func (u *User) GetLastReadTS(ctx context.Context, portal PortalKey) time.Time {
 			Str("user_id", u.MXID.String()).
 			Any("portal_key", portal).
 			Msg("Failed to query last read timestamp")
-		return time.Time{}
+		return 0
 	}
-	if ts == 0 {
-		u.lastReadCache[portal] = time.Time{}
-	} else {
-		u.lastReadCache[portal] = time.Unix(ts, 0)
-	}
-	return u.lastReadCache[portal]
+	u.lastReadCache[portal] = uint64(ts)
+	return uint64(ts)
 }
 
-func (u *User) SetLastReadTS(ctx context.Context, portal PortalKey, ts time.Time) {
+func (u *User) SetLastReadTS(ctx context.Context, portal PortalKey, ts uint64) {
 	u.lastReadCacheLock.Lock()
 	defer u.lastReadCacheLock.Unlock()
-	err := u.qh.Exec(ctx, setLastReadTSQuery, u.MXID, portal.ChatID, portal.Receiver, ts.Unix())
+	err := u.qh.Exec(ctx, setLastReadTSQuery, u.MXID, portal.ChatID, portal.Receiver, int64(ts))
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).
 			Str("user_id", u.MXID.String()).
@@ -75,7 +70,7 @@ func (u *User) SetLastReadTS(ctx context.Context, portal PortalKey, ts time.Time
 		zerolog.Ctx(ctx).Debug().
 			Str("user_id", u.MXID.String()).
 			Any("portal_key", portal).
-			Time("last_read_ts", ts).
+			Uint64("last_read_ts", ts).
 			Msg("Updated last read timestamp of portal")
 		u.lastReadCache[portal] = ts
 	}
