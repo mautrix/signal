@@ -385,7 +385,7 @@ func (user *User) startupTryConnect(retryCount int) {
 	user.populateSignalDevice()
 
 	user.log.Debug().Msg("Connecting to Signal")
-	ctx := context.Background()
+	ctx := user.log.WithContext(context.Background())
 	statusChan, err := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
 
 	if err != nil {
