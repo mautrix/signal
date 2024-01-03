@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"go.mau.fi/util/exfmt"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -40,12 +42,19 @@ import (
 
 func senderCertificate(ctx context.Context, d *Device) (*libsignalgo.SenderCertificate, error) {
 	if d.Connection.SenderCertificate != nil {
-		// TODO: check for expired certificate
-		return d.Connection.SenderCertificate, nil
+		expiry, err := d.Connection.SenderCertificate.GetExpiration()
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to check sender certificate expiry")
+		} else if time.Until(expiry) < 1*exfmt.Day {
+			zerolog.Ctx(ctx).Debug().Msg("Sender certificate expired, fetching new one")
+			d.Connection.SenderCertificate = nil
+		} else {
+			return d.Connection.SenderCertificate, nil
+		}
 	}
 
 	type response struct {
-		Base64Certificate string `json:"certificate"`
+		Certificate []byte `json:"certificate"`
 	}
 	var r response
 
@@ -60,11 +69,7 @@ func senderCertificate(ctx context.Context, d *Device) (*libsignalgo.SenderCerti
 		return nil, err
 	}
 
-	rawCertificate, err := base64.StdEncoding.DecodeString(r.Base64Certificate)
-	if err != nil {
-		return nil, err
-	}
-	cert, err := libsignalgo.DeserializeSenderCertificate([]byte(rawCertificate))
+	cert, err := libsignalgo.DeserializeSenderCertificate(r.Certificate)
 	d.Connection.SenderCertificate = cert
 	return cert, err
 }
