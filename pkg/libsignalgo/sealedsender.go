@@ -54,18 +54,19 @@ func SealedSenderEncryptPlaintext(message []byte, forAddress *Address, fromSende
 		UnidentifiedSenderMessageContentHintDefault,
 		nil,
 	)
+	defer runtime.KeepAlive(usmc)
 	if err != nil {
 		return nil, err
 	}
 	return SealedSenderEncrypt(usmc, forAddress, identityStore, ctx)
 }
 
-func SealedSenderEncrypt(messageContent *UnidentifiedSenderMessageContent, forRecipient *Address, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
+func SealedSenderEncrypt(usmc *UnidentifiedSenderMessageContent, forRecipient *Address, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
 	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_sealed_session_cipher_encrypt(
 		&encrypted,
 		forRecipient.ptr,
-		messageContent.ptr,
+		usmc.ptr,
 		wrapIdentityKeyStore(identityStore),
 	)
 	if signalFfiError != nil {

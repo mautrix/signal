@@ -18,6 +18,8 @@ package libsignalgo_test
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -192,6 +194,49 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 	_, err = libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore, ctx)
 	require.Error(t, err)
 	assert.Equal(t, "Test error", err.Error())
+}
+
+func TestSealedSenderEncrypt_Repeated(t *testing.T) {
+	setupLogging()
+
+	ctx := libsignalgo.NewEmptyCallbackContext()
+	aliceAddress, err := libsignalgo.NewAddress("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
+	assert.NoError(t, err)
+	bobAddress, err := libsignalgo.NewAddress("6838237D-02F6-4098-B110-698253D15961", 1)
+	assert.NoError(t, err)
+
+	aliceStore := NewInMemorySignalProtocolStore()
+	bobStore := NewInMemorySignalProtocolStore()
+
+	initializeSessions(t, aliceStore, bobStore, bobAddress)
+
+	trustRoot, err := libsignalgo.GenerateIdentityKeyPair()
+	assert.NoError(t, err)
+	serverKeys, err := libsignalgo.GenerateIdentityKeyPair()
+	assert.NoError(t, err)
+	serverCert, err := libsignalgo.NewServerCertificate(1, serverKeys.GetPublicKey(), trustRoot.GetPrivateKey())
+	assert.NoError(t, err)
+	aliceName, err := aliceAddress.Name()
+	assert.NoError(t, err)
+	senderAddress := libsignalgo.NewSealedSenderAddress("+14151111111", uuid.MustParse(aliceName), 1)
+
+	aliceIdentityKeyPair, err := aliceStore.GetIdentityKeyPair(ctx.Ctx)
+	require.NoError(t, err)
+	senderCert, err := libsignalgo.NewSenderCertificate(senderAddress, aliceIdentityKeyPair.GetPublicKey(), time.UnixMilli(31337), serverCert, serverKeys.GetPrivateKey())
+	assert.NoError(t, err)
+
+	go func() {
+		for {
+			runtime.GC()
+			time.Sleep(500 * time.Microsecond)
+		}
+	}()
+	for i := 0; i < 100; i++ {
+		message := []byte(fmt.Sprintf("%04d vision", i))
+		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(message, bobAddress, senderCert, aliceStore, aliceStore, ctx)
+		require.NoError(t, err)
+		assert.NotNil(t, ciphertext)
+	}
 }
 
 // From SessionTests.swift:testSealedSenderSession
