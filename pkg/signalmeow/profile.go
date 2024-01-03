@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -212,13 +213,7 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 		path += "/" + string(credentialRequest)
 		path += "?credentialType=expiringProfileKey"
 	}
-	profileRequest := web.CreateWSRequest(
-		"GET",
-		path,
-		nil,
-		nil,
-		nil,
-	)
+	profileRequest := web.CreateWSRequest(http.MethodGet, path, nil, nil, nil)
 	if useUnidentified {
 		profileRequest.Headers = append(profileRequest.Headers, "unidentified-access-key:"+base64AccessKey)
 		profileRequest.Headers = append(profileRequest.Headers, "accept-language:en-CA")
@@ -282,7 +277,7 @@ func fetchAndDecryptAvatarImage(d *Device, avatarPath string, profileKey *libsig
 		Password: &password,
 	}
 	zlog.Info().Msgf("Fetching profile avatar from %v", avatarPath)
-	resp, err := web.SendHTTPRequest("GET", avatarPath, opts)
+	resp, err := web.SendHTTPRequest(http.MethodGet, avatarPath, opts)
 	if err != nil {
 		zlog.Err(err).Msg("error fetching profile avatar")
 		return nil, err

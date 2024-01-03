@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -228,9 +229,9 @@ func checkDecryptionErrorAndDisconnect(err error, device *Device) {
 }
 
 func (d *Device) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
-	if *req.Verb == "PUT" && *req.Path == "/api/v1/message" {
+	if *req.Verb == http.MethodPut && *req.Path == "/api/v1/message" {
 		return d.incomingAPIMessageHandler(ctx, req)
-	} else if *req.Verb == "PUT" && *req.Path == "/api/v1/queue/empty" {
+	} else if *req.Verb == http.MethodPut && *req.Path == "/api/v1/queue/empty" {
 		zlog.Trace().Msgf("Received queue empty. verb: %v, path: %v", *req.Verb, *req.Path)
 	} else {
 		zlog.Warn().Msgf("######## Don't know what I received ########## req: %v", req)

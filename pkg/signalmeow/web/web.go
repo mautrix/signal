@@ -201,7 +201,7 @@ func GetAttachment(path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Respon
 		}
 	}
 	urlStr := "https://" + opt.Host + path
-	req, err := http.NewRequest("GET", urlStr, nil)
+	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
 
 	//const SERVICE_REFLECTOR_HOST = "europe-west1-signal-cdn-reflector.cloudfunctions.net"
 	//req.Header.Add("Host", SERVICE_REFLECTOR_HOST)

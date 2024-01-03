@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"math/big"
 	mrand "math/rand"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -252,7 +253,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 
 	// Ensure the message is a request and has a valid verb and path
 	if *msg.Type == signalpb.WebSocketMessage_REQUEST &&
-		*msg.Request.Verb == "PUT" &&
+		*msg.Request.Verb == http.MethodPut &&
 		*msg.Request.Path == "/v1/address" {
 
 		// Decode provisioning UUID
@@ -288,7 +289,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 
 	// Wait for provisioning message in a request, then send a response
 	if *msg.Type == signalpb.WebSocketMessage_REQUEST &&
-		*msg.Request.Verb == "PUT" &&
+		*msg.Request.Verb == http.MethodPut &&
 		*msg.Request.Path == "/v1/message" {
 
 		err = proto.Unmarshal(msg.Request.Body, envelope)
@@ -369,7 +370,7 @@ func confirmDevice(
 	}
 
 	// Create and send request TODO: Use SignalWebsocket
-	request := web.CreateWSRequest("PUT", "/v1/devices/link", jsonBytes, &username, &password)
+	request := web.CreateWSRequest(http.MethodPut, "/v1/devices/link", jsonBytes, &username, &password)
 	one := uint64(1)
 	request.Id = &one
 	msg_type := signalpb.WebSocketMessage_REQUEST

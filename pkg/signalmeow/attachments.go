@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net/http"
 
 	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/random"
@@ -127,7 +128,7 @@ func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer,
 	attributesPath := "/v3/attachments/form/upload"
 	username, password := device.Data.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest("GET", attributesPath, opts)
+	resp, err := web.SendHTTPRequest(http.MethodGet, attributesPath, opts)
 	if err != nil {
 		log.Err(err).Msg("Error sending request fetching upload attributes")
 		return nil, err
@@ -140,7 +141,7 @@ func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer,
 	}
 
 	// Allocate attachment on CDN
-	resp, err = web.SendHTTPRequest("POST", "", &web.HTTPReqOpt{
+	resp, err = web.SendHTTPRequest(http.MethodPost, "", &web.HTTPReqOpt{
 		OverrideURL: uploadAttributes.SignedUploadLocation,
 		ContentType: web.ContentTypeOctetStream,
 		Headers:     uploadAttributes.Headers,
@@ -158,7 +159,7 @@ func UploadAttachment(device *Device, body []byte) (*signalpb.AttachmentPointer,
 	}
 
 	// Upload attachment to CDN
-	resp, err = web.SendHTTPRequest("PUT", "", &web.HTTPReqOpt{
+	resp, err = web.SendHTTPRequest(http.MethodPut, "", &web.HTTPReqOpt{
 		OverrideURL: resp.Header.Get("Location"),
 		Body:        encryptedWithMAC,
 		ContentType: web.ContentTypeOctetStream,

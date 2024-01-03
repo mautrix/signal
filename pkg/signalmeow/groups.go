@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 	"time"
 	"unicode"
@@ -83,7 +84,7 @@ type SerializedGroupMasterKey string
 func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*GroupCredentials, error) {
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
 	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d", today.Unix(), sevenDaysOut.Unix())
-	authRequest := web.CreateWSRequest("GET", path, nil, nil, nil)
+	authRequest := web.CreateWSRequest(http.MethodGet, path, nil, nil, nil)
 	resp, err := d.Connection.AuthedWS.SendRequest(ctx, authRequest)
 	if err != nil {
 		zlog.Err(err).Msg("SendRequest error")
@@ -411,7 +412,7 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 		ContentType: web.ContentTypeProtobuf,
 		Host:        web.StorageUrlHost,
 	}
-	response, err := web.SendHTTPRequest("GET", "/v1/groups", opts)
+	response, err := web.SendHTTPRequest(http.MethodGet, "/v1/groups", opts)
 	if err != nil {
 		zlog.Err(err).Msg("RetrieveGroupById SendHTTPRequest error")
 		return nil, err
@@ -459,7 +460,7 @@ func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey Serialize
 		Password: &password,
 	}
 	zlog.Info().Msgf("Fetching group avatar from %v", path)
-	resp, err := web.SendHTTPRequest("GET", path, opts)
+	resp, err := web.SendHTTPRequest(http.MethodGet, path, opts)
 	if err != nil {
 		zlog.Err(err).Msg("error fetching group avatar")
 		return nil, err

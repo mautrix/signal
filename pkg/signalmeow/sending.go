@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -50,7 +51,7 @@ func senderCertificate(d *Device) (*libsignalgo.SenderCertificate, error) {
 
 	username, password := d.Data.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest("GET", "/v1/certificate/delivery", opts)
+	resp, err := web.SendHTTPRequest(http.MethodGet, "/v1/certificate/delivery", opts)
 	if err != nil {
 		return nil, err
 	}
@@ -674,7 +675,7 @@ func sendContent(
 		return false, err
 	}
 	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
-	request := web.CreateWSRequest("PUT", path, jsonBytes, nil, nil)
+	request := web.CreateWSRequest(http.MethodPut, path, jsonBytes, nil, nil)
 
 	var response *signalpb.WebSocketResponseMessage
 	if useUnidentifiedSender {
@@ -840,7 +841,7 @@ func handle428(ctx context.Context, device *Device, recipientUuid string, respon
 	//			token := body["token"].(string)
 	//			username, password := device.Data.BasicAuthCreds()
 	//			response, err := web.SendHTTPRequest(
-	//				"PUT",
+	//				http.MethodPut,
 	//				"/v1/challenge",
 	//				&web.HTTPReqOpt{
 	//					Body:     []byte(fmt.Sprintf("{\"token\":\"%v\",\"type\":\"pushChallenge\"}", token)),

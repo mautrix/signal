@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -258,7 +259,7 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind UUIDKind, user
 		return err
 	}
 	opts := &web.HTTPReqOpt{Body: jsonBytes, Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest("PUT", keysPath, opts)
+	resp, err := web.SendHTTPRequest(http.MethodPut, keysPath, opts)
 	if err != nil {
 		zlog.Err(err).Msg("Error sending request")
 		return err
@@ -308,7 +309,7 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 	}
 	path := "/v2/keys/" + theirUuid + deviceIDPath + "?pq=true"
 	username, password := device.Data.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest("GET", path, &web.HTTPReqOpt{Username: &username, Password: &password})
+	resp, err := web.SendHTTPRequest(http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
 		zlog.Err(err).Msg("Error sending request")
 		return err
