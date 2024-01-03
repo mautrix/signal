@@ -134,7 +134,11 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Map, "bridge", "permissions")
 	helper.Copy(up.Bool, "bridge", "relay", "enabled")
 	helper.Copy(up.Bool, "bridge", "relay", "admin_only")
-	helper.Copy(up.Map, "bridge", "relay", "message_formats")
+	if textRelayFormat, ok := helper.Get(up.Str, "bridge", "relay", "message_formats", "m.text"); ok && strings.Contains(textRelayFormat, "$message") && !strings.Contains(textRelayFormat, ".Message") {
+		// don't copy legacy message formats
+	} else {
+		helper.Copy(up.Map, "bridge", "relay", "message_formats")
+	}
 }
 
 var SpacedBlocks = [][]string{
