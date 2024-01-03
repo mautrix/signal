@@ -94,7 +94,7 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalACI uuid.
 }
 
 func ProfileKeyForSignalID(ctx context.Context, d *Device, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	profileKey, err := d.ProfileKeyStore.LoadProfileKey(signalACI, ctx)
+	profileKey, err := d.ProfileKeyStore.LoadProfileKey(ctx, signalACI)
 	if err != nil {
 		zlog.Err(err).Msg("GetProfileKey error")
 		return nil, err

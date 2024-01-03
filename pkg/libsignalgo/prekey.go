@@ -22,25 +22,28 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 )
 
-func DecryptPreKey(preKeyMessage *PreKeyMessage, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, kyberPreKeyStore KyberPreKeyStore, ctx *CallbackContext) ([]byte, error) {
+func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, preKeyStore PreKeyStore, signedPreKeyStore SignedPreKeyStore, kyberPreKeyStore KyberPreKeyStore) ([]byte, error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_pre_key_message(
 		&decrypted,
 		preKeyMessage.ptr,
 		fromAddress.ptr,
-		wrapSessionStore(sessionStore),
-		wrapIdentityKeyStore(identityStore),
-		wrapPreKeyStore(preKeyStore),
-		wrapSignedPreKeyStore(signedPreKeyStore),
-		wrapKyberPreKeyStore(kyberPreKeyStore),
+		callbackCtx.wrapSessionStore(sessionStore),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
+		callbackCtx.wrapPreKeyStore(preKeyStore),
+		callbackCtx.wrapSignedPreKeyStore(signedPreKeyStore),
+		callbackCtx.wrapKyberPreKeyStore(kyberPreKeyStore),
 	)
 	runtime.KeepAlive(preKeyMessage)
 	runtime.KeepAlive(fromAddress)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return CopySignalOwnedBufferToBytes(decrypted), nil
 }

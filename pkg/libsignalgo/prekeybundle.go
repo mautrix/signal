@@ -22,22 +22,25 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 	"time"
 )
 
-func ProcessPreKeyBundle(bundle *PreKeyBundle, forAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, ctx *CallbackContext) error {
+func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) error {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var now C.uint64_t = C.uint64_t(time.Now().Unix())
 	signalFfiError := C.signal_process_prekey_bundle(
 		bundle.ptr,
 		forAddress.ptr,
-		wrapSessionStore(sessionStore),
-		wrapIdentityKeyStore(identityStore),
+		callbackCtx.wrapSessionStore(sessionStore),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
 		now,
 	)
 	runtime.KeepAlive(bundle)
 	runtime.KeepAlive(forAddress)
-	return wrapCallbackError(signalFfiError, ctx)
+	return callbackCtx.wrapError(signalFfiError)
 }
 
 type PreKeyBundle struct {

@@ -17,6 +17,7 @@
 package libsignalgo_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -27,7 +28,8 @@ import (
 
 // From PublicAPITests.swift:testGroupCipher
 func TestGroupCipher(t *testing.T) {
-	ctx := libsignalgo.NewEmptyCallbackContext()
+	ctx := context.TODO()
+
 	sender, err := libsignalgo.NewPhoneAddress("+14159999111", 4)
 	assert.NoError(t, err)
 
@@ -36,7 +38,7 @@ func TestGroupCipher(t *testing.T) {
 
 	aliceStore := NewInMemorySignalProtocolStore()
 
-	skdm, err := libsignalgo.NewSenderKeyDistributionMessage(sender, distributionID, aliceStore, ctx)
+	skdm, err := libsignalgo.NewSenderKeyDistributionMessage(ctx, sender, distributionID, aliceStore)
 	assert.NoError(t, err)
 
 	serialized, err := skdm.Serialize()
@@ -45,17 +47,17 @@ func TestGroupCipher(t *testing.T) {
 	skdmReloaded, err := libsignalgo.DeserializeSenderKeyDistributionMessage(serialized)
 	assert.NoError(t, err)
 
-	aliceCiphertextMessage, err := libsignalgo.GroupEncrypt([]byte{1, 2, 3}, sender, distributionID, aliceStore, ctx)
+	aliceCiphertextMessage, err := libsignalgo.GroupEncrypt(ctx, []byte{1, 2, 3}, sender, distributionID, aliceStore)
 	assert.NoError(t, err)
 
 	aliceCiphertext, err := aliceCiphertextMessage.Serialize()
 	assert.NoError(t, err)
 
 	bobStore := NewInMemorySignalProtocolStore()
-	err = skdmReloaded.Process(sender, bobStore, ctx)
+	err = skdmReloaded.Process(ctx, sender, bobStore)
 	assert.NoError(t, err)
 
-	bobPtext, err := libsignalgo.GroupDecrypt(aliceCiphertext, sender, bobStore, ctx)
+	bobPtext, err := libsignalgo.GroupDecrypt(ctx, aliceCiphertext, sender, bobStore)
 	assert.NoError(t, err)
 	assert.Equal(t, []byte{1, 2, 3}, bobPtext)
 }

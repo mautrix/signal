@@ -66,7 +66,7 @@ func (e *SignalError) Error() string {
 	return fmt.Sprintf("%d: %s", e.Code, e.Message)
 }
 
-func wrapCallbackError(signalError *C.SignalFfiError, ctx *CallbackContext) error {
+func (ctx *CallbackContext) wrapError(signalError *C.SignalFfiError) error {
 	if signalError == nil {
 		return nil
 	}
@@ -95,8 +95,7 @@ func wrapSignalError(signalError *C.SignalFfiError, errorType C.uint32_t) error 
 	var messageBytes *C.char
 	getMessageError := C.signal_error_get_message(signalError, &messageBytes)
 	if getMessageError != nil {
-		// Ignore any errors from this, it will just end up being an empty
-		// string.
+		// Ignore any errors from this, it will just end up being an empty string.
 		C.signal_error_free(getMessageError)
 	}
 	return &SignalError{Code: ErrorCode(errorType), Message: CopyCStringToString(messageBytes)}

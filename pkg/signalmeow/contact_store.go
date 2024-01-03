@@ -22,87 +22,38 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"go.mau.fi/util/dbutil"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
-
-var _ ContactStore = (*SQLStore)(nil)
 
 type ContactStore interface {
 	LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error)
 	LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error)
 	StoreContact(ctx context.Context, contact types.Contact) error
-	AllContacts(ctx context.Context) ([]types.Contact, error)
+	AllContacts(ctx context.Context) ([]*types.Contact, error)
 }
 
-func scanContact(row scannable) (*types.Contact, error) {
-	var contact types.Contact
-	err := row.Scan(
-		&contact.UUID,
-		&contact.E164,
-		&contact.ContactName,
-		&contact.ContactAvatarHash,
-		&contact.ProfileKey,
-		&contact.ProfileName,
-		&contact.ProfileAbout,
-		&contact.ProfileAboutEmoji,
-		&contact.ProfileAvatarHash,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	return &contact, err
-}
+var _ ContactStore = (*SQLStore)(nil)
 
-var commonSelectQuery = `
-	SELECT
-	  aci_uuid,
-	  e164_number,
-	  contact_name,
-	  contact_avatar_hash,
-	  profile_key,
-	  profile_name,
-	  profile_about,
-	  profile_about_emoji,
-	  profile_avatar_hash
-	FROM signalmeow_contacts
+const (
+	getAllContactsQuery = `
+		SELECT
+			aci_uuid,
+			e164_number,
+			contact_name,
+			contact_avatar_hash,
+			profile_key,
+			profile_name,
+			profile_about,
+			profile_about_emoji,
+			profile_avatar_hash
+		FROM signalmeow_contacts
 	`
-
-func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
-	contactQuery := commonSelectQuery +
-		`WHERE our_aci_uuid = $1 AND aci_uuid = $2`
-	return scanContact(s.db.QueryRow(contactQuery, s.ACI, theirUUID))
-}
-
-func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
-	contactQuery := commonSelectQuery +
-		`WHERE our_aci_uuid = $1 AND e164_number = $2`
-	return scanContact(s.db.QueryRow(contactQuery, s.ACI, e164))
-}
-
-func (s *SQLStore) AllContacts(ctx context.Context) ([]types.Contact, error) {
-	contactQuery := commonSelectQuery +
-		`WHERE our_aci_uuid = $1`
-	rows, err := s.db.Query(contactQuery, s.ACI)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var contacts []types.Contact
-	for rows.Next() {
-		contact, err := scanContact(rows)
-		if err != nil {
-			return nil, err
-		}
-		contacts = append(contacts, *contact)
-	}
-	return contacts, nil
-}
-
-func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) error {
-	storeContactQuery := `
+	getAllContactsOfUserQuery = getAllContactsQuery + `WHERE our_aci_uuid = $1`
+	getContactByUUIDQuery     = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND aci_uuid = $2`
+	getContactByPhoneQuery    = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND e164_number = $2`
+	upsertContactQuery        = `
 		INSERT INTO signalmeow_contacts (
 			our_aci_uuid,
 			aci_uuid,
@@ -126,13 +77,51 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 			profile_about_emoji = excluded.profile_about_emoji,
 			profile_avatar_hash = excluded.profile_avatar_hash
 	`
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		tx.Rollback()
-		return err
+)
+
+func scanContact(row dbutil.Scannable) (*types.Contact, error) {
+	var contact types.Contact
+	err := row.Scan(
+		&contact.UUID,
+		&contact.E164,
+		&contact.ContactName,
+		&contact.ContactAvatarHash,
+		&contact.ProfileKey,
+		&contact.ProfileName,
+		&contact.ProfileAbout,
+		&contact.ProfileAboutEmoji,
+		&contact.ProfileAvatarHash,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
 	}
-	_, err = tx.Exec(
-		storeContactQuery,
+	return &contact, err
+}
+
+func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
+	return scanContact(s.db.Conn(ctx).QueryRowContext(ctx, getContactByUUIDQuery, s.ACI, theirUUID))
+}
+
+func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
+	return scanContact(s.db.Conn(ctx).QueryRowContext(ctx, getContactByPhoneQuery, s.ACI, e164))
+}
+
+func (s *SQLStore) AllContacts(ctx context.Context) ([]*types.Contact, error) {
+	rows, err := s.db.Conn(ctx).QueryContext(ctx, getAllContactsOfUserQuery, s.ACI)
+	if err != nil {
+		return nil, err
+	}
+	return dbutil.NewRowIter(rows, func(rows dbutil.Rows) (*types.Contact, error) {
+		return scanContact(rows)
+	}).AsList()
+}
+
+func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) error {
+	_, err := s.db.Conn(ctx).ExecContext(
+		ctx,
+		upsertContactQuery,
 		s.ACI,
 		contact.UUID,
 		contact.E164,
@@ -144,10 +133,5 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 		contact.ProfileAboutEmoji,
 		contact.ProfileAvatarHash,
 	)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
 	return err
 }

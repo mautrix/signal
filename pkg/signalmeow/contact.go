@@ -59,7 +59,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
 		existingContact.ProfileKey = profileKeyString
 		profileKey := libsignalgo.ProfileKey(profileKeyString)
-		err = d.ProfileKeyStore.StoreProfileKey(existingContact.UUID, profileKey, ctx)
+		err = d.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreContactDetailsAsContact error storing profile key")
 			//return *existingContact, nil, err

@@ -22,46 +22,44 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 	"unsafe"
 
 	"github.com/google/uuid"
-	gopointer "github.com/mattn/go-pointer"
 )
 
-func GroupEncrypt(ptext []byte, sender *Address, distributionID uuid.UUID, store SenderKeyStore, ctx *CallbackContext) (*CiphertextMessage, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
+func GroupEncrypt(ctx context.Context, ptext []byte, sender *Address, distributionID uuid.UUID, store SenderKeyStore) (*CiphertextMessage, error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var ciphertextMessage *C.SignalCiphertextMessage
 	signalFfiError := C.signal_group_encrypt_message(
 		&ciphertextMessage,
 		sender.ptr,
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		BytesToBuffer(ptext),
-		wrapSenderKeyStore(store))
+		callbackCtx.wrapSenderKeyStore(store))
 	runtime.KeepAlive(ptext)
 	runtime.KeepAlive(sender)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return wrapCiphertextMessage(ciphertextMessage), nil
 }
 
-func GroupDecrypt(ctext []byte, sender *Address, store SenderKeyStore, ctx *CallbackContext) ([]byte, error) {
-	contextPointer := gopointer.Save(ctx)
-	defer gopointer.Unref(contextPointer)
-
+func GroupDecrypt(ctx context.Context, ctext []byte, sender *Address, store SenderKeyStore) ([]byte, error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_group_decrypt_message(
 		&resp,
 		sender.ptr,
 		BytesToBuffer(ctext),
-		wrapSenderKeyStore(store))
+		callbackCtx.wrapSenderKeyStore(store))
 	runtime.KeepAlive(ctext)
 	runtime.KeepAlive(sender)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return CopySignalOwnedBufferToBytes(resp), nil
 }

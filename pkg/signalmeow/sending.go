@@ -144,7 +144,7 @@ func checkForErrorWithSessions(err error, addresses []*libsignalgo.Address, sess
 }
 
 func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
-	addresses, _, err := d.SessionStoreExtras.AllSessionsForUUID(d.Data.ACI, ctx)
+	addresses, _, err := d.SessionStoreExtras.AllSessionsForUUID(ctx, d.Data.ACI)
 	if err != nil {
 		return 0
 	}
@@ -170,11 +170,11 @@ func buildMessagesToSend(ctx context.Context, d *Device, recipientUUID uuid.UUID
 
 	messages := []MyMessage{}
 
-	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUUID, ctx)
+	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(ctx, recipientUUID)
 	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
 		// No sessions, make one with prekey
 		FetchAndProcessPreKey(ctx, d, recipientUUID, -1)
-		addresses, sessionRecords, err = d.SessionStoreExtras.AllSessionsForUUID(recipientUUID, ctx)
+		addresses, sessionRecords, err = d.SessionStoreExtras.AllSessionsForUUID(ctx, recipientUUID)
 	}
 	err = checkForErrorWithSessions(err, addresses, sessionRecords)
 	if err != nil {
@@ -227,11 +227,11 @@ func buildMessagesToSend(ctx context.Context, d *Device, recipientUUID uuid.UUID
 
 func buildAuthedMessageToSend(ctx context.Context, d *Device, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
 	cipherTextMessage, err := libsignalgo.Encrypt(
+		ctx,
 		[]byte(paddedMessage),
 		recipientAddress,
 		d.SessionStore,
 		d.IdentityStore,
-		libsignalgo.NewCallbackContext(ctx),
 	)
 	encryptedPayload, err = cipherTextMessage.Serialize()
 	if err != nil {
@@ -256,12 +256,12 @@ func buildSSMessageToSend(ctx context.Context, d *Device, recipientAddress *libs
 		return 0, nil, err
 	}
 	encryptedPayload, err = libsignalgo.SealedSenderEncryptPlaintext(
+		ctx,
 		[]byte(paddedMessage),
 		recipientAddress,
 		cert,
 		d.SessionStore,
 		d.IdentityStore,
-		libsignalgo.NewCallbackContext(ctx),
 	)
 	envelopeType = int(signalpb.Envelope_UNIDENTIFIED_SENDER)
 
@@ -768,7 +768,7 @@ func handle409(ctx context.Context, device *Device, recipientUUID uuid.UUID, res
 				zlog.Err(err).Msg("NewAddress error")
 				return err
 			}
-			err = device.SessionStoreExtras.RemoveSession(recipient, ctx)
+			err = device.SessionStoreExtras.RemoveSession(ctx, recipient)
 			if err != nil {
 				zlog.Err(err).Msg("RemoveSession error")
 				return err
@@ -796,7 +796,7 @@ func handle410(ctx context.Context, device *Device, recipientUUID uuid.UUID, res
 				recipientUUID,
 				uint(staleDevice.(float64)),
 			)
-			err = device.SessionStoreExtras.RemoveSession(recipient, ctx)
+			err = device.SessionStoreExtras.RemoveSession(ctx, recipient)
 			if err != nil {
 				zlog.Err(err).Msg("RemoveSession error")
 				return err

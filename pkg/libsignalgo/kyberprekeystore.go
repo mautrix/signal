@@ -22,28 +22,26 @@ package libsignalgo
 
 typedef const SignalKyberPreKeyRecord const_kyber_pre_key_record;
 
-extern int signal_load_kyber_pre_key_callback(void *store_ctx, SignalKyberPreKeyRecord **recordp, uint32_t id, void *ctx);
-extern int signal_store_kyber_pre_key_callback(void *store_ctx, uint32_t id, const_kyber_pre_key_record *record, void *ctx);
-extern int signal_mark_kyber_pre_key_used_callback(void *store_ctx, uint32_t id, void *ctx);
+extern int signal_load_kyber_pre_key_callback(void *store_ctx, SignalKyberPreKeyRecord **recordp, uint32_t id);
+extern int signal_store_kyber_pre_key_callback(void *store_ctx, uint32_t id, const_kyber_pre_key_record *record);
+extern int signal_mark_kyber_pre_key_used_callback(void *store_ctx, uint32_t id);
 */
 import "C"
 import (
 	"context"
 	"unsafe"
-
-	gopointer "github.com/mattn/go-pointer"
 )
 
 type KyberPreKeyStore interface {
-	LoadKyberPreKey(id uint32, context context.Context) (*KyberPreKeyRecord, error)
-	StoreKyberPreKey(id uint32, kyberPreKeyRecord *KyberPreKeyRecord, context context.Context) error
-	MarkKyberPreKeyUsed(id uint32, context context.Context) error
+	LoadKyberPreKey(ctx context.Context, id uint32) (*KyberPreKeyRecord, error)
+	StoreKyberPreKey(ctx context.Context, id uint32, kyberPreKeyRecord *KyberPreKeyRecord) error
+	MarkKyberPreKeyUsed(ctx context.Context, id uint32) error
 }
 
 //export signal_load_kyber_pre_key_callback
-func signal_load_kyber_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalKyberPreKeyRecord, id C.uint32_t, ctxPtr unsafe.Pointer) C.int {
-	return wrapStoreCallback(storeCtx, ctxPtr, func(store KyberPreKeyStore, ctx context.Context) error {
-		key, err := store.LoadKyberPreKey(uint32(id), ctx)
+func signal_load_kyber_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalKyberPreKeyRecord, id C.uint32_t) C.int {
+	return wrapStoreCallback(storeCtx, func(store KyberPreKeyStore, ctx context.Context) error {
+		key, err := store.LoadKyberPreKey(ctx, uint32(id))
 		if err == nil && key != nil {
 			key.CancelFinalizer()
 			*keyp = key.ptr
@@ -53,29 +51,28 @@ func signal_load_kyber_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.Signal
 }
 
 //export signal_store_kyber_pre_key_callback
-func signal_store_kyber_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord *C.const_kyber_pre_key_record, ctxPtr unsafe.Pointer) C.int {
-	return wrapStoreCallback(storeCtx, ctxPtr, func(store KyberPreKeyStore, ctx context.Context) error {
+func signal_store_kyber_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord *C.const_kyber_pre_key_record) C.int {
+	return wrapStoreCallback(storeCtx, func(store KyberPreKeyStore, ctx context.Context) error {
 		record := KyberPreKeyRecord{ptr: (*C.SignalKyberPreKeyRecord)(unsafe.Pointer(preKeyRecord))}
 		cloned, err := record.Clone()
 		if err != nil {
 			return err
 		}
-		return store.StoreKyberPreKey(uint32(id), cloned, ctx)
+		return store.StoreKyberPreKey(ctx, uint32(id), cloned)
 	})
 }
 
 //export signal_mark_kyber_pre_key_used_callback
-func signal_mark_kyber_pre_key_used_callback(storeCtx unsafe.Pointer, id C.uint32_t, ctxPtr unsafe.Pointer) C.int {
-	return wrapStoreCallback(storeCtx, ctxPtr, func(store KyberPreKeyStore, ctx context.Context) error {
-		err := store.MarkKyberPreKeyUsed(uint32(id), ctx)
+func signal_mark_kyber_pre_key_used_callback(storeCtx unsafe.Pointer, id C.uint32_t) C.int {
+	return wrapStoreCallback(storeCtx, func(store KyberPreKeyStore, ctx context.Context) error {
+		err := store.MarkKyberPreKeyUsed(ctx, uint32(id))
 		return err
 	})
 }
 
-func wrapKyberPreKeyStore(store KyberPreKeyStore) *C.SignalKyberPreKeyStore {
-	// TODO: This is probably a memory leak
+func (ctx *CallbackContext) wrapKyberPreKeyStore(store KyberPreKeyStore) *C.SignalKyberPreKeyStore {
 	return &C.SignalKyberPreKeyStore{
-		ctx:                     gopointer.Save(store),
+		ctx:                     wrapStore(ctx, store),
 		load_kyber_pre_key:      C.SignalLoadKyberPreKey(C.signal_load_kyber_pre_key_callback),
 		store_kyber_pre_key:     C.SignalStoreKyberPreKey(C.signal_store_kyber_pre_key_callback),
 		mark_kyber_pre_key_used: C.SignalMarkKyberPreKeyUsed(C.signal_mark_kyber_pre_key_used_callback),

@@ -23,34 +23,55 @@ package libsignalgo
 import "C"
 import (
 	"context"
+	"errors"
 	"unsafe"
 
 	gopointer "github.com/mattn/go-pointer"
 )
 
-type CallbackContext struct {
-	Error error
-	Ctx   context.Context
+type WrappedStore[T any] struct {
+	Store T
+	Ctx   *CallbackContext
 }
 
-func NewEmptyCallbackContext() *CallbackContext {
-	return NewCallbackContext(context.TODO())
+type CallbackContext struct {
+	Error  error
+	Ctx    context.Context
+	Unrefs []unsafe.Pointer
 }
 
 func NewCallbackContext(ctx context.Context) *CallbackContext {
+	if ctx == nil {
+		panic(errors.New("nil context passed to NewCallbackContext"))
+	}
 	return &CallbackContext{Ctx: ctx}
 }
 
-func wrapStoreCallback[T any](storeCtx, ctxPtr unsafe.Pointer, callback func(store T, ctx context.Context) error) C.int {
-	store := gopointer.Restore(storeCtx).(T)
-	ctx := NewEmptyCallbackContext()
-	if ctxPtr != nil {
-		if restored := gopointer.Restore(ctxPtr); restored != nil {
-			ctx = restored.(*CallbackContext)
-		}
+func (ctx *CallbackContext) Unref() {
+	for _, ptr := range ctx.Unrefs {
+		gopointer.Unref(ptr)
 	}
-	if err := callback(store, ctx.Ctx); err != nil {
-		ctx.Error = err
+}
+
+func wrapStore[T any](ctx *CallbackContext, store T) unsafe.Pointer {
+	wrappedStore := gopointer.Save(&WrappedStore[T]{Store: store, Ctx: ctx})
+	ctx.Unrefs = append(ctx.Unrefs, wrappedStore)
+	return wrappedStore
+}
+
+func wrapStoreCallbackCustomReturn[T any](storeCtx unsafe.Pointer, callback func(store T, ctx context.Context) (int, error)) C.int {
+	wrap := gopointer.Restore(storeCtx).(*WrappedStore[T])
+	retVal, err := callback(wrap.Store, wrap.Ctx.Ctx)
+	if err != nil {
+		wrap.Ctx.Error = err
+	}
+	return C.int(retVal)
+}
+
+func wrapStoreCallback[T any](storeCtx unsafe.Pointer, callback func(store T, ctx context.Context) error) C.int {
+	wrap := gopointer.Restore(storeCtx).(*WrappedStore[T])
+	if err := callback(wrap.Store, wrap.Ctx.Ctx); err != nil {
+		wrap.Ctx.Error = err
 		return -1
 	}
 	return 0

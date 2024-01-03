@@ -165,14 +165,14 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		}
 
 		// Store the provisioning data
-		err = deviceStore.PutDevice(data)
+		err = deviceStore.PutDevice(ctx, data)
 		if err != nil {
 			zlog.Err(err).Msg("error storing new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 
-		device, err := deviceStore.DeviceByACI(data.ACI)
+		device, err := deviceStore.DeviceByACI(ctx, data.ACI)
 		if err != nil {
 			zlog.Err(err).Msg("error retrieving new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -180,11 +180,11 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		}
 
 		// In case this is an existing device, we gotta clear out keys
-		device.ClearDeviceKeys()
+		device.ClearDeviceKeys(ctx)
 
 		// Store identity keys?
 		address, err := libsignalgo.NewUUIDAddress(device.Data.ACI, uint(device.Data.DeviceID))
-		_, err = device.IdentityStore.SaveIdentityKey(address, device.Data.ACIIdentityKeyPair.GetIdentityKey(), ctx)
+		_, err = device.IdentityStore.SaveIdentityKey(ctx, address, device.Data.ACIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			zlog.Err(err).Msg("error saving identity key")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -192,13 +192,13 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		}
 
 		// Store signed prekeys (now that we have a device)
-		StoreSignedPreKey(device, aciSignedPreKey, UUIDKindACI)
-		StoreSignedPreKey(device, pniSignedPreKey, UUIDKindPNI)
-		StoreKyberLastResortPreKey(device, aciPQLastResortPreKey, UUIDKindACI)
-		StoreKyberLastResortPreKey(device, pniPQLastResortPreKey, UUIDKindPNI)
+		StoreSignedPreKey(ctx, device, aciSignedPreKey, UUIDKindACI)
+		StoreSignedPreKey(ctx, device, pniSignedPreKey, UUIDKindPNI)
+		StoreKyberLastResortPreKey(ctx, device, aciPQLastResortPreKey, UUIDKindACI)
+		StoreKyberLastResortPreKey(ctx, device, pniPQLastResortPreKey, UUIDKindPNI)
 
 		// Store our profile key
-		err = device.ProfileKeyStore.StoreProfileKey(data.ACI, profileKey, ctx)
+		err = device.ProfileKeyStore.StoreProfileKey(ctx, data.ACI, profileKey)
 		if err != nil {
 			zlog.Err(err).Msg("error storing profile key")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -209,8 +209,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
 		// Generate, store, and register prekeys
-		err = GenerateAndRegisterPreKeys(device, UUIDKindACI)
-		err = GenerateAndRegisterPreKeys(device, UUIDKindPNI)
+		err = GenerateAndRegisterPreKeys(ctx, device, UUIDKindACI)
+		err = GenerateAndRegisterPreKeys(ctx, device, UUIDKindPNI)
 
 		if err != nil {
 			zlog.Err(err).Msg("error generating and registering prekeys")

@@ -22,6 +22,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 	"time"
 
@@ -42,8 +43,8 @@ func NewSealedSenderAddress(e164 string, uuid uuid.UUID, deviceID uint32) *Seale
 	}
 }
 
-func SealedSenderEncryptPlaintext(message []byte, forAddress *Address, fromSenderCert *SenderCertificate, sessionStore SessionStore, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
-	ciphertextMessage, err := Encrypt(message, forAddress, sessionStore, identityStore, ctx)
+func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, forAddress *Address, fromSenderCert *SenderCertificate, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
+	ciphertextMessage, err := Encrypt(ctx, message, forAddress, sessionStore, identityStore)
 	if err != nil {
 		return nil, err
 	}
@@ -57,21 +58,23 @@ func SealedSenderEncryptPlaintext(message []byte, forAddress *Address, fromSende
 	if err != nil {
 		return nil, err
 	}
-	return SealedSenderEncrypt(usmc, forAddress, identityStore, ctx)
+	return SealedSenderEncrypt(ctx, usmc, forAddress, identityStore)
 }
 
-func SealedSenderEncrypt(usmc *UnidentifiedSenderMessageContent, forRecipient *Address, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
+func SealedSenderEncrypt(ctx context.Context, usmc *UnidentifiedSenderMessageContent, forRecipient *Address, identityStore IdentityKeyStore) ([]byte, error) {
 	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	signalFfiError := C.signal_sealed_session_cipher_encrypt(
 		&encrypted,
 		forRecipient.ptr,
 		usmc.ptr,
-		wrapIdentityKeyStore(identityStore),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
 	)
 	runtime.KeepAlive(usmc)
 	runtime.KeepAlive(forRecipient)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return CopySignalOwnedBufferToBytes(encrypted), nil
 }
@@ -86,24 +89,27 @@ type SealedSenderResult struct {
 }
 
 func SealedSenderDecryptToUSMC(
+	ctx context.Context,
 	ciphertext []byte,
 	identityStore IdentityKeyStore,
-	ctx *CallbackContext,
 ) (*UnidentifiedSenderMessageContent, error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var usmc *C.SignalUnidentifiedSenderMessageContent = nil
 	signalFfiError := C.signal_sealed_session_cipher_decrypt_to_usmc(
 		&usmc,
 		BytesToBuffer(ciphertext),
-		wrapIdentityKeyStore(identityStore),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
 	)
 	runtime.KeepAlive(ciphertext)
 	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return wrapUnidentifiedSenderMessageContent(usmc), nil
 }
 
 func SealedSenderDecrypt(
+	ctx context.Context,
 	ciphertext []byte,
 	localAddress *SealedSenderAddress,
 	trustRoot *PublicKey,
@@ -112,8 +118,10 @@ func SealedSenderDecrypt(
 	identityStore IdentityKeyStore,
 	preKeyStore PreKeyStore,
 	signedPreKeyStore SignedPreKeyStore,
-	ctx *CallbackContext,
 ) (result SealedSenderResult, err error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
+
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	var senderE164 *C.char
 	var senderUUID *C.char
@@ -130,15 +138,15 @@ func SealedSenderDecrypt(
 		C.CString(localAddress.E164),
 		C.CString(localAddress.UUID.String()),
 		C.uint32_t(localAddress.DeviceID),
-		wrapSessionStore(sessionStore),
-		wrapIdentityKeyStore(identityStore),
-		wrapPreKeyStore(preKeyStore),
-		wrapSignedPreKeyStore(signedPreKeyStore),
+		callbackCtx.wrapSessionStore(sessionStore),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
+		callbackCtx.wrapPreKeyStore(preKeyStore),
+		callbackCtx.wrapSignedPreKeyStore(signedPreKeyStore),
 	)
 	runtime.KeepAlive(localAddress)
 	runtime.KeepAlive(trustRoot)
 	if signalFfiError != nil {
-		err = wrapCallbackError(signalFfiError, ctx)
+		err = callbackCtx.wrapError(signalFfiError)
 		return
 	}
 

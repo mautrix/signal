@@ -23,6 +23,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"go.mau.fi/util/dbutil"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
@@ -31,8 +33,8 @@ var _ ProfileKeyStore = (*SQLStore)(nil)
 type ProfileKeyStore interface {
 	// LoadProfileKey loads the profile key for the given address.
 	// If the address is not found, nil is returned.
-	LoadProfileKey(theirACI uuid.UUID, ctx context.Context) (*libsignalgo.ProfileKey, error)
-	StoreProfileKey(theirACI uuid.UUID, key libsignalgo.ProfileKey, ctx context.Context) error
+	LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error)
+	StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error
 	MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error)
 }
 
@@ -41,7 +43,7 @@ const (
 	storeProfileKeyQuery = `INSERT INTO signalmeow_profile_keys (our_aci_uuid, their_aci_uuid, key) VALUES ($1, $2, $3) ON CONFLICT (our_aci_uuid, their_aci_uuid) DO UPDATE SET key=excluded.key`
 )
 
-func scanProfileKey(row scannable) (*libsignalgo.ProfileKey, error) {
+func scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {
 	var record []byte
 	err := row.Scan(&record)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -53,25 +55,15 @@ func scanProfileKey(row scannable) (*libsignalgo.ProfileKey, error) {
 	return &profileKey, err
 }
 
-func (s *SQLStore) LoadProfileKey(theirUUID uuid.UUID, ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(loadProfileKeyQuery, s.ACI, theirUUID))
+func (s *SQLStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
+	return scanProfileKey(s.db.Conn(ctx).QueryRowContext(ctx, loadProfileKeyQuery, s.ACI, theirACI))
 }
 
 func (s *SQLStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(loadProfileKeyQuery, s.ACI, s.ACI))
+	return scanProfileKey(s.db.Conn(ctx).QueryRowContext(ctx, loadProfileKeyQuery, s.ACI, s.ACI))
 }
 
-func (s *SQLStore) StoreProfileKey(theirUUID uuid.UUID, key libsignalgo.ProfileKey, ctx context.Context) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	_, err = tx.Exec(storeProfileKeyQuery, s.ACI, theirUUID, key.Slice())
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
+func (s *SQLStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
+	_, err := s.db.Conn(ctx).ExecContext(ctx, storeProfileKeyQuery, s.ACI, theirACI, key.Slice())
 	return err
 }

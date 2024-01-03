@@ -21,6 +21,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"go.mau.fi/util/dbutil"
+
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -33,11 +35,21 @@ type dbGroup struct {
 }
 
 type GroupStore interface {
-	MasterKeyFromGroupIdentifier(groupIdentifier types.GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error)
-	StoreMasterKey(groupIdentifier types.GroupIdentifier, key SerializedGroupMasterKey, ctx context.Context) error
+	MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (SerializedGroupMasterKey, error)
+	StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key SerializedGroupMasterKey) error
 }
 
-func scanGroup(row scannable) (*dbGroup, error) {
+const (
+	getGroupByIDQuery         = `SELECT our_aci_uuid, group_identifier, master_key FROM signalmeow_groups WHERE our_aci_uuid=$1 AND group_identifier=$2`
+	upsertGroupMasterKeyQuery = `
+		INSERT INTO signalmeow_groups (our_aci_uuid, group_identifier, master_key)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (our_aci_uuid, group_identifier) DO UPDATE
+			SET master_key = excluded.master_key;
+	`
+)
+
+func scanGroup(row dbutil.Scannable) (*dbGroup, error) {
 	var g dbGroup
 	err := row.Scan(&g.OurAciUuid, &g.GroupIdentifier, &g.GroupMasterKey)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -48,37 +60,16 @@ func scanGroup(row scannable) (*dbGroup, error) {
 	return &g, nil
 }
 
-func (s *SQLStore) MasterKeyFromGroupIdentifier(groupIdentifier types.GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error) {
-	loadGroupQuery := `SELECT our_aci_uuid, group_identifier, master_key FROM signalmeow_groups WHERE our_aci_uuid=$1 AND group_identifier=$2`
-	g, err := scanGroup(s.db.QueryRow(loadGroupQuery, s.ACI, groupIdentifier))
-	if err != nil {
-		return "", err
-	}
+func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (SerializedGroupMasterKey, error) {
+	g, err := scanGroup(s.db.Conn(ctx).QueryRowContext(ctx, getGroupByIDQuery, s.ACI, groupID))
 	if g == nil {
-		return "", nil
+		return "", err
+	} else {
+		return g.GroupMasterKey, nil
 	}
-	return g.GroupMasterKey, nil
 }
 
-func (s *SQLStore) StoreMasterKey(groupIdentifier types.GroupIdentifier, key SerializedGroupMasterKey, ctx context.Context) error {
-	// Insert, or update if already exists
-	storeMasterKeyQuery := `
-		INSERT INTO signalmeow_groups (our_aci_uuid, group_identifier, master_key)
-		VALUES ($1, $2, $3)
-		ON CONFLICT (our_aci_uuid, group_identifier) DO UPDATE SET
-		master_key = excluded.master_key;
-	`
-
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	_, err = tx.Exec(storeMasterKeyQuery, s.ACI, groupIdentifier, key)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	err = tx.Commit()
+func (s *SQLStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key SerializedGroupMasterKey) error {
+	_, err := s.db.Conn(ctx).ExecContext(ctx, upsertGroupMasterKeyQuery, s.ACI, groupID, key)
 	return err
 }

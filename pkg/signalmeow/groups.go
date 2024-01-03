@@ -362,7 +362,7 @@ func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
 }
 
 func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, error) {
-	groupMasterKey, err := d.GroupStore.MasterKeyFromGroupIdentifier(gid, ctx)
+	groupMasterKey, err := d.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		zlog.Err(err).Msg("Failed to get group master key")
 		return nil, err
@@ -413,7 +413,7 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
-		err = d.ProfileKeyStore.StoreProfileKey(member.UserID, member.ProfileKey, ctx)
+		err = d.ProfileKeyStore.StoreProfileKey(ctx, member.UserID, member.ProfileKey)
 		if err != nil {
 			zlog.Err(err).Msg("DecryptGroup StoreProfileKey error")
 			//return nil, err
@@ -514,7 +514,7 @@ func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGro
 		zlog.Err(err).Msg("groupIdentifierFromMasterKey error")
 		return "", err
 	}
-	err = d.GroupStore.StoreMasterKey(groupIdentifier, groupMasterKey, ctx)
+	err = d.GroupStore.StoreMasterKey(ctx, groupIdentifier, groupMasterKey)
 	if err != nil {
 		zlog.Err(err).Msg("StoreMasterKey error")
 		return "", err

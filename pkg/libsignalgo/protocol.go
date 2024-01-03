@@ -22,25 +22,28 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 	"time"
 )
 
-func Encrypt(plaintext []byte, forAddress *Address, sessionStore SessionStore, identityKeyStore IdentityKeyStore, ctx *CallbackContext) (*CiphertextMessage, error) {
+func Encrypt(ctx context.Context, plaintext []byte, forAddress *Address, sessionStore SessionStore, identityKeyStore IdentityKeyStore) (*CiphertextMessage, error) {
 	var ciphertextMessage *C.SignalCiphertextMessage
 	var now C.uint64_t = C.uint64_t(time.Now().Unix())
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	signalFfiError := C.signal_encrypt_message(
 		&ciphertextMessage,
 		BytesToBuffer(plaintext),
 		forAddress.ptr,
-		wrapSessionStore(sessionStore),
-		wrapIdentityKeyStore(identityKeyStore),
+		callbackCtx.wrapSessionStore(sessionStore),
+		callbackCtx.wrapIdentityKeyStore(identityKeyStore),
 		now,
 	)
 	runtime.KeepAlive(plaintext)
 	runtime.KeepAlive(forAddress)
 	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return wrapCiphertextMessage(ciphertextMessage), nil
 }

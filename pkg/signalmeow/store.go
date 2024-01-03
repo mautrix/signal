@@ -32,8 +32,8 @@ import (
 var _ DeviceStore = (*StoreContainer)(nil)
 
 type DeviceStore interface {
-	PutDevice(dd *DeviceData) error
-	DeviceByACI(aci uuid.UUID) (*Device, error)
+	PutDevice(ctx context.Context, dd *DeviceData) error
+	DeviceByACI(ctx context.Context, aci uuid.UUID) (*Device, error)
 }
 
 // StoreContainer is a wrapper for a SQL database that can contain multiple signalmeow sessions.
@@ -81,15 +81,11 @@ FROM signalmeow_device
 
 const getDeviceQuery = getAllDevicesQuery + " WHERE aci_uuid=$1"
 
-type scannable interface {
-	Scan(dest ...interface{}) error
-}
-
 func (c *StoreContainer) Upgrade() error {
 	return c.db.Upgrade()
 }
 
-func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
+func (c *StoreContainer) scanDevice(row dbutil.Scannable) (*Device, error) {
 	var device Device
 	deviceData := &device.Data
 	var aciIdentityKeyPair, pniIdentityKeyPair []byte
@@ -124,8 +120,8 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 }
 
 // GetAllDevices finds all the devices in the database.
-func (c *StoreContainer) GetAllDevices() ([]*Device, error) {
-	rows, err := c.db.Query(getAllDevicesQuery)
+func (c *StoreContainer) GetAllDevices(ctx context.Context) ([]*Device, error) {
+	rows, err := c.db.Conn(ctx).QueryContext(ctx, getAllDevicesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
@@ -143,8 +139,8 @@ func (c *StoreContainer) GetAllDevices() ([]*Device, error) {
 
 // GetDevice finds the device with the specified ACI UUID in the database.
 // If the device is not found, nil is returned instead.
-func (c *StoreContainer) DeviceByACI(aci uuid.UUID) (*Device, error) {
-	sess, err := c.scanDevice(c.db.QueryRow(getDeviceQuery, aci))
+func (c *StoreContainer) DeviceByACI(ctx context.Context, aci uuid.UUID) (*Device, error) {
+	sess, err := c.scanDevice(c.db.Conn(ctx).QueryRowContext(ctx, getDeviceQuery, aci))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -176,7 +172,7 @@ const (
 var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before accessing database")
 
 // PutDevice stores the given device in this database.
-func (c *StoreContainer) PutDevice(device *DeviceData) error {
+func (c *StoreContainer) PutDevice(ctx context.Context, device *DeviceData) error {
 	if device.ACI == uuid.Nil {
 		return ErrDeviceIDMustBeSet
 	}
@@ -186,7 +182,7 @@ func (c *StoreContainer) PutDevice(device *DeviceData) error {
 		zlog.Err(err).Msg("failed to serialize identity key pair")
 		return err
 	}
-	_, err = c.db.Exec(insertDeviceQuery,
+	_, err = c.db.Conn(ctx).ExecContext(ctx, insertDeviceQuery,
 		device.ACI, aciIdentityKeyPair, device.RegistrationID,
 		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
 		device.DeviceID, device.Number, device.Password,
@@ -198,22 +194,22 @@ func (c *StoreContainer) PutDevice(device *DeviceData) error {
 }
 
 // DeleteDevice deletes the given device from this database
-func (c *StoreContainer) DeleteDevice(device *DeviceData) error {
+func (c *StoreContainer) DeleteDevice(ctx context.Context, device *DeviceData) error {
 	if device.ACI == uuid.Nil {
 		return ErrDeviceIDMustBeSet
 	}
-	_, err := c.db.Exec(deleteDeviceQuery, device.ACI)
+	_, err := c.db.Conn(ctx).ExecContext(ctx, deleteDeviceQuery, device.ACI)
 	return err
 }
 
-func (d *Device) ClearDeviceKeys() error {
+func (d *Device) ClearDeviceKeys(ctx context.Context) error {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
 	if d == nil {
 		zlog.Warn().Msg("ClearDeviceKeys called with nil device")
 		return nil
 	}
-	err := d.PreKeyStoreExtras.DeleteAllPreKeys()
-	err = d.SessionStoreExtras.RemoveAllSessions(context.Background())
+	err := d.PreKeyStoreExtras.DeleteAllPreKeys(ctx)
+	err = d.SessionStoreExtras.RemoveAllSessions(ctx)
 	return err
 }
 
@@ -224,14 +220,14 @@ func (d *Device) IsDeviceLoggedIn() bool {
 		d.Data.Password != ""
 }
 
-func (d *Device) ClearKeysAndDisconnect() error {
+func (d *Device) ClearKeysAndDisconnect(ctx context.Context) error {
 	// Essentially logout, clearing sessions and keys, and disconnecting websockets
 	// but don't clear ACI UUID or profile keys or contacts, or anything else that
 	// we can reuse if we reassociate with the same Signal account.
 	// To fully "logout" delete the device from the database.
-	clearErr := d.ClearDeviceKeys()
+	clearErr := d.ClearDeviceKeys(ctx)
 	d.Data.Password = ""
-	saveDeviceErr := d.DeviceStore.PutDevice(&d.Data)
+	saveDeviceErr := d.DeviceStore.PutDevice(ctx, &d.Data)
 	stopLoopErr := StopReceiveLoops(d)
 
 	if clearErr != nil {

@@ -22,21 +22,24 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 	"unsafe"
 
 	"github.com/google/uuid"
 )
 
-func ProcessSenderKeyDistributionMessage(message *SenderKeyDistributionMessage, fromSender *Address, store SenderKeyStore, ctx *CallbackContext) error {
+func ProcessSenderKeyDistributionMessage(ctx context.Context, message *SenderKeyDistributionMessage, fromSender *Address, store SenderKeyStore) error {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	signalFfiError := C.signal_process_sender_key_distribution_message(
 		fromSender.ptr,
 		message.ptr,
-		wrapSenderKeyStore(store),
+		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(message)
 	runtime.KeepAlive(fromSender)
-	return wrapCallbackError(signalFfiError, ctx)
+	return callbackCtx.wrapError(signalFfiError)
 }
 
 type SenderKeyDistributionMessage struct {
@@ -50,18 +53,20 @@ func wrapSenderKeyDistributionMessage(ptr *C.SignalSenderKeyDistributionMessage)
 	return sc
 }
 
-func NewSenderKeyDistributionMessage(sender *Address, distributionID uuid.UUID, store SenderKeyStore, ctx *CallbackContext) (*SenderKeyDistributionMessage, error) {
+func NewSenderKeyDistributionMessage(ctx context.Context, sender *Address, distributionID uuid.UUID, store SenderKeyStore) (*SenderKeyDistributionMessage, error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var skdm *C.SignalSenderKeyDistributionMessage
 	signalFfiError := C.signal_sender_key_distribution_message_create(
 		&skdm,
 		sender.ptr,
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
-		wrapSenderKeyStore(store),
+		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(sender)
 	runtime.KeepAlive(distributionID)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return wrapSenderKeyDistributionMessage(skdm), nil
 }
@@ -94,15 +99,17 @@ func (sc *SenderKeyDistributionMessage) Serialize() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
-func (sc *SenderKeyDistributionMessage) Process(sender *Address, store SenderKeyStore, ctx *CallbackContext) error {
+func (sc *SenderKeyDistributionMessage) Process(ctx context.Context, sender *Address, store SenderKeyStore) error {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	signalFfiError := C.signal_process_sender_key_distribution_message(
 		sender.ptr,
 		sc.ptr,
-		wrapSenderKeyStore(store),
+		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(sender)
 	if signalFfiError != nil {
-		return wrapCallbackError(signalFfiError, ctx)
+		return callbackCtx.wrapError(signalFfiError)
 	}
 	return nil
 }

@@ -514,7 +514,7 @@ func (user *User) startupTryConnect(retryCount int) {
 func (user *User) clearKeysAndDisconnect() {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
 	user.log.Debug().Msg("Clearing out Signal device keys")
-	err := user.SignalDevice.ClearKeysAndDisconnect()
+	err := user.SignalDevice.ClearKeysAndDisconnect(context.TODO())
 	if err != nil {
 		user.log.Err(err).Msg("Error clearing device keys")
 	}
@@ -576,7 +576,7 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 		return nil
 	}
 
-	device, err := user.bridge.MeowStore.DeviceByACI(user.SignalID)
+	device, err := user.bridge.MeowStore.DeviceByACI(context.TODO(), user.SignalID)
 	if err != nil {
 		log.Err(err).Msg("problem looking up ACI")
 		return nil
@@ -997,7 +997,7 @@ func (user *User) Logout() error {
 	defer user.Unlock()
 	user.log.Info().Msg("Logging out of session")
 	loggedOutDevice, err := user.disconnectNoLock()
-	user.bridge.MeowStore.DeleteDevice(&loggedOutDevice.Data)
+	user.bridge.MeowStore.DeleteDevice(context.TODO(), &loggedOutDevice.Data)
 	user.bridge.GetPuppetByCustomMXID(user.MXID).ClearCustomMXID()
 	return err
 }

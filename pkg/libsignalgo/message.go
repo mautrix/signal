@@ -22,22 +22,25 @@ package libsignalgo
 */
 import "C"
 import (
+	"context"
 	"runtime"
 )
 
-func Decrypt(message *Message, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore, ctx *CallbackContext) ([]byte, error) {
+func Decrypt(ctx context.Context, message *Message, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_message(
 		&decrypted,
 		message.ptr,
 		fromAddress.ptr,
-		wrapSessionStore(sessionStore),
-		wrapIdentityKeyStore(identityStore),
+		callbackCtx.wrapSessionStore(sessionStore),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
 	)
 	runtime.KeepAlive(message)
 	runtime.KeepAlive(fromAddress)
 	if signalFfiError != nil {
-		return nil, wrapCallbackError(signalFfiError, ctx)
+		return nil, callbackCtx.wrapError(signalFfiError)
 	}
 	return CopySignalOwnedBufferToBytes(decrypted), nil
 }

@@ -66,7 +66,7 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 
 	var prekeyID uint32 = 4570
 	var signedPreKeyID uint32 = 3006
-	var kyberPreKeyId uint32 = 8008
+	var kyberPreKeyID uint32 = 8008
 
 	bobRegistrationID, err := bobStore.GetLocalRegistrationID(ctx)
 	assert.NoError(t, err)
@@ -78,7 +78,7 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 		signedPreKeyID,
 		bobSignedPreKeyPublicKey,
 		bobSignedPreKeySignature,
-		kyberPreKeyId,
+		kyberPreKeyID,
 		bobKyberPreKeyPublicKey,
 		bobKyberPreKeySignature,
 		bobIdentityKey,
@@ -86,10 +86,10 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	assert.NoError(t, err)
 
 	// Alice processes the bundle
-	err = libsignalgo.ProcessPreKeyBundle(bobBundle, bobAddress, aliceStore, aliceStore, libsignalgo.NewCallbackContext(ctx))
+	err = libsignalgo.ProcessPreKeyBundle(ctx, bobBundle, bobAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 
-	record, err := aliceStore.LoadSession(bobAddress, ctx)
+	record, err := aliceStore.LoadSession(ctx, bobAddress)
 	assert.NoError(t, err)
 	assert.NotNil(t, record)
 
@@ -104,23 +104,24 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 	// Bob processes the bundle
 	preKeyRecord, err := libsignalgo.NewPreKeyRecordFromPrivateKey(prekeyID, bobPreKey)
 	assert.NoError(t, err)
-	err = bobStore.StorePreKey(prekeyID, preKeyRecord, ctx)
+	err = bobStore.StorePreKey(ctx, prekeyID, preKeyRecord)
 	assert.NoError(t, err)
 
 	signedPreKeyRecord, err := libsignalgo.NewSignedPreKeyRecordFromPrivateKey(signedPreKeyID, time.UnixMilli(42000), bobSignedPreKey, bobSignedPreKeySignature)
 	assert.NoError(t, err)
-	err = bobStore.StoreSignedPreKey(signedPreKeyID, signedPreKeyRecord, ctx)
+	err = bobStore.StoreSignedPreKey(ctx, signedPreKeyID, signedPreKeyRecord)
 	require.NoError(t, err)
 
-	kyberPreKeyRecord, err := libsignalgo.NewKyberPreKeyRecord(kyberPreKeyId, time.UnixMilli(42000), bobKyberPreKey, bobKyberPreKeySignature)
+	kyberPreKeyRecord, err := libsignalgo.NewKyberPreKeyRecord(kyberPreKeyID, time.UnixMilli(42000), bobKyberPreKey, bobKyberPreKeySignature)
 	require.NoError(t, err)
-	err = bobStore.StoreKyberPreKey(kyberPreKeyId, kyberPreKeyRecord, ctx)
+	err = bobStore.StoreKyberPreKey(ctx, kyberPreKeyID, kyberPreKeyRecord)
 	require.NoError(t, err)
 }
 
 // From SessionTests.swift:testSessionCipher
 func TestSessionCipher(t *testing.T) {
-	ctx := libsignalgo.NewEmptyCallbackContext()
+	ctx := context.TODO()
+
 	aliceAddress, err := libsignalgo.NewPhoneAddress("+14151111111", 1)
 	assert.NoError(t, err)
 	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
@@ -133,7 +134,7 @@ func TestSessionCipher(t *testing.T) {
 
 	alicePlaintext := []byte{8, 6, 7, 5, 3, 0, 9}
 
-	aliceCiphertext, err := libsignalgo.Encrypt(alicePlaintext, bobAddress, aliceStore, aliceStore, ctx)
+	aliceCiphertext, err := libsignalgo.Encrypt(ctx, alicePlaintext, bobAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 	aliceCiphertextMessageType, err := aliceCiphertext.MessageType()
 	assert.NoError(t, err)
@@ -144,13 +145,13 @@ func TestSessionCipher(t *testing.T) {
 	bobCiphertext, err := libsignalgo.DeserializePreKeyMessage(aliceCiphertextSerialized)
 	assert.NoError(t, err)
 
-	bobPlaintext, err := libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore, ctx)
+	bobPlaintext, err := libsignalgo.DecryptPreKey(ctx, bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore)
 	assert.NoError(t, err)
 	assert.Equal(t, alicePlaintext, bobPlaintext)
 
 	bobPlaintext2 := []byte{23}
 
-	bobCiphertext2, err := libsignalgo.Encrypt(bobPlaintext2, aliceAddress, bobStore, bobStore, ctx)
+	bobCiphertext2, err := libsignalgo.Encrypt(ctx, bobPlaintext2, aliceAddress, bobStore, bobStore)
 	assert.NoError(t, err)
 	bobCiphertext2MessageType, err := bobCiphertext2.MessageType()
 	assert.NoError(t, err)
@@ -160,14 +161,15 @@ func TestSessionCipher(t *testing.T) {
 	assert.NoError(t, err)
 	aliceCiphertext2, err := libsignalgo.DeserializeMessage(bobCiphertext2Serialized)
 	assert.NoError(t, err)
-	alicePlaintext2, err := libsignalgo.Decrypt(aliceCiphertext2, bobAddress, aliceStore, aliceStore, ctx)
+	alicePlaintext2, err := libsignalgo.Decrypt(ctx, aliceCiphertext2, bobAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 	assert.Equal(t, bobPlaintext2, alicePlaintext2)
 }
 
 // From SessionTests.swift:testSessionCipherWithBadStore
 func TestSessionCipherWithBadStore(t *testing.T) {
-	ctx := libsignalgo.NewEmptyCallbackContext()
+	ctx := context.TODO()
+
 	aliceAddress, err := libsignalgo.NewPhoneAddress("+14151111111", 1)
 	assert.NoError(t, err)
 	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
@@ -180,7 +182,7 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 
 	alicePlaintext := []byte{8, 6, 7, 5, 3, 0, 9}
 
-	aliceCiphertext, err := libsignalgo.Encrypt(alicePlaintext, bobAddress, aliceStore, aliceStore, ctx)
+	aliceCiphertext, err := libsignalgo.Encrypt(ctx, alicePlaintext, bobAddress, aliceStore, aliceStore)
 	assert.NoError(t, err)
 	aliceCiphertextMessageType, err := aliceCiphertext.MessageType()
 	assert.NoError(t, err)
@@ -191,15 +193,16 @@ func TestSessionCipherWithBadStore(t *testing.T) {
 	bobCiphertext, err := libsignalgo.DeserializePreKeyMessage(aliceCiphertextSerialized)
 	assert.NoError(t, err)
 	t.Skip("This test is broken") // TODO fix
-	_, err = libsignalgo.DecryptPreKey(bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore, ctx)
+	_, err = libsignalgo.DecryptPreKey(ctx, bobCiphertext, aliceAddress, bobStore, bobStore, bobStore, bobStore, bobStore)
 	require.Error(t, err)
 	assert.Equal(t, "Test error", err.Error())
 }
 
 func TestSealedSenderEncrypt_Repeated(t *testing.T) {
+	ctx := context.TODO()
+
 	setupLogging()
 
-	ctx := libsignalgo.NewEmptyCallbackContext()
 	aliceAddress, err := libsignalgo.NewUUIDAddressFromString("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
 	assert.NoError(t, err)
 	bobAddress, err := libsignalgo.NewUUIDAddressFromString("6838237D-02F6-4098-B110-698253D15961", 1)
@@ -220,7 +223,7 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 	assert.NoError(t, err)
 	senderAddress := libsignalgo.NewSealedSenderAddress("+14151111111", uuid.MustParse(aliceName), 1)
 
-	aliceIdentityKeyPair, err := aliceStore.GetIdentityKeyPair(ctx.Ctx)
+	aliceIdentityKeyPair, err := aliceStore.GetIdentityKeyPair(ctx)
 	require.NoError(t, err)
 	senderCert, err := libsignalgo.NewSenderCertificate(senderAddress, aliceIdentityKeyPair.GetPublicKey(), time.UnixMilli(31337), serverCert, serverKeys.GetPrivateKey())
 	assert.NoError(t, err)
@@ -233,7 +236,7 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 	}()
 	for i := 0; i < 100; i++ {
 		message := []byte(fmt.Sprintf("%04d vision", i))
-		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(message, bobAddress, senderCert, aliceStore, aliceStore, ctx)
+		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(ctx, message, bobAddress, senderCert, aliceStore, aliceStore)
 		require.NoError(t, err)
 		assert.NotNil(t, ciphertext)
 	}
@@ -241,9 +244,10 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 
 // From SessionTests.swift:testSealedSenderSession
 func TestSealedSenderSession(t *testing.T) {
+	ctx := context.TODO()
+
 	setupLogging()
 
-	ctx := libsignalgo.NewEmptyCallbackContext()
 	aliceAddress, err := libsignalgo.NewUUIDAddressFromString("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
 	assert.NoError(t, err)
 	bobAddress, err := libsignalgo.NewUUIDAddressFromString("6838237D-02F6-4098-B110-698253D15961", 1)
@@ -264,13 +268,13 @@ func TestSealedSenderSession(t *testing.T) {
 	assert.NoError(t, err)
 	senderAddress := libsignalgo.NewSealedSenderAddress("+14151111111", uuid.MustParse(aliceName), 1)
 
-	aliceIdentityKeyPair, err := aliceStore.GetIdentityKeyPair(ctx.Ctx)
+	aliceIdentityKeyPair, err := aliceStore.GetIdentityKeyPair(ctx)
 	require.NoError(t, err)
 	senderCert, err := libsignalgo.NewSenderCertificate(senderAddress, aliceIdentityKeyPair.GetPublicKey(), time.UnixMilli(31337), serverCert, serverKeys.GetPrivateKey())
 	assert.NoError(t, err)
 
 	message := []byte("2020 vision")
-	ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(message, bobAddress, senderCert, aliceStore, aliceStore, ctx)
+	ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(ctx, message, bobAddress, senderCert, aliceStore, aliceStore)
 	require.NoError(t, err)
 	assert.NotNil(t, ciphertext)
 
@@ -281,6 +285,7 @@ func TestSealedSenderSession(t *testing.T) {
 	t.Skip("This test is broken") // TODO fix
 
 	plaintext, err := libsignalgo.SealedSenderDecrypt(
+		ctx,
 		ciphertext,
 		recipientAddress,
 		trustRoot.GetPublicKey(),
@@ -289,7 +294,6 @@ func TestSealedSenderSession(t *testing.T) {
 		bobStore,
 		bobStore,
 		bobStore,
-		ctx,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, message, plaintext.Message)
@@ -297,7 +301,7 @@ func TestSealedSenderSession(t *testing.T) {
 	assert.Equal(t, senderAddress.E164, plaintext.Sender.E164)
 	assert.Equal(t, senderAddress.UUID, plaintext.Sender.UUID)
 
-	innerMessage, err := libsignalgo.Encrypt([]byte{}, bobAddress, aliceStore, aliceStore, ctx)
+	innerMessage, err := libsignalgo.Encrypt(ctx, []byte{}, bobAddress, aliceStore, aliceStore)
 	require.NoError(t, err)
 
 	hints := []libsignalgo.UnidentifiedSenderMessageContentHint{
@@ -316,7 +320,7 @@ func TestSealedSenderSession(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		_, err = libsignalgo.SealedSenderEncrypt(content, bobAddress, aliceStore, ctx)
+		_, err = libsignalgo.SealedSenderEncrypt(ctx, content, bobAddress, aliceStore)
 		require.NoError(t, err)
 
 		// decryptedContent, err := libsignalgo.NewUnidentifiedSenderMessageContent(ciphertext)
@@ -330,8 +334,8 @@ func TestSealedSenderSession(t *testing.T) {
 
 // From SessionTests.swift:testArchiveSession
 func TestArchiveSession(t *testing.T) {
+	ctx := context.TODO()
 	setupLogging()
-	ctx := libsignalgo.NewEmptyCallbackContext()
 
 	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
 	assert.NoError(t, err)
@@ -341,7 +345,7 @@ func TestArchiveSession(t *testing.T) {
 
 	initializeSessions(t, aliceStore, bobStore, bobAddress)
 
-	session, err := aliceStore.LoadSession(bobAddress, ctx.Ctx)
+	session, err := aliceStore.LoadSession(ctx, bobAddress)
 	assert.NoError(t, err)
 	assert.NotNil(t, session)
 
