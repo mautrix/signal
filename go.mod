@@ -13,15 +13,14 @@ require (
 	github.com/rs/zerolog v1.31.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.8.4
+	github.com/tidwall/gjson v1.17.0
 	go.mau.fi/util v0.2.2-0.20231229201527-e01ca03301e9
-	go.mau.fi/webp v0.1.0
 	golang.org/x/crypto v0.17.0
 	golang.org/x/exp v0.0.0-20231226003508-02704c960a9b
-	golang.org/x/image v0.14.0
 	golang.org/x/net v0.19.0
 	google.golang.org/protobuf v1.32.0
 	maunium.net/go/maulogger/v2 v2.4.1
-	maunium.net/go/mautrix v0.16.3-0.20231229201657-a21e5a272625
+	maunium.net/go/mautrix v0.16.3-0.20240103125335-7c45a3d28be2
 	nhooyr.io/websocket v1.8.10
 )
 
@@ -40,7 +39,6 @@ require (
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rs/xid v1.5.0 // indirect
-	github.com/tidwall/gjson v1.17.0 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect

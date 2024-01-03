@@ -316,11 +316,8 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		},
 	}
 	if att.GetBlurHash() != "" {
-		// TODO add field to event.FileInfo instead of using extra
-		extra["info"] = map[string]any{
-			"blurhash":             att.GetBlurHash(),
-			"xyz.amorgan.blurhash": att.GetBlurHash(),
-		}
+		content.Info.Blurhash = att.GetBlurHash()
+		content.Info.AnoaBlurhash = att.GetBlurHash()
 	}
 	switch strings.Split(mimeType, "/")[0] {
 	case "image":

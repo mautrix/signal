@@ -184,12 +184,10 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	att.FileName = &fileName
 	att.Height = maybeInt(uint32(content.Info.Height))
 	att.Width = maybeInt(uint32(content.Info.Width))
-	blurhash, ok := evt.Content.Raw["blurhash"].(string)
-	if !ok {
-		blurhash, ok = evt.Content.Raw["xyz.amorgan.blurhash"].(string)
-	}
-	if ok {
-		att.BlurHash = proto.String(blurhash)
+	if content.Info.Blurhash != "" {
+		att.BlurHash = proto.String(content.Info.Blurhash)
+	} else if content.Info.AnoaBlurhash != "" {
+		att.BlurHash = proto.String(content.Info.AnoaBlurhash)
 	}
 	return att, nil
 }
