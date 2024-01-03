@@ -21,6 +21,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
@@ -36,7 +38,7 @@ const (
 
 type SessionStoreExtras interface {
 	// AllSessionsForUUID returns all sessions for the given UUID.
-	AllSessionsForUUID(theirUuid string, ctx context.Context) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error)
+	AllSessionsForUUID(theirUUID uuid.UUID, ctx context.Context) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error)
 	// RemoveSession removes the session for the given address.
 	RemoveSession(address *libsignalgo.Address, ctx context.Context) error
 	// RemoveAllSessions removes all sessions for our ACI UUID
@@ -65,12 +67,12 @@ func (s *SQLStore) RemoveSession(address *libsignalgo.Address, ctx context.Conte
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(removeSessionQuery, s.AciUuid, theirUuid, deviceId)
+	_, err = s.db.Exec(removeSessionQuery, s.ACI, theirUuid, deviceId)
 	return err
 }
 
-func (s *SQLStore) AllSessionsForUUID(theirUuid string, ctx context.Context) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error) {
-	rows, err := s.db.Query(allSessionsQuery, s.AciUuid, theirUuid)
+func (s *SQLStore) AllSessionsForUUID(theirUUID uuid.UUID, ctx context.Context) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error) {
+	rows, err := s.db.Query(allSessionsQuery, s.ACI, theirUUID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -83,7 +85,7 @@ func (s *SQLStore) AllSessionsForUUID(theirUuid string, ctx context.Context) ([]
 			return nil, nil, err
 		}
 		records = append(records, record)
-		address, err := libsignalgo.NewAddress(theirUuid, uint(deviceId))
+		address, err := libsignalgo.NewUUIDAddress(theirUUID, uint(deviceId))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -101,7 +103,7 @@ func (s *SQLStore) LoadSession(address *libsignalgo.Address, ctx context.Context
 	if err != nil {
 		return nil, err
 	}
-	_, record, err := scanRecord(s.db.QueryRow(loadSessionQuery, s.AciUuid, theirUuid, deviceId))
+	_, record, err := scanRecord(s.db.QueryRow(loadSessionQuery, s.ACI, theirUuid, deviceId))
 	return record, err
 }
 
@@ -123,7 +125,7 @@ func (s *SQLStore) StoreSession(address *libsignalgo.Address, record *libsignalg
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec(storeSessionQuery, s.AciUuid, theirUuid, deviceId, serialized)
+	_, err = tx.Exec(storeSessionQuery, s.ACI, theirUuid, deviceId, serialized)
 	if err != nil {
 		_ = tx.Rollback()
 		return err
@@ -133,6 +135,6 @@ func (s *SQLStore) StoreSession(address *libsignalgo.Address, record *libsignalg
 }
 
 func (s *SQLStore) RemoveAllSessions(ctx context.Context) error {
-	_, err := s.db.Exec("DELETE FROM signalmeow_sessions WHERE our_aci_uuid=$1", s.AciUuid)
+	_, err := s.db.Exec("DELETE FROM signalmeow_sessions WHERE our_aci_uuid=$1", s.ACI)
 	return err
 }

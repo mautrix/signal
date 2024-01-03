@@ -121,9 +121,9 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 // From SessionTests.swift:testSessionCipher
 func TestSessionCipher(t *testing.T) {
 	ctx := libsignalgo.NewEmptyCallbackContext()
-	aliceAddress, err := libsignalgo.NewAddress("+14151111111", 1)
+	aliceAddress, err := libsignalgo.NewPhoneAddress("+14151111111", 1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewAddress("+14151111112", 1)
+	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -168,9 +168,9 @@ func TestSessionCipher(t *testing.T) {
 // From SessionTests.swift:testSessionCipherWithBadStore
 func TestSessionCipherWithBadStore(t *testing.T) {
 	ctx := libsignalgo.NewEmptyCallbackContext()
-	aliceAddress, err := libsignalgo.NewAddress("+14151111111", 1)
+	aliceAddress, err := libsignalgo.NewPhoneAddress("+14151111111", 1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewAddress("+14151111112", 1)
+	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -200,9 +200,9 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 	setupLogging()
 
 	ctx := libsignalgo.NewEmptyCallbackContext()
-	aliceAddress, err := libsignalgo.NewAddress("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
+	aliceAddress, err := libsignalgo.NewUUIDAddressFromString("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewAddress("6838237D-02F6-4098-B110-698253D15961", 1)
+	bobAddress, err := libsignalgo.NewUUIDAddressFromString("6838237D-02F6-4098-B110-698253D15961", 1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -244,9 +244,9 @@ func TestSealedSenderSession(t *testing.T) {
 	setupLogging()
 
 	ctx := libsignalgo.NewEmptyCallbackContext()
-	aliceAddress, err := libsignalgo.NewAddress("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
+	aliceAddress, err := libsignalgo.NewUUIDAddressFromString("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewAddress("6838237D-02F6-4098-B110-698253D15961", 1)
+	bobAddress, err := libsignalgo.NewUUIDAddressFromString("6838237D-02F6-4098-B110-698253D15961", 1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -333,7 +333,7 @@ func TestArchiveSession(t *testing.T) {
 	setupLogging()
 	ctx := libsignalgo.NewEmptyCallbackContext()
 
-	bobAddress, err := libsignalgo.NewAddress("+14151111112", 1)
+	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -383,9 +383,9 @@ func TestSealedSenderGroupCipher(t *testing.T) {
 	setupLogging()
 	ctx := libsignalgo.NewEmptyCallbackContext()
 
-	aliceAddress, err := libsignalgo.NewAddress("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
+	aliceAddress, err := libsignalgo.NewUUIDAddressFromString("9d0652a3-dcc3-4d11-975f-74d61598733f", 1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewAddress("6838237D-02F6-4098-B110-698253D15961", 1)
+	bobAddress, err := libsignalgo.NewUUIDAddressFromString("6838237D-02F6-4098-B110-698253D15961", 1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()

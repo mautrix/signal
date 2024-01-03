@@ -28,7 +28,7 @@ import (
 // From PublicAPITests.swift:testGroupCipher
 func TestGroupCipher(t *testing.T) {
 	ctx := libsignalgo.NewEmptyCallbackContext()
-	sender, err := libsignalgo.NewAddress("+14159999111", 4)
+	sender, err := libsignalgo.NewPhoneAddress("+14159999111", 4)
 	assert.NoError(t, err)
 
 	distributionID, err := uuid.Parse("d1d1d1d1-7000-11eb-b32a-33b8a8a487a6")

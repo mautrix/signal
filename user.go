@@ -576,7 +576,7 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 		return nil
 	}
 
-	device, err := user.bridge.MeowStore.DeviceByAci(user.SignalID.String())
+	device, err := user.bridge.MeowStore.DeviceByACI(user.SignalID)
 	if err != nil {
 		log.Err(err).Msg("problem looking up ACI")
 		return nil
@@ -695,15 +695,10 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		return err
 	}
 	for _, member := range group.Members {
-		parsedUserID, err := uuid.Parse(member.UserID)
-		if err != nil {
-			// TODO log?
+		if member.UserID == user.SignalID {
 			continue
 		}
-		if parsedUserID == user.SignalID {
-			continue
-		}
-		memberPuppet := portal.bridge.GetPuppetBySignalID(parsedUserID)
+		memberPuppet := portal.bridge.GetPuppetBySignalID(member.UserID)
 		if memberPuppet == nil {
 			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserID)
 			continue

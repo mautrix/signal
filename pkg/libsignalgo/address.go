@@ -38,7 +38,24 @@ func wrapAddress(ptr *C.SignalProtocolAddress) *Address {
 	return address
 }
 
-func NewAddress(name string, deviceID uint) (*Address, error) {
+func NewUUIDAddress(u uuid.UUID, deviceID uint) (*Address, error) {
+	return newAddress(u.String(), deviceID)
+}
+
+func NewUUIDAddressFromString(uuidStr string, deviceID uint) (*Address, error) {
+	parsed, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return nil, err
+	}
+	return NewUUIDAddress(parsed, deviceID)
+}
+
+// Deprecated: phone addresses are not used anymore
+func NewPhoneAddress(phone string, deviceID uint) (*Address, error) {
+	return newAddress(phone, deviceID)
+}
+
+func newAddress(name string, deviceID uint) (*Address, error) {
 	var pa *C.SignalProtocolAddress
 	signalFfiError := C.signal_address_new(&pa, C.CString(name), C.uint(deviceID))
 	if signalFfiError != nil {

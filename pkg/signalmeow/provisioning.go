@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/protobuf/proto"
 	"nhooyr.io/websocket"
 
@@ -38,21 +39,9 @@ import (
 )
 
 type ConfirmDeviceResponse struct {
-	Uuid     string `json:"uuid"`
-	Pni      string `json:"pni,omitempty"`
-	DeviceId int    `json:"deviceId"`
-}
-
-type ProvisioningData struct {
-	AciIdentityKeyPair *libsignalgo.IdentityKeyPair
-	PniIdentityKeyPair *libsignalgo.IdentityKeyPair
-	RegistrationId     int
-	PniRegistrationId  int
-	AciUuid            string
-	PniUuid            string
-	DeviceId           int
-	Number             string
-	Password           string
+	ACI      uuid.UUID `json:"uuid"`
+	PNI      uuid.UUID `json:"pni,omitempty"`
+	DeviceID int       `json:"deviceId"`
 }
 
 type ProvisioningState int
@@ -82,7 +71,7 @@ func (s ProvisioningState) String() string {
 // Enum for the provisioningUrl, ProvisioningMessage, and error
 type ProvisioningResponse struct {
 	State            ProvisioningState
-	ProvisioningUrl  string
+	ProvisioningURL  string
 	ProvisioningData *DeviceData
 	Err              error
 }
@@ -109,7 +98,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
-		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningUrl: provisioningUrl, Err: err}
+		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningURL: provisioningUrl, Err: err}
 
 		provisioningMessage, err := continueProvisioning(ctx, ws, provisioningCipher)
 		if err != nil {
@@ -132,10 +121,10 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		code := provisioningMessage.ProvisioningCode
 		registrationId := mrand.Intn(16383) + 1
 		pniRegistrationId := mrand.Intn(16383) + 1
-		aciSignedPreKey := GenerateSignedPreKey(1, UUID_KIND_ACI, aciIdentityKeyPair)
-		pniSignedPreKey := GenerateSignedPreKey(2, UUID_KIND_PNI, pniIdentityKeyPair)
-		aciPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUID_KIND_ACI, aciIdentityKeyPair)
-		pniPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUID_KIND_PNI, pniIdentityKeyPair)
+		aciSignedPreKey := GenerateSignedPreKey(1, UUIDKindACI, aciIdentityKeyPair)
+		pniSignedPreKey := GenerateSignedPreKey(2, UUIDKindPNI, pniIdentityKeyPair)
+		aciPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUIDKindACI, aciIdentityKeyPair)
+		pniPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, UUIDKindPNI, pniIdentityKeyPair)
 		aciPQLastResortPreKey := aciPQLastResortPreKeys[0]
 		pniPQLastResortPreKey := pniPQLastResortPreKeys[0]
 		deviceResponse, err := confirmDevice(
@@ -159,18 +148,18 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		}
 
 		deviceId := 1
-		if deviceResponse.DeviceId != 0 {
-			deviceId = deviceResponse.DeviceId
+		if deviceResponse.DeviceID != 0 {
+			deviceId = deviceResponse.DeviceID
 		}
 
 		data := &DeviceData{
-			AciIdentityKeyPair: aciIdentityKeyPair,
-			PniIdentityKeyPair: pniIdentityKeyPair,
-			RegistrationId:     registrationId,
-			PniRegistrationId:  pniRegistrationId,
-			AciUuid:            deviceResponse.Uuid,
-			PniUuid:            deviceResponse.Pni,
-			DeviceId:           deviceId,
+			ACIIdentityKeyPair: aciIdentityKeyPair,
+			PNIIdentityKeyPair: pniIdentityKeyPair,
+			RegistrationID:     registrationId,
+			PNIRegistrationID:  pniRegistrationId,
+			ACI:                deviceResponse.ACI,
+			PNI:                deviceResponse.PNI,
+			DeviceID:           deviceId,
 			Number:             *provisioningMessage.Number,
 			Password:           password,
 		}
@@ -183,7 +172,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 			return
 		}
 
-		device, err := deviceStore.DeviceByAci(data.AciUuid)
+		device, err := deviceStore.DeviceByACI(data.ACI)
 		if err != nil {
 			zlog.Err(err).Msg("error retrieving new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -194,8 +183,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		device.ClearDeviceKeys()
 
 		// Store identity keys?
-		address, err := libsignalgo.NewAddress(device.Data.AciUuid, uint(device.Data.DeviceId))
-		_, err = device.IdentityStore.SaveIdentityKey(address, device.Data.AciIdentityKeyPair.GetIdentityKey(), ctx)
+		address, err := libsignalgo.NewUUIDAddress(device.Data.ACI, uint(device.Data.DeviceID))
+		_, err = device.IdentityStore.SaveIdentityKey(address, device.Data.ACIIdentityKeyPair.GetIdentityKey(), ctx)
 		if err != nil {
 			zlog.Err(err).Msg("error saving identity key")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -203,13 +192,13 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		}
 
 		// Store signed prekeys (now that we have a device)
-		StoreSignedPreKey(device, aciSignedPreKey, UUID_KIND_ACI)
-		StoreSignedPreKey(device, pniSignedPreKey, UUID_KIND_PNI)
-		StoreKyberLastResortPreKey(device, aciPQLastResortPreKey, UUID_KIND_ACI)
-		StoreKyberLastResortPreKey(device, pniPQLastResortPreKey, UUID_KIND_PNI)
+		StoreSignedPreKey(device, aciSignedPreKey, UUIDKindACI)
+		StoreSignedPreKey(device, pniSignedPreKey, UUIDKindPNI)
+		StoreKyberLastResortPreKey(device, aciPQLastResortPreKey, UUIDKindACI)
+		StoreKyberLastResortPreKey(device, pniPQLastResortPreKey, UUIDKindPNI)
 
 		// Store our profile key
-		err = device.ProfileKeyStore.StoreProfileKey(data.AciUuid, profileKey, ctx)
+		err = device.ProfileKeyStore.StoreProfileKey(data.ACI, profileKey, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("error storing profile key")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -220,8 +209,8 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore DeviceStore, d
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 
 		// Generate, store, and register prekeys
-		err = GenerateAndRegisterPreKeys(device, UUID_KIND_ACI)
-		err = GenerateAndRegisterPreKeys(device, UUID_KIND_PNI)
+		err = GenerateAndRegisterPreKeys(device, UUIDKindACI)
+		err = GenerateAndRegisterPreKeys(device, UUIDKindPNI)
 
 		if err != nil {
 			zlog.Err(err).Msg("error generating and registering prekeys")

@@ -60,7 +60,7 @@ func scanIdentityKey(row scannable) (*libsignalgo.IdentityKey, error) {
 }
 
 func (s *SQLStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
-	keyPair, err := scanIdentityKeyPair(s.db.QueryRow(getIdentityKeyPairQuery, s.AciUuid))
+	keyPair, err := scanIdentityKeyPair(s.db.QueryRow(getIdentityKeyPairQuery, s.ACI))
 	if err != nil {
 		err = fmt.Errorf("failed to get identity key pair: %w", err)
 		zlog.Error().Err(err).Msg("")
@@ -73,7 +73,7 @@ func (s *SQLStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.Identit
 
 func (s *SQLStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
 	var regID sql.NullInt64
-	err := s.db.QueryRow(getRegistrationLocalIDQuery, s.AciUuid).Scan(&regID)
+	err := s.db.QueryRow(getRegistrationLocalIDQuery, s.ACI).Scan(&regID)
 	if err != nil {
 		err = fmt.Errorf("failed to get local registration ID: %w", err)
 		zlog.Error().Err(err).Msg("")
@@ -99,7 +99,7 @@ func (s *SQLStore) SaveIdentityKey(address *libsignalgo.Address, identityKey *li
 		zlog.Err(err).Msg("error getting deviceId")
 		return false, err
 	}
-	oldKey, err := scanIdentityKey(s.db.QueryRow(getIdentityKeyQuery, s.AciUuid, theirUuid, deviceId))
+	oldKey, err := scanIdentityKey(s.db.QueryRow(getIdentityKeyQuery, s.ACI, theirUuid, deviceId))
 	if err != nil {
 		zlog.Err(err).Msg("error getting old identity key")
 	}
@@ -112,7 +112,7 @@ func (s *SQLStore) SaveIdentityKey(address *libsignalgo.Address, identityKey *li
 		// We are replacing the old key iff the old key exists and it is not equal to the new key
 		replacing = !equal
 	}
-	_, err = s.db.Exec(insertIdentityKeyQuery, s.AciUuid, theirUuid, deviceId, serialized, trustLevel)
+	_, err = s.db.Exec(insertIdentityKeyQuery, s.ACI, theirUuid, deviceId, serialized, trustLevel)
 	if err != nil {
 		zlog.Err(err).Msg("error inserting identity")
 	}
@@ -138,7 +138,7 @@ func (s *SQLStore) IsTrustedIdentity(
 		return false, err
 	}
 	var trustLevel string
-	err = s.db.QueryRow(getIdentityKeyTrustLevelQuery, s.AciUuid, theirUuid, deviceId).Scan(&trustLevel)
+	err = s.db.QueryRow(getIdentityKeyTrustLevelQuery, s.ACI, theirUuid, deviceId).Scan(&trustLevel)
 	// If no rows, they are a new identity, so trust by default
 	if errors.Is(err, sql.ErrNoRows) {
 		zlog.Info().Msg("no rows, TRUSTING BY DEFAULT")
@@ -166,7 +166,7 @@ func (s *SQLStore) GetIdentityKey(address *libsignalgo.Address, ctx context.Cont
 		zlog.Err(err).Msg("error getting deviceId")
 		return nil, err
 	}
-	key, err := scanIdentityKey(s.db.QueryRow(getIdentityKeyQuery, s.AciUuid, theirUuid, deviceId))
+	key, err := scanIdentityKey(s.db.QueryRow(getIdentityKeyQuery, s.ACI, theirUuid, deviceId))
 	if err != nil {
 		zlog.Err(err).Msg("error getting identity key")
 		return nil, err

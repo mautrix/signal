@@ -44,7 +44,7 @@ func aes256CTR(key, iv, dst, source []byte) {
 }
 
 func (d *Device) UpdateDeviceName(name string) error {
-	encryptedName, err := EncryptDeviceName(name, d.Data.AciIdentityKeyPair.GetPublicKey())
+	encryptedName, err := EncryptDeviceName(name, d.Data.ACIIdentityKeyPair.GetPublicKey())
 	if err != nil {
 		return fmt.Errorf("failed to encrypt device name: %w", err)
 	}

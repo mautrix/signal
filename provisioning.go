@@ -426,12 +426,12 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		log.Debug().Str("provisioning_url", resp.ProvisioningUrl).Msg("provisioning URL received")
+		log.Debug().Str("provisioning_url", resp.ProvisioningURL).Msg("provisioning URL received")
 		jsonResponse(w, http.StatusOK, Response{
 			Success:   true,
 			Status:    "provisioning_url_received",
 			SessionID: fmt.Sprintf("%d", handle.id),
-			URI:       resp.ProvisioningUrl,
+			URI:       resp.ProvisioningURL,
 		})
 	case <-time.After(30 * time.Second):
 		log.Warn().Msg("Timeout waiting for provisioning response (new)")
@@ -518,9 +518,8 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 		})
 
 		// Update user with SignalID
-		if resp.ProvisioningData.AciUuid != "" {
-			user.SignalID, err = uuid.Parse(resp.ProvisioningData.AciUuid)
-			// TODO handle err
+		if resp.ProvisioningData.ACI != uuid.Nil {
+			user.SignalID = resp.ProvisioningData.ACI
 			user.SignalUsername = resp.ProvisioningData.Number
 			err = user.Update(r.Context())
 			if err != nil {

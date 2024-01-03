@@ -295,8 +295,8 @@ func fnLogin(ce *WrappedCommandEvent) {
 	//}
 
 	var qrEventID id.EventID
-	var signalID string
-	var signalUsername string
+	var signalID uuid.UUID
+	var signalPhone string
 
 	// First get the provisioning URL
 	provChan, err := ce.User.Login()
@@ -312,7 +312,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 		return
 	}
 	if resp.State == signalmeow.StateProvisioningURLReceived {
-		qrEventID = ce.User.sendQR(ce, resp.ProvisioningUrl, qrEventID)
+		qrEventID = ce.User.sendQR(ce, resp.ProvisioningURL, qrEventID)
 	} else {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return
@@ -330,10 +330,10 @@ func fnLogin(ce *WrappedCommandEvent) {
 		return
 	}
 	if resp.State == signalmeow.StateProvisioningDataReceived {
-		signalID = resp.ProvisioningData.AciUuid
-		signalUsername = resp.ProvisioningData.Number
+		signalID = resp.ProvisioningData.ACI
+		signalPhone = resp.ProvisioningData.Number
 		ce.Reply("Successfully logged in!")
-		ce.Reply("ACI: %v, Phone Number: %v", resp.ProvisioningData.AciUuid, resp.ProvisioningData.Number)
+		ce.Reply("ACI: %v, Phone Number: %v", resp.ProvisioningData.ACI, resp.ProvisioningData.Number)
 	} else {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return
@@ -353,13 +353,9 @@ func fnLogin(ce *WrappedCommandEvent) {
 	}
 
 	// Update user with SignalID
-	if signalID != "" {
-		ce.User.SignalID, err = uuid.Parse(signalID)
-		if err != nil {
-			ce.Reply("Problem logging in - SignalID is not a valid UUID")
-			return
-		}
-		ce.User.SignalUsername = signalUsername
+	if signalID != uuid.Nil {
+		ce.User.SignalID = signalID
+		ce.User.SignalUsername = signalPhone
 	} else {
 		ce.Reply("Problem logging in - No SignalID received")
 		return

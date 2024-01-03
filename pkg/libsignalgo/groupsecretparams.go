@@ -117,7 +117,7 @@ func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error
 	return CopySignalOwnedBufferToBytes(plaintext), nil
 }
 
-func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*uuid.UUID, error) {
+func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (uuid.UUID, error) {
 	u := C.SignalServiceIdFixedWidthBinaryBytes{}
 	signalFfiError := C.signal_group_secret_params_decrypt_service_id(
 		&u,
@@ -127,14 +127,14 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (*uuid.
 	runtime.KeepAlive(gsp)
 	runtime.KeepAlive(ciphertextUUID)
 	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
+		return uuid.Nil, wrapError(signalFfiError)
 	}
 
 	result, err := SignalServiceIDToUUID(&u)
 	if err != nil {
-		return nil, err
+		return uuid.Nil, err
 	}
-	return &result, nil
+	return result, nil
 }
 
 func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, u uuid.UUID) (*ProfileKey, error) {

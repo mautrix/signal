@@ -50,7 +50,7 @@ func scanGroup(row scannable) (*dbGroup, error) {
 
 func (s *SQLStore) MasterKeyFromGroupIdentifier(groupIdentifier types.GroupIdentifier, ctx context.Context) (SerializedGroupMasterKey, error) {
 	loadGroupQuery := `SELECT our_aci_uuid, group_identifier, master_key FROM signalmeow_groups WHERE our_aci_uuid=$1 AND group_identifier=$2`
-	g, err := scanGroup(s.db.QueryRow(loadGroupQuery, s.AciUuid, groupIdentifier))
+	g, err := scanGroup(s.db.QueryRow(loadGroupQuery, s.ACI, groupIdentifier))
 	if err != nil {
 		return "", err
 	}
@@ -74,7 +74,7 @@ func (s *SQLStore) StoreMasterKey(groupIdentifier types.GroupIdentifier, key Ser
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec(storeMasterKeyQuery, s.AciUuid, groupIdentifier, key)
+	_, err = tx.Exec(storeMasterKeyQuery, s.ACI, groupIdentifier, key)
 	if err != nil {
 		tx.Rollback()
 		return err

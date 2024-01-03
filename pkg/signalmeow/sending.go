@@ -144,7 +144,7 @@ func checkForErrorWithSessions(err error, addresses []*libsignalgo.Address, sess
 }
 
 func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
-	addresses, _, err := d.SessionStoreExtras.AllSessionsForUUID(d.Data.AciUuid, ctx)
+	addresses, _, err := d.SessionStoreExtras.AllSessionsForUUID(d.Data.ACI, ctx)
 	if err != nil {
 		return 0
 	}
@@ -156,25 +156,25 @@ func howManyOtherDevicesDoWeHave(ctx context.Context, d *Device) int {
 			zlog.Err(err).Msg("Error getting deviceID from address")
 			continue
 		}
-		if deviceID != uint(d.Data.DeviceId) {
+		if deviceID != uint(d.Data.DeviceID) {
 			otherDevices++
 		}
 	}
 	return otherDevices
 }
 
-func buildMessagesToSend(ctx context.Context, d *Device, recipientUuid string, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
+func buildMessagesToSend(ctx context.Context, d *Device, recipientUUID uuid.UUID, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
 	// We need to prevent multiple encryption operations from happening at once, or else ratchets can race
 	d.Connection.EncryptionMutex.Lock()
 	defer d.Connection.EncryptionMutex.Unlock()
 
 	messages := []MyMessage{}
 
-	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
+	addresses, sessionRecords, err := d.SessionStoreExtras.AllSessionsForUUID(recipientUUID, ctx)
 	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
 		// No sessions, make one with prekey
-		FetchAndProcessPreKey(ctx, d, recipientUuid, -1)
-		addresses, sessionRecords, err = d.SessionStoreExtras.AllSessionsForUUID(recipientUuid, ctx)
+		FetchAndProcessPreKey(ctx, d, recipientUUID, -1)
+		addresses, sessionRecords, err = d.SessionStoreExtras.AllSessionsForUUID(recipientUUID, ctx)
 	}
 	err = checkForErrorWithSessions(err, addresses, sessionRecords)
 	if err != nil {
@@ -188,8 +188,8 @@ func buildMessagesToSend(ctx context.Context, d *Device, recipientUuid string, c
 		}
 
 		// Don't send to this device that we are sending from
-		if recipientUuid == d.Data.AciUuid && recipientDeviceID == uint(d.Data.DeviceId) {
-			zlog.Debug().Msgf("Not sending to the device I'm sending from (%v:%v)", recipientUuid, recipientDeviceID)
+		if recipientUUID == d.Data.ACI && recipientDeviceID == uint(d.Data.DeviceID) {
+			zlog.Debug().Msgf("Not sending to the device I'm sending from (%v:%v)", recipientUUID, recipientDeviceID)
 			continue
 		}
 
@@ -269,11 +269,11 @@ func buildSSMessageToSend(ctx context.Context, d *Device, recipientAddress *libs
 }
 
 type SuccessfulSendResult struct {
-	RecipientUuid string
+	RecipientUUID uuid.UUID
 	Unidentified  bool
 }
 type FailedSendResult struct {
-	RecipientUuid string
+	RecipientUUID uuid.UUID
 	Error         error
 }
 type SendMessageResult struct {
@@ -295,7 +295,7 @@ func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationServiceId: &result.RecipientUuid,
+			DestinationServiceId: proto.String(result.RecipientUUID.String()),
 			Unidentified:         &result.Unidentified,
 		})
 	}
@@ -313,7 +313,7 @@ func syncMessageFromGroupEditMessage(editMessage *signalpb.EditMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationServiceId: &result.RecipientUuid,
+			DestinationServiceId: proto.String(result.RecipientUUID.String()),
 			Unidentified:         &result.Unidentified,
 		})
 	}
@@ -333,11 +333,11 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				Message:              dataMessage,
-				DestinationServiceId: &result.RecipientUuid,
+				DestinationServiceId: proto.String(result.RecipientUUID.String()),
 				Timestamp:            dataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId: &result.RecipientUuid,
+						DestinationServiceId: proto.String(result.RecipientUUID.String()),
 						Unidentified:         &result.Unidentified,
 					},
 				},
@@ -351,11 +351,11 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				EditMessage:          editMessage,
-				DestinationServiceId: &result.RecipientUuid,
+				DestinationServiceId: proto.String(result.RecipientUUID.String()),
 				Timestamp:            editMessage.DataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId: &result.RecipientUuid,
+						DestinationServiceId: proto.String(result.RecipientUUID.String()),
 						Unidentified:         &result.Unidentified,
 					},
 				},
@@ -374,7 +374,7 @@ func syncMessageForContactRequest() *signalpb.Content {
 	}
 }
 
-func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, messageSender string) *signalpb.Content {
+func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, messageSender uuid.UUID) *signalpb.Content {
 	if *receiptMessage.Type != signalpb.ReceiptMessage_READ {
 		zlog.Warn().Msgf("syncMessageFromReadReceiptMessage called with non-read receipt message: %v", receiptMessage.Type)
 		return nil
@@ -383,7 +383,7 @@ func syncMessageFromReadReceiptMessage(receiptMessage *signalpb.ReceiptMessage, 
 	for _, timestamp := range receiptMessage.Timestamp {
 		read = append(read, &signalpb.SyncMessage_Read{
 			Timestamp: proto.Uint64(timestamp),
-			SenderAci: &messageSender,
+			SenderAci: proto.String(messageSender.String()),
 		})
 	}
 	return &signalpb.Content{
@@ -403,7 +403,7 @@ func SendContactSyncRequest(ctx context.Context, d *Device) error {
 	}
 
 	groupRequest := syncMessageForContactRequest()
-	_, err := sendContent(ctx, d, d.Data.AciUuid, uint64(currentUnixTime), groupRequest, 0)
+	_, err := sendContent(ctx, d, d.Data.ACI, uint64(currentUnixTime), groupRequest, 0)
 	if err != nil {
 		zlog.Err(err).Msg("Failed to send contact sync request message to myself (%v)")
 		return err
@@ -504,20 +504,20 @@ func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdenti
 		FailedToSendTo:     []FailedSendResult{},
 	}
 	for _, member := range group.Members {
-		if member.UserID == device.Data.AciUuid {
+		if member.UserID == device.Data.ACI {
 			// Don't send normal DataMessages to ourselves
 			continue
 		}
 		sentUnidentified, err := sendContent(ctx, device, member.UserID, messageTimestamp, content, 0)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
-				RecipientUuid: member.UserID,
+				RecipientUUID: member.UserID,
 				Error:         err,
 			})
 			zlog.Err(err).Msgf("Failed to send to %v", member.UserID)
 		} else {
 			result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
-				RecipientUuid: member.UserID,
+				RecipientUUID: member.UserID,
 				Unidentified:  sentUnidentified,
 			})
 			zlog.Trace().Msgf("Successfully sent to %v", member.UserID)
@@ -532,7 +532,7 @@ func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdenti
 		} else if content.GetEditMessage() != nil {
 			syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
 		}
-		_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+		_, selfSendErr := sendContent(ctx, device, device.Data.ACI, messageTimestamp, syncContent, 0)
 		if selfSendErr != nil {
 			zlog.Err(selfSendErr).Msg("Failed to send sync message to myself (%v)")
 		}
@@ -549,7 +549,7 @@ func SendGroupMessage(ctx context.Context, device *Device, gid types.GroupIdenti
 	return result, nil
 }
 
-func SendMessage(ctx context.Context, device *Device, recipientID string, content *signalpb.Content) SendMessageResult {
+func SendMessage(ctx context.Context, device *Device, recipientID uuid.UUID, content *signalpb.Content) SendMessageResult {
 	// Assemble the content to send
 	var messageTimestamp uint64
 	if content.GetDataMessage() != nil {
@@ -566,7 +566,7 @@ func SendMessage(ctx context.Context, device *Device, recipientID string, conten
 		return SendMessageResult{
 			WasSuccessful: false,
 			FailedSendResult: &FailedSendResult{
-				RecipientUuid: recipientID,
+				RecipientUUID: recipientID,
 				Error:         err,
 			},
 		}
@@ -574,7 +574,7 @@ func SendMessage(ctx context.Context, device *Device, recipientID string, conten
 	result := SendMessageResult{
 		WasSuccessful: true,
 		SuccessfulSendResult: &SuccessfulSendResult{
-			RecipientUuid: recipientID,
+			RecipientUUID: recipientID,
 			Unidentified:  sentUnidentified,
 		},
 	}
@@ -582,7 +582,7 @@ func SendMessage(ctx context.Context, device *Device, recipientID string, conten
 	// TODO: don't fetch every time
 	// (But for now this makes sure we know about all our other devices)
 	// ((Actually I don't think this is necessary?))
-	//FetchAndProcessPreKey(ctx, device, device.Data.AciUuid, -1)
+	//FetchAndProcessPreKey(ctx, device, device.Data.ACI, -1)
 
 	// If we have other devices, send Sync messages to them too
 	if howManyOtherDevicesDoWeHave(ctx, device) > 0 {
@@ -595,7 +595,7 @@ func SendMessage(ctx context.Context, device *Device, recipientID string, conten
 			syncContent = syncMessageFromReadReceiptMessage(content.ReceiptMessage, recipientID)
 		}
 		if syncContent != nil {
-			_, selfSendErr := sendContent(ctx, device, device.Data.AciUuid, messageTimestamp, syncContent, 0)
+			_, selfSendErr := sendContent(ctx, device, device.Data.ACI, messageTimestamp, syncContent, 0)
 			if selfSendErr != nil {
 				zlog.Err(selfSendErr).Msg("Failed to send sync message to myself")
 			}
@@ -611,7 +611,7 @@ func currentMessageTimestamp() uint64 {
 func sendContent(
 	ctx context.Context,
 	d *Device,
-	recipientUuid string,
+	recipientUUID uuid.UUID,
 	messageTimestamp uint64,
 	content *signalpb.Content,
 	retryCount int, // For ending recursive retries
@@ -621,7 +621,7 @@ func sendContent(
 
 	// If it's a data message, add our profile key
 	if content.DataMessage != nil {
-		profileKey, err := ProfileKeyForSignalID(ctx, d, d.Data.AciUuid)
+		profileKey, err := ProfileKeyForSignalID(ctx, d, d.Data.ACI)
 		if err != nil {
 			zlog.Err(err).Msg("Error getting profile key, not adding to outgoing message")
 		} else {
@@ -637,10 +637,10 @@ func sendContent(
 
 	useUnidentifiedSender := true
 	// Don't use unauthed websocket to send a payload to my own other devices
-	if recipientUuid == d.Data.AciUuid {
+	if recipientUUID == d.Data.ACI {
 		useUnidentifiedSender = false
 	}
-	profileKey, err := ProfileKeyForSignalID(ctx, d, recipientUuid)
+	profileKey, err := ProfileKeyForSignalID(ctx, d, recipientUUID)
 	if err != nil || profileKey == nil {
 		zlog.Err(err).Msg("Error getting profile key")
 		useUnidentifiedSender = false
@@ -664,7 +664,7 @@ func sendContent(
 
 	// Encrypt messages
 	var messages []MyMessage
-	messages, err = buildMessagesToSend(ctx, d, recipientUuid, content, useUnidentifiedSender)
+	messages, err = buildMessagesToSend(ctx, d, recipientUUID, content, useUnidentifiedSender)
 	if err != nil {
 		zlog.Err(err).Msg("Error building messages to send")
 		return false, err
@@ -680,24 +680,24 @@ func sendContent(
 	if err != nil {
 		return false, err
 	}
-	path := fmt.Sprintf("/v1/messages/%v", recipientUuid)
+	path := fmt.Sprintf("/v1/messages/%v", recipientUUID)
 	request := web.CreateWSRequest(http.MethodPut, path, jsonBytes, nil, nil)
 
 	var response *signalpb.WebSocketResponseMessage
 	if useUnidentifiedSender {
-		zlog.Trace().Msgf("Sending message to %v over unidentified WS", recipientUuid)
+		zlog.Trace().Msgf("Sending message to %v over unidentified WS", recipientUUID)
 		base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 		request.Headers = append(request.Headers, "unidentified-access-key:"+base64AccessKey)
 		response, err = d.Connection.UnauthedWS.SendRequest(ctx, request)
 	} else {
-		zlog.Trace().Msgf("Sending message to %v over authed WS", recipientUuid)
+		zlog.Trace().Msgf("Sending message to %v over authed WS", recipientUUID)
 		response, err = d.Connection.AuthedWS.SendRequest(ctx, request)
 	}
 	sentUnidentified = useUnidentifiedSender
 	if err != nil {
 		return sentUnidentified, err
 	}
-	zlog.Trace().Msgf("Received a response to a message send from: %v, id: %v, code: %v", recipientUuid, *response.Id, *response.Status)
+	zlog.Trace().Msgf("Received a response to a message send from: %v, id: %v, code: %v", recipientUUID, *response.Id, *response.Status)
 
 	retryableStatuses := []uint32{409, 410, 428, 500, 503}
 
@@ -713,17 +713,17 @@ func sendContent(
 	if needToRetry {
 		var err error
 		if *response.Status == 409 {
-			err = handle409(ctx, d, recipientUuid, response)
+			err = handle409(ctx, d, recipientUUID, response)
 		} else if *response.Status == 410 {
-			err = handle410(ctx, d, recipientUuid, response)
+			err = handle410(ctx, d, recipientUUID, response)
 		} else if *response.Status == 428 {
-			err = handle428(ctx, d, recipientUuid, response)
+			err = handle428(ctx, d, recipientUUID, response)
 		}
 		if err != nil {
 			return false, err
 		}
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = sendContent(ctx, d, recipientUuid, messageTimestamp, content, retryCount+1)
+		sentUnidentified, err = sendContent(ctx, d, recipientUUID, messageTimestamp, content, retryCount+1)
 		if err != nil {
 			zlog.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
@@ -738,7 +738,7 @@ func sendContent(
 }
 
 // A 409 means our device list was out of date, so we will fix it up
-func handle409(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
+func handle409(ctx context.Context, device *Device, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
 	// Decode json body
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
@@ -752,7 +752,7 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 		zlog.Debug().Msgf("missing devices found in 409 response: %v", missingDevices)
 		// TODO: establish session with missing devices
 		for _, missingDevice := range missingDevices {
-			FetchAndProcessPreKey(ctx, device, recipientUuid, int(missingDevice.(float64)))
+			FetchAndProcessPreKey(ctx, device, recipientUUID, int(missingDevice.(float64)))
 		}
 	}
 	if body["extraDevices"] != nil {
@@ -760,8 +760,8 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 		zlog.Debug().Msgf("extra devices found in 409 response: %v", extraDevices)
 		for _, extraDevice := range extraDevices {
 			// Remove extra device from the sessionstore
-			recipient, err := libsignalgo.NewAddress(
-				recipientUuid,
+			recipient, err := libsignalgo.NewUUIDAddress(
+				recipientUUID,
 				uint(extraDevice.(float64)),
 			)
 			if err != nil {
@@ -779,7 +779,7 @@ func handle409(ctx context.Context, device *Device, recipientUuid string, respon
 }
 
 // A 410 means we have a stale device, so get rid of it
-func handle410(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
+func handle410(ctx context.Context, device *Device, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
 	// Decode json body
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
@@ -792,8 +792,8 @@ func handle410(ctx context.Context, device *Device, recipientUuid string, respon
 		staleDevices := body["staleDevices"].([]interface{})
 		zlog.Debug().Msgf("stale devices found in 410 response: %v", staleDevices)
 		for _, staleDevice := range staleDevices {
-			recipient, err := libsignalgo.NewAddress(
-				recipientUuid,
+			recipient, err := libsignalgo.NewUUIDAddress(
+				recipientUUID,
 				uint(staleDevice.(float64)),
 			)
 			err = device.SessionStoreExtras.RemoveSession(recipient, ctx)
@@ -801,7 +801,7 @@ func handle410(ctx context.Context, device *Device, recipientUuid string, respon
 				zlog.Err(err).Msg("RemoveSession error")
 				return err
 			}
-			FetchAndProcessPreKey(ctx, device, recipientUuid, int(staleDevice.(float64)))
+			FetchAndProcessPreKey(ctx, device, recipientUUID, int(staleDevice.(float64)))
 		}
 	}
 	return err
@@ -810,7 +810,7 @@ func handle410(ctx context.Context, device *Device, recipientUuid string, respon
 // We got rate limited.
 // We ~~will~~ could try sending a "pushChallenge" response, but if that doesn't work we just gotta wait.
 // TODO: explore captcha response
-func handle428(ctx context.Context, device *Device, recipientUuid string, response *signalpb.WebSocketResponseMessage) error {
+func handle428(ctx context.Context, device *Device, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
 	// Decode json body
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)

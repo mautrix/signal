@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
@@ -37,10 +39,10 @@ type GeneratedPreKeys struct {
 
 func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	var identityKeyPair *libsignalgo.IdentityKeyPair
-	if uuidKind == UUID_KIND_PNI {
-		identityKeyPair = device.Data.PniIdentityKeyPair
+	if uuidKind == UUIDKindPNI {
+		identityKeyPair = device.Data.PNIIdentityKeyPair
 	} else {
-		identityKeyPair = device.Data.AciIdentityKeyPair
+		identityKeyPair = device.Data.ACIIdentityKeyPair
 	}
 
 	// Generate prekeys
@@ -58,6 +60,7 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyId, 100, uuidKind, identityKeyPair)
 
 	// Persist prekeys
+	// TODO return database errors
 	for _, preKey := range preKeys {
 		device.PreKeyStoreExtras.SavePreKey(uuidKind, preKey, false)
 	}
@@ -77,10 +80,10 @@ func GenerateAndRegisterPreKeys(device *Device, uuidKind UUIDKind) error {
 		IdentityKey:  identityKey,
 	}
 	preKeyUsername := device.Data.Number
-	if device.Data.AciUuid != "" {
-		preKeyUsername = device.Data.AciUuid
+	if device.Data.ACI != uuid.Nil {
+		preKeyUsername = device.Data.ACI.String()
 	}
-	preKeyUsername = preKeyUsername + "." + fmt.Sprint(device.Data.DeviceId)
+	preKeyUsername = fmt.Sprintf("%s.%d", preKeyUsername, device.Data.DeviceID)
 	err = RegisterPreKeys(&generatedPreKeys, uuidKind, preKeyUsername, device.Data.Password)
 	if err != nil {
 		zlog.Err(err).Msg("RegisterPreKeys error")
@@ -301,13 +304,13 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(data)
 }
 
-func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string, specificDeviceID int) error {
+func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUUID uuid.UUID, specificDeviceID int) error {
 	// Fetch prekey
 	deviceIDPath := "/*"
 	if specificDeviceID >= 0 {
 		deviceIDPath = "/" + fmt.Sprint(specificDeviceID)
 	}
-	path := "/v2/keys/" + theirUuid + deviceIDPath + "?pq=true"
+	path := "/v2/keys/" + theirUUID.String() + deviceIDPath + "?pq=true"
 	username, password := device.Data.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest(http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
@@ -403,7 +406,7 @@ func FetchAndProcessPreKey(ctx context.Context, device *Device, theirUuid string
 			zlog.Err(err).Msg("Error creating prekey bundle")
 			return err
 		}
-		address, err := libsignalgo.NewAddress(theirUuid, uint(d.DeviceID))
+		address, err := libsignalgo.NewUUIDAddress(theirUUID, uint(d.DeviceID))
 		if err != nil {
 			zlog.Err(err).Msg("Error creating address")
 			return err

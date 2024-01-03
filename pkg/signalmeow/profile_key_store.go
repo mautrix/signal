@@ -21,6 +21,8 @@ import (
 	"database/sql"
 	"errors"
 
+	"github.com/google/uuid"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
@@ -29,8 +31,8 @@ var _ ProfileKeyStore = (*SQLStore)(nil)
 type ProfileKeyStore interface {
 	// LoadProfileKey loads the profile key for the given address.
 	// If the address is not found, nil is returned.
-	LoadProfileKey(theirUuid string, ctx context.Context) (*libsignalgo.ProfileKey, error)
-	StoreProfileKey(theirUuid string, key libsignalgo.ProfileKey, ctx context.Context) error
+	LoadProfileKey(theirACI uuid.UUID, ctx context.Context) (*libsignalgo.ProfileKey, error)
+	StoreProfileKey(theirACI uuid.UUID, key libsignalgo.ProfileKey, ctx context.Context) error
 	MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error)
 }
 
@@ -51,21 +53,21 @@ func scanProfileKey(row scannable) (*libsignalgo.ProfileKey, error) {
 	return &profileKey, err
 }
 
-func (s *SQLStore) LoadProfileKey(theirUuid string, ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(loadProfileKeyQuery, s.AciUuid, theirUuid))
+func (s *SQLStore) LoadProfileKey(theirUUID uuid.UUID, ctx context.Context) (*libsignalgo.ProfileKey, error) {
+	return scanProfileKey(s.db.QueryRow(loadProfileKeyQuery, s.ACI, theirUUID))
 }
 
 func (s *SQLStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(loadProfileKeyQuery, s.AciUuid, s.AciUuid))
+	return scanProfileKey(s.db.QueryRow(loadProfileKeyQuery, s.ACI, s.ACI))
 }
 
-func (s *SQLStore) StoreProfileKey(theirUuid string, key libsignalgo.ProfileKey, ctx context.Context) error {
+func (s *SQLStore) StoreProfileKey(theirUUID uuid.UUID, key libsignalgo.ProfileKey, ctx context.Context) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec(storeProfileKeyQuery, s.AciUuid, theirUuid, key.Slice())
+	_, err = tx.Exec(storeProfileKeyQuery, s.ACI, theirUUID, key.Slice())
 	if err != nil {
 		tx.Rollback()
 		return err

@@ -285,7 +285,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		if err != nil {
 			zlog.Err(err).Msg("GetDeviceID error")
 		}
-		senderAddress, err := libsignalgo.NewAddress(senderUUID.String(), uint(senderDeviceID))
+		senderAddress, err := libsignalgo.NewUUIDAddress(senderUUID, uint(senderDeviceID))
 		if err != nil {
 			zlog.Err(err).Msg("NewAddress error")
 		}
@@ -423,7 +423,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 	case signalpb.Envelope_PREKEY_BUNDLE:
 		zlog.Debug().Msgf("Received envelope type PREKEY_BUNDLE, verb: %v, path: %v", *req.Verb, *req.Path)
-		sender, err := libsignalgo.NewAddress(
+		sender, err := libsignalgo.NewUUIDAddressFromString(
 			*envelope.SourceServiceId,
 			uint(*envelope.SourceDevice),
 		)
@@ -447,10 +447,13 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		if err != nil {
 			zlog.Err(err).Msg("DeserializeMessage error")
 		}
-		senderAddress, err := libsignalgo.NewAddress(
+		senderAddress, err := libsignalgo.NewUUIDAddressFromString(
 			*envelope.SourceServiceId,
 			uint(*envelope.SourceDevice),
 		)
+		if err != nil {
+			return nil, fmt.Errorf("NewAddress error: %v", err)
+		}
 		decryptedText, err := libsignalgo.Decrypt(
 			message,
 			senderAddress,
@@ -539,8 +542,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 			syncSent := content.SyncMessage.GetSent()
 			if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
 				destination := syncSent.DestinationServiceId
-				var ourUUID, destinationUUID uuid.UUID
-				ourUUID, _ = uuid.Parse(d.Data.AciUuid)
+				var destinationUUID uuid.UUID
 				if destination != nil {
 					destinationUUID, err = uuid.Parse(*destination)
 					if err != nil {
@@ -552,9 +554,9 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 					zlog.Warn().Msg("sync message sent destination is nil")
 				} else if content.SyncMessage.Sent.Message != nil {
 					// TODO handle expiration start ts, and maybe the sync message ts?
-					incomingDataMessage(ctx, d, content.SyncMessage.Sent.Message, ourUUID, destinationUUID)
+					incomingDataMessage(ctx, d, content.SyncMessage.Sent.Message, d.Data.ACI, destinationUUID)
 				} else if content.SyncMessage.Sent.EditMessage != nil {
-					incomingEditMessage(ctx, d, content.SyncMessage.Sent.EditMessage, ourUUID, destinationUUID)
+					incomingEditMessage(ctx, d, content.SyncMessage.Sent.EditMessage, d.Data.ACI, destinationUUID)
 				}
 			}
 			if content.SyncMessage.Contacts != nil {
@@ -639,7 +641,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		// Read and delivery receipts
 		if content.ReceiptMessage != nil {
-			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirUUID.String() == d.Data.AciUuid {
+			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirUUID == d.Data.ACI {
 				// Ignore delivery receipts from other own devices
 				return &web.SimpleResponse{
 					Status: responseCode,
@@ -744,7 +746,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := device.ProfileKeyStore.StoreProfileKey(messageSender.String(), profileKey, ctx)
+		err := device.ProfileKeyStore.StoreProfileKey(messageSender, profileKey, ctx)
 		if err != nil {
 			zlog.Err(err).Msg("StoreProfileKey error")
 			return false
@@ -820,7 +822,7 @@ func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestam
 	// Send delivery receipts
 	if len(deliveredTimestamps) > 0 {
 		receipt := DeliveredReceiptMessageForTimestamps(deliveredTimestamps)
-		result := SendMessage(ctx, device, senderUUID.String(), receipt)
+		result := SendMessage(ctx, device, senderUUID, receipt)
 		if !result.WasSuccessful {
 			zlog.Error().Msgf("Failed to send delivery receipts: %v", result)
 		}
@@ -853,8 +855,8 @@ func serverTrustRootKey() *libsignalgo.PublicKey {
 func sealedSenderDecrypt(envelope *signalpb.Envelope, device *Device, ctx context.Context) (*DecryptionResult, error) {
 	localAddress := libsignalgo.NewSealedSenderAddress(
 		device.Data.Number,
-		uuid.MustParse(device.Data.AciUuid),
-		uint32(device.Data.DeviceId),
+		device.Data.ACI,
+		uint32(device.Data.DeviceID),
 	)
 	timestamp := time.Unix(0, int64(*envelope.Timestamp))
 	result, err := libsignalgo.SealedSenderDecrypt(
@@ -879,8 +881,8 @@ func sealedSenderDecrypt(envelope *signalpb.Envelope, device *Device, ctx contex
 		zlog.Err(err).Msg("stripPadding error")
 		return nil, err
 	}
-	address, err := libsignalgo.NewAddress(
-		result.Sender.UUID.String(),
+	address, err := libsignalgo.NewUUIDAddress(
+		result.Sender.UUID,
 		uint(result.Sender.DeviceID),
 	)
 	if err != nil {

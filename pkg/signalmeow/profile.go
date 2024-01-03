@@ -64,18 +64,17 @@ type ProfileCache struct {
 	avatarPaths map[string]string
 }
 
-func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string) ([]byte, error) {
-	profileKey, err := ProfileKeyForSignalID(ctx, d, signalId)
+func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalACI uuid.UUID) ([]byte, error) {
+	profileKey, err := ProfileKeyForSignalID(ctx, d, signalACI)
 	if err != nil {
 		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
 	}
-	parsedUUID, err := uuid.Parse(signalId)
 	serverPublicParams := serverPublicParams()
 
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
 		serverPublicParams,
-		parsedUUID,
+		signalACI,
 		*profileKey,
 	)
 	if err != nil {
@@ -94,8 +93,8 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalId string
 	return []byte(hexRequest), nil
 }
 
-func ProfileKeyForSignalID(ctx context.Context, d *Device, signalId string) (*libsignalgo.ProfileKey, error) {
-	profileKey, err := d.ProfileKeyStore.LoadProfileKey(signalId, ctx)
+func ProfileKeyForSignalID(ctx context.Context, d *Device, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
+	profileKey, err := d.ProfileKeyStore.LoadProfileKey(signalACI, ctx)
 	if err != nil {
 		zlog.Err(err).Msg("GetProfileKey error")
 		return nil, err
@@ -173,7 +172,7 @@ func RetrieveProfileAndAvatarByID(ctx context.Context, d *Device, signalID uuid.
 }
 
 func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Profile, error) {
-	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID.String())
+	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID)
 	if err != nil {
 		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
@@ -196,7 +195,7 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 	}
 	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 
-	credentialRequest, err := ProfileKeyCredentialRequest(ctx, d, signalID.String())
+	credentialRequest, err := ProfileKeyCredentialRequest(ctx, d, signalID)
 	if err != nil {
 		zlog.Err(err).Msg("ProfileKeyCredentialRequest error")
 		return nil, err

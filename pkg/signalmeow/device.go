@@ -23,7 +23,9 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -31,19 +33,19 @@ import (
 
 // Note: right now, the parent `Device` struct is in store.go
 type DeviceData struct {
-	AciIdentityKeyPair *libsignalgo.IdentityKeyPair
-	PniIdentityKeyPair *libsignalgo.IdentityKeyPair
-	RegistrationId     int
-	PniRegistrationId  int
-	AciUuid            string
-	PniUuid            string
-	DeviceId           int
+	ACIIdentityKeyPair *libsignalgo.IdentityKeyPair
+	PNIIdentityKeyPair *libsignalgo.IdentityKeyPair
+	RegistrationID     int
+	PNIRegistrationID  int
+	ACI                uuid.UUID
+	PNI                uuid.UUID
+	DeviceID           int
 	Number             string
 	Password           string
 }
 
 func (d *DeviceData) BasicAuthCreds() (string, string) {
-	username := fmt.Sprintf("%s.%d", d.AciUuid, d.DeviceId)
+	username := fmt.Sprintf("%s.%d", d.ACI, d.DeviceID)
 	password := d.Password
 	return username, password
 }

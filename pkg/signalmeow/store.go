@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -32,7 +33,7 @@ var _ DeviceStore = (*StoreContainer)(nil)
 
 type DeviceStore interface {
 	PutDevice(dd *DeviceData) error
-	DeviceByAci(aciUuid string) (*Device, error)
+	DeviceByACI(aci uuid.UUID) (*Device, error)
 }
 
 // StoreContainer is a wrapper for a SQL database that can contain multiple signalmeow sessions.
@@ -94,17 +95,17 @@ func (c *StoreContainer) scanDevice(row scannable) (*Device, error) {
 	var aciIdentityKeyPair, pniIdentityKeyPair []byte
 
 	err := row.Scan(
-		&deviceData.AciUuid, &aciIdentityKeyPair, &deviceData.RegistrationId,
-		&deviceData.PniUuid, &pniIdentityKeyPair, &deviceData.PniRegistrationId,
-		&deviceData.DeviceId, &deviceData.Number, &deviceData.Password,
+		&deviceData.ACI, &aciIdentityKeyPair, &deviceData.RegistrationID,
+		&deviceData.PNI, &pniIdentityKeyPair, &deviceData.PNIRegistrationID,
+		&deviceData.DeviceID, &deviceData.Number, &deviceData.Password,
 	)
-	deviceData.AciIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
-	deviceData.PniIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
+	deviceData.ACIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
+	deviceData.PNIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
 	}
 
-	innerStore := newSQLStore(c, deviceData.AciUuid)
+	innerStore := newSQLStore(c, deviceData.ACI)
 	// Assign innerStore to all the interfaces
 	device.PreKeyStore = innerStore
 	device.PreKeyStoreExtras = innerStore
@@ -142,8 +143,8 @@ func (c *StoreContainer) GetAllDevices() ([]*Device, error) {
 
 // GetDevice finds the device with the specified ACI UUID in the database.
 // If the device is not found, nil is returned instead.
-func (c *StoreContainer) DeviceByAci(aciUuid string) (*Device, error) {
-	sess, err := c.scanDevice(c.db.QueryRow(getDeviceQuery, aciUuid))
+func (c *StoreContainer) DeviceByACI(aci uuid.UUID) (*Device, error) {
+	sess, err := c.scanDevice(c.db.QueryRow(getDeviceQuery, aci))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -176,19 +177,19 @@ var ErrDeviceIDMustBeSet = errors.New("device aci_uuid must be known before acce
 
 // PutDevice stores the given device in this database.
 func (c *StoreContainer) PutDevice(device *DeviceData) error {
-	if device.AciUuid == "" {
+	if device.ACI == uuid.Nil {
 		return ErrDeviceIDMustBeSet
 	}
-	aciIdentityKeyPair, err := device.AciIdentityKeyPair.Serialize()
-	pniIdentityKeyPair, err := device.PniIdentityKeyPair.Serialize()
+	aciIdentityKeyPair, err := device.ACIIdentityKeyPair.Serialize()
+	pniIdentityKeyPair, err := device.PNIIdentityKeyPair.Serialize()
 	if err != nil {
 		zlog.Err(err).Msg("failed to serialize identity key pair")
 		return err
 	}
 	_, err = c.db.Exec(insertDeviceQuery,
-		device.AciUuid, aciIdentityKeyPair, device.RegistrationId,
-		device.PniUuid, pniIdentityKeyPair, device.PniRegistrationId,
-		device.DeviceId, device.Number, device.Password,
+		device.ACI, aciIdentityKeyPair, device.RegistrationID,
+		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
+		device.DeviceID, device.Number, device.Password,
 	)
 	if err != nil {
 		zlog.Err(err).Msg("failed to insert device")
@@ -198,10 +199,10 @@ func (c *StoreContainer) PutDevice(device *DeviceData) error {
 
 // DeleteDevice deletes the given device from this database
 func (c *StoreContainer) DeleteDevice(device *DeviceData) error {
-	if device.AciUuid == "" {
+	if device.ACI == uuid.Nil {
 		return ErrDeviceIDMustBeSet
 	}
-	_, err := c.db.Exec(deleteDeviceQuery, device.AciUuid)
+	_, err := c.db.Exec(deleteDeviceQuery, device.ACI)
 	return err
 }
 
@@ -218,8 +219,8 @@ func (d *Device) ClearDeviceKeys() error {
 
 func (d *Device) IsDeviceLoggedIn() bool {
 	return d != nil &&
-		d.Data.AciUuid != "" &&
-		d.Data.DeviceId != 0 &&
+		d.Data.ACI != uuid.Nil &&
+		d.Data.DeviceID != 0 &&
 		d.Data.Password != ""
 }
 
@@ -250,12 +251,12 @@ func (d *Device) ClearKeysAndDisconnect() error {
 // reperesenting a store for a single user
 type SQLStore struct {
 	*StoreContainer
-	AciUuid string
+	ACI uuid.UUID
 }
 
-func newSQLStore(container *StoreContainer, aciUuid string) *SQLStore {
+func newSQLStore(container *StoreContainer, aci uuid.UUID) *SQLStore {
 	return &SQLStore{
 		StoreContainer: container,
-		AciUuid:        aciUuid,
+		ACI:            aci,
 	}
 }

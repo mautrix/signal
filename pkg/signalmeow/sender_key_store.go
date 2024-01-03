@@ -58,7 +58,7 @@ func (s *SQLStore) LoadSenderKey(sender *libsignalgo.Address, distributionID uui
 	if err != nil {
 		return nil, err
 	}
-	return scanSenderKey(s.db.QueryRow(loadSenderKeyQuery, s.AciUuid, senderUuid, deviceId, distributionIdString))
+	return scanSenderKey(s.db.QueryRow(loadSenderKeyQuery, s.ACI, senderUuid, deviceId, distributionIdString))
 }
 
 func (s *SQLStore) StoreSenderKey(sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord, ctx context.Context) error {
@@ -83,7 +83,7 @@ func (s *SQLStore) StoreSenderKey(sender *libsignalgo.Address, distributionID uu
 		tx.Rollback()
 		return err
 	}
-	_, err = tx.Exec(storeSenderKeyQuery, s.AciUuid, senderUuid, deviceId, distributionIdString, serialized)
+	_, err = tx.Exec(storeSenderKeyQuery, s.ACI, senderUuid, deviceId, distributionIdString, serialized)
 	if err != nil {
 		_ = tx.Rollback()
 		return err

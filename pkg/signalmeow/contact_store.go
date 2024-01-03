@@ -73,19 +73,19 @@ var commonSelectQuery = `
 func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
 	contactQuery := commonSelectQuery +
 		`WHERE our_aci_uuid = $1 AND aci_uuid = $2`
-	return scanContact(s.db.QueryRow(contactQuery, s.AciUuid, theirUUID))
+	return scanContact(s.db.QueryRow(contactQuery, s.ACI, theirUUID))
 }
 
 func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
 	contactQuery := commonSelectQuery +
 		`WHERE our_aci_uuid = $1 AND e164_number = $2`
-	return scanContact(s.db.QueryRow(contactQuery, s.AciUuid, e164))
+	return scanContact(s.db.QueryRow(contactQuery, s.ACI, e164))
 }
 
 func (s *SQLStore) AllContacts(ctx context.Context) ([]types.Contact, error) {
 	contactQuery := commonSelectQuery +
 		`WHERE our_aci_uuid = $1`
-	rows, err := s.db.Query(contactQuery, s.AciUuid)
+	rows, err := s.db.Query(contactQuery, s.ACI)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 	}
 	_, err = tx.Exec(
 		storeContactQuery,
-		s.AciUuid,
+		s.ACI,
 		contact.UUID,
 		contact.E164,
 		contact.ContactName,

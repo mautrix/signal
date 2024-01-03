@@ -28,7 +28,7 @@ import (
 func TestAddress(t *testing.T) {
 	setupLogging()
 
-	addr, err := libsignalgo.NewAddress("addr1", 5)
+	addr, err := libsignalgo.NewPhoneAddress("addr1", 5)
 	assert.NoError(t, err)
 
 	name, err := addr.Name()

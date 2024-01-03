@@ -16,21 +16,29 @@
 
 package signalmeow
 
+import (
+	"github.com/google/uuid"
+)
+
 const (
-	UUID_KIND_ACI = "aci"
-	UUID_KIND_PNI = "pni"
+	// UUIDKindACI is the UUID kind for account identifiers.
+	UUIDKindACI UUIDKind = "aci"
+	// UUIDKindPNI is the UUID kind for phone number identifiers.
+	UUIDKindPNI UUIDKind = "pni"
 )
 
 type UUIDKind string
 
 type GroupCredentials struct {
 	Credentials []GroupCredential `json:"credentials"`
-	Pni         string            `json:"pni"`
+	PNI         uuid.UUID         `json:"pni"`
 }
+
 type GroupCredential struct {
 	Credential     []byte
 	RedemptionTime int64
 }
+
 type GroupExternalCredential struct {
 	Token []byte `json:"token"`
 }

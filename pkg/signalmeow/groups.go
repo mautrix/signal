@@ -48,12 +48,13 @@ const (
 )
 
 type GroupMember struct {
-	UserID           string
+	UserID           uuid.UUID
 	Role             GroupMemberRole
 	ProfileKey       libsignalgo.ProfileKey
 	JoinedAtRevision uint32
 	//Presentation     []byte
 }
+
 type Group struct {
 	groupMasterKey  SerializedGroupMasterKey // We should keep this relatively private
 	GroupIdentifier types.GroupIdentifier    // This is what we should use to identify a group outside this file
@@ -103,9 +104,9 @@ func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*Group
 		return nil, err
 	}
 	// make sure pni matches device pni
-	if creds.Pni != d.Data.PniUuid {
-		err := fmt.Errorf("creds.Pni != d.PniUuid")
-		zlog.Err(err).Msg("creds.Pni != d.PniUuid")
+	if creds.PNI != d.Data.PNI {
+		err := fmt.Errorf("creds.PNI != d.PNI")
+		zlog.Err(err).Msg("creds.PNI != d.PNI")
 		return nil, err
 	}
 	return &creds, nil
@@ -157,20 +158,10 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 	}
 
 	// Receive the auth credential
-	aciUuidBytes, err := uuid.Parse(d.Data.AciUuid)
-	if err != nil {
-		zlog.Err(err).Msg("aci convertUUIDToBytes error")
-		return nil, err
-	}
-	pniUuidBytes, err := uuid.Parse(d.Data.PniUuid)
-	if err != nil {
-		zlog.Err(err).Msg("pni convertUUIDToBytes error")
-		return nil, err
-	}
 	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
 		serverPublicParams(),
-		aciUuidBytes,
-		pniUuidBytes,
+		d.Data.ACI,
+		d.Data.PNI,
 		redemptionTime,
 		*authCredentialResponse,
 	)
@@ -300,13 +291,13 @@ func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroup
 			return nil, err
 		}
 		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(member.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, *userID)
+		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
 		if err != nil {
 			zlog.Err(err).Msg("DecryptProfileKey ProfileKey error")
 			return nil, err
 		}
 		decryptedGroup.Members = append(decryptedGroup.Members, &GroupMember{
-			UserID:           userID.String(),
+			UserID:           userID,
 			ProfileKey:       *profileKey,
 			Role:             GroupMemberRole(member.Role),
 			JoinedAtRevision: member.JoinedAtRevision,

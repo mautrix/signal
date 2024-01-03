@@ -621,9 +621,9 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 
 	// Check to see if portal.ChatID is a standard UUID (with dashes)
 	var err error
-	if _, uuidErr := uuid.Parse(portal.ChatID); uuidErr == nil {
+	if portal.IsPrivateChat() {
 		// this is a 1:1 chat
-		result := signalmeow.SendMessage(ctx, sender.SignalDevice, portal.ChatID, msg)
+		result := signalmeow.SendMessage(ctx, sender.SignalDevice, portal.UserID(), msg)
 		if !result.WasSuccessful {
 			err = result.FailedSendResult.Error
 			log.Err(err).Msg("Error sending event to Signal")
@@ -1161,16 +1161,14 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 		// Check to see if portal.ChatID is a standard UUID (with dashes)
 		// Note: not handling sending to a group right now, since that will
 		// require SenderKey sending to not be terrible
-		var err error
-		if _, uuidErr := uuid.Parse(portal.ChatID); uuidErr == nil {
+		if portal.IsPrivateChat() {
 			// this is a 1:1 chat
 			portal.log.Debug().Msgf("Sending Typing event to Signal %s", portal.ChatID)
 			ctx := context.Background()
 			typingMessage := signalmeow.TypingMessage(isTyping)
-			result := signalmeow.SendMessage(ctx, user.SignalDevice, portal.ChatID, typingMessage)
+			result := signalmeow.SendMessage(ctx, user.SignalDevice, portal.UserID(), typingMessage)
 			if !result.WasSuccessful {
-				err = result.FailedSendResult.Error
-				portal.log.Err(err).Msg("Error sending event to Signal")
+				portal.log.Err(result.FailedSendResult.Error).Msg("Error sending event to Signal")
 			}
 		}
 	}
@@ -1253,7 +1251,7 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		// Don't use portal.sendSignalMessage because we're sending this straight to
 		// who sent the original message, not the portal's ChatID
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		result := signalmeow.SendMessage(ctx, sender.SignalDevice, destination.String(), signalmeow.ReadReceptMessageForTimestamps(messages))
+		result := signalmeow.SendMessage(ctx, sender.SignalDevice, destination, signalmeow.ReadReceptMessageForTimestamps(messages))
 		cancel()
 		if !result.WasSuccessful {
 			log.Err(result.FailedSendResult.Error).
