@@ -17,12 +17,10 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"strconv"
@@ -30,12 +28,21 @@ import (
 	"sync"
 	"time"
 
+	"github.com/beeper/libserv/pkg/requestlog"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/hlog"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+)
+
+type provisioningContextKey int
+
+const (
+	provisioningUserKey provisioningContextKey = iota
 )
 
 type provisioningHandle struct {
@@ -54,10 +61,12 @@ type ProvisioningAPI struct {
 }
 
 func (prov *ProvisioningAPI) Init() {
-	prov.log.Debug().Msgf("Enabling provisioning API at %v", prov.bridge.Config.Bridge.Provisioning.Prefix)
+	prov.log.Debug().Str("prefix", prov.bridge.Config.Bridge.Provisioning.Prefix).Msg("Enabling provisioning API")
 	prov.provisioningUsers = make(map[string]int)
 	prov.provisioningMutexes = make(map[string]*sync.Mutex)
 	r := prov.bridge.AS.Router.PathPrefix(prov.bridge.Config.Bridge.Provisioning.Prefix).Subrouter()
+	r.Use(hlog.NewHandler(prov.log))
+	r.Use(requestlog.AccessLogger(true))
 	r.Use(prov.AuthMiddleware)
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
@@ -74,53 +83,26 @@ func (prov *ProvisioningAPI) Init() {
 	}
 }
 
-type responseWrap struct {
-	http.ResponseWriter
-	statusCode int
-}
-
-func jsonResponse(w http.ResponseWriter, status int, response interface{}) {
+func jsonResponse(w http.ResponseWriter, status int, response any) {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(response)
 }
 
-var _ http.Hijacker = (*responseWrap)(nil)
-
-func (rw *responseWrap) WriteHeader(statusCode int) {
-	rw.ResponseWriter.WriteHeader(statusCode)
-	rw.statusCode = statusCode
-}
-
-func (rw *responseWrap) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	hijacker, ok := rw.ResponseWriter.(http.Hijacker)
-	if !ok {
-		return nil, nil, errors.New("response does not implement http.Hijacker")
-	}
-	return hijacker.Hijack()
-}
-
 func (prov *ProvisioningAPI) AuthMiddleware(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		if strings.HasPrefix(auth, "Bearer ") {
-			auth = auth[len("Bearer "):]
-		}
+		auth := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if auth != prov.bridge.Config.Bridge.Provisioning.SharedSecret {
-			prov.log.Info().Msg("Authentication token does not match shared secret")
-			jsonResponse(w, http.StatusForbidden, map[string]interface{}{
-				"error":   "Authentication token does not match shared secret",
-				"errcode": "M_FORBIDDEN",
+			zerolog.Ctx(r.Context()).Warn().Msg("Authentication token does not match shared secret")
+			jsonResponse(w, http.StatusForbidden, &mautrix.RespError{
+				Err:     "Authentication token does not match shared secret",
+				ErrCode: mautrix.MForbidden.ErrCode,
 			})
 			return
 		}
 		userID := r.URL.Query().Get("user_id")
 		user := prov.bridge.GetUserByMXID(id.UserID(userID))
-		start := time.Now()
-		wWrap := &responseWrap{w, 200}
-		h.ServeHTTP(wWrap, r.WithContext(context.WithValue(r.Context(), "user", user)))
-		duration := time.Now().Sub(start).Seconds()
-		prov.log.Info().Msgf("%s %s from %s took %.2f seconds and returned status %d", r.Method, r.URL.Path, user.MXID, duration, wWrap.statusCode)
+		h.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), provisioningUserKey, user)))
 	})
 }
 
@@ -143,13 +125,13 @@ type Response struct {
 	Number string `json:"number,omitempty"`
 
 	// For response in ResolveIdentifier
-	ResolveIdentifierResponse
+	*ResolveIdentifierResponse
 }
 
 // ** Start New Chat ** //
 
 type ResolveIdentifierResponse struct {
-	RoomID      string                             `json:"room_id"`
+	RoomID      id.RoomID                          `json:"room_id"`
 	ChatID      ResolveIdentifierResponseChatID    `json:"chat_id"`
 	JustCreated bool                               `json:"just_created"`
 	OtherUser   ResolveIdentifierResponseOtherUser `json:"other_user"`
@@ -188,7 +170,7 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 	puppet := prov.bridge.GetPuppetBySignalID(contact.UUID)
 
 	return http.StatusOK, &ResolveIdentifierResponse{
-		RoomID: portal.MXID.String(),
+		RoomID: portal.MXID,
 		ChatID: ResolveIdentifierResponseChatID{
 			UUID:   contact.UUID.String(),
 			Number: phoneNum,
@@ -202,7 +184,7 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 }
 
 func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 	phoneNum, _ := mux.Vars(r)["phonenum"]
 	prov.log.Debug().Msgf("ResolveIdentifier from %v, phone number: %v", user.MXID, phoneNum)
 
@@ -225,12 +207,12 @@ func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Re
 	jsonResponse(w, status, Response{
 		Success:                   true,
 		Status:                    "ok",
-		ResolveIdentifierResponse: *resp,
+		ResolveIdentifierResponse: resp,
 	})
 }
 
 func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 	phoneNum, _ := mux.Vars(r)["phonenum"]
 	prov.log.Debug().Msgf("StartPM from %v, phone number: %v", user.MXID, phoneNum)
 
@@ -263,7 +245,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp.JustCreated = true
-		resp.RoomID = portal.MXID.String()
+		resp.RoomID = portal.MXID
 	}
 	if resp.JustCreated {
 		status = http.StatusCreated
@@ -272,7 +254,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, status, Response{
 		Success:                   true,
 		Status:                    "ok",
-		ResolveIdentifierResponse: *resp,
+		ResolveIdentifierResponse: resp,
 	})
 }
 
@@ -372,7 +354,7 @@ func (prov *ProvisioningAPI) loginOrSendError(w http.ResponseWriter, user *User)
 }
 
 func (prov *ProvisioningAPI) checkSessionAndReturnHandle(w http.ResponseWriter, r *http.Request, currentSession int) *provisioningHandle {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 	handle := prov.existingSession(user)
 	if handle == nil {
 		prov.log.Warn().Msgf("checkSessionAndReturnHandle: from %v, no session found", user.MXID)
@@ -398,7 +380,7 @@ func (prov *ProvisioningAPI) checkSessionAndReturnHandle(w http.ResponseWriter, 
 // ** Provisioning API ** //
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 
 	prov.log.Debug().Msgf("LinkNew from %v, starting login", user.MXID)
 	handle := prov.loginOrSendError(w, user)
@@ -446,7 +428,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 	body := struct {
 		SessionID string `json:"session_id"`
 	}{}
@@ -534,7 +516,7 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 }
 
 func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 	body := struct {
 		SessionID  string `json:"session_id"`
 		DeviceName string `json:"device_name"`
@@ -610,7 +592,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 }
 
 func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
-	user := r.Context().Value("user").(*User)
+	user := r.Context().Value(provisioningUserKey).(*User)
 	prov.log.Debug().Msgf("Logout called from %v (but not logging out)", user.MXID)
 	prov.clearSession(user)
 
