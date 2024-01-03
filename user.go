@@ -568,7 +568,7 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 	user.Lock()
 	defer user.Unlock()
 	log := user.log.With().
-		Str("action", "populate_signal_device").
+		Str("action", "populate signal device").
 		Str("signal_id", user.SignalID.String()).
 		Logger()
 
@@ -593,7 +593,7 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 
 func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *types.ContactAvatar) error {
 	log := user.log.With().
-		Str("action", "update_puppet_with_signal_contact").
+		Str("action", "update puppet with signal contact").
 		Str("signal_id", puppet.SignalID.String()).
 		Logger()
 	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID)

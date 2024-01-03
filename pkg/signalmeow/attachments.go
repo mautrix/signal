@@ -108,7 +108,7 @@ type attachmentV3UploadAttributes struct {
 }
 
 func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
-	log := zerolog.Ctx(ctx)
+	log := zerolog.Ctx(ctx).With().Str("func", "upload attachment").Logger()
 	keys := random.Bytes(64) // combined AES and MAC keys
 	plaintextLength := uint32(len(body))
 
@@ -118,7 +118,7 @@ func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signal
 		log.Debug().
 			Int("padded_len", paddedLen).
 			Int("len", len(body)).
-			Msg("encryptAndUploadAttachment paddedLen less than body length. Continuing with a privacy risk.")
+			Msg("Padded length is less than body length, continuing with a privacy risk")
 	} else {
 		body = append(body, bytes.Repeat([]byte{0}, int(paddedLen)-len(body))...)
 	}
@@ -158,9 +158,8 @@ func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signal
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := fmt.Errorf("Error allocating attachment: %v", resp.Status)
-		log.Err(err).Msg("Error allocating attachment")
-		return nil, err
+		log.Error().Int("status_code", resp.StatusCode).Msg("Error allocating attachment")
+		return nil, fmt.Errorf("error allocating attachment: %s", resp.Status)
 	}
 
 	// Upload attachment to CDN
@@ -176,9 +175,8 @@ func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signal
 		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := fmt.Errorf("Error uploading attachment: %v", resp.Status)
-		log.Err(err).Msg("Error uploading attachment")
-		return nil, err
+		log.Error().Int("status_code", resp.StatusCode).Msg("Error uploading attachment")
+		return nil, fmt.Errorf("error uploading attachment: %s", resp.Status)
 	}
 
 	digest := sha256.Sum256(encryptedWithMAC)
