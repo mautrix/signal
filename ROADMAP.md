@@ -26,7 +26,7 @@
     * [ ] Leave
     * [ ] Kick/Ban/Unban
   * [x] Typing notifications
-  * [ ] Read receipts (currently partial support, only marks last message)
+  * [x] Read receipts
   * [x] Delivery receipts (sent after message is bridged)
 * Signal → Matrix
   * [ ] Message content
