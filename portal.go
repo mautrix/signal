@@ -320,6 +320,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 		totalReceive: time.Since(evtTS),
 	}
 	implicitRRStart := time.Now()
+	// TODO send read receipt for previous messages
 	timings.implicitRR = time.Since(implicitRRStart)
 	start := time.Now()
 
@@ -409,26 +410,13 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 		}
 	}
 
-	if evt.Type == event.EventSticker {
-		content.MsgType = event.MessageType(event.EventSticker.Type)
-	}
-	relaybotFormatted := isRelay && portal.addRelaybotFormat(realSenderMXID, content)
-	if relaybotFormatted && content.FileName == "" {
-		content.FileName = content.Body
-	}
+	relaybotFormatted := isRelay && portal.addRelaybotFormat(realSenderMXID, evt, content)
 	if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
 		go ms.sendMessageMetrics(evt, errMNoticeDisabled, "Error converting", true)
 		return
 	}
-	if content.MsgType == event.MsgEmote && !relaybotFormatted {
-		content.Body = "/me " + content.Body
-		if content.FormattedBody != "" {
-			content.FormattedBody = "/me " + content.FormattedBody
-		}
-	}
-	trustTimestamp := !relaybotFormatted
 	ctx = context.WithValue(ctx, msgconvContextKeyClient, sender.SignalDevice)
-	msg, err := portal.MsgConv.ToSignal(ctx, evt, trustTimestamp)
+	msg, err := portal.MsgConv.ToSignal(ctx, evt, content, relaybotFormatted)
 	if err != nil {
 		log.Err(err).Msg("Failed to convert message")
 		go ms.sendMessageMetrics(evt, err, "Error converting", true)
@@ -482,18 +470,16 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 	if err != nil {
 		log.Err(err).Msg("Failed to get redaction target reaction")
 	}
-	if dbMessage == nil && dbReaction == nil {
-		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message or reaction"))
-		log.Warn().Msg("No target message or reaction found for redaction")
-		return
-	}
 
 	if !sender.IsLoggedIn() {
 		sender = portal.GetRelayUser()
 	}
 
-	// If this is a message redaction, send a redaction to Signal
 	if dbMessage != nil {
+		if dbMessage.Sender != sender.SignalID {
+			portal.sendMessageStatusCheckpointFailed(evt, errRedactionTargetSentBySomeoneElse)
+			return
+		}
 		msg := signalmeow.DataMessageForDelete(dbMessage.Timestamp)
 		err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 		if err != nil {
@@ -528,10 +514,12 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 				}
 			}
 		}
-
-	}
-
-	if dbReaction != nil {
+		portal.sendMessageStatusCheckpointSuccess(evt)
+	} else if dbReaction != nil {
+		if dbReaction.Author != sender.SignalID {
+			portal.sendMessageStatusCheckpointFailed(evt, errUnreactTargetSentBySomeoneElse)
+			return
+		}
 		msg := signalmeow.DataMessageForReaction(dbReaction.Emoji, dbReaction.MsgAuthor, dbReaction.MsgTimestamp, true)
 		err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 		if err != nil {
@@ -543,9 +531,10 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 		if err != nil {
 			log.Err(err).Msg("Failed to delete redacted reaction from database")
 		}
+		portal.sendMessageStatusCheckpointSuccess(evt)
+	} else {
+		portal.sendMessageStatusCheckpointFailed(evt, errRedactionTargetNotFound)
 	}
-
-	portal.sendMessageStatusCheckpointSuccess(evt)
 }
 
 func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, evt *event.Event) {
@@ -556,21 +545,19 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	}
 	// Find the original signal message based on eventID
 	relatedEventID := evt.Content.AsReaction().RelatesTo.EventID
-	dbMessage, err := portal.bridge.DB.Message.GetByMXID(ctx, relatedEventID)
+	targetMsg, err := portal.bridge.DB.Message.GetByMXID(ctx, relatedEventID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(evt, err)
 		log.Err(err).Msg("Failed to get reaction target message")
 		return
-	} else if dbMessage == nil {
-		portal.sendMessageStatusCheckpointFailed(evt, errors.New("could not find original message for reaction"))
-		log.Warn().Msg("No target message found for reaction")
+	} else if targetMsg == nil {
+		portal.sendMessageStatusCheckpointFailed(evt, errReactionTargetNotFound)
+		log.Warn().Msg("Reaction target message not found")
 		return
 	}
 	emoji := evt.Content.AsReaction().RelatesTo.Key
 	signalEmoji := variationselector.FullyQualify(emoji) // Signal seems to require fully qualified emojis
-	targetAuthorUUID := dbMessage.Sender
-	targetTimestamp := dbMessage.Timestamp
-	msg := signalmeow.DataMessageForReaction(signalEmoji, targetAuthorUUID, targetTimestamp, false)
+	msg := signalmeow.DataMessageForReaction(signalEmoji, targetMsg.Sender, targetMsg.Timestamp, false)
 	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(evt, err)
@@ -582,8 +569,8 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	// Check if there's an existing reaction in the database for this sender and redact/delete it
 	dbReaction, err := portal.bridge.DB.Reaction.GetBySignalID(
 		ctx,
-		targetAuthorUUID,
-		targetTimestamp,
+		targetMsg.Sender,
+		targetMsg.Timestamp,
 		sender.SignalID,
 		portal.Receiver,
 	)
@@ -595,15 +582,29 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 		if err != nil {
 			log.Err(err).Msg("Failed to redact existing reaction")
 		}
-		// TODO update instead of deleting
-		err = dbReaction.Delete(ctx)
+	}
+	if dbReaction != nil {
+		dbReaction.MXID = evt.ID
+		dbReaction.Emoji = signalEmoji
+		err = dbReaction.Update(ctx)
 		if err != nil {
-			log.Err(err).Msg("Failed to delete reaction from database")
+			log.Err(err).Msg("Failed to update reaction in database")
+		}
+	} else {
+		dbReaction = portal.bridge.DB.Reaction.New()
+		dbReaction.MXID = evt.ID
+		dbReaction.RoomID = portal.MXID
+		dbReaction.SignalChatID = portal.ChatID
+		dbReaction.SignalReceiver = portal.Receiver
+		dbReaction.Author = sender.SignalID
+		dbReaction.MsgAuthor = targetMsg.Sender
+		dbReaction.MsgTimestamp = targetMsg.Timestamp
+		dbReaction.Emoji = signalEmoji
+		err = dbReaction.Insert(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to insert reaction to database")
 		}
 	}
-
-	// Store our new reaction in the database
-	portal.storeReactionInDB(ctx, evt.ID, sender.SignalID, targetAuthorUUID, targetTimestamp, signalEmoji)
 
 	portal.sendMessageStatusCheckpointSuccess(evt)
 }
@@ -1078,29 +1079,6 @@ func (portal *Portal) storeMessageInDB(ctx context.Context, eventID id.EventID, 
 	err := dbMessage.Insert(ctx)
 	if err != nil {
 		portal.log.Err(err).Msg("Failed to insert message into database")
-	}
-}
-
-func (portal *Portal) storeReactionInDB(
-	ctx context.Context,
-	eventID id.EventID,
-	senderSignalID,
-	msgAuthor uuid.UUID,
-	msgTimestamp uint64,
-	emoji string,
-) {
-	dbReaction := portal.bridge.DB.Reaction.New()
-	dbReaction.MXID = eventID
-	dbReaction.RoomID = portal.MXID
-	dbReaction.SignalChatID = portal.ChatID
-	dbReaction.SignalReceiver = portal.Receiver
-	dbReaction.Author = senderSignalID
-	dbReaction.MsgAuthor = msgAuthor
-	dbReaction.MsgTimestamp = msgTimestamp
-	dbReaction.Emoji = emoji
-	err := dbReaction.Insert(ctx)
-	if err != nil {
-		portal.log.Err(err).Msg("Failed to insert reaction into database")
 	}
 }
 
@@ -1583,7 +1561,7 @@ func (portal *Portal) HasRelaybot() bool {
 	return portal.bridge.Config.Bridge.Relay.Enabled && len(portal.RelayUserID) > 0
 }
 
-func (portal *Portal) addRelaybotFormat(userID id.UserID, content *event.MessageEventContent) bool {
+func (portal *Portal) addRelaybotFormat(userID id.UserID, evt *event.Event, content *event.MessageEventContent) bool {
 	member := portal.MainIntent().Member(portal.MXID, userID)
 	if member == nil {
 		member = &event.MemberEventContent{}
@@ -1594,6 +1572,15 @@ func (portal *Portal) addRelaybotFormat(userID id.UserID, content *event.Message
 		portal.log.Err(err).Msg("Failed to apply relaybot format")
 	}
 	content.FormattedBody = data
+	// Stickers can't have captions, so force them into images when relaying
+	if evt.Type == event.EventSticker {
+		content.MsgType = event.MsgImage
+		evt.Type = event.EventMessage
+	}
+	// Force FileName field so the formatted body is used as a caption
+	if content.FileName == "" {
+		content.FileName = content.Body
+	}
 	return true
 }
 

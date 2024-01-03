@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/exmime"
 	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/variationselector"
@@ -36,22 +37,23 @@ import (
 )
 
 var (
-	ErrUnsupportedMsgType          = errors.New("unsupported msgtype")
-	ErrUnexpectedParsedContentType = errors.New("unexpected parsed content type")
+	ErrUnsupportedMsgType  = errors.New("unsupported msgtype")
+	ErrMediaDownloadFailed = errors.New("failed to download media")
+	ErrMediaDecryptFailed  = errors.New("failed to decrypt media")
+	ErrMediaConvertFailed  = errors.New("failed to convert")
+	ErrMediaUploadFailed   = errors.New("failed to upload media")
+	ErrInvalidGeoURI       = errors.New("invalid `geo:` URI in message")
 )
 
-func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, trustTimestamp bool) (*signalpb.DataMessage, error) {
-	content, ok := evt.Content.Parsed.(*event.MessageEventContent)
-	if !ok {
-		return nil, fmt.Errorf("%w %T", ErrUnexpectedParsedContentType, evt.Content.Parsed)
-	}
-
+func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, content *event.MessageEventContent, relaybotFormatted bool) (*signalpb.DataMessage, error) {
 	if evt.Type == event.EventSticker {
 		content.MsgType = event.MessageType(event.EventSticker.Type)
 	}
 
+	// Matrix timestamps can be faked, but if the user is using their own Signal account, faking timestamps is their problem.
 	ts := uint64(evt.Timestamp)
-	if !trustTimestamp {
+	// However, when relaying, timestamps shouldn't be trusted because anyone can send a message with any timestamp.
+	if relaybotFormatted {
 		ts = uint64(time.Now().UnixMilli())
 	}
 	dm := &signalpb.DataMessage{
@@ -61,6 +63,12 @@ func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, trus
 	}
 	if expirationTime := mc.GetData(ctx).ExpirationTime; expirationTime != 0 {
 		dm.ExpireTimer = proto.Uint32(uint32(expirationTime))
+	}
+	if content.MsgType == event.MsgEmote && !relaybotFormatted {
+		content.Body = "/me " + content.Body
+		if content.FormattedBody != "" {
+			content.FormattedBody = "/me " + content.FormattedBody
+		}
 	}
 	body, bodyRanges := matrixfmt.Parse(mc.MatrixFmtParams, content)
 	switch content.MsgType {
@@ -125,12 +133,12 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	}
 	data, err := mc.DownloadMatrixMedia(ctx, mxc)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download: %w", err)
+		return nil, exerrors.NewDualError(ErrMediaDownloadFailed, err)
 	}
 	if content.File != nil {
 		err = content.File.DecryptInPlace(data)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt: %w", err)
+			return nil, exerrors.NewDualError(ErrMediaDecryptFailed, err)
 		}
 	}
 	fileName := content.Body
@@ -156,7 +164,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 			}
 			data, err = ffmpeg.ConvertBytes(ctx, data, ".apng", []string{}, []string{}, mime)
 			if err != nil {
-				return nil, fmt.Errorf("failed to convert gif to apng: %w", err)
+				return nil, fmt.Errorf("%w gif to apng: %w", ErrMediaConvertFailed, err)
 			}
 			fileName += ".apng"
 			mime = "image/apng"
@@ -167,7 +175,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	att, err := signalmeow.UploadAttachment(ctx, mc.GetClient(ctx), data)
 	if err != nil {
 		log.Err(err).Msg("Failed to upload file")
-		return nil, fmt.Errorf("failed to upload: %w", err)
+		return nil, exerrors.NewDualError(ErrMediaUploadFailed, err)
 	}
 	if isVoice {
 		att.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
