@@ -617,6 +617,7 @@ func sendContent(
 	retryCount int, // For ending recursive retries
 ) (sentUnidentified bool, err error) {
 	printContentFieldString(content, "Outgoing message")
+	zerolog.Ctx(ctx).Trace().Any("raw_content", content).Msg("Raw data of outgoing message")
 
 	// If it's a data message, add our profile key
 	if content.DataMessage != nil {
