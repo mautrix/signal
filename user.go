@@ -204,7 +204,7 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 	user := &User{
 		User:   dbUser,
 		bridge: br,
-		log:    br.ZLog.With().Str("user_id", dbUser.MXID.String()).Logger(),
+		log:    br.ZLog.With().Stringer("user_id", dbUser.MXID).Logger(),
 
 		PermissionLevel: br.Config.Bridge.Permissions.Get(dbUser.MXID),
 	}
@@ -214,7 +214,7 @@ func (br *SignalBridge) NewUser(dbUser *database.User) *User {
 }
 
 func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
-	log := user.log.With().Str("action", "ensure_invited").Str("room_id", roomID.String()).Logger()
+	log := user.log.With().Str("action", "ensure_invited").Stringer("room_id", roomID).Logger()
 	if user.bridge.StateStore.GetMembership(roomID, user.MXID) == event.MembershipJoin {
 		ok = true
 		return
@@ -528,7 +528,7 @@ func (br *SignalBridge) StartUsers() {
 	for _, u := range usersWithToken {
 		device := u.populateSignalDevice()
 		if device == nil || !device.IsDeviceLoggedIn() {
-			br.ZLog.Warn().Str("user_id", u.MXID.String()).Msg("No device found for user, skipping Connect and sending BadCredentials BridgeState")
+			br.ZLog.Warn().Stringer("user_id", u.MXID).Msg("No device found for user, skipping Connect and sending BadCredentials BridgeState")
 			u.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 			continue
 		}
@@ -542,7 +542,7 @@ func (br *SignalBridge) StartUsers() {
 	br.ZLog.Debug().Msg("Starting custom puppets")
 	for _, customPuppet := range br.GetAllPuppetsWithCustomMXID() {
 		go func(puppet *Puppet) {
-			br.ZLog.Debug().Str("user_id", puppet.CustomMXID.String()).Msg("Starting custom puppet")
+			br.ZLog.Debug().Stringer("user_id", puppet.CustomMXID).Msg("Starting custom puppet")
 
 			if err := puppet.StartCustomMXID(true); err != nil {
 				puppet.log.Error().Err(err).Msg("Failed to start custom puppet")
@@ -827,7 +827,7 @@ func (user *User) handleReadSelf(evt *events.ReadSelf) {
 		user.SetLastReadTS(ctx, portal.PortalKey, msg.Timestamp)
 		err := portal.SendReadReceipt(puppet, msg)
 		if err != nil {
-			user.log.Err(err).Str("mxid", msg.MXID.String()).Msg("Failed to send read receipt")
+			user.log.Err(err).Stringer("mxid", msg.MXID).Msg("Failed to send read receipt")
 		}
 	}
 }

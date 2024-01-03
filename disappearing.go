@@ -36,7 +36,7 @@ type DisappearingMessagesManager struct {
 }
 
 func (dmm *DisappearingMessagesManager) ScheduleDisappearingForRoom(ctx context.Context, roomID id.RoomID) {
-	log := dmm.Log.With().Str("room_id", roomID.String()).Logger()
+	log := dmm.Log.With().Stringer("room_id", roomID).Logger()
 	disappearingMessages, err := dmm.DB.DisappearingMessage.GetUnscheduledForRoom(ctx, roomID)
 	if err != nil {
 		log.Err(err).Msg("Failed to get unscheduled disappearing messages")
@@ -99,7 +99,7 @@ func (dmm *DisappearingMessagesManager) redactExpiredMessages(ctx context.Contex
 	for _, msg := range expiredMessages {
 		portal := dmm.Bridge.GetPortalByMXID(msg.RoomID)
 		if portal == nil {
-			log.Warn().Str("event_id", msg.EventID.String()).Str("room_id", msg.RoomID.String()).Msg("Failed to redact message: portal not found")
+			log.Warn().Stringer("event_id", msg.EventID).Stringer("room_id", msg.RoomID).Msg("Failed to redact message: portal not found")
 			continue
 		}
 		_, err = portal.MainIntent().RedactEvent(msg.RoomID, msg.EventID, mautrix.ReqRedact{
@@ -137,11 +137,11 @@ func (dmm *DisappearingMessagesManager) AddDisappearingMessage(ctx context.Conte
 	disappearingMessage := dmm.DB.DisappearingMessage.NewWithValues(roomID, eventID, expireIn, expireAt)
 	err := disappearingMessage.Insert(ctx)
 	if err != nil {
-		zerolog.Ctx(ctx).Err(err).Str("event_id", eventID.String()).
+		zerolog.Ctx(ctx).Err(err).Stringer("event_id", eventID).
 			Msg("Failed to add disappearing message to database")
 		return
 	}
-	zerolog.Ctx(ctx).Debug().Str("event_id", eventID.String()).
+	zerolog.Ctx(ctx).Debug().Stringer("event_id", eventID).
 		Msg("Added disappearing message row to database")
 	if startTimerNow {
 		// Tell the disappearing messages loop to check again

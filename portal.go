@@ -307,7 +307,7 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	case event.EventReaction:
 		portal.handleMatrixReaction(ctx, msg.user, msg.evt)
 	default:
-		log.Warn().Str("type", msg.evt.Type.String()).Msg("Unhandled matrix message type")
+		log.Warn().Str("type", msg.evt.Type.Type).Msg("Unhandled matrix message type")
 	}
 }
 
@@ -393,11 +393,11 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 		var err error
 		editTargetMsg, err = portal.bridge.DB.Message.GetByMXID(ctx, editTarget)
 		if err != nil {
-			log.Err(err).Str("edit_target_mxid", editTarget.String()).Msg("Failed to get edit target message")
+			log.Err(err).Stringer("edit_target_mxid", editTarget).Msg("Failed to get edit target message")
 			go ms.sendMessageMetrics(evt, errFailedToGetEditTarget, "Error converting", true)
 			return
 		} else if editTargetMsg == nil {
-			log.Err(err).Str("edit_target_mxid", editTarget.String()).Msg("Edit target message not found")
+			log.Err(err).Stringer("edit_target_mxid", editTarget).Msg("Edit target message not found")
 			go ms.sendMessageMetrics(evt, errEditUnknownTarget, "Error converting", true)
 			return
 		} else if editTargetMsg.Sender != sender.SignalID {
@@ -577,7 +577,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	if err != nil {
 		log.Err(err).Msg("Failed to get existing reaction from database")
 	} else if dbReaction != nil {
-		log.Debug().Str("existing_event_id", dbReaction.MXID.String()).Msg("Redacting existing reaction after sending new one")
+		log.Debug().Stringer("existing_event_id", dbReaction.MXID).Msg("Redacting existing reaction after sending new one")
 		_, err = portal.MainIntent().RedactEvent(portal.MXID, dbReaction.MXID)
 		if err != nil {
 			log.Err(err).Msg("Failed to redact existing reaction")
@@ -1257,12 +1257,12 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		cancel()
 		if !result.WasSuccessful {
 			log.Err(result.FailedSendResult.Error).
-				Str("destination", destination.String()).
+				Stringer("destination", destination).
 				Uints64("message_ids", messages).
 				Msg("Failed to send read receipt to Signal")
 		} else {
 			log.Debug().
-				Str("destination", destination.String()).
+				Stringer("destination", destination).
 				Uints64("message_ids", messages).
 				Msg("Sent read receipt to Signal")
 		}

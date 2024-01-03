@@ -16,3 +16,8 @@ repos:
       - id: go-vet-mod
       #- id: go-staticcheck-repo-mod
       # TODO: reenable this and fix all the problems
+
+  - repo: https://github.com/beeper/pre-commit-go
+    rev: v0.3.0
+    hooks:
+      - id: zerolog-use-stringer

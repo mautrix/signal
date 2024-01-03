@@ -181,7 +181,7 @@ func (portal *Portal) sendMessageMetrics(evt *event.Event, err error, part strin
 		Stringer("sender", evt.Sender).
 		Logger()
 	if evt.Type == event.EventRedaction {
-		log = log.With().Str("redacts", evt.Redacts.String()).Logger()
+		log = log.With().Stringer("redacts", evt.Redacts).Logger()
 	}
 
 	origEvtID := evt.ID

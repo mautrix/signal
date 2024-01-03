@@ -417,7 +417,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningURLReceived {
-			log.Err(resp.Err).Str("state", resp.State.String()).Msg("unexpected state")
+			log.Err(resp.Err).Stringer("state", resp.State).Msg("unexpected state")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   fmt.Sprintf("Unexpected state %s", resp.State.String()),
@@ -503,7 +503,7 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningDataReceived {
-			log.Err(resp.Err).Str("state", resp.State.String()).Msg("unexpected state")
+			log.Err(resp.Err).Stringer("state", resp.State).Msg("unexpected state")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   fmt.Sprintf("Unexpected state %s", resp.State.String()),
@@ -595,7 +595,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 			return
 		}
 		if resp.State != signalmeow.StateProvisioningPreKeysRegistered {
-			log.Err(resp.Err).Str("state", resp.State.String()).Msg("unexpected state")
+			log.Err(resp.Err).Stringer("state", resp.State).Msg("unexpected state")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
 				Error:   fmt.Sprintf("Unexpected state %s", resp.State.String()),

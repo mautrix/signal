@@ -455,7 +455,7 @@ func fnDeletePortal(ce *WrappedCommandEvent) {
 		return
 	}
 
-	ce.Portal.log.Info().Str("user_id", ce.User.MXID.String()).Msg("User requested deletion of portal")
+	ce.Portal.log.Info().Stringer("user_id", ce.User.MXID).Msg("User requested deletion of portal")
 	ce.Portal.Delete()
 	ce.Portal.Cleanup(false)
 }
