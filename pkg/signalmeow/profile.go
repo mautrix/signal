@@ -274,7 +274,7 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 func fetchAndDecryptAvatarImage(d *Device, avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
 	username, password := d.Data.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
-		Host:     web.CDNUrlHost, // I guess don't use CDN2 for profiles?
+		Host:     web.CDN1Hostname, // I guess don't use CDN2 for profiles?
 		Username: &username,
 		Password: &password,
 	}

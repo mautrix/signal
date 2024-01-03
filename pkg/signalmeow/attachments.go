@@ -36,20 +36,12 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
-// *** Attachments! ***
-
-// Attachment represents an attachment received from a peer
-type Attachment struct {
-	R        io.Reader
-	MimeType string
-	FileName string
-}
+const (
+	attachmentKeyDownloadPath = "/attachments/%s"
+	attachmentIDDownloadPath  = "/attachments/%d"
+)
 
 func getAttachmentPath(id uint64, key string, cdnNumber uint32) (string, error) {
-	const (
-		attachmentKeyDownloadPath = "/attachments/%s"
-		attachmentIDDownloadPath  = "/attachments/%d"
-	)
 	if id != 0 {
 		return fmt.Sprintf(attachmentIDDownloadPath, id), nil
 	}
@@ -107,6 +99,21 @@ type attachmentV3UploadAttributes struct {
 	SignedUploadLocation string            `json:"signedUploadLocation"`
 }
 
+func extend(data []byte, paddedLen int) []byte {
+	origLen := len(data)
+	if cap(data) >= paddedLen {
+		data = data[:paddedLen]
+		for i := origLen; i < paddedLen; i++ {
+			data[i] = 0
+		}
+		return data
+	} else {
+		newData := make([]byte, paddedLen)
+		copy(newData, data)
+		return newData
+	}
+}
+
 func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
 	log := zerolog.Ctx(ctx).With().Str("func", "upload attachment").Logger()
 	keys := random.Bytes(64) // combined AES and MAC keys
@@ -115,13 +122,12 @@ func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signal
 	// Padded length uses exponential bracketing
 	paddedLen := int(math.Max(541, math.Floor(math.Pow(1.05, math.Ceil(math.Log(float64(len(body)))/math.Log(1.05))))))
 	if paddedLen < len(body) {
-		log.Debug().
+		log.Panic().
 			Int("padded_len", paddedLen).
 			Int("len", len(body)).
-			Msg("Padded length is less than body length, continuing with a privacy risk")
-	} else {
-		body = append(body, bytes.Repeat([]byte{0}, int(paddedLen)-len(body))...)
+			Msg("Math error: padded length is less than body length")
 	}
+	body = extend(body, paddedLen)
 
 	encrypted, err := aesEncrypt(keys[:32], body)
 	if err != nil {

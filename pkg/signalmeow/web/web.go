@@ -36,19 +36,21 @@ const proxyUrlStr = "" // Set this to proxy requests
 const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmproxy)
 
 const (
-	UrlHost        = "chat.signal.org"
-	StorageUrlHost = "storage.signal.org"
-	CDNUrlHost     = "cdn.signal.org"
-	CDN2UrlHost    = "cdn2.signal.org"
+	APIHostname     = "chat.signal.org"
+	StorageHostname = "storage.signal.org"
+	CDN1Hostname    = "cdn.signal.org"
+	CDN2Hostname    = "cdn2.signal.org"
+	CDN3Hostname    = "cdn3.signal.org"
 )
 
 var CDNHosts = []string{
-	CDNUrlHost,
-	CDNUrlHost,
-	CDN2UrlHost,
+	CDN1Hostname,
+	CDN1Hostname,
+	CDN2Hostname,
+	CDN3Hostname,
 }
 
-// logging
+// Deprecated: global loggers should never be used
 var zlog zerolog.Logger = zerolog.New(zerolog.ConsoleWriter{}).With().Timestamp().Logger()
 
 func SetLogger(l zerolog.Logger) {
@@ -116,7 +118,7 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 		opt = &HTTPReqOpt{}
 	}
 	if opt.Host == "" {
-		opt.Host = UrlHost
+		opt.Host = APIHostname
 	}
 	if len(path) > 0 && path[0] != '/' {
 		path = "/" + path
@@ -199,6 +201,12 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTP
 		opt = &HTTPReqOpt{}
 	}
 	if opt.Host == "" {
+		if int(cdnNumber) > len(CDNHosts) {
+			log.Warn().Msg("Invalid CDN index")
+			opt.Host = CDN1Hostname
+		} else {
+			opt.Host = CDNHosts[cdnNumber]
+		}
 		if cdnNumber == 0 {
 			// This is basically a fallback if cdnNumber is not set
 			// but it also seems to be the right host if cdnNumber == 0

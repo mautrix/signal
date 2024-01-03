@@ -390,7 +390,7 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 		Username:    &groupAuth.Username,
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
-		Host:        web.StorageUrlHost,
+		Host:        web.StorageHostname,
 	}
 	response, err := web.SendHTTPRequest(http.MethodGet, "/v1/groups", opts)
 	if err != nil {
@@ -435,7 +435,7 @@ func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey Serialize
 	// Fetch avatar
 	username, password := d.Data.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
-		Host:     web.CDNUrlHost,
+		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
