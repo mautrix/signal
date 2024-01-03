@@ -85,6 +85,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Bool, "bridge", "use_contact_avatars")
 	helper.Copy(up.Int, "bridge", "portal_message_buffer")
 	helper.Copy(up.Bool, "bridge", "personal_filtering_spaces")
+	helper.Copy(up.Bool, "bridge", "bridge_notices")
 	helper.Copy(up.Bool, "bridge", "delivery_receipts")
 	helper.Copy(up.Bool, "bridge", "message_status_events")
 	helper.Copy(up.Bool, "bridge", "message_error_notices")
