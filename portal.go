@@ -1566,17 +1566,17 @@ func (portal *Portal) addRelaybotFormat(userID id.UserID, evt *event.Event, cont
 	if member == nil {
 		member = &event.MemberEventContent{}
 	}
+	// Stickers can't have captions, so force them into images when relaying
+	if evt.Type == event.EventSticker {
+		content.MsgType = event.MsgImage
+		evt.Type = event.EventMessage
+	}
 	content.EnsureHasHTML()
 	data, err := portal.bridge.Config.Bridge.Relay.FormatMessage(content, userID, *member)
 	if err != nil {
 		portal.log.Err(err).Msg("Failed to apply relaybot format")
 	}
 	content.FormattedBody = data
-	// Stickers can't have captions, so force them into images when relaying
-	if evt.Type == event.EventSticker {
-		content.MsgType = event.MsgImage
-		evt.Type = event.EventMessage
-	}
 	// Force FileName field so the formatted body is used as a caption
 	if content.FileName == "" {
 		content.FileName = content.Body
