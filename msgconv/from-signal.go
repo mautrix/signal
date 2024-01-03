@@ -266,6 +266,14 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 			"key": sticker.GetPackKey(),
 		},
 	}
+	// Hack for bad clients like Element X which don't support encrypted stickers.
+	// This requires thumbnail_file to be set (which is done in reuploadAttachment).
+	// It works because Element X supports encrypted thumbnails on stickers,
+	// so just add an empty url field to pass validation.
+	// TODO remove once ruma fixes https://github.com/matrix-org/matrix-spec/issues/1667
+	if converted.Content.File != nil {
+		converted.Extra["url"] = ""
+	}
 	return converted
 }
 
@@ -338,6 +346,12 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 	} else {
 		content.URL = mxc
 	}
+	// Hack for bad clients like Element iOS as well as stickers on Element X Android/iOS
+	// TODO remove once Element iOS is deprecated?
+	infoCopy := *content.Info
+	content.Info.ThumbnailInfo = &infoCopy
+	content.Info.ThumbnailURL = content.URL
+	content.Info.ThumbnailFile = content.File
 	return &ConvertedMessagePart{
 		Type:    event.EventMessage,
 		Content: content,
