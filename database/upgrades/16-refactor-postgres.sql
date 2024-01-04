@@ -84,6 +84,10 @@ ALTER TABLE portal ALTER COLUMN expiration_time SET NOT NULL;
 ALTER TABLE portal ALTER COLUMN relay_user_id SET NOT NULL;
 
 -- Add unique constraint to custom_mxid
+UPDATE puppet
+    SET custom_mxid=NULL, access_token=''
+    WHERE custom_mxid<>''
+      AND uuid<>COALESCE((SELECT uuid FROM "user" WHERE mxid=custom_mxid), '00000000-0000-0000-0000-000000000000');
 UPDATE puppet SET custom_mxid=NULL WHERE custom_mxid='';
 ALTER TABLE puppet ADD CONSTRAINT puppet_custom_mxid_unique UNIQUE(custom_mxid);
 -- Remove unnecessary nullables in puppet

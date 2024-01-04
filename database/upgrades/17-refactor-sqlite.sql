@@ -148,6 +148,10 @@ CREATE TABLE puppet_new (
     CONSTRAINT puppet_custom_mxid_unique UNIQUE(custom_mxid)
 );
 
+UPDATE puppet
+    SET custom_mxid=NULL, access_token=''
+    WHERE custom_mxid<>''
+      AND uuid<>COALESCE((SELECT uuid FROM "user" WHERE mxid=custom_mxid), '00000000-0000-0000-0000-000000000000');
 INSERT INTO puppet_new
     SELECT uuid, number, COALESCE(name, ''), COALESCE(name_quality, 0), COALESCE(avatar_hash, ''),
         COALESCE(avatar_url, ''), name_set, avatar_set, is_registered, contact_info_set,
