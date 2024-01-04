@@ -128,8 +128,6 @@ type Response struct {
 	*ResolveIdentifierResponse
 }
 
-// ** Start New Chat ** //
-
 type ResolveIdentifierResponse struct {
 	RoomID      id.RoomID                          `json:"room_id"`
 	ChatID      ResolveIdentifierResponseChatID    `json:"chat_id"`
@@ -267,8 +265,6 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ** Provisioning session creation and management ** //
-
 func (prov *ProvisioningAPI) mutexForUser(user *User) *sync.Mutex {
 	if _, ok := prov.provisioningMutexes[user.MXID.String()]; !ok {
 		prov.provisioningMutexes[user.MXID.String()] = &sync.Mutex{}
@@ -333,8 +329,6 @@ func (prov *ProvisioningAPI) clearSession(ctx context.Context, user *User) {
 	}
 }
 
-// ** Provisioning API Helpers ** //
-
 func (prov *ProvisioningAPI) loginOrSendError(ctx context.Context, w http.ResponseWriter, user *User) (*provisioningHandle, error) {
 	newSessionLoggedIn, handle, err := prov.newOrExistingSession(user)
 	if err != nil {
@@ -380,8 +374,6 @@ func (prov *ProvisioningAPI) checkSessionAndReturnHandle(ctx context.Context, w 
 	}
 	return handle
 }
-
-// ** Provisioning API ** //
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)

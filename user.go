@@ -49,6 +49,112 @@ var (
 	ErrNotLoggedIn  = errors.New("not logged in")
 )
 
+func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
+	if userID == br.Bot.UserID || br.IsGhost(userID) {
+		return nil
+	}
+	br.usersLock.Lock()
+	defer br.usersLock.Unlock()
+
+	user, ok := br.usersByMXID[userID]
+	if !ok {
+		dbUser, err := br.DB.User.GetByMXID(context.TODO(), userID)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get user from database")
+			return nil
+		}
+		return br.loadUser(context.TODO(), dbUser, &userID)
+	}
+	return user
+}
+
+func (br *SignalBridge) GetUserBySignalID(id uuid.UUID) *User {
+	br.usersLock.Lock()
+	defer br.usersLock.Unlock()
+
+	user, ok := br.usersBySignalID[id]
+	if !ok {
+		dbUser, err := br.DB.User.GetBySignalID(context.TODO(), id)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get user from database")
+			return nil
+		}
+		return br.loadUser(context.TODO(), dbUser, nil)
+	}
+	return user
+}
+
+func (br *SignalBridge) GetAllLoggedInUsers() []*User {
+	br.usersLock.Lock()
+	defer br.usersLock.Unlock()
+
+	dbUsers, err := br.DB.User.GetAllLoggedIn(context.TODO())
+	if err != nil {
+		br.ZLog.Err(err).Msg("Error getting all logged in users")
+		return nil
+	}
+	users := make([]*User, len(dbUsers))
+
+	for idx, dbUser := range dbUsers {
+		user, ok := br.usersByMXID[dbUser.MXID]
+		if !ok {
+			user = br.loadUser(context.TODO(), dbUser, nil)
+		}
+		users[idx] = user
+	}
+	return users
+}
+
+func (br *SignalBridge) loadUser(ctx context.Context, dbUser *database.User, mxid *id.UserID) *User {
+	if dbUser == nil {
+		if mxid == nil {
+			return nil
+		}
+		dbUser = br.DB.User.New()
+		dbUser.MXID = *mxid
+		err := dbUser.Insert(ctx)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Error creating user %s")
+			return nil
+		}
+	}
+
+	user := br.NewUser(dbUser)
+	br.usersByMXID[user.MXID] = user
+	if user.SignalID != uuid.Nil {
+		br.usersBySignalID[user.SignalID] = user
+	}
+	if user.ManagementRoom != "" {
+		br.managementRoomsLock.Lock()
+		br.managementRooms[user.ManagementRoom] = user
+		br.managementRoomsLock.Unlock()
+	}
+	// TODO this is completely wrong and shouldn't be here at all
+	// Ensure a puppet is created for this user
+	newPuppet := br.GetPuppetBySignalID(user.SignalID)
+	if newPuppet != nil && newPuppet.CustomMXID == "" {
+		newPuppet.CustomMXID = user.MXID
+		err := newPuppet.Update(ctx)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Error updating puppet for user %s")
+		}
+	}
+	return user
+}
+
+func (br *SignalBridge) NewUser(dbUser *database.User) *User {
+	user := &User{
+		User:   dbUser,
+		bridge: br,
+		log:    br.ZLog.With().Stringer("user_id", dbUser.MXID).Logger(),
+
+		PermissionLevel: br.Config.Bridge.Permissions.Get(dbUser.MXID),
+	}
+	user.Admin = user.PermissionLevel >= bridgeconfig.PermissionLevelAdmin
+	user.BridgeState = br.NewBridgeStateQueue(user)
+	return user
+}
+
 type User struct {
 	*database.User
 
@@ -69,10 +175,10 @@ type User struct {
 	spaceCreateLock        sync.Mutex
 }
 
-var _ bridge.User = (*User)(nil)
-var _ status.BridgeStateFiller = (*User)(nil)
-
-// ** bridge.User Interface **
+var (
+	_ bridge.User              = (*User)(nil)
+	_ status.BridgeStateFiller = (*User)(nil)
+)
 
 func (user *User) GetPermissionLevel() bridgeconfig.PermissionLevel {
 	return user.PermissionLevel
@@ -124,93 +230,6 @@ func (user *User) GetIGhost() bridge.Ghost {
 		return nil
 	}
 	return p
-}
-
-// ** User creation and fetching **
-
-func (br *SignalBridge) loadUser(ctx context.Context, dbUser *database.User, mxid *id.UserID) *User {
-	if dbUser == nil {
-		if mxid == nil {
-			return nil
-		}
-		dbUser = br.DB.User.New()
-		dbUser.MXID = *mxid
-		err := dbUser.Insert(ctx)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Error creating user %s")
-			return nil
-		}
-	}
-
-	user := br.NewUser(dbUser)
-	br.usersByMXID[user.MXID] = user
-	if user.SignalID != uuid.Nil {
-		br.usersBySignalID[user.SignalID] = user
-	}
-	if user.ManagementRoom != "" {
-		br.managementRoomsLock.Lock()
-		br.managementRooms[user.ManagementRoom] = user
-		br.managementRoomsLock.Unlock()
-	}
-	// TODO this is completely wrong and shouldn't be here at all
-	// Ensure a puppet is created for this user
-	newPuppet := br.GetPuppetBySignalID(user.SignalID)
-	if newPuppet != nil && newPuppet.CustomMXID == "" {
-		newPuppet.CustomMXID = user.MXID
-		err := newPuppet.Update(ctx)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Error updating puppet for user %s")
-		}
-	}
-	return user
-}
-
-func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
-	if userID == br.Bot.UserID || br.IsGhost(userID) {
-		return nil
-	}
-	br.usersLock.Lock()
-	defer br.usersLock.Unlock()
-
-	user, ok := br.usersByMXID[userID]
-	if !ok {
-		dbUser, err := br.DB.User.GetByMXID(context.TODO(), userID)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Failed to get user from database")
-			return nil
-		}
-		return br.loadUser(context.TODO(), dbUser, &userID)
-	}
-	return user
-}
-
-func (br *SignalBridge) GetUserBySignalID(id uuid.UUID) *User {
-	br.usersLock.Lock()
-	defer br.usersLock.Unlock()
-
-	user, ok := br.usersBySignalID[id]
-	if !ok {
-		dbUser, err := br.DB.User.GetBySignalID(context.TODO(), id)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Failed to get user from database")
-			return nil
-		}
-		return br.loadUser(context.TODO(), dbUser, nil)
-	}
-	return user
-}
-
-func (br *SignalBridge) NewUser(dbUser *database.User) *User {
-	user := &User{
-		User:   dbUser,
-		bridge: br,
-		log:    br.ZLog.With().Stringer("user_id", dbUser.MXID).Logger(),
-
-		PermissionLevel: br.Config.Bridge.Permissions.Get(dbUser.MXID),
-	}
-	user.Admin = user.PermissionLevel >= bridgeconfig.PermissionLevelAdmin
-	user.BridgeState = br.NewBridgeStateQueue(user)
-	return user
 }
 
 func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
@@ -342,40 +361,14 @@ func (user *User) syncChatDoublePuppetDetails(portal *Portal, justCreated bool) 
 	//}
 }
 
-// ** status.BridgeStateFiller methods **
-
 func (user *User) GetMXID() id.UserID {
 	return user.MXID
 }
 func (user *User) GetRemoteID() string {
 	return user.SignalID.String()
 }
-
 func (user *User) GetRemoteName() string {
 	return user.SignalUsername
-}
-
-// ** Startup, connection and shutdown methods **
-
-func (br *SignalBridge) getAllLoggedInUsers() []*User {
-	br.usersLock.Lock()
-	defer br.usersLock.Unlock()
-
-	dbUsers, err := br.DB.User.GetAllLoggedIn(context.TODO())
-	if err != nil {
-		br.ZLog.Err(err).Msg("Error getting all logged in users")
-		return nil
-	}
-	users := make([]*User, len(dbUsers))
-
-	for idx, dbUser := range dbUsers {
-		user, ok := br.usersByMXID[dbUser.MXID]
-		if !ok {
-			user = br.loadUser(context.TODO(), dbUser, nil)
-		}
-		users[idx] = user
-	}
-	return users
 }
 
 func (user *User) startupTryConnect(retryCount int) {
@@ -523,7 +516,7 @@ func (user *User) clearKeysAndDisconnect() {
 func (br *SignalBridge) StartUsers() {
 	br.ZLog.Debug().Msg("Starting users")
 
-	usersWithToken := br.getAllLoggedInUsers()
+	usersWithToken := br.GetAllLoggedInUsers()
 	numUsersStarting := 0
 	for _, u := range usersWithToken {
 		device := u.populateSignalDevice()
@@ -684,8 +677,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 	}
 
 	// Check if ChatID is a groupID (not a UUID), otherwise do nothing else
-	// TODO: do better than passing around strings and seeing if they are UUIDs or not
-	if _, err := uuid.Parse(portal.ChatID); err == nil {
+	if portal.IsPrivateChat() {
 		return nil
 	}
 	user.log.Info().Msgf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
@@ -984,6 +976,7 @@ func (user *User) disconnectNoLock() (*signalmeow.Device, error) {
 	user.SignalDevice = nil
 	return disconnectedDevice, err
 }
+
 func (user *User) Disconnect() error {
 	user.Lock()
 	defer user.Unlock()
@@ -1002,9 +995,6 @@ func (user *User) Logout() error {
 	return err
 }
 
-// ** Misc Methods **
-
-// Used in CreateMatrixRoom in portal.go
 func (user *User) UpdateDirectChats(chats map[id.UserID][]id.RoomID) {
 	if !user.bridge.Config.Bridge.SyncDirectChatList {
 		return

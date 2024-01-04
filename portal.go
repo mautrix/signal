@@ -17,11 +17,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"image"
 	"reflect"
 	"strings"
 	"sync"
@@ -37,7 +35,6 @@ import (
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
 	"maunium.net/go/mautrix/bridge/status"
-	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -50,6 +47,113 @@ import (
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
+
+func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
+	br.portalsLock.Lock()
+	defer br.portalsLock.Unlock()
+
+	portal, ok := br.portalsByMXID[mxid]
+	if !ok {
+		dbPortal, err := br.DB.Portal.GetByMXID(context.TODO(), mxid)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get portal from database")
+			return nil
+		}
+		return br.loadPortal(context.TODO(), dbPortal, nil)
+	}
+
+	return portal
+}
+
+func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
+	br.portalsLock.Lock()
+	defer br.portalsLock.Unlock()
+	// If this PortalKey is for a group, Receiver should be empty
+	if key.UserID() == uuid.Nil {
+		key.Receiver = uuid.Nil
+	}
+	portal, ok := br.portalsByID[key]
+	if !ok {
+		dbPortal, err := br.DB.Portal.GetByChatID(context.TODO(), key)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to get portal from database")
+			return nil
+		}
+		return br.loadPortal(context.TODO(), dbPortal, &key)
+	}
+	return portal
+}
+
+func (br *SignalBridge) GetAllPortalsWithMXID() []*Portal {
+	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
+		return nil
+	}
+	return portals
+}
+
+func (br *SignalBridge) GetAllIPortals() (iportals []bridge.Portal) {
+	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
+		return nil
+	}
+	iportals = make([]bridge.Portal, len(portals))
+	for i, portal := range portals {
+		iportals[i] = portal
+	}
+	return iportals
+}
+
+func (br *SignalBridge) loadPortal(ctx context.Context, dbPortal *database.Portal, key *database.PortalKey) *Portal {
+	if dbPortal == nil {
+		if key == nil {
+			return nil
+		}
+
+		dbPortal = br.DB.Portal.New()
+		dbPortal.PortalKey = *key
+		err := dbPortal.Insert(ctx)
+		if err != nil {
+			br.ZLog.Err(err).Msg("Failed to insert new portal")
+			return nil
+		}
+	}
+
+	portal := br.NewPortal(dbPortal)
+
+	br.portalsByID[portal.PortalKey] = portal
+	if portal.MXID != "" {
+		br.portalsByMXID[portal.MXID] = portal
+	}
+
+	return portal
+}
+
+func (br *SignalBridge) dbPortalsToPortals(dbPortals []*database.Portal, err error) ([]*Portal, error) {
+	if err != nil {
+		return nil, err
+	}
+	br.portalsLock.Lock()
+	defer br.portalsLock.Unlock()
+
+	output := make([]*Portal, len(dbPortals))
+	for index, dbPortal := range dbPortals {
+		if dbPortal == nil {
+			continue
+		}
+
+		portal, ok := br.portalsByID[dbPortal.PortalKey]
+		if !ok {
+			portal = br.loadPortal(context.TODO(), dbPortal, nil)
+		}
+
+		output[index] = portal
+	}
+
+	return output, nil
+}
 
 type portalSignalMessage struct {
 	evt  *events.ChatEvent
@@ -78,30 +182,46 @@ type Portal struct {
 	currentlyTyping     []id.UserID
 	currentlyTypingLock sync.Mutex
 
-	latestReadTimestamp uint64 // Cache the latest read timestamp to avoid unnecessary read receipts
-
 	relayUser *User
 }
 
-const recentMessageBufferSize = 32
+var signalFormatParams *signalfmt.FormatParams
+var matrixFormatParams *matrixfmt.HTMLParser
+
+func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
+	portal := &Portal{
+		Portal: dbPortal,
+		bridge: br,
+		log:    br.ZLog.With().Str("chat_id", dbPortal.ChatID).Logger(),
+
+		signalMessages: make(chan portalSignalMessage, br.Config.Bridge.PortalMessageBuffer),
+		matrixMessages: make(chan portalMatrixMessage, br.Config.Bridge.PortalMessageBuffer),
+	}
+	portal.MsgConv = &msgconv.MessageConverter{
+		PortalMethods:        portal,
+		SignalFmtParams:      signalFormatParams,
+		MatrixFmtParams:      matrixFormatParams,
+		ConvertVoiceMessages: true,
+		MaxFileSize:          br.MediaConfig.UploadSize,
+	}
+	go portal.messageLoop()
+
+	return portal
+}
 
 func init() {
 	event.TypeMap[event.StateBridge] = reflect.TypeOf(CustomBridgeInfoContent{})
 	event.TypeMap[event.StateHalfShotBridge] = reflect.TypeOf(CustomBridgeInfoContent{})
 }
 
-// ** Interfaces that Portal implements **
-
-var _ bridge.Portal = (*Portal)(nil)
-
-var _ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
-var _ bridge.TypingPortal = (*Portal)(nil)
-var _ bridge.DisappearingPortal = (*Portal)(nil)
-
-//var _ bridge.MembershipHandlingPortal = (*Portal)(nil)
-//var _ bridge.MetaHandlingPortal = (*Portal)(nil)
-
-// ** bridge.Portal Interface **
+var (
+	_ bridge.Portal                    = (*Portal)(nil)
+	_ bridge.ReadReceiptHandlingPortal = (*Portal)(nil)
+	_ bridge.TypingPortal              = (*Portal)(nil)
+	_ bridge.DisappearingPortal        = (*Portal)(nil)
+	//_ bridge.MembershipHandlingPortal = (*Portal)(nil)
+	//_ bridge.MetaHandlingPortal = (*Portal)(nil)
+)
 
 func (portal *Portal) IsEncrypted() bool {
 	return portal.Encrypted
@@ -197,80 +317,6 @@ func (portal *Portal) UpdateBridgeInfo() {
 	if err != nil {
 		portal.log.Warn().Err(err).Msg("Failed to update uk.half-shot.bridge")
 	}
-}
-
-// ** bridge.ChildOverride methods (for SignalBridge in main.go) **
-
-func (br *SignalBridge) GetAllPortalsWithMXID() []*Portal {
-	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
-	if err != nil {
-		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
-		return nil
-	}
-	return portals
-}
-
-func (br *SignalBridge) GetAllIPortals() (iportals []bridge.Portal) {
-	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
-	if err != nil {
-		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
-		return nil
-	}
-	iportals = make([]bridge.Portal, len(portals))
-	for i, portal := range portals {
-		iportals[i] = portal
-	}
-	return iportals
-}
-
-func (br *SignalBridge) dbPortalsToPortals(dbPortals []*database.Portal, err error) ([]*Portal, error) {
-	if err != nil {
-		return nil, err
-	}
-	br.portalsLock.Lock()
-	defer br.portalsLock.Unlock()
-
-	output := make([]*Portal, len(dbPortals))
-	for index, dbPortal := range dbPortals {
-		if dbPortal == nil {
-			continue
-		}
-
-		portal, ok := br.portalsByID[dbPortal.PortalKey]
-		if !ok {
-			portal = br.loadPortal(context.TODO(), dbPortal, nil)
-		}
-
-		output[index] = portal
-	}
-
-	return output, nil
-}
-
-// ** Portal Creation and Message Handling **
-
-var signalFormatParams *signalfmt.FormatParams
-var matrixFormatParams *matrixfmt.HTMLParser
-
-func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
-	portal := &Portal{
-		Portal: dbPortal,
-		bridge: br,
-		log:    br.ZLog.With().Str("chat_id", dbPortal.ChatID).Logger(),
-
-		signalMessages: make(chan portalSignalMessage, br.Config.Bridge.PortalMessageBuffer),
-		matrixMessages: make(chan portalMatrixMessage, br.Config.Bridge.PortalMessageBuffer),
-	}
-	portal.MsgConv = &msgconv.MessageConverter{
-		PortalMethods:        portal,
-		SignalFmtParams:      signalFormatParams,
-		MatrixFmtParams:      matrixFormatParams,
-		ConvertVoiceMessages: true,
-		MaxFileSize:          br.MediaConfig.UploadSize,
-	}
-	go portal.messageLoop()
-
-	return portal
 }
 
 func (portal *Portal) messageLoop() {
@@ -611,7 +657,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Content, sender *User, evtID id.EventID) error {
 	log := zerolog.Ctx(ctx).With().
-		Str("action", "send_signal_message").
+		Str("action", "send signal message").
 		Str("event_id", evtID.String()).
 		Str("portal_chat_id", portal.ChatID).
 		Logger()
@@ -1174,7 +1220,6 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 	}
 }
 
-// mautrix-go TypingPortal interface
 func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
 	portal.currentlyTypingLock.Lock()
 	defer portal.currentlyTypingLock.Unlock()
@@ -1284,67 +1329,6 @@ func (portal *Portal) encrypt(intent *appservice.IntentAPI, content *event.Conte
 		return eventType, fmt.Errorf("failed to encrypt event: %w", err)
 	}
 	return event.EventEncrypted, nil
-}
-
-func (portal *Portal) encryptFileInPlace(data []byte, mimeType string) (string, *event.EncryptedFileInfo) {
-	if !portal.Encrypted {
-		return mimeType, nil
-	}
-
-	file := &event.EncryptedFileInfo{
-		EncryptedFile: *attachment.NewEncryptedFile(),
-		URL:           "",
-	}
-	file.EncryptInPlace(data)
-	return "application/octet-stream", file
-}
-
-func (portal *Portal) uploadMediaToMatrix(intent *appservice.IntentAPI, data []byte, content *event.MessageEventContent) error {
-	uploadMimeType, file := portal.encryptFileInPlace(data, content.Info.MimeType)
-
-	req := mautrix.ReqUploadMedia{
-		ContentBytes: data,
-		ContentType:  uploadMimeType,
-	}
-	var mxc id.ContentURI
-	if portal.bridge.Config.Homeserver.AsyncMedia {
-		uploaded, err := intent.UploadAsync(req)
-		if err != nil {
-			return err
-		}
-		mxc = uploaded.ContentURI
-	} else {
-		uploaded, err := intent.UploadMedia(req)
-		if err != nil {
-			return err
-		}
-		mxc = uploaded.ContentURI
-	}
-
-	if file != nil {
-		file.URL = mxc.CUString()
-		content.File = file
-	} else {
-		content.URL = mxc.CUString()
-	}
-
-	content.Info.Size = len(data)
-	if content.Info.Width == 0 && content.Info.Height == 0 && strings.HasPrefix(content.Info.MimeType, "image/") {
-		cfg, _, _ := image.DecodeConfig(bytes.NewReader(data))
-		content.Info.Width, content.Info.Height = cfg.Width, cfg.Height
-	}
-
-	// This is a hack for bad clients like Element iOS that require a thumbnail (https://github.com/vector-im/element-ios/issues/4004)
-	if strings.HasPrefix(content.Info.MimeType, "image/") && content.Info.ThumbnailInfo == nil {
-		infoCopy := *content.Info
-		content.Info.ThumbnailInfo = &infoCopy
-		if content.File != nil {
-			content.Info.ThumbnailFile = file
-		} else {
-			content.Info.ThumbnailURL = content.URL
-		}
-	}
-	return nil
 }
 
 func (portal *Portal) sendMatrixEvent(intent *appservice.IntentAPI, eventType event.Type, content any, extraContent map[string]any, timestamp int64) (*mautrix.RespSendEvent, error) {
@@ -1497,81 +1481,10 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	return nil
 }
 
-func (portal *Portal) UpdateInfo(user *User, meta *any) *any {
-	return nil
-}
-
-// ** Portal loading and fetching **
-var (
-	portalCreationDummyEvent = event.Type{Type: "fi.mau.dummy.portal_created", Class: event.MessageEventType}
-)
-
-func (br *SignalBridge) loadPortal(ctx context.Context, dbPortal *database.Portal, key *database.PortalKey) *Portal {
-	if dbPortal == nil {
-		if key == nil {
-			return nil
-		}
-
-		dbPortal = br.DB.Portal.New()
-		dbPortal.PortalKey = *key
-		err := dbPortal.Insert(ctx)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Failed to insert new portal")
-			return nil
-		}
-	}
-
-	portal := br.NewPortal(dbPortal)
-
-	br.portalsByID[portal.PortalKey] = portal
-	if portal.MXID != "" {
-		br.portalsByMXID[portal.MXID] = portal
-	}
-
-	return portal
-}
-
-func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
-	br.portalsLock.Lock()
-	defer br.portalsLock.Unlock()
-
-	portal, ok := br.portalsByMXID[mxid]
-	if !ok {
-		dbPortal, err := br.DB.Portal.GetByMXID(context.TODO(), mxid)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Failed to get portal from database")
-			return nil
-		}
-		return br.loadPortal(context.TODO(), dbPortal, nil)
-	}
-
-	return portal
-}
-
-func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
-	br.portalsLock.Lock()
-	defer br.portalsLock.Unlock()
-	// If this PortalKey is for a group, Receiver should be empty
-	if key.UserID() == uuid.Nil {
-		key.Receiver = uuid.Nil
-	}
-	portal, ok := br.portalsByID[key]
-	if !ok {
-		dbPortal, err := br.DB.Portal.GetByChatID(context.TODO(), key)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Failed to get portal from database")
-			return nil
-		}
-		return br.loadPortal(context.TODO(), dbPortal, &key)
-	}
-	return portal
-}
-
 func (portal *Portal) getBridgeInfoStateKey() string {
 	return fmt.Sprintf("net.maunium.signal://signal/%s", portal.ChatID)
 }
 
-// ** DisappearingPortal interface **
 func (portal *Portal) ScheduleDisappearing() {
 	portal.bridge.disappearingMessagesManager.ScheduleDisappearingForRoom(context.TODO(), portal.MXID)
 }

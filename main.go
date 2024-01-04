@@ -75,7 +75,6 @@ type SignalBridge struct {
 
 	puppets             map[uuid.UUID]*Puppet
 	puppetsByCustomMXID map[id.UserID]*Puppet
-	puppetsByNumber     map[string]*Puppet
 	puppetsLock         sync.Mutex
 
 	disappearingMessagesManager *DisappearingMessagesManager
@@ -337,7 +336,6 @@ func main() {
 
 		puppets:             make(map[uuid.UUID]*Puppet),
 		puppetsByCustomMXID: make(map[id.UserID]*Puppet),
-		puppetsByNumber:     make(map[string]*Puppet),
 	}
 	br.Bridge = bridge.Bridge{
 		Name:              "mautrix-signal",
