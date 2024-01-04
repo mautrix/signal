@@ -249,7 +249,7 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 		Str("existing_room_id", portal.MXID.String()).
 		Msg("Existing private chat portal found, trying to invite user")
 
-	ok := portal.ensureUserInvited(inviter)
+	ok := portal.ensureUserInvited(ctx, inviter)
 	if !ok {
 		log.Warn().Msg("Failed to invite user to existing private chat portal. Redirecting portal to new room")
 		br.createPrivatePortalFromInvite(ctx, roomID, inviter, puppet, portal)
@@ -258,9 +258,9 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 	intent := puppet.DefaultIntent()
 	errorMessage := fmt.Sprintf("You already have a private chat portal with me at [%[1]s](https://matrix.to/#/%[1]s)", portal.MXID)
 	errorContent := format.RenderMarkdown(errorMessage, true, false)
-	_, _ = intent.SendMessageEvent(roomID, event.EventMessage, errorContent)
+	_, _ = intent.SendMessageEvent(ctx, roomID, event.EventMessage, errorContent)
 	log.Debug().Msg("Leaving ghost from private chat room after accepting invite because we already have a chat with the user")
-	_, _ = intent.LeaveRoom(roomID)
+	_, _ = intent.LeaveRoom(ctx, roomID)
 }
 
 func (br *SignalBridge) createPrivatePortalFromInvite(ctx context.Context, roomID id.RoomID, inviter *User, puppet *Puppet, portal *Portal) {
@@ -270,7 +270,7 @@ func (br *SignalBridge) createPrivatePortalFromInvite(ctx context.Context, roomI
 	// Check if room is already encrypted
 	var existingEncryption event.EncryptionEventContent
 	var encryptionEnabled bool
-	err := portal.MainIntent().StateEvent(roomID, event.StateEncryption, "", &existingEncryption)
+	err := portal.MainIntent().StateEvent(ctx, roomID, event.StateEncryption, "", &existingEncryption)
 	if err != nil {
 		log.Err(err).Msg("Failed to check if encryption is enabled in private chat room")
 	} else {
@@ -284,16 +284,16 @@ func (br *SignalBridge) createPrivatePortalFromInvite(ctx context.Context, roomI
 
 	if br.Config.Bridge.Encryption.Default || encryptionEnabled {
 		log.Debug().Msg("Adding bridge bot to new private chat portal as encryption is enabled")
-		_, err = intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: br.Bot.UserID})
+		_, err = intent.InviteUser(ctx, roomID, &mautrix.ReqInviteUser{UserID: br.Bot.UserID})
 		if err != nil {
 			log.Err(err).Msg("Failed to invite bridge bot to enable e2be")
 		}
-		err = br.Bot.EnsureJoined(roomID)
+		err = br.Bot.EnsureJoined(ctx, roomID)
 		if err != nil {
 			log.Err(err).Msg("Failed to join as bridge bot to enable e2be")
 		}
 		if !encryptionEnabled {
-			_, err = intent.SendStateEvent(roomID, event.StateEncryption, "", portal.getEncryptionEventContent())
+			_, err = intent.SendStateEvent(ctx, roomID, event.StateEncryption, "", portal.getEncryptionEventContent())
 			if err != nil {
 				log.Err(err).Msg("Failed to enable e2be")
 			}
@@ -304,23 +304,23 @@ func (br *SignalBridge) createPrivatePortalFromInvite(ctx context.Context, roomI
 		portal.Encrypted = true
 	}
 	//portal.Topic = PrivateChatTopic
-	_, _ = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+	_, _ = portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
 	if portal.shouldSetDMRoomMetadata() {
 		portal.Name = puppet.Name
 		portal.AvatarURL = puppet.AvatarURL
 		portal.AvatarHash = puppet.AvatarHash
 		portal.AvatarSet = puppet.AvatarSet
-		_, err = portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+		_, err = portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
 		portal.NameSet = err == nil
-		_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
+		_, err = portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
 		portal.AvatarSet = err == nil
 	}
 	err = portal.Update(ctx)
 	if err != nil {
 		log.Err(err).Msg("Failed to update portal in database")
 	}
-	portal.UpdateBridgeInfo()
-	_, _ = intent.SendNotice(roomID, "Private chat portal created")
+	portal.UpdateBridgeInfo(ctx)
+	_, _ = intent.SendNotice(ctx, roomID, "Private chat portal created")
 	log.Info().Msg("Created private chat portal after invite")
 }
 

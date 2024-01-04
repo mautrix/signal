@@ -102,7 +102,7 @@ func (dmm *DisappearingMessagesManager) redactExpiredMessages(ctx context.Contex
 			log.Warn().Stringer("event_id", msg.EventID).Stringer("room_id", msg.RoomID).Msg("Failed to redact message: portal not found")
 			continue
 		}
-		_, err = portal.MainIntent().RedactEvent(msg.RoomID, msg.EventID, mautrix.ReqRedact{
+		_, err = portal.MainIntent().RedactEvent(ctx, msg.RoomID, msg.EventID, mautrix.ReqRedact{
 			Reason: "Message expired",
 			TxnID:  fmt.Sprintf("mxsg_disappear_%s", msg.EventID),
 		})

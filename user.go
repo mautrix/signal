@@ -232,7 +232,7 @@ func (user *User) GetIGhost() bridge.Ghost {
 	return p
 }
 
-func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
+func (user *User) ensureInvited(ctx context.Context, intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
 	log := user.log.With().Str("action", "ensure_invited").Stringer("room_id", roomID).Logger()
 	if user.bridge.StateStore.GetMembership(roomID, user.MXID) == event.MembershipJoin {
 		ok = true
@@ -249,7 +249,7 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 	} else {
 		log.Debug().Msg("NOT adding will_auto_accept to invite content")
 	}
-	_, err := intent.InviteUser(roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
+	_, err := intent.InviteUser(ctx, roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
 	var httpErr mautrix.HTTPError
 	if err != nil && errors.As(err, &httpErr) && httpErr.RespError != nil && strings.Contains(httpErr.RespError.Err, "is already in the room") {
 		user.bridge.StateStore.SetMembership(roomID, user.MXID, event.MembershipJoin)
@@ -263,7 +263,7 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
 		log.Debug().Msg("ensuring custom puppet is joined")
-		err = customPuppet.CustomIntent().EnsureJoined(roomID, appservice.EnsureJoinedParams{IgnoreCache: true})
+		err = customPuppet.CustomIntent().EnsureJoined(ctx, roomID, appservice.EnsureJoinedParams{IgnoreCache: true})
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to auto-join custom puppet")
 			ok = false
@@ -274,7 +274,7 @@ func (user *User) ensureInvited(intent *appservice.IntentAPI, roomID id.RoomID, 
 	return
 }
 
-func (user *User) GetSpaceRoom() id.RoomID {
+func (user *User) GetSpaceRoom(ctx context.Context) id.RoomID {
 	if !user.bridge.Config.Bridge.PersonalFilteringSpaces {
 		return ""
 	}
@@ -286,7 +286,7 @@ func (user *User) GetSpaceRoom() id.RoomID {
 			return user.SpaceRoom
 		}
 
-		resp, err := user.bridge.Bot.CreateRoom(&mautrix.ReqCreateRoom{
+		resp, err := user.bridge.Bot.CreateRoom(ctx, &mautrix.ReqCreateRoom{
 			Visibility: "private",
 			Name:       "Signal",
 			Topic:      "Your Signal bridged chats",
@@ -317,10 +317,10 @@ func (user *User) GetSpaceRoom() id.RoomID {
 			if err != nil {
 				user.log.Err(err).Msg("Failed to save user in database after creating space room")
 			}
-			user.ensureInvited(user.bridge.Bot, user.SpaceRoom, false)
+			user.ensureInvited(ctx, user.bridge.Bot, user.SpaceRoom, false)
 		}
 	} else if !user.spaceMembershipChecked {
-		user.ensureInvited(user.bridge.Bot, user.SpaceRoom, false)
+		user.ensureInvited(ctx, user.bridge.Bot, user.SpaceRoom, false)
 	}
 	user.spaceMembershipChecked = true
 
@@ -600,7 +600,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		log.Debug().Str("new_name", name).Msg("updating puppet name")
 		puppet.Name = name
 		puppet.NameSet = false
-		err = puppet.DefaultIntent().SetDisplayName(name)
+		err = puppet.DefaultIntent().SetDisplayName(ctx, name)
 		if err != nil {
 			log.Err(err).Msg("error setting display name")
 			return err
@@ -629,7 +629,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		puppet.AvatarSet = false
 		puppet.AvatarURL = id.ContentURI{}
 		puppet.AvatarHash = ""
-		err = puppet.DefaultIntent().SetAvatarURL(id.ContentURI{})
+		err = puppet.DefaultIntent().SetAvatarURL(ctx, id.ContentURI{})
 		if err != nil {
 			log.Err(err).Msg("error clearing avatar url")
 			return err
@@ -645,7 +645,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 	// If avatar is set, we must have a new avatar image, so update it
 	if newAvatar != nil {
 		log.Debug().Msg("uploading avatar")
-		avatarURL, err := puppet.DefaultIntent().UploadBytes(newAvatar.Image, newAvatar.ContentType)
+		avatarURL, err := puppet.DefaultIntent().UploadBytes(ctx, newAvatar.Image, newAvatar.ContentType)
 		if err != nil {
 			log.Err(err).Msg("error uploading avatar")
 			return err
@@ -654,7 +654,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		puppet.AvatarSet = true
 		puppet.AvatarHash = newAvatar.Hash
 
-		err = puppet.DefaultIntent().SetAvatarURL(avatarURL.ContentURI)
+		err = puppet.DefaultIntent().SetAvatarURL(ctx, avatarURL.ContentURI)
 		if err != nil {
 			log.Err(err).Msg("error setting avatar URL")
 			return err
@@ -670,7 +670,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 
 func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal *Portal) error {
 	// Ensure our puppet is joined to the room
-	err := portal.MainIntent().EnsureJoined(portal.MXID)
+	err := portal.MainIntent().EnsureJoined(ctx, portal.MXID)
 	if err != nil {
 		user.log.Err(err).Msg("error ensuring joined")
 		return err
@@ -696,7 +696,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 			continue
 		}
 		_ = updatePuppetWithSignalContact(context.TODO(), user, memberPuppet, nil)
-		err = memberPuppet.DefaultIntent().EnsureJoined(portal.MXID)
+		err = memberPuppet.DefaultIntent().EnsureJoined(ctx, portal.MXID)
 		if err != nil {
 			user.log.Err(err).Msg("error ensuring joined")
 		}
@@ -744,7 +744,7 @@ func (user *User) handleReceipt(evt *events.Receipt) {
 			if portal == nil {
 				continue
 			}
-			err = portal.SendReadReceipt(sender, msg)
+			err = portal.SendReadReceipt(ctx, sender, msg)
 			if err != nil {
 				log.Err(err).Msg("Failed to send read receipt")
 			}
@@ -767,7 +767,7 @@ func (user *User) handleReceipt(evt *events.Receipt) {
 				continue
 			}
 			// There should always only be 1 part, but use the last part to be safe
-			portal.MarkDelivered(msgs[len(msgs)-1])
+			portal.MarkDelivered(ctx, msgs[len(msgs)-1])
 		}
 	}
 }
@@ -812,7 +812,7 @@ func (user *User) handleReadSelf(evt *events.ReadSelf) {
 			Msg("Bridging own read receipt")
 		portal.ScheduleDisappearing()
 		user.SetLastReadTS(ctx, portal.PortalKey, msg.Timestamp)
-		err := portal.SendReadReceipt(puppet, msg)
+		err := portal.SendReadReceipt(ctx, puppet, msg)
 		if err != nil {
 			user.log.Err(err).Stringer("mxid", msg.MXID).Msg("Failed to send read receipt")
 		}
@@ -831,9 +831,10 @@ func (user *User) handleContactChange(evt *events.ContactChange) {
 }
 
 func (user *User) syncPortalInfo(portal *Portal) {
+	ctx := context.TODO()
 	updatePortal := false
 	if !portal.IsPrivateChat() {
-		group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(context.Background(), user.SignalDevice, portal.GroupID())
+		group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(ctx, user.SignalDevice, portal.GroupID())
 		if err != nil {
 			user.log.Err(err).Msg("error retrieving group")
 			return
@@ -861,7 +862,7 @@ func (user *User) syncPortalInfo(portal *Portal) {
 		// avatarImage is only not nil if there's a new avatar to set
 		if avatarImage != nil {
 			user.log.Debug().Msg("Uploading new group avatar")
-			avatarURL, err := portal.MainIntent().UploadBytes(avatarImage, http.DetectContentType(avatarImage))
+			avatarURL, err := portal.MainIntent().UploadBytes(ctx, avatarImage, http.DetectContentType(avatarImage))
 			if err != nil {
 				user.log.Err(err).Msg("error uploading group avatar")
 				return
@@ -875,8 +876,8 @@ func (user *User) syncPortalInfo(portal *Portal) {
 
 		if portal.MXID != "" {
 			// ensure everyone is invited to the group
-			portal.ensureUserInvited(user)
-			_ = ensureGroupPuppetsAreJoinedToPortal(context.Background(), user, portal)
+			portal.ensureUserInvited(ctx, user)
+			_ = ensureGroupPuppetsAreJoinedToPortal(context.TODO(), user, portal)
 			go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 		}
 	} else if portal.shouldSetDMRoomMetadata() {
@@ -895,16 +896,16 @@ func (user *User) syncPortalInfo(portal *Portal) {
 	}
 	if updatePortal {
 		if portal.MXID != "" {
-			_, err := portal.MainIntent().SetRoomName(portal.MXID, portal.Name)
+			_, err := portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
 			if err != nil {
 				user.log.Err(err).Msg("error setting room name")
 			}
 			portal.NameSet = err == nil
-			_, err = portal.MainIntent().SetRoomTopic(portal.MXID, portal.Topic)
+			_, err = portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
 			if err != nil {
 				user.log.Err(err).Msg("error setting room topic")
 			}
-			_, err = portal.MainIntent().SetRoomAvatar(portal.MXID, portal.AvatarURL)
+			_, err = portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
 			if err != nil {
 				user.log.Err(err).Msg("error setting room avatar")
 			}
@@ -914,7 +915,7 @@ func (user *User) syncPortalInfo(portal *Portal) {
 		if err != nil {
 			user.log.Err(err).Msg("error updating portal")
 		}
-		portal.UpdateBridgeInfo()
+		portal.UpdateBridgeInfo(ctx)
 	}
 }
 
@@ -945,7 +946,7 @@ func (user *User) eventHandler(rawEvt events.SignalEvent) {
 		} else {
 			content.Body = "Call ended"
 		}
-		portal.sendMainIntentMessage(content)
+		portal.sendMainIntentMessage(context.TODO(), content)
 	case *events.ContactChange:
 		user.handleContactChange(evt)
 	case *events.GroupChange:
@@ -995,7 +996,7 @@ func (user *User) Logout() error {
 	return err
 }
 
-func (user *User) UpdateDirectChats(chats map[id.UserID][]id.RoomID) {
+func (user *User) UpdateDirectChats(ctx context.Context, chats map[id.UserID][]id.RoomID) {
 	if !user.bridge.Config.Bridge.SyncDirectChatList {
 		return
 	}
@@ -1021,7 +1022,7 @@ func (user *User) UpdateDirectChats(chats map[id.UserID][]id.RoomID) {
 	var err error
 	if user.bridge.Config.Homeserver.Software == bridgeconfig.SoftwareAsmux {
 		urlPath := intent.BuildURL(mautrix.ClientURLPath{"unstable", "com.beeper.asmux", "dms"})
-		_, err = intent.MakeFullRequest(mautrix.FullRequest{
+		_, err = intent.MakeFullRequest(ctx, mautrix.FullRequest{
 			Method:      method,
 			URL:         urlPath,
 			Headers:     http.Header{"X-Asmux-Auth": {user.bridge.AS.Registration.AppToken}},
@@ -1030,7 +1031,7 @@ func (user *User) UpdateDirectChats(chats map[id.UserID][]id.RoomID) {
 	} else {
 		existingChats := map[id.UserID][]id.RoomID{}
 
-		err = intent.GetAccountData(event.AccountDataDirectChats.Type, &existingChats)
+		err = intent.GetAccountData(ctx, event.AccountDataDirectChats.Type, &existingChats)
 		if err != nil {
 			user.log.Warn().Err(err).Msg("Failed to get m.direct event to update it")
 			return
@@ -1046,7 +1047,7 @@ func (user *User) UpdateDirectChats(chats map[id.UserID][]id.RoomID) {
 			}
 		}
 
-		err = intent.SetAccountData(event.AccountDataDirectChats.Type, &chats)
+		err = intent.SetAccountData(ctx, event.AccountDataDirectChats.Type, &chats)
 	}
 
 	if err != nil {

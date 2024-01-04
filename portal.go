@@ -301,19 +301,19 @@ func (portal *Portal) getBridgeInfo() (string, CustomBridgeInfoContent) {
 	return bridgeInfoStateKey, CustomBridgeInfoContent{bridgeInfo, roomType}
 }
 
-func (portal *Portal) UpdateBridgeInfo() {
+func (portal *Portal) UpdateBridgeInfo(ctx context.Context) {
 	if len(portal.MXID) == 0 {
 		portal.log.Debug().Msg("Not updating bridge info: no Matrix room created")
 		return
 	}
 	portal.log.Debug().Msg("Updating bridge info...")
 	stateKey, content := portal.getBridgeInfo()
-	_, err := portal.MainIntent().SendStateEvent(portal.MXID, event.StateBridge, stateKey, content)
+	_, err := portal.MainIntent().SendStateEvent(ctx, portal.MXID, event.StateBridge, stateKey, content)
 	if err != nil {
 		portal.log.Warn().Err(err).Msg("Failed to update m.bridge")
 	}
 	// TODO remove this once https://github.com/matrix-org/matrix-doc/pull/2346 is in spec
-	_, err = portal.MainIntent().SendStateEvent(portal.MXID, event.StateHalfShotBridge, stateKey, content)
+	_, err = portal.MainIntent().SendStateEvent(ctx, portal.MXID, event.StateHalfShotBridge, stateKey, content)
 	if err != nil {
 		portal.log.Warn().Err(err).Msg("Failed to update uk.half-shot.bridge")
 	}
@@ -334,7 +334,7 @@ func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	// If we have no SignalDevice, the bridge isn't logged in properly,
 	// so send BAD_CREDENTIALS so the user knows
 	if !msg.user.SignalDevice.IsDeviceLoggedIn() && !portal.HasRelaybot() {
-		go portal.sendMessageMetrics(msg.evt, errUserNotLoggedIn, "Ignoring", nil)
+		go portal.sendMessageMetrics(context.TODO(), msg.evt, errUserNotLoggedIn, "Ignoring", nil)
 		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 		return
 	}
@@ -371,7 +371,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 	start := time.Now()
 
 	messageAge := timings.totalReceive
-	ms := metricSender{portal: portal, timings: &timings}
+	ms := metricSender{portal: portal, timings: &timings, ctx: ctx}
 	log.Debug().
 		Str("sender", evt.Sender.String()).
 		Dur("age", messageAge).
@@ -456,7 +456,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 		}
 	}
 
-	relaybotFormatted := isRelay && portal.addRelaybotFormat(realSenderMXID, evt, content)
+	relaybotFormatted := isRelay && portal.addRelaybotFormat(ctx, realSenderMXID, evt, content)
 	if content.MsgType == event.MsgNotice && !portal.bridge.Config.Bridge.BridgeNotices {
 		go ms.sendMessageMetrics(evt, errMNoticeDisabled, "Error converting", true)
 		return
@@ -523,13 +523,13 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 
 	if dbMessage != nil {
 		if dbMessage.Sender != sender.SignalID {
-			portal.sendMessageStatusCheckpointFailed(evt, errRedactionTargetSentBySomeoneElse)
+			portal.sendMessageStatusCheckpointFailed(ctx, evt, errRedactionTargetSentBySomeoneElse)
 			return
 		}
 		msg := signalmeow.DataMessageForDelete(dbMessage.Timestamp)
 		err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 		if err != nil {
-			portal.sendMessageStatusCheckpointFailed(evt, err)
+			portal.sendMessageStatusCheckpointFailed(ctx, evt, err)
 			log.Err(err).Msg("Failed to send message redaction to Signal")
 			return
 		}
@@ -541,7 +541,7 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 		} else if len(otherParts) > 0 {
 			// If there are other parts of the message, send a redaction for each of them
 			for _, otherPart := range otherParts {
-				_, err = portal.MainIntent().RedactEvent(portal.MXID, otherPart.MXID, mautrix.ReqRedact{
+				_, err = portal.MainIntent().RedactEvent(ctx, portal.MXID, otherPart.MXID, mautrix.ReqRedact{
 					Reason: "Other part of Signal message redacted",
 					TxnID:  "mxsg_partredact_" + otherPart.MXID.String(),
 				})
@@ -560,16 +560,16 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 				}
 			}
 		}
-		portal.sendMessageStatusCheckpointSuccess(evt)
+		portal.sendMessageStatusCheckpointSuccess(ctx, evt)
 	} else if dbReaction != nil {
 		if dbReaction.Author != sender.SignalID {
-			portal.sendMessageStatusCheckpointFailed(evt, errUnreactTargetSentBySomeoneElse)
+			portal.sendMessageStatusCheckpointFailed(ctx, evt, errUnreactTargetSentBySomeoneElse)
 			return
 		}
 		msg := signalmeow.DataMessageForReaction(dbReaction.Emoji, dbReaction.MsgAuthor, dbReaction.MsgTimestamp, true)
 		err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 		if err != nil {
-			portal.sendMessageStatusCheckpointFailed(evt, err)
+			portal.sendMessageStatusCheckpointFailed(ctx, evt, err)
 			log.Err(err).Msg("Failed to send reaction redaction to Signal")
 			return
 		}
@@ -577,9 +577,9 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 		if err != nil {
 			log.Err(err).Msg("Failed to delete redacted reaction from database")
 		}
-		portal.sendMessageStatusCheckpointSuccess(evt)
+		portal.sendMessageStatusCheckpointSuccess(ctx, evt)
 	} else {
-		portal.sendMessageStatusCheckpointFailed(evt, errRedactionTargetNotFound)
+		portal.sendMessageStatusCheckpointFailed(ctx, evt, errRedactionTargetNotFound)
 	}
 }
 
@@ -593,11 +593,11 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	relatedEventID := evt.Content.AsReaction().RelatesTo.EventID
 	targetMsg, err := portal.bridge.DB.Message.GetByMXID(ctx, relatedEventID)
 	if err != nil {
-		portal.sendMessageStatusCheckpointFailed(evt, err)
+		portal.sendMessageStatusCheckpointFailed(ctx, evt, err)
 		log.Err(err).Msg("Failed to get reaction target message")
 		return
 	} else if targetMsg == nil {
-		portal.sendMessageStatusCheckpointFailed(evt, errReactionTargetNotFound)
+		portal.sendMessageStatusCheckpointFailed(ctx, evt, errReactionTargetNotFound)
 		log.Warn().Msg("Reaction target message not found")
 		return
 	}
@@ -606,7 +606,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	msg := signalmeow.DataMessageForReaction(signalEmoji, targetMsg.Sender, targetMsg.Timestamp, false)
 	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 	if err != nil {
-		portal.sendMessageStatusCheckpointFailed(evt, err)
+		portal.sendMessageStatusCheckpointFailed(ctx, evt, err)
 		portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
 		return
 	}
@@ -624,7 +624,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 		log.Err(err).Msg("Failed to get existing reaction from database")
 	} else if dbReaction != nil {
 		log.Debug().Stringer("existing_event_id", dbReaction.MXID).Msg("Redacting existing reaction after sending new one")
-		_, err = portal.MainIntent().RedactEvent(portal.MXID, dbReaction.MXID)
+		_, err = portal.MainIntent().RedactEvent(ctx, portal.MXID, dbReaction.MXID)
 		if err != nil {
 			log.Err(err).Msg("Failed to redact existing reaction")
 		}
@@ -652,7 +652,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 		}
 	}
 
-	portal.sendMessageStatusCheckpointSuccess(evt)
+	portal.sendMessageStatusCheckpointSuccess(ctx, evt)
 }
 
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Content, sender *User, evtID id.EventID) error {
@@ -681,7 +681,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 		if err != nil {
 			// check the start of the error string, see if it starts with "No group master key found for group identifier"
 			if strings.HasPrefix(err.Error(), "No group master key found for group identifier") {
-				portal.MainIntent().SendNotice(portal.MXID, "Missing group encryption key. Please ask a group member to send a message in this chat, then retry sending.")
+				portal.MainIntent().SendNotice(ctx, portal.MXID, "Missing group encryption key. Please ask a group member to send a message in this chat, then retry sending.")
 			}
 			log.Err(err).Msg("Error sending event to Signal group")
 			return err
@@ -709,21 +709,21 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 	return err
 }
 
-func (portal *Portal) sendMessageStatusCheckpointSuccess(evt *event.Event) {
-	portal.sendDeliveryReceipt(evt.ID)
+func (portal *Portal) sendMessageStatusCheckpointSuccess(ctx context.Context, evt *event.Event) {
+	portal.sendDeliveryReceipt(ctx, evt.ID)
 	portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, 0)
 
 	var deliveredTo *[]id.UserID
 	if portal.IsPrivateChat() {
 		deliveredTo = &[]id.UserID{}
 	}
-	portal.sendStatusEvent(evt.ID, "", nil, deliveredTo)
+	portal.sendStatusEvent(ctx, evt.ID, "", nil, deliveredTo)
 }
 
-func (portal *Portal) sendMessageStatusCheckpointFailed(evt *event.Event, err error) {
-	portal.sendDeliveryReceipt(evt.ID)
+func (portal *Portal) sendMessageStatusCheckpointFailed(ctx context.Context, evt *event.Event, err error) {
+	portal.sendDeliveryReceipt(ctx, evt.ID)
 	portal.bridge.SendMessageErrorCheckpoint(evt, status.MsgStepRemote, err, true, 0)
-	portal.sendStatusEvent(evt.ID, "", err, nil)
+	portal.sendStatusEvent(ctx, evt.ID, "", err, nil)
 }
 
 type msgconvContextKey int
@@ -741,13 +741,13 @@ func (portal *Portal) UploadMatrixMedia(ctx context.Context, data []byte, fileNa
 		FileName:     fileName,
 	}
 	if portal.bridge.Config.Homeserver.AsyncMedia {
-		uploaded, err := intent.UploadAsync(req)
+		uploaded, err := intent.UploadAsync(ctx, req)
 		if err != nil {
 			return "", err
 		}
 		return uploaded.ContentURI.CUString(), nil
 	} else {
-		uploaded, err := intent.UploadMedia(req)
+		uploaded, err := intent.UploadMedia(ctx, req)
 		if err != nil {
 			return "", err
 		}
@@ -760,7 +760,7 @@ func (portal *Portal) DownloadMatrixMedia(ctx context.Context, uriString id.Cont
 	if err != nil {
 		return nil, fmt.Errorf("malformed content URI: %w", err)
 	}
-	return portal.MainIntent().DownloadBytesContext(ctx, parsedURI)
+	return portal.MainIntent().DownloadBytes(ctx, parsedURI)
 }
 
 func (portal *Portal) GetData(ctx context.Context) *database.Portal {
@@ -899,7 +899,7 @@ func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataM
 	}
 	intent := sender.IntentFor(portal)
 	if existingReaction != nil {
-		_, err = intent.RedactEvent(portal.MXID, existingReaction.MXID, mautrix.ReqRedact{
+		_, err = intent.RedactEvent(ctx, portal.MXID, existingReaction.MXID, mautrix.ReqRedact{
 			TxnID: "mxsg_unreact_" + existingReaction.MXID.String(),
 		})
 		if err != nil {
@@ -924,7 +924,7 @@ func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataM
 			EventID: targetMsg.MXID,
 		},
 	}
-	resp, err := portal.sendMatrixEvent(intent, event.EventReaction, content, nil, int64(ts))
+	resp, err := portal.sendMatrixEvent(ctx, intent, event.EventReaction, content, nil, int64(ts))
 	if err != nil {
 		log.Err(err).Msg("Failed to send reaction")
 		return
@@ -971,7 +971,7 @@ func (portal *Portal) handleSignalDelete(sender *Puppet, delete *signalpb.DataMe
 	}
 	intent := sender.IntentFor(portal)
 	for _, part := range targetMsg {
-		_, err = intent.RedactEvent(portal.MXID, part.MXID, mautrix.ReqRedact{
+		_, err = intent.RedactEvent(ctx, portal.MXID, part.MXID, mautrix.ReqRedact{
 			TxnID: "mxsg_delete_" + part.MXID.String(),
 		})
 		if err != nil {
@@ -998,12 +998,12 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 	ctx := log.WithContext(context.TODO())
 	if portal.MXID == "" {
 		log.Debug().Msg("Creating Matrix room from incoming message")
-		if err := portal.CreateMatrixRoom(source, nil); err != nil {
+		if err := portal.CreateMatrixRoom(ctx, source, nil); err != nil {
 			log.Error().Err(err).Msg("Failed to create portal room")
 			return
 		}
 		// FIXME hacky
-		ensureGroupPuppetsAreJoinedToPortal(context.Background(), source, portal)
+		ensureGroupPuppetsAreJoinedToPortal(context.TODO(), source, portal)
 		signalmeow.SendContactSyncRequest(context.TODO(), source.SignalDevice)
 	}
 
@@ -1023,7 +1023,7 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 		converted.MergeCaption()
 	}
 	for i, part := range converted.Parts {
-		resp, err := portal.sendMatrixEvent(intent, part.Type, part.Content, part.Extra, int64(converted.Timestamp))
+		resp, err := portal.sendMatrixEvent(ctx, intent, part.Type, part.Content, part.Extra, int64(converted.Timestamp))
 		if err != nil {
 			log.Err(err).Int("part_index", i).Msg("Failed to send message to Matrix")
 			continue
@@ -1076,7 +1076,7 @@ func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, 
 				"m.new_content": part.Extra,
 			}
 		}
-		_, err = portal.sendMatrixEvent(intent, part.Type, part.Content, part.Extra, int64(converted.Timestamp))
+		_, err = portal.sendMatrixEvent(ctx, intent, part.Type, part.Content, part.Extra, int64(converted.Timestamp))
 		if err != nil {
 			log.Err(err).Int("part_index", i).Msg("Failed to send edit to Matrix")
 		}
@@ -1094,6 +1094,7 @@ func (portal *Portal) handleSignalTypingMessage(sender *Puppet, msg *signalpb.Ty
 		portal.log.Debug().Msg("Dropping typing message in chat with no portal")
 		return
 	}
+	ctx := context.TODO()
 	intent := sender.IntentFor(portal)
 	// Don't bridge double puppeted typing notifications to avoid echoing
 	if intent.IsCustomPuppet {
@@ -1102,9 +1103,9 @@ func (portal *Portal) handleSignalTypingMessage(sender *Puppet, msg *signalpb.Ty
 	var err error
 	switch msg.GetAction() {
 	case signalpb.TypingMessage_STARTED:
-		_, err = intent.UserTyping(portal.MXID, true, SignalTypingTimeout)
+		_, err = intent.UserTyping(ctx, portal.MXID, true, SignalTypingTimeout)
 	case signalpb.TypingMessage_STOPPED:
-		_, err = intent.UserTyping(portal.MXID, false, 0)
+		_, err = intent.UserTyping(ctx, portal.MXID, false, 0)
 	}
 	if err != nil {
 		portal.log.Err(err).
@@ -1132,7 +1133,7 @@ func (portal *Portal) addDisappearingMessage(ctx context.Context, eventID id.Eve
 	portal.bridge.disappearingMessagesManager.AddDisappearingMessage(ctx, eventID, portal.MXID, time.Duration(expireInSeconds)*time.Second, startTimerNow)
 }
 
-func (portal *Portal) MarkDelivered(msg *database.Message) {
+func (portal *Portal) MarkDelivered(ctx context.Context, msg *database.Message) {
 	if !portal.IsPrivateChat() {
 		return
 	}
@@ -1144,7 +1145,7 @@ func (portal *Portal) MarkDelivered(msg *database.Message) {
 		Status:     status.MsgStatusDelivered,
 		ReportedBy: status.MsgReportedByBridge,
 	})
-	portal.sendStatusEvent(msg.MXID, "", nil, &[]id.UserID{portal.MainIntent().UserID})
+	portal.sendStatusEvent(ctx, msg.MXID, "", nil, &[]id.UserID{portal.MainIntent().UserID})
 }
 
 type customReadReceipt struct {
@@ -1158,11 +1159,11 @@ type customReadMarkers struct {
 	FullyReadExtra customReadReceipt `json:"com.beeper.fully_read.extra"`
 }
 
-func (portal *Portal) SendReadReceipt(sender *Puppet, msg *database.Message) error {
+func (portal *Portal) SendReadReceipt(ctx context.Context, sender *Puppet, msg *database.Message) error {
 	intent := sender.IntentFor(portal)
 	if intent.IsCustomPuppet {
 		extra := customReadReceipt{DoublePuppetSource: portal.bridge.Name}
-		return intent.SetReadMarkers(portal.MXID, &customReadMarkers{
+		return intent.SetReadMarkers(ctx, portal.MXID, &customReadMarkers{
 			ReqSetReadMarkers: mautrix.ReqSetReadMarkers{
 				Read:      msg.MXID,
 				FullyRead: msg.MXID,
@@ -1171,7 +1172,7 @@ func (portal *Portal) SendReadReceipt(sender *Puppet, msg *database.Message) err
 			FullyReadExtra: extra,
 		})
 	} else {
-		return intent.MarkRead(portal.MXID, msg.MXID)
+		return intent.MarkRead(ctx, portal.MXID, msg.MXID)
 	}
 }
 
@@ -1210,7 +1211,7 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 		if portal.IsPrivateChat() {
 			// this is a 1:1 chat
 			portal.log.Debug().Msgf("Sending Typing event to Signal %s", portal.ChatID)
-			ctx := context.Background()
+			ctx := context.TODO()
 			typingMessage := signalmeow.TypingMessage(isTyping)
 			result := signalmeow.SendMessage(ctx, user.SignalDevice, portal.UserID(), typingMessage)
 			if !result.WasSuccessful {
@@ -1295,7 +1296,7 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		}
 		// Don't use portal.sendSignalMessage because we're sending this straight to
 		// who sent the original message, not the portal's ChatID
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		result := signalmeow.SendMessage(ctx, sender.SignalDevice, destination, signalmeow.ReadReceptMessageForTimestamps(messages))
 		cancel()
 		if !result.WasSuccessful {
@@ -1312,11 +1313,11 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 	}
 }
 
-func (portal *Portal) sendMainIntentMessage(content *event.MessageEventContent) (*mautrix.RespSendEvent, error) {
-	return portal.sendMatrixEvent(portal.MainIntent(), event.EventMessage, content, nil, 0)
+func (portal *Portal) sendMainIntentMessage(ctx context.Context, content *event.MessageEventContent) (*mautrix.RespSendEvent, error) {
+	return portal.sendMatrixEvent(ctx, portal.MainIntent(), event.EventMessage, content, nil, 0)
 }
 
-func (portal *Portal) encrypt(intent *appservice.IntentAPI, content *event.Content, eventType event.Type) (event.Type, error) {
+func (portal *Portal) encrypt(ctx context.Context, intent *appservice.IntentAPI, content *event.Content, eventType event.Type) (event.Type, error) {
 	if !portal.Encrypted || portal.bridge.Crypto == nil {
 		return eventType, nil
 	}
@@ -1331,18 +1332,18 @@ func (portal *Portal) encrypt(intent *appservice.IntentAPI, content *event.Conte
 	return event.EventEncrypted, nil
 }
 
-func (portal *Portal) sendMatrixEvent(intent *appservice.IntentAPI, eventType event.Type, content any, extraContent map[string]any, timestamp int64) (*mautrix.RespSendEvent, error) {
+func (portal *Portal) sendMatrixEvent(ctx context.Context, intent *appservice.IntentAPI, eventType event.Type, content any, extraContent map[string]any, timestamp int64) (*mautrix.RespSendEvent, error) {
 	wrappedContent := event.Content{Parsed: content, Raw: extraContent}
 	if eventType != event.EventReaction {
 		var err error
-		eventType, err = portal.encrypt(intent, &wrappedContent, eventType)
+		eventType, err = portal.encrypt(ctx, intent, &wrappedContent, eventType)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	_, _ = intent.UserTyping(portal.MXID, false, 0)
-	return intent.SendMassagedMessageEvent(portal.MXID, eventType, &wrappedContent, timestamp)
+	_, _ = intent.UserTyping(ctx, portal.MXID, false, 0)
+	return intent.SendMassagedMessageEvent(ctx, portal.MXID, eventType, &wrappedContent, timestamp)
 }
 
 func (portal *Portal) getEncryptionEventContent() (evt *event.EncryptionEventContent) {
@@ -1360,11 +1361,11 @@ func (portal *Portal) shouldSetDMRoomMetadata() bool {
 		(portal.IsEncrypted() && portal.bridge.Config.Bridge.PrivateChatPortalMeta != "never")
 }
 
-func (portal *Portal) ensureUserInvited(user *User) bool {
-	return user.ensureInvited(portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
+func (portal *Portal) ensureUserInvited(ctx context.Context, user *User) bool {
+	return user.ensureInvited(ctx, portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
 }
 
-func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
+func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, meta *any) error {
 	portal.roomCreateLock.Lock()
 	defer portal.roomCreateLock.Unlock()
 	if portal.MXID != "" {
@@ -1375,7 +1376,7 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 
 	intent := portal.MainIntent()
 
-	if err := intent.EnsureRegistered(); err != nil {
+	if err := intent.EnsureRegistered(ctx); err != nil {
 		portal.log.Error().Err(err).Msg("failed to ensure registered")
 		return err
 	}
@@ -1425,7 +1426,7 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	// FIXME slightly hacky
 	user.syncPortalInfo(portal)
 
-	resp, err := intent.CreateRoom(&mautrix.ReqCreateRoom{
+	resp, err := intent.CreateRoom(ctx, &mautrix.ReqCreateRoom{
 		Visibility:      "private",
 		Name:            portal.Name,
 		Topic:           portal.Topic,
@@ -1454,13 +1455,13 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 	portal.log.Info().Msgf("Created matrix room %s", portal.MXID)
 
 	if portal.Encrypted && portal.IsPrivateChat() {
-		err = portal.bridge.Bot.EnsureJoined(portal.MXID, appservice.EnsureJoinedParams{BotOverride: portal.MainIntent().Client})
+		err = portal.bridge.Bot.EnsureJoined(ctx, portal.MXID, appservice.EnsureJoinedParams{BotOverride: portal.MainIntent().Client})
 		if err != nil {
 			portal.log.Error().Err(err).Msg("Failed to ensure bridge bot is joined to private chat portal")
 		}
 	}
 
-	user.ensureInvited(portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
+	user.ensureInvited(ctx, portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
 	user.syncChatDoublePuppetDetails(portal, true)
 	go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 
@@ -1475,7 +1476,7 @@ func (portal *Portal) CreateMatrixRoom(user *User, meta *any) error {
 		}
 
 		chats := map[id.UserID][]id.RoomID{puppet.MXID: {portal.MXID}}
-		user.UpdateDirectChats(chats)
+		user.UpdateDirectChats(ctx, chats)
 	}
 
 	return nil
@@ -1490,11 +1491,11 @@ func (portal *Portal) ScheduleDisappearing() {
 }
 
 func (portal *Portal) addToPersonalSpace(ctx context.Context, user *User) bool {
-	spaceID := user.GetSpaceRoom()
+	spaceID := user.GetSpaceRoom(ctx)
 	if len(spaceID) == 0 || user.IsInSpace(ctx, portal.PortalKey) {
 		return false
 	}
-	_, err := portal.bridge.Bot.SendStateEvent(spaceID, event.StateSpaceChild, portal.MXID.String(), &event.SpaceChildEventContent{
+	_, err := portal.bridge.Bot.SendStateEvent(ctx, spaceID, event.StateSpaceChild, portal.MXID.String(), &event.SpaceChildEventContent{
 		Via: []string{portal.bridge.Config.Homeserver.Domain},
 	})
 	if err != nil {
@@ -1517,8 +1518,8 @@ func (portal *Portal) HasRelaybot() bool {
 	return portal.bridge.Config.Bridge.Relay.Enabled && len(portal.RelayUserID) > 0
 }
 
-func (portal *Portal) addRelaybotFormat(userID id.UserID, evt *event.Event, content *event.MessageEventContent) bool {
-	member := portal.MainIntent().Member(portal.MXID, userID)
+func (portal *Portal) addRelaybotFormat(ctx context.Context, userID id.UserID, evt *event.Event, content *event.MessageEventContent) bool {
+	member := portal.MainIntent().Member(ctx, portal.MXID, userID)
 	if member == nil {
 		member = &event.MemberEventContent{}
 	}
@@ -1565,22 +1566,22 @@ func (portal *Portal) Delete() {
 	portal.bridge.portalsLock.Unlock()
 }
 
-func (portal *Portal) Cleanup(puppetsOnly bool) {
-	portal.bridge.CleanupRoom(&portal.log, portal.MainIntent(), portal.MXID, puppetsOnly)
+func (portal *Portal) Cleanup(ctx context.Context, puppetsOnly bool) {
+	portal.bridge.CleanupRoom(ctx, &portal.log, portal.MainIntent(), portal.MXID, puppetsOnly)
 }
 
-func (br *SignalBridge) CleanupRoom(log *zerolog.Logger, intent *appservice.IntentAPI, mxid id.RoomID, puppetsOnly bool) {
+func (br *SignalBridge) CleanupRoom(ctx context.Context, log *zerolog.Logger, intent *appservice.IntentAPI, mxid id.RoomID, puppetsOnly bool) {
 	if len(mxid) == 0 {
 		return
 	}
 	if br.SpecVersions.Supports(mautrix.BeeperFeatureRoomYeeting) {
-		err := intent.BeeperDeleteRoom(mxid)
+		err := intent.BeeperDeleteRoom(ctx, mxid)
 		if err == nil || errors.Is(err, mautrix.MNotFound) {
 			return
 		}
 		log.Warn().Err(err).Msg("Failed to delete room using beeper yeet endpoint, falling back to normal behavior")
 	}
-	members, err := intent.JoinedMembers(mxid)
+	members, err := intent.JoinedMembers(ctx, mxid)
 	if err != nil {
 		log.Err(err).Msg("Failed to get portal members for cleanup")
 		return
@@ -1591,18 +1592,18 @@ func (br *SignalBridge) CleanupRoom(log *zerolog.Logger, intent *appservice.Inte
 		}
 		puppet := br.GetPuppetByMXID(member)
 		if puppet != nil {
-			_, err = puppet.DefaultIntent().LeaveRoom(mxid)
+			_, err = puppet.DefaultIntent().LeaveRoom(ctx, mxid)
 			if err != nil {
 				log.Err(err).Msg("Failed to leave as puppet while cleaning up portal")
 			}
 		} else if !puppetsOnly {
-			_, err = intent.KickUser(mxid, &mautrix.ReqKickUser{UserID: member, Reason: "Deleting portal"})
+			_, err = intent.KickUser(ctx, mxid, &mautrix.ReqKickUser{UserID: member, Reason: "Deleting portal"})
 			if err != nil {
 				log.Err(err).Msg("Failed to kick user while cleaning up portal")
 			}
 		}
 	}
-	_, err = intent.LeaveRoom(mxid)
+	_, err = intent.LeaveRoom(ctx, mxid)
 	if err != nil {
 		log.Err(err).Msg("Failed to leave room while cleaning up portal")
 	}

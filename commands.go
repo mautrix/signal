@@ -92,7 +92,7 @@ func fnSetRelay(ce *WrappedCommandEvent) {
 		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
 	} else {
 		ce.Portal.RelayUserID = ce.User.MXID
-		ce.Portal.Update(context.TODO())
+		ce.Portal.Update(ce.Ctx)
 		ce.Reply("Messages from non-logged-in users in this room will now be bridged through your Signal account")
 	}
 }
@@ -114,7 +114,7 @@ func fnUnsetRelay(ce *WrappedCommandEvent) {
 		ce.Reply("Only bridge admins are allowed to enable relay mode on this instance of the bridge")
 	} else {
 		ce.Portal.RelayUserID = ""
-		ce.Portal.Update(context.TODO())
+		ce.Portal.Update(ce.Ctx)
 		ce.Reply("Messages from non-logged-in users will no longer be bridged in this room")
 	}
 }
@@ -133,7 +133,7 @@ func fnDeleteSession(ce *WrappedCommandEvent) {
 		ce.Reply("You're not logged in")
 		return
 	}
-	ce.User.SignalDevice.ClearKeysAndDisconnect(context.TODO())
+	ce.User.SignalDevice.ClearKeysAndDisconnect(ce.Ctx)
 	ce.Reply("Disconnected from Signal")
 }
 
@@ -223,7 +223,7 @@ func fnPM(ce *WrappedCommandEvent) {
 		ce.Reply("You already have a portal to %s at %s", number, portal.MXID)
 		return
 	}
-	if err := portal.CreateMatrixRoom(user, nil); err != nil {
+	if err := portal.CreateMatrixRoom(ce.Ctx, user, nil); err != nil {
 		ce.Reply("Error creating Matrix room for portal to %s", number)
 		ce.Log.Errorln("Error creating Matrix room for portal to %s: %s", number, err)
 		return
@@ -246,7 +246,7 @@ func fnSyncSpace(ce *WrappedCommandEvent) {
 		ce.Reply("Personal filtering spaces are not enabled on this instance of the bridge")
 		return
 	}
-	ctx := ce.ZLog.WithContext(context.TODO())
+	ctx := ce.Ctx
 	dmKeys, err := ce.Bridge.DB.Portal.FindPrivateChatsNotInSpace(ctx, ce.User.SignalID)
 	if err != nil {
 		ce.ZLog.Err(err).Msg("Failed to get private chat keys")
@@ -320,7 +320,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 
 	// Next, get the results of finishing registration
 	resp = <-provChan
-	_, _ = ce.Bot.RedactEvent(ce.RoomID, qrEventID)
+	_, _ = ce.Bot.RedactEvent(ce.Ctx, ce.RoomID, qrEventID)
 	if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 		if resp.Err != nil && strings.HasSuffix(resp.Err.Error(), " EOF") {
 			ce.Reply("Logging in timed out, please try again.")
@@ -360,7 +360,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 		ce.Reply("Problem logging in - No SignalID received")
 		return
 	}
-	err = ce.User.Update(context.TODO())
+	err = ce.User.Update(ce.Ctx)
 	if err != nil {
 		ce.ZLog.Err(err).Msg("Failed to save user to database")
 	}
@@ -382,7 +382,7 @@ func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevEvent id.Even
 	if len(prevEvent) != 0 {
 		content.SetEdit(prevEvent)
 	}
-	resp, err := ce.Bot.SendMessageEvent(ce.RoomID, event.EventMessage, &content)
+	resp, err := ce.Bot.SendMessageEvent(ce.Ctx, ce.RoomID, event.EventMessage, &content)
 	if err != nil {
 		ce.Log.Errorln("Failed to send QR code to user:", err)
 	} else if len(prevEvent) == 0 {
@@ -401,7 +401,7 @@ func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI,
 
 	bot := user.bridge.AS.BotClient()
 
-	resp, err := bot.UploadBytes(qrCode, "image/png")
+	resp, err := bot.UploadBytes(ce.Ctx, qrCode, "image/png")
 	if err != nil {
 		ce.Log.Errorln("Failed to upload QR code:", err)
 		ce.Reply("Failed to upload QR code: %v", err)
@@ -410,12 +410,12 @@ func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI,
 	return resp.ContentURI, true
 }
 
-func canDeletePortal(portal *Portal, userID id.UserID) bool {
+func canDeletePortal(ctx context.Context, portal *Portal, userID id.UserID) bool {
 	if len(portal.MXID) == 0 {
 		return false
 	}
 
-	members, err := portal.MainIntent().JoinedMembers(portal.MXID)
+	members, err := portal.MainIntent().JoinedMembers(ctx, portal.MXID)
 	if err != nil {
 		portal.log.Err(err).
 			Str("user_id", userID.String()).
@@ -446,14 +446,14 @@ var cmdDeletePortal = &commands.FullHandler{
 }
 
 func fnDeletePortal(ce *WrappedCommandEvent) {
-	if !ce.User.Admin && !canDeletePortal(ce.Portal, ce.User.MXID) {
+	if !ce.User.Admin && !canDeletePortal(ce.Ctx, ce.Portal, ce.User.MXID) {
 		ce.Reply("Only bridge admins can delete portals with other Matrix users")
 		return
 	}
 
 	ce.Portal.log.Info().Stringer("user_id", ce.User.MXID).Msg("User requested deletion of portal")
 	ce.Portal.Delete()
-	ce.Portal.Cleanup(false)
+	ce.Portal.Cleanup(ce.Ctx, false)
 }
 
 var cmdDeleteAllPortals = &commands.FullHandler{
@@ -474,7 +474,7 @@ func fnDeleteAllPortals(ce *WrappedCommandEvent) {
 	} else {
 		portalsToDelete = portals[:0]
 		for _, portal := range portals {
-			if canDeletePortal(portal, ce.User.MXID) {
+			if canDeletePortal(ce.Ctx, portal, ce.User.MXID) {
 				portalsToDelete = append(portalsToDelete, portal)
 			}
 		}
@@ -486,7 +486,7 @@ func fnDeleteAllPortals(ce *WrappedCommandEvent) {
 
 	leave := func(portal *Portal) {
 		if len(portal.MXID) > 0 {
-			_, _ = portal.MainIntent().KickUser(portal.MXID, &mautrix.ReqKickUser{
+			_, _ = portal.MainIntent().KickUser(ce.Ctx, portal.MXID, &mautrix.ReqKickUser{
 				Reason: "Deleting portal",
 				UserID: ce.User.MXID,
 			})
@@ -497,8 +497,8 @@ func fnDeleteAllPortals(ce *WrappedCommandEvent) {
 		intent := customPuppet.CustomIntent()
 		leave = func(portal *Portal) {
 			if len(portal.MXID) > 0 {
-				_, _ = intent.LeaveRoom(portal.MXID)
-				_, _ = intent.ForgetRoom(portal.MXID)
+				_, _ = intent.LeaveRoom(ce.Ctx, portal.MXID)
+				_, _ = intent.ForgetRoom(ce.Ctx, portal.MXID)
 			}
 		}
 	}
@@ -509,9 +509,10 @@ func fnDeleteAllPortals(ce *WrappedCommandEvent) {
 	}
 	ce.Reply("Finished deleting portal info. Now cleaning up rooms in background.")
 
+	backgroundCtx := context.TODO()
 	go func() {
 		for _, portal := range portalsToDelete {
-			portal.Cleanup(false)
+			portal.Cleanup(backgroundCtx, false)
 		}
 		ce.Reply("Finished background cleanup of deleted portal rooms.")
 	}()
@@ -528,7 +529,7 @@ var cmdCleanupLostPortals = &commands.FullHandler{
 }
 
 func fnCleanupLostPortals(ce *WrappedCommandEvent) {
-	portals, err := ce.Bridge.DB.LostPortal.GetAll(context.TODO())
+	portals, err := ce.Bridge.DB.LostPortal.GetAll(ce.Ctx)
 	if err != nil {
 		ce.Reply("Failed to get portals: %v", err)
 		return
@@ -544,8 +545,8 @@ func fnCleanupLostPortals(ce *WrappedCommandEvent) {
 		if err == nil {
 			intent = ce.Bridge.GetPuppetBySignalID(dmUUID).DefaultIntent()
 		}
-		ce.Bridge.CleanupRoom(ce.ZLog, intent, portal.MXID, false)
-		err = portal.Delete(context.TODO())
+		ce.Bridge.CleanupRoom(ce.Ctx, ce.ZLog, intent, portal.MXID, false)
+		err = portal.Delete(ce.Ctx)
 		if err != nil {
 			ce.ZLog.Err(err).Msg("Failed to delete lost portal from database after cleanup")
 		}

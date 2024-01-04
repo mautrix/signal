@@ -242,7 +242,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 
 	portal := user.GetPortalByChatID(resp.ChatID.UUID)
 	if portal.MXID == "" {
-		if err := portal.CreateMatrixRoom(user, nil); err != nil {
+		if err := portal.CreateMatrixRoom(r.Context(), user, nil); err != nil {
 			log.Err(err).Msg("error looking up contact")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,
@@ -285,7 +285,7 @@ func (prov *ProvisioningAPI) newOrExistingSession(user *User) (newSessionLoggedI
 	if err != nil {
 		return false, nil, fmt.Errorf("Error logging in: %w", err)
 	}
-	provisioningCtx, cancel := context.WithCancel(context.Background())
+	provisioningCtx, cancel := context.WithCancel(context.TODO())
 	handle = &provisioningHandle{
 		context: provisioningCtx,
 		cancel:  cancel,
