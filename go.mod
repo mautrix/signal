@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.5.0
 	github.com/gorilla/mux v1.8.0
 	github.com/lib/pq v1.10.9
+	github.com/mattn/go-pointer v0.0.1
 	github.com/mattn/go-sqlite3 v1.14.19
 	github.com/prometheus/client_golang v1.18.0
 	github.com/rs/zerolog v1.31.0
