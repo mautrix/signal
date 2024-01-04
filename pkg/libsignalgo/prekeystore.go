@@ -22,9 +22,9 @@ package libsignalgo
 
 typedef const SignalPreKeyRecord const_pre_key_record;
 
-extern int signal_load_pre_key_callback(void *store_ctx, SignalPreKeyRecord **recordp, uint32_t id);
-extern int signal_store_pre_key_callback(void *store_ctx, uint32_t id, const_pre_key_record *record);
-extern int signal_remove_pre_key_callback(void *store_ctx, uint32_t id);
+extern int signal_load_pre_key_callback(uintptr_t store_ctx, SignalPreKeyRecord **recordp, uint32_t id);
+extern int signal_store_pre_key_callback(uintptr_t store_ctx, uint32_t id, const_pre_key_record *record);
+extern int signal_remove_pre_key_callback(uintptr_t store_ctx, uint32_t id);
 */
 import "C"
 import (
@@ -39,7 +39,7 @@ type PreKeyStore interface {
 }
 
 //export signal_load_pre_key_callback
-func signal_load_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalPreKeyRecord, id C.uint32_t) C.int {
+func signal_load_pre_key_callback(storeCtx uintptr, keyp **C.SignalPreKeyRecord, id C.uint32_t) C.int {
 	return wrapStoreCallback(storeCtx, func(store PreKeyStore, ctx context.Context) error {
 		key, err := store.LoadPreKey(ctx, uint32(id))
 		if err == nil && key != nil {
@@ -51,7 +51,7 @@ func signal_load_pre_key_callback(storeCtx unsafe.Pointer, keyp **C.SignalPreKey
 }
 
 //export signal_store_pre_key_callback
-func signal_store_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKeyRecord *C.const_pre_key_record) C.int {
+func signal_store_pre_key_callback(storeCtx uintptr, id C.uint32_t, preKeyRecord *C.const_pre_key_record) C.int {
 	return wrapStoreCallback(storeCtx, func(store PreKeyStore, ctx context.Context) error {
 		record := PreKeyRecord{ptr: (*C.SignalPreKeyRecord)(unsafe.Pointer(preKeyRecord))}
 		cloned, err := record.Clone()
@@ -63,7 +63,7 @@ func signal_store_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t, preKe
 }
 
 //export signal_remove_pre_key_callback
-func signal_remove_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t) C.int {
+func signal_remove_pre_key_callback(storeCtx uintptr, id C.uint32_t) C.int {
 	return wrapStoreCallback(storeCtx, func(store PreKeyStore, ctx context.Context) error {
 		return store.RemovePreKey(ctx, uint32(id))
 	})

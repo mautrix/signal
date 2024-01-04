@@ -31,4 +31,7 @@ cd "$ORIGINAL_DIR"
 cp "${LIBSIGNAL_DIRECTORY}/target/release/libsignal_ffi.a" .
 cp "${LIBSIGNAL_DIRECTORY}/libsignal-ffi.h" .
 
+#sed 's/void \*store_ctx/uintptr_t store_ctx/g' -i libsignal-ffi.h
+sed 's/void \*ctx;/uintptr_t ctx;/g' -i libsignal-ffi.h
+
 echo "Files copied successfully."

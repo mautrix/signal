@@ -24,9 +24,7 @@ import "C"
 import (
 	"context"
 	"errors"
-	"unsafe"
-
-	gopointer "github.com/mattn/go-pointer"
+	"sync"
 )
 
 type WrappedStore[T any] struct {
@@ -34,10 +32,28 @@ type WrappedStore[T any] struct {
 	Ctx   *CallbackContext
 }
 
+var nextUnsafePointer uintptr
+var stores = make(map[uintptr]any)
+var storesLock sync.RWMutex
+
+func _putStore(store any) uintptr {
+	storesLock.Lock()
+	defer storesLock.Unlock()
+	nextUnsafePointer++
+	stores[nextUnsafePointer] = store
+	return nextUnsafePointer
+}
+
+func _loadStore(storeCtx uintptr) any {
+	storesLock.RLock()
+	defer storesLock.RUnlock()
+	return stores[storeCtx]
+}
+
 type CallbackContext struct {
 	Error  error
 	Ctx    context.Context
-	Unrefs []unsafe.Pointer
+	Unrefs []uintptr
 }
 
 func NewCallbackContext(ctx context.Context) *CallbackContext {
@@ -48,19 +64,21 @@ func NewCallbackContext(ctx context.Context) *CallbackContext {
 }
 
 func (ctx *CallbackContext) Unref() {
+	storesLock.Lock()
 	for _, ptr := range ctx.Unrefs {
-		gopointer.Unref(ptr)
+		delete(stores, ptr)
 	}
+	storesLock.Unlock()
 }
 
-func wrapStore[T any](ctx *CallbackContext, store T) unsafe.Pointer {
-	wrappedStore := gopointer.Save(&WrappedStore[T]{Store: store, Ctx: ctx})
+func wrapStore[T any](ctx *CallbackContext, store T) C.uintptr_t {
+	wrappedStore := _putStore(&WrappedStore[T]{Store: store, Ctx: ctx})
 	ctx.Unrefs = append(ctx.Unrefs, wrappedStore)
-	return wrappedStore
+	return C.uintptr_t(wrappedStore)
 }
 
-func wrapStoreCallbackCustomReturn[T any](storeCtx unsafe.Pointer, callback func(store T, ctx context.Context) (int, error)) C.int {
-	wrap := gopointer.Restore(storeCtx).(*WrappedStore[T])
+func wrapStoreCallbackCustomReturn[T any](storeCtx uintptr, callback func(store T, ctx context.Context) (int, error)) C.int {
+	wrap := _loadStore(storeCtx).(*WrappedStore[T])
 	retVal, err := callback(wrap.Store, wrap.Ctx.Ctx)
 	if err != nil {
 		wrap.Ctx.Error = err
@@ -68,8 +86,8 @@ func wrapStoreCallbackCustomReturn[T any](storeCtx unsafe.Pointer, callback func
 	return C.int(retVal)
 }
 
-func wrapStoreCallback[T any](storeCtx unsafe.Pointer, callback func(store T, ctx context.Context) error) C.int {
-	wrap := gopointer.Restore(storeCtx).(*WrappedStore[T])
+func wrapStoreCallback[T any](storeCtx uintptr, callback func(store T, ctx context.Context) error) C.int {
+	wrap := _loadStore(storeCtx).(*WrappedStore[T])
 	if err := callback(wrap.Store, wrap.Ctx.Ctx); err != nil {
 		wrap.Ctx.Error = err
 		return -1

@@ -277,7 +277,7 @@ typedef int (*SignalLoadSession)(void *store_ctx, SignalSessionRecord **recordp,
 typedef int (*SignalStoreSession)(void *store_ctx, const SignalProtocolAddress *address, const SignalSessionRecord *record);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalLoadSession load_session;
   SignalStoreSession store_session;
 } SignalSessionStore;
@@ -293,7 +293,7 @@ typedef int (*SignalGetIdentityKey)(void *store_ctx, SignalPublicKey **public_ke
 typedef int (*SignalIsTrustedIdentity)(void *store_ctx, const SignalProtocolAddress *address, const SignalPublicKey *public_key, unsigned int direction);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalGetIdentityKeyPair get_identity_key_pair;
   SignalGetLocalRegistrationId get_local_registration_id;
   SignalSaveIdentityKey save_identity;
@@ -308,7 +308,7 @@ typedef int (*SignalStorePreKey)(void *store_ctx, uint32_t id, const SignalPreKe
 typedef int (*SignalRemovePreKey)(void *store_ctx, uint32_t id);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalLoadPreKey load_pre_key;
   SignalStorePreKey store_pre_key;
   SignalRemovePreKey remove_pre_key;
@@ -319,7 +319,7 @@ typedef int (*SignalLoadSignedPreKey)(void *store_ctx, SignalSignedPreKeyRecord 
 typedef int (*SignalStoreSignedPreKey)(void *store_ctx, uint32_t id, const SignalSignedPreKeyRecord *record);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalLoadSignedPreKey load_signed_pre_key;
   SignalStoreSignedPreKey store_signed_pre_key;
 } SignalSignedPreKeyStore;
@@ -366,7 +366,7 @@ typedef int (*SignalStoreKyberPreKey)(void *store_ctx, uint32_t id, const Signal
 typedef int (*SignalMarkKyberPreKeyUsed)(void *store_ctx, uint32_t id);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalLoadKyberPreKey load_kyber_pre_key;
   SignalStoreKyberPreKey store_kyber_pre_key;
   SignalMarkKyberPreKeyUsed mark_kyber_pre_key_used;
@@ -387,7 +387,7 @@ typedef int (*SignalLoadSenderKey)(void *store_ctx, SignalSenderKeyRecord**, con
 typedef int (*SignalStoreSenderKey)(void *store_ctx, const SignalProtocolAddress*, const uint8_t (*distribution_id)[16], const SignalSenderKeyRecord*);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalLoadSenderKey load_sender_key;
   SignalStoreSenderKey store_sender_key;
 } SignalSenderKeyStore;
@@ -397,7 +397,7 @@ typedef int (*SignalRead)(void *ctx, uint8_t *buf, uintptr_t buf_len, uintptr_t 
 typedef int (*SignalSkip)(void *ctx, uint64_t amount);
 
 typedef struct {
-  void *ctx;
+  uintptr_t ctx;
   SignalRead read;
   SignalSkip skip;
 } SignalInputStream;

@@ -25,8 +25,8 @@ typedef const SignalProtocolAddress const_address;
 typedef const SignalSenderKeyRecord const_sender_key_record;
 typedef const uint8_t const_uuid_bytes[16];
 
-extern int signal_load_sender_key_callback(void *store_ctx, SignalSenderKeyRecord**, const_address*, const_uuid_bytes*);
-extern int signal_store_sender_key_callback(void *store_ctx, const_address*, const_uuid_bytes*, const_sender_key_record*);
+extern int signal_load_sender_key_callback(uintptr_t store_ctx, SignalSenderKeyRecord**, const_address*, const_uuid_bytes*);
+extern int signal_store_sender_key_callback(uintptr_t store_ctx, const_address*, const_uuid_bytes*, const_sender_key_record*);
 */
 import "C"
 import (
@@ -42,7 +42,7 @@ type SenderKeyStore interface {
 }
 
 //export signal_load_sender_key_callback
-func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp **C.SignalSenderKeyRecord, address *C.const_address, distributionIDBytes *C.const_uuid_bytes) C.int {
+func signal_load_sender_key_callback(storeCtx uintptr, recordp **C.SignalSenderKeyRecord, address *C.const_address, distributionIDBytes *C.const_uuid_bytes) C.int {
 	return wrapStoreCallback(storeCtx, func(store SenderKeyStore, ctx context.Context) error {
 		distributionID := uuid.UUID(*(*[16]byte)(unsafe.Pointer(distributionIDBytes)))
 		record, err := store.LoadSenderKey(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}, distributionID)
@@ -55,7 +55,7 @@ func signal_load_sender_key_callback(storeCtx unsafe.Pointer, recordp **C.Signal
 }
 
 //export signal_store_sender_key_callback
-func signal_store_sender_key_callback(storeCtx unsafe.Pointer, address *C.const_address, distributionIDBytes *C.const_uuid_bytes, senderKeyRecord *C.const_sender_key_record) C.int {
+func signal_store_sender_key_callback(storeCtx uintptr, address *C.const_address, distributionIDBytes *C.const_uuid_bytes, senderKeyRecord *C.const_sender_key_record) C.int {
 	return wrapStoreCallback(storeCtx, func(store SenderKeyStore, ctx context.Context) error {
 		distributionID := uuid.UUID(*(*[16]byte)(unsafe.Pointer(distributionIDBytes)))
 		record := SenderKeyRecord{ptr: (*C.SignalSenderKeyRecord)(unsafe.Pointer(senderKeyRecord))}

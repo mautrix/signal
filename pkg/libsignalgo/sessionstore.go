@@ -23,8 +23,8 @@ package libsignalgo
 typedef const SignalSessionRecord const_session_record;
 typedef const SignalProtocolAddress const_address;
 
-extern int signal_load_session_callback(void *store_ctx, SignalSessionRecord **recordp, const_address *address);
-extern int signal_store_session_callback(void *store_ctx, const_address *address, const_session_record *record);
+extern int signal_load_session_callback(uintptr_t store_ctx, SignalSessionRecord **recordp, const_address *address);
+extern int signal_store_session_callback(uintptr_t store_ctx, const_address *address, const_session_record *record);
 */
 import "C"
 import (
@@ -38,7 +38,7 @@ type SessionStore interface {
 }
 
 //export signal_load_session_callback
-func signal_load_session_callback(storeCtx unsafe.Pointer, recordp **C.SignalSessionRecord, address *C.const_address) C.int {
+func signal_load_session_callback(storeCtx uintptr, recordp **C.SignalSessionRecord, address *C.const_address) C.int {
 	return wrapStoreCallback(storeCtx, func(store SessionStore, ctx context.Context) error {
 		record, err := store.LoadSession(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))})
 		if err == nil && record != nil {
@@ -50,7 +50,7 @@ func signal_load_session_callback(storeCtx unsafe.Pointer, recordp **C.SignalSes
 }
 
 //export signal_store_session_callback
-func signal_store_session_callback(storeCtx unsafe.Pointer, address *C.const_address, sessionRecord *C.const_session_record) C.int {
+func signal_store_session_callback(storeCtx uintptr, address *C.const_address, sessionRecord *C.const_session_record) C.int {
 	return wrapStoreCallback(storeCtx, func(store SessionStore, ctx context.Context) error {
 		record := SessionRecord{ptr: (*C.SignalSessionRecord)(unsafe.Pointer(sessionRecord))}
 		cloned, err := record.Clone()
