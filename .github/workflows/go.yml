@@ -2,9 +2,6 @@ name: Go
 
 on: [push, pull_request]
 
-env:
-  LIBSIGNAL_REF: "v0.36.1"
-
 jobs:
   lint:
     runs-on: ubuntu-latest
