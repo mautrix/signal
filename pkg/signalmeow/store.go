@@ -95,10 +95,16 @@ func (c *StoreContainer) scanDevice(row dbutil.Scannable) (*Device, error) {
 		&deviceData.PNI, &pniIdentityKeyPair, &deviceData.PNIRegistrationID,
 		&deviceData.DeviceID, &deviceData.Number, &deviceData.Password,
 	)
-	deviceData.ACIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
-	deviceData.PNIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
+	}
+	deviceData.ACIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(aciIdentityKeyPair)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize ACI identity key pair: %w", err)
+	}
+	deviceData.PNIIdentityKeyPair, err = libsignalgo.DeserializeIdentityKeyPair(pniIdentityKeyPair)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize PNI identity key pair: %w", err)
 	}
 
 	innerStore := newSQLStore(c, deviceData.ACI)

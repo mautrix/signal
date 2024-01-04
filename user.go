@@ -571,11 +571,10 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 
 	device, err := user.bridge.MeowStore.DeviceByACI(context.TODO(), user.SignalID)
 	if err != nil {
-		log.Err(err).Msg("problem looking up ACI")
+		log.Err(err).Msg("Failed to get device from database")
 		return nil
-	}
-	if device == nil {
-		log.Err(ErrNotLoggedIn).Msg("no device found for ACI")
+	} else if device == nil {
+		log.Err(ErrNotLoggedIn).Msg("No device found for user")
 		return nil
 	}
 
