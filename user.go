@@ -50,6 +50,14 @@ var (
 )
 
 func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
+	return br.maybeGetUserByMXID(userID, &userID)
+}
+
+func (br *SignalBridge) GetUserByMXIDIfExists(userID id.UserID) *User {
+	return br.maybeGetUserByMXID(userID, nil)
+}
+
+func (br *SignalBridge) maybeGetUserByMXID(userID id.UserID, userIDPtr *id.UserID) *User {
 	if userID == br.Bot.UserID || br.IsGhost(userID) {
 		return nil
 	}
@@ -63,7 +71,7 @@ func (br *SignalBridge) GetUserByMXID(userID id.UserID) *User {
 			br.ZLog.Err(err).Msg("Failed to get user from database")
 			return nil
 		}
-		return br.loadUser(context.TODO(), dbUser, &userID)
+		return br.loadUser(context.TODO(), dbUser, userIDPtr)
 	}
 	return user
 }

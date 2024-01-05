@@ -278,7 +278,6 @@ func (parser *HTMLParser) listToString(node *html.Node, ctx Context) *EntityStri
 			continue
 		}
 		var prefix string
-		// TODO make bullets and numbering configurable
 		if ordered {
 			indexPadding := indentLength - Digits(counter)
 			if indexPadding < 0 {

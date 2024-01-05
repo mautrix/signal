@@ -350,8 +350,6 @@ func confirmDevice(
 		"pniPqLastResortPreKey": pniPQLastResortPreKeyJson,
 	}
 
-	// TODO: Set deviceName with "Signal Bridge" or something properly encrypted
-
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
 		zlog.Err(err).Msg("failed to marshal JSON")

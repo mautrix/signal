@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
@@ -46,34 +47,34 @@ func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind type
 		identityKeyPair = cli.Store.ACIIdentityKeyPair
 	}
 
-	// Generate prekeys
 	nextPreKeyID, err := cli.Store.PreKeyStoreExtras.GetNextPreKeyID(ctx, uuidKind)
 	if err != nil {
-		zlog.Err(err).Msg("Error getting next prekey id")
-		return err
+		return fmt.Errorf("failed to get next prekey ID: %w", err)
 	}
 	nextKyberPreKeyID, err := cli.Store.PreKeyStoreExtras.GetNextKyberPreKeyID(ctx, uuidKind)
 	if err != nil {
-		zlog.Err(err).Msg("Error getting next kyber prekey id")
-		return err
+		return fmt.Errorf("failed to get next kyber prekey ID: %w", err)
 	}
 	preKeys := GeneratePreKeys(nextPreKeyID, 100, uuidKind)
 	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyID, 100, uuidKind, identityKeyPair)
 
-	// Persist prekeys
-	// TODO return database errors
 	for _, preKey := range preKeys {
-		cli.Store.PreKeyStoreExtras.SavePreKey(ctx, uuidKind, preKey, false)
+		err = cli.Store.PreKeyStoreExtras.SavePreKey(ctx, uuidKind, preKey, false)
+		if err != nil {
+			return fmt.Errorf("failed to save prekey: %w", err)
+		}
 	}
 	for _, kyberPreKey := range kyberPreKeys {
-		cli.Store.PreKeyStoreExtras.SaveKyberPreKey(ctx, uuidKind, kyberPreKey, false)
+		err = cli.Store.PreKeyStoreExtras.SaveKyberPreKey(ctx, uuidKind, kyberPreKey, false)
+		if err != nil {
+			return fmt.Errorf("failed to save kyber prekey: %w", err)
+		}
 	}
 
 	// Register prekeys
 	identityKey, err := identityKeyPair.GetPublicKey().Serialize()
 	if err != nil {
-		zlog.Err(err).Msg("Error serializing identity key")
-		return err
+		return fmt.Errorf("failed to serialize identity key: %w", err)
 	}
 	generatedPreKeys := GeneratedPreKeys{
 		PreKeys:      preKeys,
@@ -97,7 +98,7 @@ func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind type
 	err = cli.Store.PreKeyStoreExtras.MarkPreKeysAsUploaded(ctx, uuidKind, lastPreKeyID)
 
 	if err != nil {
-		zlog.Err(err).Msg("Error marking prekeys as uploaded")
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to mark prekeys as uploaded")
 	}
 
 	return err

@@ -142,8 +142,7 @@ func (br *SignalBridge) Init() {
 			if ok {
 				return parsed
 			}
-			// TODO only get if exists
-			user := br.GetUserByMXID(userID)
+			user := br.GetUserByMXIDIfExists(userID)
 			if user != nil && user.SignalID != uuid.Nil {
 				return user.SignalID
 			}
