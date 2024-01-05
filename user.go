@@ -166,7 +166,7 @@ type User struct {
 	Admin           bool
 	PermissionLevel bridgeconfig.PermissionLevel
 
-	SignalDevice *signalmeow.Device
+	Client *signalmeow.Client
 
 	BridgeState     *bridge.BridgeStateQueue
 	bridgeStateLock sync.Mutex
@@ -188,7 +188,7 @@ func (user *User) IsLoggedIn() bool {
 	user.Lock()
 	defer user.Unlock()
 
-	return user.SignalDevice.IsDeviceLoggedIn()
+	return user.Client.IsLoggedIn()
 }
 
 func (user *User) GetManagementRoomID() id.RoomID {
@@ -338,7 +338,7 @@ func (user *User) syncChatDoublePuppetDetails(portal *Portal, justCreated bool) 
 
 	// TODO: Get chat setting from Signal and sync them here
 	//if justCreated || !user.bridge.Config.Bridge.TagOnlyOnCreate {
-	//	chat, err := user.SignalDevice.Store.ChatSettings.GetChatSettings(portal.Key().ChatID)
+	//	chat, err := user.Client.Store.ChatSettings.GetChatSettings(portal.Key().ChatID)
 	//	if err != nil {
 	//		user.log.Warn().Err(err).Msgf("Failed to get settings of %s", portal.Key().ChatID)
 	//		return
@@ -379,7 +379,7 @@ func (user *User) startupTryConnect(retryCount int) {
 
 	user.log.Debug().Msg("Connecting to Signal")
 	ctx := user.log.WithContext(context.Background())
-	statusChan, err := signalmeow.StartReceiveLoops(ctx, user.SignalDevice)
+	statusChan, err := user.Client.StartReceiveLoops(ctx)
 
 	if err != nil {
 		user.log.Error().Err(err).Msg("Error connecting on startup")
@@ -493,7 +493,7 @@ func (user *User) startupTryConnect(retryCount int) {
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 
 			case signalmeow.SignalConnectionCleanShutdown:
-				if user.SignalDevice.IsDeviceLoggedIn() {
+				if user.Client.IsLoggedIn() {
 					user.log.Debug().Msg("Clean Shutdown - sending no BridgeState")
 				} else {
 					user.log.Debug().Msg("Clean Shutdown, but logged out - Sending BadCredentials BridgeState")
@@ -507,7 +507,7 @@ func (user *User) startupTryConnect(retryCount int) {
 func (user *User) clearKeysAndDisconnect() {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
 	user.log.Debug().Msg("Clearing out Signal device keys")
-	err := user.SignalDevice.ClearKeysAndDisconnect(context.TODO())
+	err := user.Client.ClearKeysAndDisconnect(context.TODO())
 	if err != nil {
 		user.log.Err(err).Msg("Error clearing device keys")
 	}
@@ -520,7 +520,7 @@ func (br *SignalBridge) StartUsers() {
 	numUsersStarting := 0
 	for _, u := range usersWithToken {
 		device := u.populateSignalDevice()
-		if device == nil || !device.IsDeviceLoggedIn() {
+		if device == nil || !device.IsLoggedIn() {
 			br.ZLog.Warn().Stringer("user_id", u.MXID).Msg("No device found for user, skipping Connect and sending BadCredentials BridgeState")
 			u.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 			continue
@@ -557,7 +557,7 @@ func (user *User) Connect() {
 	user.startupTryConnect(0)
 }
 
-func (user *User) populateSignalDevice() *signalmeow.Device {
+func (user *User) populateSignalDevice() *signalmeow.Client {
 	user.Lock()
 	defer user.Unlock()
 	log := user.log.With().
@@ -578,9 +578,11 @@ func (user *User) populateSignalDevice() *signalmeow.Device {
 		return nil
 	}
 
-	user.SignalDevice = device
-	device.Connection.EventHandler = user.eventHandler
-	return device
+	user.Client = &signalmeow.Client{
+		Store:        device,
+		EventHandler: user.eventHandler,
+	}
+	return user.Client
 }
 
 func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *types.ContactAvatar) error {
@@ -588,7 +590,7 @@ func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Pupp
 		Str("action", "update puppet with signal contact").
 		Str("signal_id", puppet.SignalID.String()).
 		Logger()
-	contact, newProfileAvatar, err := user.SignalDevice.ContactByIDWithProfileAvatar(puppet.SignalID)
+	contact, newProfileAvatar, err := user.Client.ContactByIDWithProfileAvatar(puppet.SignalID)
 	if err != nil {
 		log.Err(err).Msg("error retrieving contact")
 		return err
@@ -680,7 +682,7 @@ func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal
 		return nil
 	}
 	user.log.Info().Msgf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
-	group, err := signalmeow.RetrieveGroupByID(ctx, user.SignalDevice, types.GroupIdentifier(portal.ChatID))
+	group, err := user.Client.RetrieveGroupByID(ctx, types.GroupIdentifier(portal.ChatID))
 	if err != nil {
 		user.log.Err(err).Msg("error retrieving group")
 		return err
@@ -833,7 +835,7 @@ func (user *User) syncPortalInfo(portal *Portal) {
 	ctx := context.TODO()
 	updatePortal := false
 	if !portal.IsPrivateChat() {
-		group, avatarImage, err := signalmeow.RetrieveGroupAndAvatarByID(ctx, user.SignalDevice, portal.GroupID())
+		group, avatarImage, err := user.Client.RetrieveGroupAndAvatarByID(ctx, portal.GroupID())
 		if err != nil {
 			user.log.Err(err).Msg("error retrieving group")
 			return
@@ -966,14 +968,14 @@ func (user *User) GetPortalByChatID(signalID string) *Portal {
 	return user.bridge.GetPortalByChatID(pk)
 }
 
-func (user *User) disconnectNoLock() (*signalmeow.Device, error) {
-	if user.SignalDevice == nil {
+func (user *User) disconnectNoLock() (*signalmeow.Client, error) {
+	if user.Client == nil {
 		return nil, ErrNotConnected
 	}
 
-	disconnectedDevice := user.SignalDevice
-	err := signalmeow.StopReceiveLoops(user.SignalDevice)
-	user.SignalDevice = nil
+	disconnectedDevice := user.Client
+	err := user.Client.StopReceiveLoops()
+	user.Client = nil
 	return disconnectedDevice, err
 }
 
@@ -990,7 +992,7 @@ func (user *User) Logout() error {
 	defer user.Unlock()
 	user.log.Info().Msg("Logging out of session")
 	loggedOutDevice, err := user.disconnectNoLock()
-	user.bridge.MeowStore.DeleteDevice(context.TODO(), &loggedOutDevice.Data)
+	user.bridge.MeowStore.DeleteDevice(context.TODO(), &loggedOutDevice.Store.DeviceData)
 	user.bridge.GetPuppetByCustomMXID(user.MXID).ClearCustomMXID()
 	return err
 }

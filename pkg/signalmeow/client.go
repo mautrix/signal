@@ -19,41 +19,20 @@ package signalmeow
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
-// Note: right now, the parent `Device` struct is in store.go
-type DeviceData struct {
-	ACIIdentityKeyPair *libsignalgo.IdentityKeyPair
-	PNIIdentityKeyPair *libsignalgo.IdentityKeyPair
-	RegistrationID     int
-	PNIRegistrationID  int
-	ACI                uuid.UUID
-	PNI                uuid.UUID
-	DeviceID           int
-	Number             string
-	Password           string
-}
+type Client struct {
+	Store *store.Device
 
-func (d *DeviceData) BasicAuthCreds() (string, string) {
-	username := fmt.Sprintf("%s.%d", d.ACI, d.DeviceID)
-	password := d.Password
-	return username, password
-}
-
-// DeviceConnection exists on a Device, and holds websockets, cached credentials,
-// and other data that is used to communicate with the Signal servers and other clients.
-type DeviceConnection struct {
-	// cached data (not persisted)
 	SenderCertificate      *libsignalgo.SenderCertificate
 	GroupCredentials       *GroupCredentials
 	GroupCache             *GroupCache
@@ -61,10 +40,8 @@ type DeviceConnection struct {
 	GroupCallCache         *map[string]bool
 	LastContactRequestTime *int64
 
-	// mutexes
-	EncryptionMutex sync.Mutex
+	encryptionLock sync.Mutex
 
-	// Network interfaces
 	AuthedWS   *web.SignalWebsocket
 	UnauthedWS *web.SignalWebsocket
 	WSCancel   context.CancelFunc
@@ -72,25 +49,25 @@ type DeviceConnection struct {
 	EventHandler func(events.SignalEvent)
 }
 
-func (d *DeviceConnection) handleEvent(evt events.SignalEvent) {
-	if d.EventHandler != nil {
-		d.EventHandler(evt)
+func (cli *Client) handleEvent(evt events.SignalEvent) {
+	if cli.EventHandler != nil {
+		cli.EventHandler(evt)
 	}
 }
 
-func (d *DeviceConnection) IsConnected() bool {
-	if d == nil {
+func (cli *Client) IsConnected() bool {
+	if cli == nil {
 		return false
 	}
-	return d.AuthedWS.IsConnected() && d.UnauthedWS.IsConnected()
+	return cli.AuthedWS.IsConnected() && cli.UnauthedWS.IsConnected()
 }
 
-func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData, requestHandler web.RequestHandlerFunc) (chan web.SignalWebsocketConnectionStatus, error) {
-	if d.AuthedWS != nil {
+func (cli *Client) ConnectAuthedWS(ctx context.Context, requestHandler web.RequestHandlerFunc) (chan web.SignalWebsocketConnectionStatus, error) {
+	if cli.AuthedWS != nil {
 		return nil, errors.New("authed websocket already connected")
 	}
 
-	username, password := data.BasicAuthCreds()
+	username, password := cli.Store.BasicAuthCreds()
 	log := zerolog.Ctx(ctx).With().
 		Str("websocket_type", "authed").
 		Str("username", username).
@@ -103,12 +80,12 @@ func (d *DeviceConnection) ConnectAuthedWS(ctx context.Context, data DeviceData,
 		"&password=" + password
 	authedWS := web.NewSignalWebsocket(path, &username, &password)
 	statusChan := authedWS.Connect(ctx, &requestHandler)
-	d.AuthedWS = authedWS
+	cli.AuthedWS = authedWS
 	return statusChan, nil
 }
 
-func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceData) (chan web.SignalWebsocketConnectionStatus, error) {
-	if d.UnauthedWS != nil {
+func (cli *Client) ConnectUnauthedWS(ctx context.Context) (chan web.SignalWebsocketConnectionStatus, error) {
+	if cli.UnauthedWS != nil {
 		return nil, errors.New("unauthed websocket already connected")
 	}
 
@@ -118,6 +95,10 @@ func (d *DeviceConnection) ConnectUnauthedWS(ctx context.Context, data DeviceDat
 	ctx = log.WithContext(ctx)
 	unauthedWS := web.NewSignalWebsocket(web.WebsocketPath, nil, nil)
 	statusChan := unauthedWS.Connect(ctx, nil)
-	d.UnauthedWS = unauthedWS
+	cli.UnauthedWS = unauthedWS
 	return statusChan, nil
+}
+
+func (cli *Client) IsLoggedIn() bool {
+	return cli.Store != nil && cli.Store.IsDeviceLoggedIn()
 }

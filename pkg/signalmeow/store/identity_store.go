@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-package signalmeow
+package store
 
 import (
 	"context"
@@ -52,7 +52,6 @@ func scanIdentityKeyPair(row dbutil.Scannable) (*libsignalgo.IdentityKeyPair, er
 	var keyPair []byte
 	err := row.Scan(&keyPair)
 	if errors.Is(err, sql.ErrNoRows) {
-		zlog.Info().Msg("no identity key pair found")
 		return nil, nil
 	} else if err != nil {
 		return nil, err
@@ -64,7 +63,6 @@ func scanIdentityKey(row dbutil.Scannable) (*libsignalgo.IdentityKey, error) {
 	var key []byte
 	err := row.Scan(&key)
 	if errors.Is(err, sql.ErrNoRows) {
-		zlog.Info().Msg("no identity key found")
 		return nil, nil
 	} else if err != nil {
 		return nil, err

@@ -114,7 +114,7 @@ func extend(data []byte, paddedLen int) []byte {
 	}
 }
 
-func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signalpb.AttachmentPointer, error) {
+func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb.AttachmentPointer, error) {
 	log := zerolog.Ctx(ctx).With().Str("func", "upload attachment").Logger()
 	keys := random.Bytes(64) // combined AES and MAC keys
 	plaintextLength := uint32(len(body))
@@ -137,7 +137,7 @@ func UploadAttachment(ctx context.Context, device *Device, body []byte) (*signal
 
 	// Get upload attributes from Signal server
 	attributesPath := "/v3/attachments/form/upload"
-	username, password := device.Data.BasicAuthCreds()
+	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
 	resp, err := web.SendHTTPRequest(http.MethodGet, attributesPath, opts)
 	if err != nil {

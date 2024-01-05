@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-package signalmeow
+package store
 
 import (
 	"context"
@@ -31,12 +31,12 @@ var _ GroupStore = (*SQLStore)(nil)
 type dbGroup struct {
 	OurAciUuid      string
 	GroupIdentifier types.GroupIdentifier
-	GroupMasterKey  SerializedGroupMasterKey
+	GroupMasterKey  types.SerializedGroupMasterKey
 }
 
 type GroupStore interface {
-	MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (SerializedGroupMasterKey, error)
-	StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key SerializedGroupMasterKey) error
+	MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error)
+	StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error
 }
 
 const (
@@ -60,7 +60,7 @@ func scanGroup(row dbutil.Scannable) (*dbGroup, error) {
 	return &g, nil
 }
 
-func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (SerializedGroupMasterKey, error) {
+func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error) {
 	g, err := scanGroup(s.db.Conn(ctx).QueryRowContext(ctx, getGroupByIDQuery, s.ACI, groupID))
 	if g == nil {
 		return "", err
@@ -69,7 +69,7 @@ func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID typ
 	}
 }
 
-func (s *SQLStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key SerializedGroupMasterKey) error {
+func (s *SQLStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error {
 	_, err := s.db.Conn(ctx).ExecContext(ctx, upsertGroupMasterKeyQuery, s.ACI, groupID, key)
 	return err
 }

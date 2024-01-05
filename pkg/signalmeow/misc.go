@@ -25,6 +25,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
+// Deprecated: global loggers are bad
 var zlog zerolog.Logger = zerolog.New(zerolog.ConsoleWriter{}).With().Timestamp().Logger()
 
 func SetLogger(l zerolog.Logger) {

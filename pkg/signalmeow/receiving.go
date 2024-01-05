@@ -66,16 +66,16 @@ type SignalConnectionStatus struct {
 	Err   error
 }
 
-func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionStatus, error) {
+func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnectionStatus, error) {
 	ctx, cancel := context.WithCancel(ctx)
-	d.Connection.WSCancel = cancel
-	authChan, err := d.Connection.ConnectAuthedWS(ctx, d.Data, d.incomingRequestHandler)
+	cli.WSCancel = cancel
+	authChan, err := cli.ConnectAuthedWS(ctx, cli.incomingRequestHandler)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	zlog.Info().Msg("Authed websocket connecting")
-	unauthChan, err := d.Connection.ConnectUnauthedWS(ctx, d.Data)
+	unauthChan, err := cli.ConnectUnauthedWS(ctx)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -92,10 +92,6 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 		var currentStatus, lastAuthStatus, lastUnauthStatus web.SignalWebsocketConnectionStatus
 		var lastSentStatus SignalConnectionStatus
 		for {
-			if d == nil {
-				zlog.Info().Msg("Device is nil, exiting websocket status loop")
-				return
-			}
 			select {
 			case <-ctx.Done():
 				zlog.Info().Msg("Context done, exiting websocket status loop")
@@ -187,7 +183,7 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 			case <-initialConnectChan:
 				zlog.Info().Msg("Both websockets connected, sending contacts sync request")
 				// TODO hacky
-				SendContactSyncRequest(ctx, d)
+				cli.SendContactSyncRequest(ctx)
 				return
 			}
 		}
@@ -196,15 +192,15 @@ func StartReceiveLoops(ctx context.Context, d *Device) (chan SignalConnectionSta
 	return statusChan, nil
 }
 
-func StopReceiveLoops(d *Device) error {
+func (cli *Client) StopReceiveLoops() error {
 	defer func() {
-		d.Connection.AuthedWS = nil
-		d.Connection.UnauthedWS = nil
+		cli.AuthedWS = nil
+		cli.UnauthedWS = nil
 	}()
-	authErr := d.Connection.AuthedWS.Close()
-	unauthErr := d.Connection.UnauthedWS.Close()
-	if d.Connection.WSCancel != nil {
-		d.Connection.WSCancel()
+	authErr := cli.AuthedWS.Close()
+	unauthErr := cli.UnauthedWS.Close()
+	if cli.WSCancel != nil {
+		cli.WSCancel()
 	}
 	if authErr != nil {
 		return authErr
@@ -215,13 +211,31 @@ func StopReceiveLoops(d *Device) error {
 	return nil
 }
 
+func (cli *Client) ClearKeysAndDisconnect(ctx context.Context) error {
+	// Essentially logout, clearing sessions and keys, and disconnecting websockets
+	// but don't clear ACI UUID or profile keys or contacts, or anything else that
+	// we can reuse if we reassociate with the same Signal account.
+	// To fully "logout" delete the device from the database.
+	clearErr := cli.Store.ClearDeviceKeys(ctx)
+	clearErr2 := cli.Store.ClearPassword(ctx)
+	stopLoopErr := cli.StopReceiveLoops()
+
+	if clearErr != nil {
+		return clearErr
+	}
+	if clearErr2 != nil {
+		return clearErr2
+	}
+	return stopLoopErr
+}
+
 // If a bridge can't decrypt prekeys, it's probably because the prekeys are broken so force re-registration
-func checkDecryptionErrorAndDisconnect(err error, device *Device) {
+func (cli *Client) checkDecryptionErrorAndDisconnect(err error) {
 	if err != nil {
 		if strings.Contains(err.Error(), "30: invalid PreKey message: decryption failed") ||
 			strings.Contains(err.Error(), "70: invalid signed prekey identifier") {
 			zlog.Warn().Msg("Failed decrypting a PreKey message, probably our prekeys are broken, force re-registration")
-			disconnectErr := device.ClearKeysAndDisconnect(context.TODO())
+			disconnectErr := cli.ClearKeysAndDisconnect(context.TODO())
 			if disconnectErr != nil {
 				zlog.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
 			}
@@ -229,9 +243,9 @@ func checkDecryptionErrorAndDisconnect(err error, device *Device) {
 	}
 }
 
-func (d *Device) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
+func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
 	if *req.Verb == http.MethodPut && *req.Path == "/api/v1/message" {
-		return d.incomingAPIMessageHandler(ctx, req)
+		return cli.incomingAPIMessageHandler(ctx, req)
 	} else if *req.Verb == http.MethodPut && *req.Path == "/api/v1/queue/empty" {
 		zlog.Trace().Msgf("Received queue empty. verb: %v, path: %v", *req.Verb, *req.Path)
 	} else {
@@ -242,7 +256,7 @@ func (d *Device) incomingRequestHandler(ctx context.Context, req *signalpb.WebSo
 	}, nil
 }
 
-func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
+func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
 	responseCode := 200
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
@@ -258,7 +272,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
 			ctx,
 			envelope.GetContent(),
-			d.IdentityStore,
+			cli.Store.IdentityStore,
 		)
 		if err != nil || usmc == nil {
 			if err == nil {
@@ -298,7 +312,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		}
 		zlog.Trace().Msgf("SealedSender senderUUID: %v, senderDeviceID: %v", senderUUID, senderDeviceID)
 
-		d.UpdateContactE164(senderUUID, senderE164)
+		cli.UpdateContactE164(senderUUID, senderE164)
 
 		switch messageType {
 		case libsignalgo.CiphertextMessageTypeSenderKey:
@@ -307,7 +321,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				ctx,
 				usmcContents,
 				senderAddress,
-				d.SenderKeyStore,
+				cli.Store.SenderKeyStore,
 			)
 			if err != nil {
 				if strings.Contains(err.Error(), "message with old counter") {
@@ -334,7 +348,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		case libsignalgo.CiphertextMessageTypePreKey:
 			zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
-			result, err = prekeyDecrypt(ctx, senderAddress, usmcContents, d)
+			result, err = cli.prekeyDecrypt(ctx, senderAddress, usmcContents)
 			if err != nil {
 				zlog.Err(err).Msg("prekeyDecrypt error")
 			}
@@ -349,8 +363,8 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				ctx,
 				message,
 				senderAddress,
-				d.SessionStore,
-				d.IdentityStore,
+				cli.Store.SessionStore,
+				cli.Store.IdentityStore,
 			)
 			if err != nil {
 				zlog.Err(err).Msg("Sealed sender Whisper Decryption error")
@@ -407,13 +421,13 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		if result == nil || responseCode != 200 {
 			zlog.Debug().Msg("Didn't decrypt with specific methods, trying sealedSenderDecrypt")
 			var err error
-			result, err = sealedSenderDecrypt(ctx, envelope, d)
+			result, err = cli.sealedSenderDecrypt(ctx, envelope)
 			if err != nil {
 				if strings.Contains(err.Error(), "self send of a sealed sender message") {
 					zlog.Debug().Msg("Message sent by us, ignoring")
 				} else {
 					zlog.Err(err).Msg("sealedSenderDecrypt error")
-					checkDecryptionErrorAndDisconnect(err, d)
+					cli.checkDecryptionErrorAndDisconnect(err)
 				}
 			} else {
 				zlog.Trace().Msgf("SealedSender decrypt result - address: %v, content: %v", result.SenderAddress, result.Content)
@@ -429,10 +443,10 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 		if err != nil {
 			return nil, fmt.Errorf("NewAddress error: %v", err)
 		}
-		result, err = prekeyDecrypt(ctx, sender, envelope.Content, d)
+		result, err = cli.prekeyDecrypt(ctx, sender, envelope.Content)
 		if err != nil {
 			zlog.Err(err).Msg("prekeyDecrypt error")
-			checkDecryptionErrorAndDisconnect(err, d)
+			cli.checkDecryptionErrorAndDisconnect(err)
 		} else {
 			zlog.Trace().Msgf("prekey decrypt result -  address: %v, data: %v", result.SenderAddress, result.Content)
 		}
@@ -457,8 +471,8 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 			ctx,
 			message,
 			senderAddress,
-			d.SessionStore,
-			d.IdentityStore,
+			cli.Store.SessionStore,
+			cli.Store.IdentityStore,
 		)
 		if err != nil {
 			if strings.Contains(err.Error(), "message with old counter") {
@@ -522,7 +536,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				ctx,
 				skdm,
 				result.SenderAddress,
-				d.SenderKeyStore,
+				cli.Store.SenderKeyStore,
 			)
 			if err != nil {
 				zlog.Err(err).Msg("ProcessSenderKeyDistributionMessage error")
@@ -553,9 +567,9 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 					zlog.Warn().Msg("sync message sent destination is nil")
 				} else if content.SyncMessage.Sent.Message != nil {
 					// TODO handle expiration start ts, and maybe the sync message ts?
-					incomingDataMessage(ctx, d, content.SyncMessage.Sent.Message, d.Data.ACI, destinationUUID)
+					cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, destinationUUID)
 				} else if content.SyncMessage.Sent.EditMessage != nil {
-					incomingEditMessage(ctx, d, content.SyncMessage.Sent.EditMessage, d.Data.ACI, destinationUUID)
+					cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, destinationUUID)
 				}
 			}
 			if content.SyncMessage.Contacts != nil {
@@ -577,13 +591,13 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 							zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
 							continue
 						}
-						contact, contactAvatar, err := StoreContactDetailsAsContact(d, signalContact, &avatars[i])
+						contact, contactAvatar, err := cli.StoreContactDetailsAsContact(signalContact, &avatars[i])
 						if err != nil {
 							zlog.Err(err).Msg("StoreContactDetailsAsContact error")
 							continue
 						}
 						// Model each contact as an incoming contact change message
-						d.Connection.handleEvent(&events.ContactChange{
+						cli.handleEvent(&events.ContactChange{
 							Contact: contact,
 							Avatar:  contactAvatar,
 						})
@@ -591,7 +605,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				}
 			}
 			if content.SyncMessage.Read != nil {
-				d.Connection.handleEvent(&events.ReadSelf{
+				cli.handleEvent(&events.ReadSelf{
 					Messages: content.SyncMessage.GetRead(),
 				})
 			}
@@ -600,13 +614,13 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		var sendDeliveryReceipt bool
 		if content.DataMessage != nil {
-			sendDeliveryReceipt = incomingDataMessage(ctx, d, content.DataMessage, theirUUID, theirUUID)
+			sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirUUID, theirUUID)
 		} else if content.EditMessage != nil {
-			sendDeliveryReceipt = incomingEditMessage(ctx, d, content.EditMessage, theirUUID, theirUUID)
+			sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirUUID, theirUUID)
 		}
 		if sendDeliveryReceipt {
 			// TODO send delivery receipts after actually bridging instead of here
-			err = sendDeliveryReceipts(ctx, d, []uint64{content.DataMessage.GetTimestamp()}, theirUUID)
+			err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirUUID)
 			if err != nil {
 				zlog.Err(err).Msg("sendDeliveryReceipts error")
 			}
@@ -618,7 +632,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 				gidBytes := content.TypingMessage.GetGroupId()
 				groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
 			}
-			d.Connection.handleEvent(&events.ChatEvent{
+			cli.handleEvent(&events.ChatEvent{
 				Info: events.MessageInfo{
 					Sender: theirUUID,
 					ChatID: groupOrUserID(groupID, theirUUID),
@@ -629,7 +643,7 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
 		if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
-			d.Connection.handleEvent(&events.Call{
+			cli.handleEvent(&events.Call{
 				Info: events.MessageInfo{
 					Sender: theirUUID,
 					ChatID: theirUUID.String(),
@@ -640,13 +654,13 @@ func (d *Device) incomingAPIMessageHandler(ctx context.Context, req *signalpb.We
 
 		// Read and delivery receipts
 		if content.ReceiptMessage != nil {
-			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirUUID == d.Data.ACI {
+			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirUUID == cli.Store.ACI {
 				// Ignore delivery receipts from other own devices
 				return &web.SimpleResponse{
 					Status: responseCode,
 				}, nil
 			}
-			d.Connection.handleEvent(&events.Receipt{
+			cli.handleEvent(&events.Receipt{
 				Sender:  theirUUID,
 				Content: content.ReceiptMessage,
 			})
@@ -714,7 +728,7 @@ func groupOrUserID(groupID types.GroupIdentifier, userID uuid.UUID) string {
 	return string(groupID)
 }
 
-func incomingEditMessage(ctx context.Context, device *Device, editMessage *signalpb.EditMessage, messageSender, chatRecipient uuid.UUID) bool {
+func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSender, chatRecipient uuid.UUID) bool {
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var groupID types.GroupIdentifier
 	var groupRevision int
@@ -723,14 +737,14 @@ func incomingEditMessage(ctx context.Context, device *Device, editMessage *signa
 		groupMasterKeyBytes := editMessage.GetDataMessage().GetGroupV2().GetMasterKey()
 		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
 		var err error
-		groupID, err = StoreMasterKey(ctx, device, masterKey)
+		groupID, err = cli.StoreMasterKey(ctx, masterKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreMasterKey error")
 			return false
 		}
 		groupRevision = int(editMessage.GetDataMessage().GetGroupV2().GetRevision())
 	}
-	device.Connection.handleEvent(&events.ChatEvent{
+	cli.handleEvent(&events.ChatEvent{
 		Info: events.MessageInfo{
 			Sender:        messageSender,
 			ChatID:        groupOrUserID(groupID, chatRecipient),
@@ -741,11 +755,11 @@ func incomingEditMessage(ctx context.Context, device *Device, editMessage *signa
 	return true
 }
 
-func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signalpb.DataMessage, messageSender, chatRecipient uuid.UUID) bool {
+func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSender, chatRecipient uuid.UUID) bool {
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := device.ProfileKeyStore.StoreProfileKey(ctx, messageSender, profileKey)
+		err := cli.Store.ProfileKeyStore.StoreProfileKey(ctx, messageSender, profileKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreProfileKey error")
 			return false
@@ -760,7 +774,7 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
 		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
 		var err error
-		groupID, err = StoreMasterKey(ctx, device, masterKey)
+		groupID, err = cli.StoreMasterKey(ctx, masterKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreMasterKey error")
 			return false
@@ -771,21 +785,21 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 		if dataMessage.GetGroupV2().GroupChange != nil {
 			// TODO: don't parse the change	for now, just invalidate our cache
 			zlog.Debug().Msgf("Invalidating group %v due to change: %v", groupID, dataMessage.GetGroupV2().GroupChange)
-			InvalidateGroupCache(device, groupID)
+			cli.InvalidateGroupCache(groupID)
 			groupHasChanged = true
 		} else if dataMessage.GetGroupV2().GetRevision() > 0 {
 			// Compare revision, and if it's newer, invalidate our cache
-			ourGroup, err := RetrieveGroupByID(ctx, device, groupID)
+			ourGroup, err := cli.RetrieveGroupByID(ctx, groupID)
 			if err != nil {
 				zlog.Err(err).Msg("RetrieveGroupByID error")
 			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
 				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", groupID, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
-				InvalidateGroupCache(device, groupID)
+				cli.InvalidateGroupCache(groupID)
 				groupHasChanged = true
 			}
 		}
 		if groupHasChanged {
-			device.Connection.handleEvent(&events.GroupChange{
+			cli.handleEvent(&events.GroupChange{
 				SenderID:  messageSender,
 				Timestamp: dataMessage.GetTimestamp(),
 				GroupID:   groupID,
@@ -801,14 +815,14 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	}
 	// Hacky special case for group calls to cache the state
 	if dataMessage.GroupCallUpdate != nil {
-		isRinging := device.UpdateActiveCalls(groupID, *dataMessage.GroupCallUpdate.EraId)
-		device.Connection.handleEvent(&events.Call{
+		isRinging := cli.UpdateActiveCalls(groupID, *dataMessage.GroupCallUpdate.EraId)
+		cli.handleEvent(&events.Call{
 			Info:      evtInfo,
 			Timestamp: dataMessage.GetTimestamp(),
 			IsRinging: isRinging,
 		})
 	} else {
-		device.Connection.handleEvent(&events.ChatEvent{
+		cli.handleEvent(&events.ChatEvent{
 			Info:  evtInfo,
 			Event: dataMessage,
 		})
@@ -817,11 +831,11 @@ func incomingDataMessage(ctx context.Context, device *Device, dataMessage *signa
 	return true
 }
 
-func sendDeliveryReceipts(ctx context.Context, device *Device, deliveredTimestamps []uint64, senderUUID uuid.UUID) error {
+func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps []uint64, senderUUID uuid.UUID) error {
 	// Send delivery receipts
 	if len(deliveredTimestamps) > 0 {
 		receipt := DeliveredReceiptMessageForTimestamps(deliveredTimestamps)
-		result := SendMessage(ctx, device, senderUUID, receipt)
+		result := cli.SendMessage(ctx, senderUUID, receipt)
 		if !result.WasSuccessful {
 			zlog.Error().Msgf("Failed to send delivery receipts: %v", result)
 		}
@@ -851,11 +865,11 @@ func serverTrustRootKey() *libsignalgo.PublicKey {
 	return serverTrustRootKey
 }
 
-func sealedSenderDecrypt(ctx context.Context, envelope *signalpb.Envelope, device *Device) (*DecryptionResult, error) {
+func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.Envelope) (*DecryptionResult, error) {
 	localAddress := libsignalgo.NewSealedSenderAddress(
-		device.Data.Number,
-		device.Data.ACI,
-		uint32(device.Data.DeviceID),
+		cli.Store.Number,
+		cli.Store.ACI,
+		uint32(cli.Store.DeviceID),
 	)
 	timestamp := time.Unix(0, int64(*envelope.Timestamp))
 	result, err := libsignalgo.SealedSenderDecrypt(
@@ -864,10 +878,10 @@ func sealedSenderDecrypt(ctx context.Context, envelope *signalpb.Envelope, devic
 		localAddress,
 		serverTrustRootKey(),
 		timestamp,
-		device.SessionStore,
-		device.IdentityStore,
-		device.PreKeyStore,
-		device.SignedPreKeyStore,
+		cli.Store.SessionStore,
+		cli.Store.IdentityStore,
+		cli.Store.PreKeyStore,
+		cli.Store.SignedPreKeyStore,
 	)
 
 	if err != nil {
@@ -901,7 +915,7 @@ func sealedSenderDecrypt(ctx context.Context, envelope *signalpb.Envelope, devic
 	return DecryptionResult, nil
 }
 
-func prekeyDecrypt(ctx context.Context, sender *libsignalgo.Address, encryptedContent []byte, device *Device) (*DecryptionResult, error) {
+func (cli *Client) prekeyDecrypt(ctx context.Context, sender *libsignalgo.Address, encryptedContent []byte) (*DecryptionResult, error) {
 	preKeyMessage, err := libsignalgo.DeserializePreKeyMessage(encryptedContent)
 	if err != nil {
 		err = fmt.Errorf("DeserializePreKeyMessage error: %v", err)
@@ -916,11 +930,11 @@ func prekeyDecrypt(ctx context.Context, sender *libsignalgo.Address, encryptedCo
 		ctx,
 		preKeyMessage,
 		sender,
-		device.SessionStore,
-		device.IdentityStore,
-		device.PreKeyStore,
-		device.SignedPreKeyStore,
-		device.KyberPreKeyStore,
+		cli.Store.SessionStore,
+		cli.Store.IdentityStore,
+		cli.Store.PreKeyStore,
+		cli.Store.SignedPreKeyStore,
+		cli.Store.KyberPreKeyStore,
 	)
 	if err != nil {
 		err = fmt.Errorf("DecryptPreKey error: %v", err)

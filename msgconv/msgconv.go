@@ -36,7 +36,7 @@ type PortalMethods interface {
 	GetMatrixReply(ctx context.Context, msg *signalpb.DataMessage_Quote) (replyTo id.EventID, replyTargetSender id.UserID)
 	GetSignalReply(ctx context.Context, content *event.MessageEventContent) *signalpb.DataMessage_Quote
 
-	GetClient(ctx context.Context) *signalmeow.Device
+	GetClient(ctx context.Context) *signalmeow.Client
 
 	GetData(ctx context.Context) *database.Portal
 }

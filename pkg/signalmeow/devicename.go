@@ -43,26 +43,26 @@ func aes256CTR(key, iv, dst, source []byte) {
 	cipher.NewCTR(block, iv).XORKeyStream(dst, source)
 }
 
-func (d *Device) UpdateDeviceName(name string) error {
-	encryptedName, err := EncryptDeviceName(name, d.Data.ACIIdentityKeyPair.GetPublicKey())
+func (cli *Client) UpdateDeviceName(name string) error {
+	encryptedName, err := EncryptDeviceName(name, cli.Store.ACIIdentityKeyPair.GetPublicKey())
 	if err != nil {
 		return fmt.Errorf("failed to encrypt device name: %w", err)
 	}
-	err = UpdateDeviceName(d, encryptedName)
+	err = cli.updateDeviceName(encryptedName)
 	if err != nil {
 		return fmt.Errorf("failed to update device name: %w", err)
 	}
 	return nil
 }
 
-func UpdateDeviceName(device *Device, encryptedName []byte) error {
+func (cli *Client) updateDeviceName(encryptedName []byte) error {
 	reqData, err := json.Marshal(map[string]any{
 		"deviceName": encryptedName,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal device name update request: %w", err)
 	}
-	username, password := device.Data.BasicAuthCreds()
+	username, password := cli.Store.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest(http.MethodPut, "/v1/accounts/name", &web.HTTPReqOpt{
 		Body:     reqData,
 		Username: &username,

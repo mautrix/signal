@@ -20,15 +20,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const (
-	// UUIDKindACI is the UUID kind for account identifiers.
-	UUIDKindACI UUIDKind = "aci"
-	// UUIDKindPNI is the UUID kind for phone number identifiers.
-	UUIDKindPNI UUIDKind = "pni"
-)
-
-type UUIDKind string
-
 type GroupCredentials struct {
 	Credentials []GroupCredential `json:"credentials"`
 	PNI         uuid.UUID         `json:"pni"`

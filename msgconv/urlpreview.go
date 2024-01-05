@@ -25,11 +25,9 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/tidwall/gjson"
 	"google.golang.org/protobuf/proto"
-
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/event"
 
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
@@ -128,7 +126,7 @@ func (mc *MessageConverter) convertURLPreviewToSignal(ctx context.Context, evt *
 					continue
 				}
 			}
-			uploaded, err := signalmeow.UploadAttachment(ctx, mc.GetClient(ctx), data)
+			uploaded, err := mc.GetClient(ctx).UploadAttachment(ctx, data)
 			if err != nil {
 				log.Err(err).Int("preview_index", i).Msg("Failed to reupload URL preview image")
 				continue

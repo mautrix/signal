@@ -39,6 +39,7 @@ import (
 	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
 
 //go:embed example-config.yaml
@@ -58,7 +59,7 @@ type SignalBridge struct {
 	Config    *config.Config
 	DB        *database.Database
 	Metrics   *MetricsHandler
-	MeowStore *signalmeow.StoreContainer
+	MeowStore *store.StoreContainer
 
 	provisioning *ProvisioningAPI
 
@@ -101,7 +102,7 @@ func (br *SignalBridge) Init() {
 	signalmeow.SetLogger(br.ZLog.With().Str("component", "signalmeow").Logger())
 
 	br.DB = database.New(br.Bridge.DB)
-	br.MeowStore = signalmeow.NewStore(br.Bridge.DB, dbutil.ZeroLogger(br.ZLog.With().Str("db_section", "signalmeow").Logger()))
+	br.MeowStore = store.NewStore(br.Bridge.DB, dbutil.ZeroLogger(br.ZLog.With().Str("db_section", "signalmeow").Logger()))
 
 	ss := br.Config.Bridge.Provisioning.SharedSecret
 	if len(ss) > 0 && ss != "disable" {

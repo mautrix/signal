@@ -32,7 +32,6 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
@@ -172,7 +171,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 			return nil, fmt.Errorf("unsupported content type for sticker %s", mime)
 		}
 	}
-	att, err := signalmeow.UploadAttachment(ctx, mc.GetClient(ctx), data)
+	att, err := mc.GetClient(ctx).UploadAttachment(ctx, data)
 	if err != nil {
 		log.Err(err).Msg("Failed to upload file")
 		return nil, exerrors.NewDualError(ErrMediaUploadFailed, err)

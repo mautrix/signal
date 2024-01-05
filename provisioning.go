@@ -150,10 +150,10 @@ func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int
 	if !strings.HasPrefix(phoneNum, "+") {
 		phoneNum = "+" + phoneNum
 	}
-	if user.SignalDevice == nil {
+	if user.Client == nil {
 		return http.StatusUnauthorized, nil, fmt.Errorf("Not currently connected to Signal")
 	}
-	contact, err := user.SignalDevice.ContactByE164(phoneNum)
+	contact, err := user.Client.ContactByE164(phoneNum)
 	if err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("Error looking up number in local contact list: %w", err)
 	}

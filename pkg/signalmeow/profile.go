@@ -64,8 +64,8 @@ type ProfileCache struct {
 	avatarPaths map[string]string
 }
 
-func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalACI uuid.UUID) ([]byte, error) {
-	profileKey, err := ProfileKeyForSignalID(ctx, d, signalACI)
+func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uuid.UUID) ([]byte, error) {
+	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalACI)
 	if err != nil {
 		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
@@ -93,8 +93,8 @@ func ProfileKeyCredentialRequest(ctx context.Context, d *Device, signalACI uuid.
 	return []byte(hexRequest), nil
 }
 
-func ProfileKeyForSignalID(ctx context.Context, d *Device, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	profileKey, err := d.ProfileKeyStore.LoadProfileKey(ctx, signalACI)
+func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
+	profileKey, err := cli.Store.ProfileKeyStore.LoadProfileKey(ctx, signalACI)
 	if err != nil {
 		zlog.Err(err).Msg("GetProfileKey error")
 		return nil, err
@@ -104,9 +104,9 @@ func ProfileKeyForSignalID(ctx context.Context, d *Device, signalACI uuid.UUID) 
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func RetrieveProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Profile, error) {
-	if d.Connection.ProfileCache == nil {
-		d.Connection.ProfileCache = &ProfileCache{
+func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
+	if cli.ProfileCache == nil {
+		cli.ProfileCache = &ProfileCache{
 			profiles:    make(map[string]*Profile),
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
@@ -116,25 +116,25 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*P
 
 	// Check if we have a cached profile that is less than an hour old
 	// or if we have a cached error that is less than an hour old
-	lastFetched, ok := d.Connection.ProfileCache.lastFetched[signalID.String()]
+	lastFetched, ok := cli.ProfileCache.lastFetched[signalID.String()]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
-		profile, ok := d.Connection.ProfileCache.profiles[signalID.String()]
+		profile, ok := cli.ProfileCache.profiles[signalID.String()]
 		if ok {
 			return profile, nil
 		}
-		err, ok := d.Connection.ProfileCache.errors[signalID.String()]
+		err, ok := cli.ProfileCache.errors[signalID.String()]
 		if ok {
 			return nil, *err
 		}
 	}
 
 	// If we get here, we don't have a cached profile, so fetch it
-	profile, err := fetchProfileByID(ctx, d, signalID)
+	profile, err := cli.fetchProfileByID(ctx, signalID)
 	if err != nil {
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
 		if strings.HasPrefix(err.Error(), "401") || strings.HasPrefix(err.Error(), "5") {
-			d.Connection.ProfileCache.errors[signalID.String()] = &err
-			d.Connection.ProfileCache.lastFetched[signalID.String()] = time.Now()
+			cli.ProfileCache.errors[signalID.String()] = &err
+			cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 		}
 		return nil, err
 	}
@@ -143,14 +143,14 @@ func RetrieveProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*P
 	}
 
 	// If we get here, we have a valid profile, so cache it
-	d.Connection.ProfileCache.profiles[signalID.String()] = profile
-	d.Connection.ProfileCache.lastFetched[signalID.String()] = time.Now()
+	cli.ProfileCache.profiles[signalID.String()] = profile
+	cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 
 	return profile, nil
 }
 
-func RetrieveProfileAndAvatarByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Profile, []byte, error) {
-	profile, err := RetrieveProfileByID(ctx, d, signalID)
+func (cli *Client) RetrieveProfileAndAvatarByID(ctx context.Context, signalID uuid.UUID) (*Profile, []byte, error) {
+	profile, err := cli.RetrieveProfileByID(ctx, signalID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,21 +158,21 @@ func RetrieveProfileAndAvatarByID(ctx context.Context, d *Device, signalID uuid.
 	// If there is an avatarPath, and it's different from the cached one, fetch it
 	// (we only return the avatar if it's different from the cached one)
 	var avatarImage []byte
-	cachedAvatarPath, _ := d.Connection.ProfileCache.avatarPaths[signalID.String()]
+	cachedAvatarPath, _ := cli.ProfileCache.avatarPaths[signalID.String()]
 	if profile.AvatarPath != "" && cachedAvatarPath != profile.AvatarPath {
-		avatarImage, err = fetchAndDecryptAvatarImage(d, profile.AvatarPath, &profile.Key)
+		avatarImage, err = cli.fetchAndDecryptAvatarImage(profile.AvatarPath, &profile.Key)
 		if err != nil {
 			zlog.Err(err).Msg("error fetching profile avatarImage")
 			return nil, nil, err
 		}
 	}
-	d.Connection.ProfileCache.avatarPaths[signalID.String()] = profile.AvatarPath
+	cli.ProfileCache.avatarPaths[signalID.String()] = profile.AvatarPath
 
 	return profile, avatarImage, nil
 }
 
-func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Profile, error) {
-	profileKey, err := ProfileKeyForSignalID(ctx, d, signalID)
+func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
+	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalID)
 	if err != nil {
 		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
@@ -195,7 +195,7 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 	}
 	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 
-	credentialRequest, err := ProfileKeyCredentialRequest(ctx, d, signalID)
+	credentialRequest, err := cli.ProfileKeyCredentialRequest(ctx, signalID)
 	if err != nil {
 		zlog.Err(err).Msg("ProfileKeyCredentialRequest error")
 		return nil, err
@@ -219,7 +219,7 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 		profileRequest.Headers = append(profileRequest.Headers, "unidentified-access-key:"+base64AccessKey)
 		profileRequest.Headers = append(profileRequest.Headers, "accept-language:en-CA")
 	}
-	resp, err := d.Connection.UnauthedWS.SendRequest(ctx, profileRequest)
+	resp, err := cli.UnauthedWS.SendRequest(ctx, profileRequest)
 	if err != nil {
 		zlog.Err(err).Msg("SendRequest error")
 		return nil, err
@@ -270,8 +270,8 @@ func fetchProfileByID(ctx context.Context, d *Device, signalID uuid.UUID) (*Prof
 	return &profile, nil
 }
 
-func fetchAndDecryptAvatarImage(d *Device, avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
-	username, password := d.Data.BasicAuthCreds()
+func (cli *Client) fetchAndDecryptAvatarImage(avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
+	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname, // I guess don't use CDN2 for profiles?
 		Username: &username,

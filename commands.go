@@ -129,11 +129,11 @@ var cmdDeleteSession = &commands.FullHandler{
 }
 
 func fnDeleteSession(ce *WrappedCommandEvent) {
-	if !ce.User.SignalDevice.IsDeviceLoggedIn() {
+	if !ce.User.Client.IsLoggedIn() {
 		ce.Reply("You're not logged in")
 		return
 	}
-	ce.User.SignalDevice.ClearKeysAndDisconnect(ce.Ctx)
+	ce.User.Client.ClearKeysAndDisconnect(ce.Ctx)
 	ce.Reply("Disconnected from Signal")
 }
 
@@ -149,9 +149,9 @@ var cmdPing = &commands.FullHandler{
 func fnPing(ce *WrappedCommandEvent) {
 	if ce.User.SignalID == uuid.Nil {
 		ce.Reply("You're not logged in")
-	} else if !ce.User.SignalDevice.IsDeviceLoggedIn() {
+	} else if !ce.User.Client.IsLoggedIn() {
 		ce.Reply("You were logged in at some point, but are not anymore")
-	} else if !ce.User.SignalDevice.Connection.IsConnected() {
+	} else if !ce.User.Client.IsConnected() {
 		ce.Reply("You're logged into Signal, but not connected to the server")
 	} else {
 		ce.Reply("You're logged into Signal and probably connected to the server")
@@ -176,7 +176,7 @@ func fnSetDeviceName(ce *WrappedCommandEvent) {
 	}
 
 	name := strings.Join(ce.Args, " ")
-	err := ce.User.SignalDevice.UpdateDeviceName(name)
+	err := ce.User.Client.UpdateDeviceName(name)
 	if err != nil {
 		ce.Reply("Error setting device name: %v", err)
 		return
@@ -203,7 +203,7 @@ func fnPM(ce *WrappedCommandEvent) {
 
 	user := ce.User
 	number := strings.Join(ce.Args, "")
-	contact, err := user.SignalDevice.ContactByE164(number)
+	contact, err := user.Client.ContactByE164(number)
 	if err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return

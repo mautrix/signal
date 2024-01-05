@@ -56,8 +56,8 @@ type GroupMember struct {
 }
 
 type Group struct {
-	groupMasterKey  SerializedGroupMasterKey // We should keep this relatively private
-	GroupIdentifier types.GroupIdentifier    // This is what we should use to identify a group outside this file
+	groupMasterKey  types.SerializedGroupMasterKey // We should keep this relatively private
+	GroupIdentifier types.GroupIdentifier          // This is what we should use to identify a group outside this file
 
 	Title                        string
 	AvatarPath                   string
@@ -79,14 +79,11 @@ type GroupAuth struct {
 	Password string
 }
 
-// This is just base64 encoded group master key
-type SerializedGroupMasterKey string
-
-func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*GroupCredentials, error) {
+func (cli *Client) fetchNewGroupCreds(ctx context.Context, today time.Time) (*GroupCredentials, error) {
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
 	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d", today.Unix(), sevenDaysOut.Unix())
 	authRequest := web.CreateWSRequest(http.MethodGet, path, nil, nil, nil)
-	resp, err := d.Connection.AuthedWS.SendRequest(ctx, authRequest)
+	resp, err := cli.AuthedWS.SendRequest(ctx, authRequest)
 	if err != nil {
 		zlog.Err(err).Msg("SendRequest error")
 		return nil, err
@@ -104,7 +101,7 @@ func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*Group
 		return nil, err
 	}
 	// make sure pni matches device pni
-	if creds.PNI != d.Data.PNI {
+	if creds.PNI != cli.Store.PNI {
 		err := fmt.Errorf("creds.PNI != d.PNI")
 		zlog.Err(err).Msg("creds.PNI != d.PNI")
 		return nil, err
@@ -112,12 +109,12 @@ func fetchNewGroupCreds(ctx context.Context, d *Device, today time.Time) (*Group
 	return &creds, nil
 }
 
-func getCachedAuthorizationForToday(d *Device, today time.Time) *GroupCredential {
-	if d.Connection.GroupCredentials == nil {
+func (cli *Client) getCachedAuthorizationForToday(today time.Time) *GroupCredential {
+	if cli.GroupCredentials == nil {
 		// No cached credentials
 		return nil
 	}
-	allCreds := d.Connection.GroupCredentials
+	allCreds := cli.GroupCredentials
 	// Get the credential for today
 	for _, cred := range allCreds.Credentials {
 		if cred.RedemptionTime == today.Unix() {
@@ -128,19 +125,19 @@ func getCachedAuthorizationForToday(d *Device, today time.Time) *GroupCredential
 	return nil
 }
 
-func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsignalgo.GroupMasterKey) (*GroupAuth, error) {
+func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsignalgo.GroupMasterKey) (*GroupAuth, error) {
 	// Timestamps for the start of today, and 7 days later
 	today := time.Now().Truncate(24 * time.Hour)
 
-	todayCred := getCachedAuthorizationForToday(d, today)
+	todayCred := cli.getCachedAuthorizationForToday(today)
 	if todayCred == nil {
-		creds, err := fetchNewGroupCreds(ctx, d, today)
+		creds, err := cli.fetchNewGroupCreds(ctx, today)
 		if err != nil {
 			zlog.Err(err).Msg("fetchNewGroupCreds error")
 			return nil, err
 		}
-		d.Connection.GroupCredentials = creds
-		todayCred = getCachedAuthorizationForToday(d, today)
+		cli.GroupCredentials = creds
+		todayCred = cli.getCachedAuthorizationForToday(today)
 	}
 	if todayCred == nil {
 		err := errors.New("Couldn't get credential for today")
@@ -160,8 +157,8 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 	// Receive the auth credential
 	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
 		serverPublicParams(),
-		d.Data.ACI,
-		d.Data.PNI,
+		cli.Store.ACI,
+		cli.Store.PNI,
 		redemptionTime,
 		*authCredentialResponse,
 	)
@@ -199,7 +196,7 @@ func GetAuthorizationForToday(ctx context.Context, d *Device, masterKey libsigna
 	}, nil
 }
 
-func masterKeyToBytes(groupMasterKey SerializedGroupMasterKey) libsignalgo.GroupMasterKey {
+func masterKeyToBytes(groupMasterKey types.SerializedGroupMasterKey) libsignalgo.GroupMasterKey {
 	// We are very tricksy, groupMasterKey is just base64 encoded group master key :O
 	masterKeyBytes, err := base64.StdEncoding.DecodeString(string(groupMasterKey))
 	if err != nil {
@@ -209,11 +206,11 @@ func masterKeyToBytes(groupMasterKey SerializedGroupMasterKey) libsignalgo.Group
 	return libsignalgo.GroupMasterKey(masterKeyBytes)
 }
 
-func masterKeyFromBytes(masterKey libsignalgo.GroupMasterKey) SerializedGroupMasterKey {
-	return SerializedGroupMasterKey(base64.StdEncoding.EncodeToString(masterKey[:]))
+func masterKeyFromBytes(masterKey libsignalgo.GroupMasterKey) types.SerializedGroupMasterKey {
+	return types.SerializedGroupMasterKey(base64.StdEncoding.EncodeToString(masterKey[:]))
 }
 
-func groupIdentifierFromMasterKey(masterKey SerializedGroupMasterKey) (types.GroupIdentifier, error) {
+func groupIdentifierFromMasterKey(masterKey types.SerializedGroupMasterKey) (types.GroupIdentifier, error) {
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(masterKey))
 	if err != nil {
 		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
@@ -235,7 +232,7 @@ func groupIdentifierFromMasterKey(masterKey SerializedGroupMasterKey) (types.Gro
 	return gid, nil
 }
 
-func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey SerializedGroupMasterKey) (*Group, error) {
+func decryptGroup(encryptedGroup *signalpb.Group, groupMasterKey types.SerializedGroupMasterKey) (*Group, error) {
 	decryptedGroup := &Group{
 		groupMasterKey: groupMasterKey,
 	}
@@ -336,7 +333,7 @@ func cleanupStringMapping(r rune) rune {
 	return -1
 }
 
-func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey SerializedGroupMasterKey) ([]byte, error) {
+func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey types.SerializedGroupMasterKey) ([]byte, error) {
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(groupMasterKey))
 	if err != nil {
 		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
@@ -361,8 +358,8 @@ func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
 	}
 }
 
-func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, error) {
-	groupMasterKey, err := d.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
+func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier) (*Group, error) {
+	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		zlog.Err(err).Msg("Failed to get group master key")
 		return nil, err
@@ -373,7 +370,7 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 		return nil, err
 	}
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
-	groupAuth, err := GetAuthorizationForToday(ctx, d, masterKeyBytes)
+	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -413,7 +410,7 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
-		err = d.ProfileKeyStore.StoreProfileKey(ctx, member.UserID, member.ProfileKey)
+		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, member.UserID, member.ProfileKey)
 		if err != nil {
 			zlog.Err(err).Msg("DecryptGroup StoreProfileKey error")
 			//return nil, err
@@ -422,9 +419,9 @@ func fetchGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (
 	return group, nil
 }
 
-func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey SerializedGroupMasterKey) ([]byte, error) {
+func (cli *Client) fetchAndDecryptGroupAvatarImage(path string, masterKey types.SerializedGroupMasterKey) ([]byte, error) {
 	// Fetch avatar
-	username, password := d.Data.BasicAuthCreds()
+	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname,
 		Username: &username,
@@ -454,27 +451,27 @@ func fetchAndDecryptGroupAvatarImage(d *Device, path string, masterKey Serialize
 	return decryptedBytes, nil
 }
 
-func RetrieveGroupByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, error) {
-	d.initGroupCache()
+func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentifier) (*Group, error) {
+	cli.initGroupCache()
 
-	lastFetched, ok := d.Connection.GroupCache.lastFetched[gid]
+	lastFetched, ok := cli.GroupCache.lastFetched[gid]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
-		group, ok := d.Connection.GroupCache.groups[gid]
+		group, ok := cli.GroupCache.groups[gid]
 		if ok {
 			return group, nil
 		}
 	}
-	group, err := fetchGroupByID(ctx, d, gid)
+	group, err := cli.fetchGroupByID(ctx, gid)
 	if err != nil {
 		return nil, err
 	}
-	d.Connection.GroupCache.groups[gid] = group
-	d.Connection.GroupCache.lastFetched[gid] = time.Now()
+	cli.GroupCache.groups[gid] = group
+	cli.GroupCache.lastFetched[gid] = time.Now()
 	return group, nil
 }
 
-func RetrieveGroupAndAvatarByID(ctx context.Context, d *Device, gid types.GroupIdentifier) (*Group, []byte, error) {
-	group, err := RetrieveGroupByID(ctx, d, gid)
+func (cli *Client) RetrieveGroupAndAvatarByID(ctx context.Context, gid types.GroupIdentifier) (*Group, []byte, error) {
+	group, err := cli.RetrieveGroupByID(ctx, gid)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -483,38 +480,38 @@ func RetrieveGroupAndAvatarByID(ctx context.Context, d *Device, gid types.GroupI
 	// If there is an avatarPath, and it's different from the cached one, fetch it
 	// (we only return the avatar if it's different from the cached one)
 	var avatarImage []byte
-	cachedAvatarPath, _ := d.Connection.GroupCache.avatarPaths[gid]
+	cachedAvatarPath, _ := cli.GroupCache.avatarPaths[gid]
 	if group.AvatarPath != "" && cachedAvatarPath != group.AvatarPath {
-		avatarImage, err = fetchAndDecryptGroupAvatarImage(d, group.AvatarPath, group.groupMasterKey)
+		avatarImage, err = cli.fetchAndDecryptGroupAvatarImage(group.AvatarPath, group.groupMasterKey)
 		if err != nil {
 			zlog.Err(err).Msg("error fetching group avatarImage")
 			return nil, nil, err
 		}
 	}
-	d.Connection.GroupCache.avatarPaths[gid] = group.AvatarPath
+	cli.GroupCache.avatarPaths[gid] = group.AvatarPath
 
 	return group, avatarImage, nil
 }
 
-func InvalidateGroupCache(d *Device, gid types.GroupIdentifier) {
-	if d.Connection.GroupCache == nil {
+func (cli *Client) InvalidateGroupCache(gid types.GroupIdentifier) {
+	if cli.GroupCache == nil {
 		return
 	}
-	delete(d.Connection.GroupCache.groups, gid)
-	delete(d.Connection.GroupCache.lastFetched, gid)
+	delete(cli.GroupCache.groups, gid)
+	delete(cli.GroupCache.lastFetched, gid)
 	// Don't delete avatarPaths, they can stay cached
 }
 
 // We should store the group master key in the group store as soon as we see it,
 // then use the group identifier to refer to groups. As a convenience, we return
 // the group identifier, which is derived from the group master key.
-func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGroupMasterKey) (types.GroupIdentifier, error) {
+func (cli *Client) StoreMasterKey(ctx context.Context, groupMasterKey types.SerializedGroupMasterKey) (types.GroupIdentifier, error) {
 	groupIdentifier, err := groupIdentifierFromMasterKey(groupMasterKey)
 	if err != nil {
 		zlog.Err(err).Msg("groupIdentifierFromMasterKey error")
 		return "", err
 	}
-	err = d.GroupStore.StoreMasterKey(ctx, groupIdentifier, groupMasterKey)
+	err = cli.Store.GroupStore.StoreMasterKey(ctx, groupIdentifier, groupMasterKey)
 	if err != nil {
 		zlog.Err(err).Msg("StoreMasterKey error")
 		return "", err
@@ -525,24 +522,24 @@ func StoreMasterKey(ctx context.Context, d *Device, groupMasterKey SerializedGro
 // We need to track active calls so we don't send too many IncomingSignalMessageCalls
 // Of course for group calls Signal doesn't tell us *anything* so we're mostly just inferring
 // So we just jam a new call ID in, and return true if we *think* this is a new incoming call
-func (d *Device) UpdateActiveCalls(gid types.GroupIdentifier, callID string) (isActive bool) {
-	d.initGroupCache()
+func (cli *Client) UpdateActiveCalls(gid types.GroupIdentifier, callID string) (isActive bool) {
+	cli.initGroupCache()
 	// Check to see if we currently have an active call for this group
-	currentCallID, ok := d.Connection.GroupCache.activeCalls[gid]
+	currentCallID, ok := cli.GroupCache.activeCalls[gid]
 	if ok {
 		// If we do, then this must be ending the call
 		if currentCallID == callID {
-			delete(d.Connection.GroupCache.activeCalls, gid)
+			delete(cli.GroupCache.activeCalls, gid)
 			return false
 		}
 	}
-	d.Connection.GroupCache.activeCalls[gid] = callID
+	cli.GroupCache.activeCalls[gid] = callID
 	return true
 }
 
-func (d *Device) initGroupCache() {
-	if d.Connection.GroupCache == nil {
-		d.Connection.GroupCache = &GroupCache{
+func (cli *Client) initGroupCache() {
+	if cli.GroupCache == nil {
+		cli.GroupCache = &GroupCache{
 			groups:      make(map[types.GroupIdentifier]*Group),
 			lastFetched: make(map[types.GroupIdentifier]time.Time),
 			avatarPaths: make(map[types.GroupIdentifier]string),

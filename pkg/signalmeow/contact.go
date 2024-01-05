@@ -34,13 +34,13 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDetails, avatar *[]byte) (types.Contact, *types.ContactAvatar, error) {
+func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.ContactDetails, avatar *[]byte) (types.Contact, *types.ContactAvatar, error) {
 	ctx := context.TODO()
 	parsedUUID, err := uuid.Parse(contactDetails.GetAci())
 	if err != nil {
 		return types.Contact{}, nil, err
 	}
-	existingContact, err := d.ContactStore.LoadContact(ctx, parsedUUID)
+	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, parsedUUID)
 	if err != nil {
 		zlog.Err(err).Msg("StoreContactDetailsAsContact error loading contact")
 		return types.Contact{}, nil, err
@@ -59,7 +59,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
 		existingContact.ProfileKey = profileKeyString
 		profileKey := libsignalgo.ProfileKey(profileKeyString)
-		err = d.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
+		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreContactDetailsAsContact error storing profile key")
 			//return *existingContact, nil, err
@@ -99,7 +99,7 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	}
 
 	zlog.Debug().Msgf("StoreContactDetailsAsContact: storing contact for uuid: %v", contactDetails.GetAci())
-	storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
+	storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 	if storeErr != nil {
 		zlog.Err(storeErr).Msg("StoreContactDetailsAsContact: error storing contact")
 		return *existingContact, nil, storeErr
@@ -107,11 +107,11 @@ func StoreContactDetailsAsContact(d *Device, contactDetails *signalpb.ContactDet
 	return *existingContact, contactAvatar, nil
 }
 
-func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid uuid.UUID, fetchProfileAvatar bool) (*types.Contact, *types.ContactAvatar, error) {
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID, fetchProfileAvatar bool) (*types.Contact, *types.ContactAvatar, error) {
 	ctx := context.TODO()
 	contactChanged := false
 
-	existingContact, err := d.ContactStore.LoadContact(ctx, profileUuid)
+	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUuid)
 	if err != nil {
 		zlog.Err(err).Msg("fetchContactThenTryAndUpdateWithProfile: error loading contact")
 		return nil, nil, err
@@ -129,9 +129,9 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid uuid.UUID, f
 	var profileAvatarImage []byte
 	if fetchProfileAvatar && existingContact.ContactAvatarHash == "" {
 		// We only care about profile avatar if there is no contact avatar
-		profile, profileAvatarImage, err = RetrieveProfileAndAvatarByID(ctx, d, profileUuid)
+		profile, profileAvatarImage, err = cli.RetrieveProfileAndAvatarByID(ctx, profileUuid)
 	} else {
-		profile, err = RetrieveProfileByID(ctx, d, profileUuid)
+		profile, err = cli.RetrieveProfileByID(ctx, profileUuid)
 	}
 	if err != nil {
 		zlog.Err(err).Msgf("fetchContactThenTryAndUpdateWithProfile: error retrieving profile for uuid: %v", profileUuid)
@@ -180,7 +180,7 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid uuid.UUID, f
 	}
 
 	if contactChanged {
-		storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
+		storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 		if storeErr != nil {
 			zlog.Err(storeErr).Msg("fetchContactThenTryAndUpdateWithProfile: error storing contact")
 		}
@@ -188,9 +188,9 @@ func fetchContactThenTryAndUpdateWithProfile(d *Device, profileUuid uuid.UUID, f
 	return existingContact, profileAvatar, nil
 }
 
-func (d *Device) UpdateContactE164(uuid uuid.UUID, e164 string) error {
+func (cli *Client) UpdateContactE164(uuid uuid.UUID, e164 string) error {
 	ctx := context.TODO()
-	existingContact, err := d.ContactStore.LoadContact(ctx, uuid)
+	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, uuid)
 	if err != nil {
 		zlog.Err(err).Msg("UpdateContactE164: error loading contact")
 		return err
@@ -206,7 +206,7 @@ func (d *Device) UpdateContactE164(uuid uuid.UUID, e164 string) error {
 	if existingContact.E164 != e164 {
 		zlog.Debug().Msgf("UpdateContactE164: e164 changed for uuid: %v", uuid)
 		existingContact.E164 = e164
-		storeErr := d.ContactStore.StoreContact(ctx, *existingContact)
+		storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 		if storeErr != nil {
 			zlog.Err(storeErr).Msg("UpdateContactE164: error storing contact")
 			return storeErr
@@ -217,21 +217,21 @@ func (d *Device) UpdateContactE164(uuid uuid.UUID, e164 string) error {
 
 // ContactAvatar is only populated if there is no contact avatar, and the profile the avatar has changed
 // If there is a contact avatar, it will have to have been updated when the contact is sent, we can't fetch on demand
-func (d *Device) ContactByIDWithProfileAvatar(uuid uuid.UUID) (*types.Contact, *types.ContactAvatar, error) {
+func (cli *Client) ContactByIDWithProfileAvatar(uuid uuid.UUID) (*types.Contact, *types.ContactAvatar, error) {
 	// Update the profile (we can call this liberally, there's a cache backing it)
 	// We can just return the result of this, ContactAvatar will be nil if there's no change or if there is a contact avatar
-	return fetchContactThenTryAndUpdateWithProfile(d, uuid, true)
+	return cli.fetchContactThenTryAndUpdateWithProfile(uuid, true)
 }
 
-func (d *Device) ContactByID(uuid uuid.UUID) (*types.Contact, error) {
+func (cli *Client) ContactByID(uuid uuid.UUID) (*types.Contact, error) {
 	// Update the profile (we can call this liberally, there's a cache backing it)
-	contact, _, err := fetchContactThenTryAndUpdateWithProfile(d, uuid, false)
+	contact, _, err := cli.fetchContactThenTryAndUpdateWithProfile(uuid, false)
 	return contact, err
 }
 
-func (d *Device) ContactByE164(e164 string) (*types.Contact, error) {
+func (cli *Client) ContactByE164(e164 string) (*types.Contact, error) {
 	ctx := context.TODO()
-	contact, err := d.ContactStore.LoadContactByE164(ctx, e164)
+	contact, err := cli.Store.ContactStore.LoadContactByE164(ctx, e164)
 	if err != nil {
 		zlog.Err(err).Msg("ContactByE164 error loading contact")
 		return nil, err
@@ -240,7 +240,7 @@ func (d *Device) ContactByE164(e164 string) (*types.Contact, error) {
 		return nil, nil
 	}
 	// Update profile information (we can call this liberally, there's a cache backing it)
-	contact, _, err = fetchContactThenTryAndUpdateWithProfile(d, contact.UUID, false)
+	contact, _, err = cli.fetchContactThenTryAndUpdateWithProfile(contact.UUID, false)
 	return contact, err
 }
 

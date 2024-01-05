@@ -331,9 +331,9 @@ func (portal *Portal) messageLoop() {
 }
 
 func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
-	// If we have no SignalDevice, the bridge isn't logged in properly,
+	// If we have no Client, the bridge isn't logged in properly,
 	// so send BAD_CREDENTIALS so the user knows
-	if !msg.user.SignalDevice.IsDeviceLoggedIn() && !portal.HasRelaybot() {
+	if !msg.user.Client.IsLoggedIn() && !portal.HasRelaybot() {
 		go portal.sendMessageMetrics(context.TODO(), msg.evt, errUserNotLoggedIn, "Ignoring", nil)
 		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 		return
@@ -461,7 +461,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 		go ms.sendMessageMetrics(evt, errMNoticeDisabled, "Error converting", true)
 		return
 	}
-	ctx = context.WithValue(ctx, msgconvContextKeyClient, sender.SignalDevice)
+	ctx = context.WithValue(ctx, msgconvContextKeyClient, sender.Client)
 	msg, err := portal.MsgConv.ToSignal(ctx, evt, content, relaybotFormatted)
 	if err != nil {
 		log.Err(err).Msg("Failed to convert message")
@@ -669,7 +669,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 	var err error
 	if portal.IsPrivateChat() {
 		// this is a 1:1 chat
-		result := signalmeow.SendMessage(ctx, sender.SignalDevice, portal.UserID(), msg)
+		result := sender.Client.SendMessage(ctx, portal.UserID(), msg)
 		if !result.WasSuccessful {
 			err = result.FailedSendResult.Error
 			log.Err(err).Msg("Error sending event to Signal")
@@ -677,7 +677,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 	} else {
 		// this is a group chat
 		groupID := types.GroupIdentifier(portal.ChatID)
-		result, err := signalmeow.SendGroupMessage(ctx, sender.SignalDevice, groupID, msg)
+		result, err := sender.Client.SendGroupMessage(ctx, groupID, msg)
 		if err != nil {
 			// check the start of the error string, see if it starts with "No group master key found for group identifier"
 			if strings.HasPrefix(err.Error(), "No group master key found for group identifier") {
@@ -767,8 +767,8 @@ func (portal *Portal) GetData(ctx context.Context) *database.Portal {
 	return portal.Portal
 }
 
-func (portal *Portal) GetClient(ctx context.Context) *signalmeow.Device {
-	return ctx.Value(msgconvContextKeyClient).(*signalmeow.Device)
+func (portal *Portal) GetClient(ctx context.Context) *signalmeow.Client {
+	return ctx.Value(msgconvContextKeyClient).(*signalmeow.Client)
 }
 
 func (portal *Portal) GetMatrixReply(ctx context.Context, msg *signalpb.DataMessage_Quote) (replyTo id.EventID, replyTargetSender id.UserID) {
@@ -1004,7 +1004,7 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 		}
 		// FIXME hacky
 		ensureGroupPuppetsAreJoinedToPortal(context.TODO(), source, portal)
-		signalmeow.SendContactSyncRequest(context.TODO(), source.SignalDevice)
+		source.Client.SendContactSyncRequest(context.TODO())
 	}
 
 	existingMessage, err := portal.bridge.DB.Message.GetBySignalID(ctx, sender.SignalID, msg.GetTimestamp(), 0, portal.Receiver)
@@ -1213,7 +1213,7 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 			portal.log.Debug().Msgf("Sending Typing event to Signal %s", portal.ChatID)
 			ctx := context.TODO()
 			typingMessage := signalmeow.TypingMessage(isTyping)
-			result := signalmeow.SendMessage(ctx, user.SignalDevice, portal.UserID(), typingMessage)
+			result := user.Client.SendMessage(ctx, portal.UserID(), typingMessage)
 			if !result.WasSuccessful {
 				portal.log.Err(result.FailedSendResult.Error).Msg("Error sending event to Signal")
 			}
@@ -1297,7 +1297,7 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		// Don't use portal.sendSignalMessage because we're sending this straight to
 		// who sent the original message, not the portal's ChatID
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		result := signalmeow.SendMessage(ctx, sender.SignalDevice, destination, signalmeow.ReadReceptMessageForTimestamps(messages))
+		result := sender.Client.SendMessage(ctx, destination, signalmeow.ReadReceptMessageForTimestamps(messages))
 		cancel()
 		if !result.WasSuccessful {
 			log.Err(result.FailedSendResult.Error).
