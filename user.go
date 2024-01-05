@@ -129,16 +129,6 @@ func (br *SignalBridge) loadUser(ctx context.Context, dbUser *database.User, mxi
 		br.managementRooms[user.ManagementRoom] = user
 		br.managementRoomsLock.Unlock()
 	}
-	// TODO this is completely wrong and shouldn't be here at all
-	// Ensure a puppet is created for this user
-	newPuppet := br.GetPuppetBySignalID(user.SignalID)
-	if newPuppet != nil && newPuppet.CustomMXID == "" {
-		newPuppet.CustomMXID = user.MXID
-		err := newPuppet.Update(ctx)
-		if err != nil {
-			br.ZLog.Err(err).Msg("Error updating puppet for user %s")
-		}
-	}
 	return user
 }
 
@@ -567,6 +557,8 @@ func (user *User) populateSignalDevice() *signalmeow.Client {
 
 	if user.SignalID == uuid.Nil {
 		return nil
+	} else if user.Client != nil {
+		return user.Client
 	}
 
 	device, err := user.bridge.MeowStore.DeviceByACI(context.TODO(), user.SignalID)
@@ -582,6 +574,7 @@ func (user *User) populateSignalDevice() *signalmeow.Client {
 		Store:        device,
 		EventHandler: user.eventHandler,
 	}
+	go user.tryAutomaticDoublePuppeting()
 	return user.Client
 }
 
