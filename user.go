@@ -183,7 +183,7 @@ func (user *User) IsLoggedIn() bool {
 	user.Lock()
 	defer user.Unlock()
 
-	return user.Client.IsLoggedIn()
+	return user.Client != nil && user.Client.IsLoggedIn()
 }
 
 func (user *User) GetManagementRoomID() id.RoomID {
