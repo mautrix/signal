@@ -1271,7 +1271,7 @@ func (portal *Portal) HandleMatrixReadReceipt(brSender bridge.User, eventID id.E
 }
 
 func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, maxTimestamp uint64, isExplicit bool) {
-	if sender.IsLoggedIn() {
+	if !sender.IsLoggedIn() {
 		return
 	}
 	logWith := portal.log.With().
