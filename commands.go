@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -294,7 +295,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 	//	return
 	//}
 
-	var qrEventID id.EventID
+	var qrEventID, msgEventID id.EventID
 	var signalID uuid.UUID
 	var signalPhone string
 
@@ -312,7 +313,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 		return
 	}
 	if resp.State == signalmeow.StateProvisioningURLReceived {
-		qrEventID = ce.User.sendQR(ce, resp.ProvisioningURL, qrEventID)
+		qrEventID, msgEventID = ce.User.sendQR(ce, resp.ProvisioningURL, qrEventID, msgEventID)
 	} else {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return
@@ -321,6 +322,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 	// Next, get the results of finishing registration
 	resp = <-provChan
 	_, _ = ce.Bot.RedactEvent(ce.Ctx, ce.RoomID, qrEventID)
+	_, _ = ce.Bot.RedactEvent(ce.Ctx, ce.RoomID, msgEventID)
 	if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 		if resp.Err != nil && strings.HasSuffix(resp.Err.Error(), " EOF") {
 			ce.Reply("Logging in timed out, please try again.")
@@ -369,26 +371,41 @@ func fnLogin(ce *WrappedCommandEvent) {
 	ce.User.Connect()
 }
 
-func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevEvent id.EventID) id.EventID {
+func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevQR, prevMsg id.EventID) (qr, msg id.EventID) {
 	url, ok := user.uploadQR(ce, code)
 	if !ok {
-		return prevEvent
+		return prevQR, prevMsg
 	}
 	content := event.MessageEventContent{
 		MsgType: event.MsgImage,
-		Body:    code,
+		Body:    "qr.png",
 		URL:     url.CUString(),
 	}
-	if len(prevEvent) != 0 {
-		content.SetEdit(prevEvent)
+	if len(prevQR) != 0 {
+		content.SetEdit(prevQR)
 	}
 	resp, err := ce.Bot.SendMessageEvent(ce.Ctx, ce.RoomID, event.EventMessage, &content)
 	if err != nil {
 		ce.Log.Errorln("Failed to send QR code to user:", err)
-	} else if len(prevEvent) == 0 {
-		prevEvent = resp.EventID
+	} else if len(prevQR) == 0 {
+		prevQR = resp.EventID
 	}
-	return prevEvent
+	content = event.MessageEventContent{
+		MsgType:       event.MsgNotice,
+		Body:          fmt.Sprintf("Raw linking URI: %s", code),
+		Format:        event.FormatHTML,
+		FormattedBody: fmt.Sprintf("Raw linking URI: <code>%s</code>", code),
+	}
+	if len(prevMsg) != 0 {
+		content.SetEdit(prevMsg)
+	}
+	resp, err = ce.Bot.SendMessageEvent(ce.Ctx, ce.RoomID, event.EventMessage, &content)
+	if err != nil {
+		ce.Log.Errorln("Failed to send raw code to user:", err)
+	} else if len(prevMsg) == 0 {
+		prevMsg = resp.EventID
+	}
+	return prevQR, prevMsg
 }
 
 func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI, bool) {
