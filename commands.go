@@ -372,14 +372,9 @@ func fnLogin(ce *WrappedCommandEvent) {
 }
 
 func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevQR, prevMsg id.EventID) (qr, msg id.EventID) {
-	url, ok := user.uploadQR(ce, code)
+	content, ok := user.uploadQR(ce, code)
 	if !ok {
 		return prevQR, prevMsg
-	}
-	content := event.MessageEventContent{
-		MsgType: event.MsgImage,
-		Body:    "qr.png",
-		URL:     url.CUString(),
 	}
 	if len(prevQR) != 0 {
 		content.SetEdit(prevQR)
@@ -408,12 +403,13 @@ func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevQR, prevMsg i
 	return prevQR, prevMsg
 }
 
-func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI, bool) {
-	qrCode, err := qrcode.Encode(code, qrcode.Low, 256)
+func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (event.MessageEventContent, bool) {
+	const size = 512
+	qrCode, err := qrcode.Encode(code, qrcode.Low, size)
 	if err != nil {
 		ce.Log.Errorln("Failed to encode QR code:", err)
 		ce.Reply("Failed to encode QR code: %v", err)
-		return id.ContentURI{}, false
+		return event.MessageEventContent{}, false
 	}
 
 	bot := user.bridge.AS.BotClient()
@@ -422,9 +418,19 @@ func (user *User) uploadQR(ce *WrappedCommandEvent, code string) (id.ContentURI,
 	if err != nil {
 		ce.Log.Errorln("Failed to upload QR code:", err)
 		ce.Reply("Failed to upload QR code: %v", err)
-		return id.ContentURI{}, false
+		return event.MessageEventContent{}, false
 	}
-	return resp.ContentURI, true
+	return event.MessageEventContent{
+		MsgType: event.MsgImage,
+		Info: &event.FileInfo{
+			MimeType: "image/png",
+			Width:    size,
+			Height:   size,
+			Size:     len(qrCode),
+		},
+		Body: "qr.png",
+		URL:  resp.ContentURI.CUString(),
+	}, true
 }
 
 func canDeletePortal(ctx context.Context, portal *Portal, userID id.UserID) bool {
