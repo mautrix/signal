@@ -27,7 +27,7 @@ import (
 
 const (
 	puppetBaseSelect = `
-        SELECT uuid, number, name, name_quality, avatar_hash, avatar_url, name_set, avatar_set,
+        SELECT uuid, number, name, name_quality, avatar_path, avatar_hash, avatar_url, name_set, avatar_set,
                contact_info_set, is_registered, custom_mxid, access_token
         FROM puppet
 	`
@@ -37,19 +37,19 @@ const (
 	getPuppetsWithCustomMXID   = puppetBaseSelect + `WHERE custom_mxid<>''`
 	updatePuppetQuery          = `
 		UPDATE puppet SET
-			number=$2, name=$3, name_quality=$4, avatar_hash=$5, avatar_url=$6,
-			name_set=$7, avatar_set=$8, contact_info_set=$9, is_registered=$10,
-			custom_mxid=$11, access_token=$12
+			number=$2, name=$3, name_quality=$4, avatar_path=$5, avatar_hash=$6, avatar_url=$7,
+			name_set=$8, avatar_set=$9, contact_info_set=$10, is_registered=$11,
+			custom_mxid=$12, access_token=$13
 		WHERE uuid=$1
 	`
 	insertPuppetQuery = `
 		INSERT INTO puppet (
-			uuid, number, name, name_quality, avatar_hash, avatar_url,
+			uuid, number, name, name_quality, avatar_path, avatar_hash, avatar_url,
 			name_set, avatar_set, contact_info_set, is_registered,
 			custom_mxid, access_token
 		)
 		VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 		)
 	`
 )
@@ -65,6 +65,7 @@ type Puppet struct {
 	Number      string
 	Name        string
 	NameQuality int
+	AvatarPath  string
 	AvatarHash  string
 	AvatarURL   id.ContentURI
 	NameSet     bool
@@ -104,6 +105,7 @@ func (p *Puppet) Scan(row dbutil.Scannable) (*Puppet, error) {
 		&number,
 		&p.Name,
 		&p.NameQuality,
+		&p.AvatarPath,
 		&p.AvatarHash,
 		&p.AvatarURL,
 		&p.NameSet,
@@ -127,6 +129,7 @@ func (p *Puppet) sqlVariables() []any {
 		dbutil.StrPtr(p.Number),
 		p.Name,
 		p.NameQuality,
+		p.AvatarPath,
 		p.AvatarHash,
 		&p.AvatarURL,
 		p.NameSet,

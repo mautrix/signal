@@ -18,6 +18,8 @@ package types
 
 import (
 	"github.com/google/uuid"
+
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
 // The Contact struct combines information from two sources:
@@ -29,11 +31,12 @@ type Contact struct {
 	UUID              uuid.UUID
 	E164              string
 	ContactName       string
-	ContactAvatarHash string
-	ProfileKey        []byte
+	ContactAvatar     ContactAvatar
+	ProfileKey        *libsignalgo.ProfileKey
 	ProfileName       string
 	ProfileAbout      string
 	ProfileAboutEmoji string
+	ProfileAvatarPath string
 	ProfileAvatarHash string
 }
 

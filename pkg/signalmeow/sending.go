@@ -484,7 +484,7 @@ func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
 }
 
 func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifier, content *signalpb.Content) (*GroupMessageSendResult, error) {
-	group, err := cli.RetrieveGroupByID(ctx, gid)
+	group, err := cli.RetrieveGroupByID(ctx, gid, 0)
 	if err != nil {
 		return nil, err
 	}

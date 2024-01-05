@@ -1,4 +1,4 @@
--- v0 -> v18 (compatible with v17+): Latest revision
+-- v0 -> v19 (compatible with v17+): Latest revision
 
 CREATE TABLE portal (
     chat_id     TEXT    NOT NULL,
@@ -7,10 +7,12 @@ CREATE TABLE portal (
     name        TEXT    NOT NULL,
     topic       TEXT    NOT NULL,
     encrypted   BOOLEAN NOT NULL DEFAULT false,
+    avatar_path TEXT    NOT NULL DEFAULT '',
     avatar_hash TEXT    NOT NULL,
     avatar_url  TEXT    NOT NULL,
     name_set    BOOLEAN NOT NULL DEFAULT false,
     avatar_set  BOOLEAN NOT NULL DEFAULT false,
+    topic_set   BOOLEAN NOT NULL DEFAULT false,
     revision    INTEGER NOT NULL DEFAULT 0,
 
     expiration_time BIGINT NOT NULL,
@@ -25,6 +27,7 @@ CREATE TABLE puppet (
     number       TEXT    UNIQUE,
     name         TEXT    NOT NULL,
     name_quality INTEGER NOT NULL,
+    avatar_path  TEXT    NOT NULL,
     avatar_hash  TEXT    NOT NULL,
     avatar_url   TEXT    NOT NULL,
     name_set     BOOLEAN NOT NULL DEFAULT false,

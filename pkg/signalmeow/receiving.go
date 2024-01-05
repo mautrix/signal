@@ -586,22 +586,22 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 						zlog.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
 					}
 					zlog.Debug().Msgf("Contacts Sync received %v contacts", len(contacts))
+					convertedContacts := make([]*types.Contact, 0, len(contacts))
 					for i, signalContact := range contacts {
 						if signalContact.Aci == nil || *signalContact.Aci == "" {
 							zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
 							continue
 						}
-						contact, contactAvatar, err := cli.StoreContactDetailsAsContact(signalContact, &avatars[i])
+						contact, err := cli.StoreContactDetailsAsContact(signalContact, &avatars[i])
 						if err != nil {
 							zlog.Err(err).Msg("StoreContactDetailsAsContact error")
 							continue
 						}
-						// Model each contact as an incoming contact change message
-						cli.handleEvent(&events.ContactChange{
-							Contact: contact,
-							Avatar:  contactAvatar,
-						})
+						convertedContacts = append(convertedContacts, contact)
 					}
+					cli.handleEvent(&events.ContactList{
+						Contacts: convertedContacts,
+					})
 				}
 			}
 			if content.SyncMessage.Read != nil {
@@ -731,7 +731,7 @@ func groupOrUserID(groupID types.GroupIdentifier, userID uuid.UUID) string {
 func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSender, chatRecipient uuid.UUID) bool {
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var groupID types.GroupIdentifier
-	var groupRevision int
+	var groupRevision uint32
 	if editMessage.GetDataMessage().GetGroupV2() != nil {
 		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
 		groupMasterKeyBytes := editMessage.GetDataMessage().GetGroupV2().GetMasterKey()
@@ -742,7 +742,7 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 			zlog.Err(err).Msg("StoreMasterKey error")
 			return false
 		}
-		groupRevision = int(editMessage.GetDataMessage().GetGroupV2().GetRevision())
+		groupRevision = editMessage.GetDataMessage().GetGroupV2().GetRevision()
 	}
 	cli.handleEvent(&events.ChatEvent{
 		Info: events.MessageInfo{
@@ -768,7 +768,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var groupID types.GroupIdentifier
-	var groupRevision int
+	var groupRevision uint32
 	if dataMessage.GetGroupV2() != nil {
 		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
 		groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
@@ -779,33 +779,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 			zlog.Err(err).Msg("StoreMasterKey error")
 			return false
 		}
-		groupRevision = int(dataMessage.GetGroupV2().GetRevision())
-
-		var groupHasChanged = false
-		if dataMessage.GetGroupV2().GroupChange != nil {
-			// TODO: don't parse the change	for now, just invalidate our cache
-			zlog.Debug().Msgf("Invalidating group %v due to change: %v", groupID, dataMessage.GetGroupV2().GroupChange)
-			cli.InvalidateGroupCache(groupID)
-			groupHasChanged = true
-		} else if dataMessage.GetGroupV2().GetRevision() > 0 {
-			// Compare revision, and if it's newer, invalidate our cache
-			ourGroup, err := cli.RetrieveGroupByID(ctx, groupID)
-			if err != nil {
-				zlog.Err(err).Msg("RetrieveGroupByID error")
-			} else if dataMessage.GetGroupV2().GetRevision() > ourGroup.Revision {
-				zlog.Debug().Msgf("Invalidating group %v due to new revision %v > our revision: %v", groupID, dataMessage.GetGroupV2().GetRevision(), ourGroup.Revision)
-				cli.InvalidateGroupCache(groupID)
-				groupHasChanged = true
-			}
-		}
-		if groupHasChanged {
-			cli.handleEvent(&events.GroupChange{
-				SenderID:  messageSender,
-				Timestamp: dataMessage.GetTimestamp(),
-				GroupID:   groupID,
-				Revision:  groupRevision,
-			})
-		}
+		groupRevision = dataMessage.GetGroupV2().GetRevision()
 	}
 
 	evtInfo := events.MessageInfo{

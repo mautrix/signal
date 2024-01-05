@@ -100,7 +100,7 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 		Parts:       make([]*ConvertedMessagePart, 0, calculateLength(dm)),
 	}
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
-		cm.Parts = append(cm.Parts, mc.convertDisappearingTimerChangeToMatrix(ctx, dm))
+		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(ctx, dm.GetExpireTimer(), true))
 		// Don't disappear disappearing timer changes
 		cm.DisappearIn = 0
 		// Don't allow any other parts in a disappearing timer change message
@@ -150,22 +150,24 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 	return cm
 }
 
-func (mc *MessageConverter) convertDisappearingTimerChangeToMatrix(ctx context.Context, dm *signalpb.DataMessage) *ConvertedMessagePart {
+func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.Context, timer uint32, updatePortal bool) *ConvertedMessagePart {
 	part := &ConvertedMessagePart{
 		Type: event.EventMessage,
 		Content: &event.MessageEventContent{
 			MsgType: event.MsgNotice,
-			Body:    fmt.Sprintf("Disappearing messages set to %s", exfmt.Duration(time.Duration(dm.GetExpireTimer())*time.Second)),
+			Body:    fmt.Sprintf("Disappearing messages set to %s", exfmt.Duration(time.Duration(timer)*time.Second)),
 		},
 	}
-	if dm.GetExpireTimer() == 0 {
+	if timer == 0 {
 		part.Content.Body = "Disappearing messages disabled"
 	}
-	portal := mc.GetData(ctx)
-	portal.ExpirationTime = int(dm.GetExpireTimer())
-	err := portal.Update(ctx)
-	if err != nil {
-		zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
+	if updatePortal {
+		portal := mc.GetData(ctx)
+		portal.ExpirationTime = timer
+		err := portal.Update(ctx)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
+		}
 	}
 	return part
 }

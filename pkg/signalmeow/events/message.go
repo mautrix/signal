@@ -27,18 +27,17 @@ type SignalEvent interface {
 	isSignalEvent()
 }
 
-func (*ChatEvent) isSignalEvent()     {}
-func (*Receipt) isSignalEvent()       {}
-func (*ReadSelf) isSignalEvent()      {}
-func (*Call) isSignalEvent()          {}
-func (*GroupChange) isSignalEvent()   {}
-func (*ContactChange) isSignalEvent() {}
+func (*ChatEvent) isSignalEvent()   {}
+func (*Receipt) isSignalEvent()     {}
+func (*ReadSelf) isSignalEvent()    {}
+func (*Call) isSignalEvent()        {}
+func (*ContactList) isSignalEvent() {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
 	ChatID string
 
-	GroupRevision int
+	GroupRevision uint32
 }
 
 type ChatEvent struct {
@@ -61,14 +60,6 @@ type Call struct {
 	IsRinging bool
 }
 
-type GroupChange struct {
-	SenderID  uuid.UUID
-	Timestamp uint64
-	GroupID   types.GroupIdentifier
-	Revision  int
-}
-
-type ContactChange struct {
-	types.Contact
-	Avatar *types.ContactAvatar
+type ContactList struct {
+	Contacts []*types.Contact
 }

@@ -223,7 +223,7 @@ func fnPM(ce *WrappedCommandEvent) {
 		ce.Reply("You already have a portal to %s at %s", number, portal.MXID)
 		return
 	}
-	if err := portal.CreateMatrixRoom(ce.Ctx, user, nil); err != nil {
+	if err := portal.CreateMatrixRoom(ce.Ctx, user, 0); err != nil {
 		ce.Reply("Error creating Matrix room for portal to %s", number)
 		ce.Log.Errorln("Error creating Matrix room for portal to %s: %s", number, err)
 		return

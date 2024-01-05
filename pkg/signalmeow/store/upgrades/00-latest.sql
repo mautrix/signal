@@ -78,6 +78,7 @@ CREATE TABLE signalmeow_groups (
 CREATE TABLE signalmeow_contacts (
     our_aci_uuid        TEXT NOT NULL,
     aci_uuid            TEXT NOT NULL,
+    -- TODO make all fields not null
     e164_number         TEXT,
     contact_name        TEXT,
     contact_avatar_hash TEXT,
@@ -85,6 +86,7 @@ CREATE TABLE signalmeow_contacts (
     profile_name        TEXT,
     profile_about       TEXT,
     profile_about_emoji TEXT,
+    profile_avatar_path TEXT NOT NULL DEFAULT '',
     profile_avatar_hash TEXT,
 
     PRIMARY KEY (our_aci_uuid, aci_uuid),

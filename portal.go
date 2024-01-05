@@ -18,8 +18,11 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
@@ -88,6 +91,15 @@ func (br *SignalBridge) GetAllPortalsWithMXID() []*Portal {
 	portals, err := br.dbPortalsToPortals(br.DB.Portal.GetAllWithMXID(context.TODO()))
 	if err != nil {
 		br.ZLog.Err(err).Msg("Failed to get all portals with mxid")
+		return nil
+	}
+	return portals
+}
+
+func (br *SignalBridge) FindPrivateChatPortalsWith(userID uuid.UUID) []*Portal {
+	portals, err := br.dbPortalsToPortals(br.DB.Portal.FindPrivateChatsWith(context.TODO(), userID))
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to get all DM portals with user")
 		return nil
 	}
 	return portals
@@ -849,8 +861,21 @@ func (portal *Portal) handleSignalMessage(portalMessage portalSignalMessage) {
 }
 
 func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg *signalpb.DataMessage) {
-	// FIXME hacky
-	updatePuppetWithSignalContact(context.TODO(), source, sender, nil)
+	genericCtx := portal.log.With().
+		Str("action", "handle signal data message").
+		Uint64("msg_ts", msg.GetTimestamp()).
+		Logger().WithContext(context.TODO())
+	// Always update sender info when we receive a message from them, there's caching inside the function
+	sender.UpdateInfo(
+		genericCtx,
+		source,
+		nil,
+	)
+	// Handle earlier missed group changes here.
+	// If this message is a group change, don't handle it here, it's handled below.
+	if msg.GetGroupV2().GetGroupChange() == nil && portal.Revision < msg.GetGroupV2().GetRevision() {
+		portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
+	}
 
 	switch {
 	case msgconv.CanConvertSignal(msg):
@@ -859,6 +884,8 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 		portal.handleSignalReaction(sender, msg.Reaction, msg.GetTimestamp())
 	case msg.Delete != nil:
 		portal.handleSignalDelete(sender, msg.Delete, msg.GetTimestamp())
+	case msg.GetGroupV2().GetGroupChange() != nil:
+		portal.handleSignalGroupChange(source, sender, msg.GroupV2, msg.GetTimestamp())
 	case msg.StoryContext != nil, msg.GroupCallUpdate != nil:
 		// ignore
 	default:
@@ -868,6 +895,18 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 			Uint64("msg_ts", msg.GetTimestamp()).
 			Msg("Unrecognized content in message")
 	}
+}
+
+func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {
+	log := portal.log.With().
+		Str("action", "handle signal group change").
+		Str("sender_uuid", sender.SignalID.String()).
+		Uint64("change_ts", ts).
+		Uint32("new_revision", groupMeta.GetRevision()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	// TODO handle group changes properly
+	portal.UpdateInfo(ctx, source, nil, groupMeta.GetRevision())
 }
 
 func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataMessage_Reaction, ts uint64) {
@@ -998,13 +1037,10 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 	ctx := log.WithContext(context.TODO())
 	if portal.MXID == "" {
 		log.Debug().Msg("Creating Matrix room from incoming message")
-		if err := portal.CreateMatrixRoom(ctx, source, nil); err != nil {
+		if err := portal.CreateMatrixRoom(ctx, source, msg.GetGroupV2().GetRevision()); err != nil {
 			log.Error().Err(err).Msg("Failed to create portal room")
 			return
 		}
-		// FIXME hacky
-		ensureGroupPuppetsAreJoinedToPortal(context.TODO(), source, portal)
-		source.Client.SendContactSyncRequest(context.TODO())
 	}
 
 	existingMessage, err := portal.bridge.DB.Message.GetBySignalID(ctx, sender.SignalID, msg.GetTimestamp(), 0, portal.Receiver)
@@ -1365,7 +1401,7 @@ func (portal *Portal) ensureUserInvited(ctx context.Context, user *User) bool {
 	return user.ensureInvited(ctx, portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
 }
 
-func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, meta *any) error {
+func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRevision uint32) error {
 	portal.roomCreateLock.Lock()
 	defer portal.roomCreateLock.Unlock()
 	if portal.MXID != "" {
@@ -1408,6 +1444,10 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, meta *an
 	}
 
 	var invite []id.UserID
+	autoJoinInvites := portal.bridge.SpecVersions.Supports(mautrix.BeeperFeatureAutojoinInvites)
+	if autoJoinInvites {
+		invite = append(invite, user.MXID)
+	}
 
 	if portal.bridge.Config.Bridge.Encryption.Default {
 		initialState = append(initialState, &event.Event{
@@ -1423,10 +1463,22 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, meta *an
 		}
 	}
 
-	// FIXME slightly hacky
-	user.syncPortalInfo(portal)
+	var dmPuppet *Puppet
+	var groupInfo *signalmeow.Group
+	if portal.IsPrivateChat() {
+		dmPuppet = portal.GetDMPuppet()
+		dmPuppet.UpdateInfo(ctx, user, nil)
+		portal.UpdateDMInfo(ctx, false)
+	} else {
+		groupInfo = portal.UpdateGroupInfo(ctx, user, nil, groupRevision, true)
+		if groupInfo == nil {
+			portal.log.Error().Msg("Didn't get group info after updating portal")
+			return errors.New("failed to get group info")
+		}
+		invite = append(invite, portal.SyncParticipants(ctx, user, groupInfo)...)
+	}
 
-	resp, err := intent.CreateRoom(ctx, &mautrix.ReqCreateRoom{
+	req := &mautrix.ReqCreateRoom{
 		Visibility:      "private",
 		Name:            portal.Name,
 		Topic:           portal.Topic,
@@ -1435,51 +1487,303 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, meta *an
 		IsDirect:        portal.IsPrivateChat(),
 		InitialState:    initialState,
 		CreationContent: creationContent,
-	})
+
+		BeeperAutoJoinInvites: autoJoinInvites,
+	}
+	resp, err := intent.CreateRoom(ctx, req)
 	if err != nil {
 		portal.log.Warn().Err(err).Msg("failed to create room")
 		return err
 	}
 
-	portal.NameSet = true
-	//portal.TopicSet = true
+	portal.NameSet = len(req.Name) > 0
+	portal.TopicSet = len(req.Topic) > 0
 	portal.AvatarSet = !portal.AvatarURL.IsEmpty()
 	portal.MXID = resp.RoomID
 	portal.bridge.portalsLock.Lock()
 	portal.bridge.portalsByMXID[portal.MXID] = portal
 	portal.bridge.portalsLock.Unlock()
-	err = portal.Update(context.TODO())
+	err = portal.Update(ctx)
 	if err != nil {
 		portal.log.Err(err).Msg("Failed to save created portal mxid")
 	}
 	portal.log.Info().Msgf("Created matrix room %s", portal.MXID)
 
-	if portal.Encrypted && portal.IsPrivateChat() {
-		err = portal.bridge.Bot.EnsureJoined(ctx, portal.MXID, appservice.EnsureJoinedParams{BotOverride: portal.MainIntent().Client})
-		if err != nil {
-			portal.log.Error().Err(err).Msg("Failed to ensure bridge bot is joined to private chat portal")
-		}
+	inviteMembership := event.MembershipInvite
+	if autoJoinInvites {
+		inviteMembership = event.MembershipJoin
 	}
-
-	user.ensureInvited(ctx, portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
+	for _, userID := range invite {
+		portal.bridge.StateStore.SetMembership(portal.MXID, userID, inviteMembership)
+	}
+	if !autoJoinInvites {
+		if !portal.IsPrivateChat() {
+			portal.SyncParticipants(ctx, user, groupInfo)
+		} else if portal.Encrypted {
+			err = portal.bridge.Bot.EnsureJoined(ctx, portal.MXID, appservice.EnsureJoinedParams{BotOverride: portal.MainIntent().Client})
+			if err != nil {
+				portal.log.Error().Err(err).Msg("Failed to ensure bridge bot is joined to private chat portal")
+			}
+		}
+		user.ensureInvited(ctx, portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
+	}
 	user.syncChatDoublePuppetDetails(portal, true)
 	go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 
-	//portal.syncParticipants(user, channel.Recipients)
-
 	if portal.IsPrivateChat() {
-		portal.log.Debug().Msgf("Portal is private chat, updating direct chats: %s", portal.MXID)
-		puppet := user.bridge.GetPuppetBySignalID(portal.Receiver)
-		if puppet == nil {
-			portal.log.Error().Msgf("Failed to find puppet for portal receiver %s", portal.Receiver)
-			return nil
-		}
-
-		chats := map[id.UserID][]id.RoomID{puppet.MXID: {portal.MXID}}
-		user.UpdateDirectChats(ctx, chats)
+		user.UpdateDirectChats(ctx, map[id.UserID][]id.RoomID{
+			dmPuppet.MXID: {portal.MXID},
+		})
 	}
 
 	return nil
+}
+
+func (portal *Portal) GetDMPuppet() *Puppet {
+	if !portal.IsPrivateChat() {
+		return nil
+	}
+	return portal.bridge.GetPuppetBySignalID(portal.UserID())
+}
+
+const PrivateChatTopic = "Signal private chat"
+
+func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *signalmeow.Group, revision uint32) {
+	if portal.IsPrivateChat() {
+		portal.UpdateDMInfo(ctx, false)
+		return
+	}
+	groupInfo = portal.UpdateGroupInfo(ctx, source, groupInfo, revision, false)
+	if groupInfo != nil {
+		portal.SyncParticipants(ctx, source, groupInfo)
+	}
+}
+
+func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
+	log := zerolog.Ctx(ctx).With().
+		Str("function", "UpdateDMInfo").
+		Logger()
+	log.Trace().Msg("Updating portal info")
+	ctx = log.WithContext(ctx)
+	puppet := portal.GetDMPuppet()
+
+	update := forceSave
+	if portal.shouldSetDMRoomMetadata() {
+		update = portal.updateName(ctx, puppet.Name) || update
+		update = portal.updateAvatarWithMXC(ctx, puppet.AvatarPath, puppet.AvatarHash, puppet.AvatarURL) || update
+	}
+	topic := PrivateChatTopic
+	if puppet.Number != "" {
+		topic = fmt.Sprintf("%s with %s", topic, puppet.Number)
+	}
+	update = portal.updateTopic(ctx, topic) || update
+	if update {
+		err := portal.Update(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to save portal in database after updatin group info")
+		}
+		portal.UpdateBridgeInfo(ctx)
+	}
+}
+
+func (portal *Portal) UpdateGroupInfo(ctx context.Context, source *User, info *signalmeow.Group, revision uint32, forceFetch bool) *signalmeow.Group {
+	logWith := zerolog.Ctx(ctx).With().
+		Str("function", "UpdateGroupInfo").
+		Uint32("revision", revision).
+		Stringer("source_user_mxid", source.MXID)
+	if info != nil {
+		logWith = logWith.Uint32("info_revision", info.Revision)
+	}
+	log := logWith.Logger()
+	if info == nil {
+		if revision <= portal.Revision && !forceFetch {
+			log.Debug().Msg("Not fetching group info to update portal: given revision is not newer")
+			return nil
+		}
+		log.Debug().Msg("Fetching group info to update portal")
+		var err error
+		info, err = source.Client.RetrieveGroupByID(ctx, portal.GroupID(), revision)
+		if err != nil {
+			log.Err(err).
+				Stringer("source_user_id", source.MXID).
+				Msg("Failed to fetch group info")
+			return nil
+		}
+	}
+	if portal.Revision > info.Revision {
+		log.Debug().Uint32("current_revision", portal.Revision).Msg("Not updating portal with data from older revision")
+		return info
+	}
+	logEvt := log.Trace()
+	if portal.Revision != info.Revision {
+		logEvt = log.Debug()
+	}
+	logEvt.Uint32("current_revision", portal.Revision).Msg("Updating portal info")
+	ctx = log.WithContext(ctx)
+	update := false
+	if portal.Revision < info.Revision {
+		portal.Revision = info.Revision
+		update = true
+	}
+	update = portal.updateName(ctx, info.Title) || update
+	update = portal.updateTopic(ctx, info.Description) || update
+	update = portal.updateAvatarWithInfo(ctx, source, info) || update
+	update = portal.updateExpirationTimer(ctx, info.DisappearingMessagesDuration) || update
+	if update {
+		err := portal.Update(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to save portal in database after updatin group info")
+		}
+		portal.UpdateBridgeInfo(ctx)
+	}
+	return info
+}
+
+func (portal *Portal) updateExpirationTimer(ctx context.Context, newExpirationTimer uint32) bool {
+	if portal.ExpirationTime == newExpirationTimer {
+		return false
+	}
+	portal.ExpirationTime = newExpirationTimer
+	if portal.MXID != "" {
+		msg := portal.MsgConv.ConvertDisappearingTimerChangeToMatrix(ctx, newExpirationTimer, false)
+		_, err := portal.sendMainIntentMessage(ctx, msg.Content)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing")
+		}
+	}
+	return true
+}
+
+func (portal *Portal) updateName(ctx context.Context, newName string) bool {
+	if portal.Name == newName && (portal.NameSet || portal.MXID == "") {
+		return false
+	}
+	portal.Name = newName
+	portal.NameSet = false
+	if portal.MXID != "" {
+		_, err := portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to update room name")
+		} else {
+			portal.NameSet = true
+		}
+	}
+	return true
+}
+
+func (portal *Portal) updateTopic(ctx context.Context, newTopic string) bool {
+	if portal.Topic == newTopic && (portal.TopicSet || portal.MXID == "") {
+		return false
+	}
+	portal.Topic = newTopic
+	portal.TopicSet = false
+	if portal.MXID != "" {
+		_, err := portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to update room topic")
+		} else {
+			portal.TopicSet = true
+		}
+	}
+	return true
+}
+
+func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, group *signalmeow.Group) bool {
+	// If the avatar path is different, the avatar probably changed
+	if portal.AvatarPath == group.AvatarPath &&
+		// If the avatar mxc isn't set, we need to reupload it (except if the avatar is unset in Signal)
+		(!portal.AvatarURL.IsEmpty() || group.AvatarPath == "") &&
+		// If the avatar isn't set in the room, we need to update the room state (except if there's no Matrix room yet)
+		(portal.AvatarSet || portal.MXID == "") {
+		return false
+	}
+	portal.AvatarPath = group.AvatarPath
+	portal.AvatarSet = false
+	portal.AvatarURL = id.ContentURI{}
+	portal.AvatarHash = ""
+	if portal.AvatarPath == "" {
+		// Just clear the Matrix room avatar and return
+		portal.updateAvatarInRoom(ctx)
+		return true
+	}
+	log := zerolog.Ctx(ctx)
+	log.Debug().Str("avatar_path", portal.AvatarPath).Msg("Downloading new group avatar from Signal")
+	avatarBytes, err := source.Client.DownloadGroupAvatar(ctx, group)
+	if err != nil {
+		log.Err(err).Msg("Failed to download new avatar for portal")
+		return true
+	}
+	hash := sha256.Sum256(avatarBytes)
+	newAvatarHash := hex.EncodeToString(hash[:])
+	if portal.AvatarHash == newAvatarHash && (portal.AvatarSet || portal.MXID == "") {
+		// No need to change anything else, but save the new path to the database
+		return true
+	}
+	portal.AvatarHash = newAvatarHash
+	log.Debug().Str("avatar_hash", portal.AvatarHash).Msg("Uploading new group avatar to Matrix")
+	resp, err := portal.MainIntent().UploadBytes(ctx, avatarBytes, http.DetectContentType(avatarBytes))
+	if err != nil {
+		log.Err(err).Msg("Failed to upload new avatar for portal")
+	} else {
+		portal.AvatarURL = resp.ContentURI
+		portal.updateAvatarInRoom(ctx)
+	}
+	return true
+}
+
+func (portal *Portal) updateAvatarWithMXC(ctx context.Context, newAvatarPath, newAvatarHash string, newAvatarURI id.ContentURI) bool {
+	if portal.AvatarHash == newAvatarHash && (portal.AvatarSet || portal.MXID == "") {
+		return false
+	}
+	portal.AvatarPath = newAvatarPath
+	portal.AvatarHash = newAvatarHash
+	portal.AvatarURL = newAvatarURI
+	portal.AvatarSet = false
+	portal.updateAvatarInRoom(ctx)
+	return true
+}
+
+func (portal *Portal) updateAvatarInRoom(ctx context.Context) {
+	if portal.MXID == "" || portal.AvatarSet {
+		return
+	}
+	zerolog.Ctx(ctx).Debug().
+		Str("avatar_path", portal.AvatarPath).
+		Str("avatar_hash", portal.AvatarHash).
+		Stringer("avatar_mxc", portal.AvatarURL).
+		Msg("Updating avatar in Matrix room")
+	_, err := portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to update room avatar")
+	} else {
+		portal.AvatarSet = true
+	}
+}
+
+func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *signalmeow.Group) []id.UserID {
+	log := zerolog.Ctx(ctx)
+	userIDs := make([]id.UserID, 0, len(info.Members))
+	for _, member := range info.Members {
+		if member.UserID == source.SignalID {
+			continue
+		}
+		puppet := portal.bridge.GetPuppetBySignalID(member.UserID)
+		if puppet == nil {
+			log.Warn().Stringer("signal_user_id", member.UserID).Msg("Couldn't get puppet for group member")
+			continue
+		}
+		puppet.UpdateInfo(ctx, source, nil)
+		intent := puppet.IntentFor(portal)
+		userIDs = append(userIDs, intent.UserID)
+		if portal.MXID != "" {
+			err := intent.EnsureJoined(ctx, portal.MXID)
+			if err != nil {
+				log.Err(err).Stringer("signal_user_id", member.UserID).Msg("Failed to ensure user is joined to portal")
+			}
+		}
+	}
+	// TODO kick extra members on Matrix, handle pending and requesting participants on Signal
+	return userIDs
 }
 
 func (portal *Portal) getBridgeInfoStateKey() string {

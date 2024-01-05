@@ -34,16 +34,16 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.ContactDetails, avatar *[]byte) (types.Contact, *types.ContactAvatar, error) {
+func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.ContactDetails, avatar *[]byte) (*types.Contact, error) {
 	ctx := context.TODO()
 	parsedUUID, err := uuid.Parse(contactDetails.GetAci())
 	if err != nil {
-		return types.Contact{}, nil, err
+		return nil, err
 	}
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, parsedUUID)
 	if err != nil {
 		zlog.Err(err).Msg("StoreContactDetailsAsContact error loading contact")
-		return types.Contact{}, nil, err
+		return nil, err
 	}
 	if existingContact == nil {
 		zlog.Debug().Msgf("StoreContactDetailsAsContact: creating new contact for uuid: %v", parsedUUID)
@@ -57,8 +57,8 @@ func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.Contact
 	existingContact.E164 = contactDetails.GetNumber()
 	existingContact.ContactName = contactDetails.GetName()
 	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
-		existingContact.ProfileKey = profileKeyString
 		profileKey := libsignalgo.ProfileKey(profileKeyString)
+		existingContact.ProfileKey = &profileKey
 		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
 		if err != nil {
 			zlog.Err(err).Msg("StoreContactDetailsAsContact error storing profile key")
@@ -66,35 +66,19 @@ func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.Contact
 		}
 	}
 
-	// Check for avatar changes, and return ContactAvatar if it's changed
-	var contactAvatar *types.ContactAvatar
-	avatarHash := ""
 	if avatar != nil && *avatar != nil && len(*avatar) > 0 {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: found avatar for uuid: %v", contactDetails.GetAci())
 		rawHash := sha256.Sum256(*avatar)
-		avatarHash = hex.EncodeToString(rawHash[:])
-		if existingContact.ContactAvatarHash != avatarHash {
-			zlog.Debug().Msgf("StoreContactDetailsAsContact: avatar changed for uuid: %v", contactDetails.GetAci())
-			var contentType string
-			if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil && !strings.HasSuffix(avatarDetails.GetContentType(), "/*") {
-				contentType = *avatarDetails.ContentType
-				zlog.Debug().Msgf("StoreContactDetailsAsContact: using contentType from details: %v", contentType)
-			} else {
-				contentType = http.DetectContentType(*avatar)
-				zlog.Debug().Msgf("StoreContactDetailsAsContact: using autodetected contentType: %v", contentType)
-			}
-			contactAvatar = &types.ContactAvatar{
-				Image:       *avatar,
-				ContentType: contentType,
-				Hash:        avatarHash,
-			}
-			existingContact.ContactAvatarHash = avatarHash
+		avatarHash := hex.EncodeToString(rawHash[:])
+		var contentType string
+		if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil && !strings.HasSuffix(avatarDetails.GetContentType(), "/*") {
+			contentType = *avatarDetails.ContentType
+		} else {
+			contentType = http.DetectContentType(*avatar)
 		}
-	} else {
-		// Avatar has been removed
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: no avatar found for uuid: %v", contactDetails.GetAci())
-		if existingContact.ContactAvatarHash != "" {
-			existingContact.ContactAvatarHash = ""
+		existingContact.ContactAvatar = types.ContactAvatar{
+			Image:       *avatar,
+			ContentType: contentType,
+			Hash:        avatarHash,
 		}
 	}
 
@@ -102,19 +86,19 @@ func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.Contact
 	storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 	if storeErr != nil {
 		zlog.Err(storeErr).Msg("StoreContactDetailsAsContact: error storing contact")
-		return *existingContact, nil, storeErr
+		return existingContact, storeErr
 	}
-	return *existingContact, contactAvatar, nil
+	return existingContact, nil
 }
 
-func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID, fetchProfileAvatar bool) (*types.Contact, *types.ContactAvatar, error) {
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID) (*types.Contact, error) {
 	ctx := context.TODO()
 	contactChanged := false
 
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUuid)
 	if err != nil {
 		zlog.Err(err).Msg("fetchContactThenTryAndUpdateWithProfile: error loading contact")
-		return nil, nil, err
+		return nil, err
 	}
 	if existingContact == nil {
 		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: creating new contact for uuid: %v", profileUuid)
@@ -125,14 +109,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID
 	} else {
 		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: updating existing contact for uuid: %v", profileUuid)
 	}
-	var profile *Profile
-	var profileAvatarImage []byte
-	if fetchProfileAvatar && existingContact.ContactAvatarHash == "" {
-		// We only care about profile avatar if there is no contact avatar
-		profile, profileAvatarImage, err = cli.RetrieveProfileAndAvatarByID(ctx, profileUuid)
-	} else {
-		profile, err = cli.RetrieveProfileByID(ctx, profileUuid)
-	}
+	profile, err := cli.RetrieveProfileByID(ctx, profileUuid)
 	if err != nil {
 		zlog.Err(err).Msgf("fetchContactThenTryAndUpdateWithProfile: error retrieving profile for uuid: %v", profileUuid)
 		//return nil, nil, err
@@ -141,40 +118,23 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID
 
 	if profile != nil {
 		if existingContact.ProfileName != profile.Name {
-			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile name changed for uuid: %v", profileUuid)
 			existingContact.ProfileName = profile.Name
 			contactChanged = true
 		}
 		if existingContact.ProfileAbout != profile.About {
-			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile about changed for uuid: %v", profileUuid)
 			existingContact.ProfileAbout = profile.About
 			contactChanged = true
 		}
 		if existingContact.ProfileAboutEmoji != profile.AboutEmoji {
-			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile about emoji changed for uuid: %v", profileUuid)
 			existingContact.ProfileAboutEmoji = profile.AboutEmoji
 			contactChanged = true
 		}
-		newProfileKey := profile.Key.Slice()
-		if !bytes.Equal(existingContact.ProfileKey, newProfileKey) {
-			zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: profile key changed for uuid: %v", profileUuid)
-			existingContact.ProfileKey = newProfileKey
+		if existingContact.ProfileAvatarPath != profile.AvatarPath {
+			existingContact.ProfileAvatarPath = profile.AvatarPath
 			contactChanged = true
 		}
-	}
-
-	var profileAvatar *types.ContactAvatar
-	if len(profileAvatarImage) > 0 {
-		// Avatar has changed according to profile cache
-		rawHash := sha256.Sum256(profileAvatarImage)
-		avatarHash := hex.EncodeToString(rawHash[:])
-		if existingContact.ProfileAvatarHash != avatarHash {
-			profileAvatar = &types.ContactAvatar{
-				Image:       profileAvatarImage,
-				ContentType: http.DetectContentType(profileAvatarImage),
-				Hash:        avatarHash,
-			}
-			existingContact.ProfileAvatarHash = avatarHash
+		if existingContact.ProfileKey == nil || *existingContact.ProfileKey != profile.Key {
+			existingContact.ProfileKey = &profile.Key
 			contactChanged = true
 		}
 	}
@@ -185,7 +145,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID
 			zlog.Err(storeErr).Msg("fetchContactThenTryAndUpdateWithProfile: error storing contact")
 		}
 	}
-	return existingContact, profileAvatar, nil
+	return existingContact, nil
 }
 
 func (cli *Client) UpdateContactE164(uuid uuid.UUID, e164 string) error {
@@ -215,18 +175,8 @@ func (cli *Client) UpdateContactE164(uuid uuid.UUID, e164 string) error {
 	return nil
 }
 
-// ContactAvatar is only populated if there is no contact avatar, and the profile the avatar has changed
-// If there is a contact avatar, it will have to have been updated when the contact is sent, we can't fetch on demand
-func (cli *Client) ContactByIDWithProfileAvatar(uuid uuid.UUID) (*types.Contact, *types.ContactAvatar, error) {
-	// Update the profile (we can call this liberally, there's a cache backing it)
-	// We can just return the result of this, ContactAvatar will be nil if there's no change or if there is a contact avatar
-	return cli.fetchContactThenTryAndUpdateWithProfile(uuid, true)
-}
-
 func (cli *Client) ContactByID(uuid uuid.UUID) (*types.Contact, error) {
-	// Update the profile (we can call this liberally, there's a cache backing it)
-	contact, _, err := cli.fetchContactThenTryAndUpdateWithProfile(uuid, false)
-	return contact, err
+	return cli.fetchContactThenTryAndUpdateWithProfile(uuid)
 }
 
 func (cli *Client) ContactByE164(e164 string) (*types.Contact, error) {
@@ -239,8 +189,7 @@ func (cli *Client) ContactByE164(e164 string) (*types.Contact, error) {
 	if contact == nil {
 		return nil, nil
 	}
-	// Update profile information (we can call this liberally, there's a cache backing it)
-	contact, _, err = cli.fetchContactThenTryAndUpdateWithProfile(contact.UUID, false)
+	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(contact.UUID)
 	return contact, err
 }
 

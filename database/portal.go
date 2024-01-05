@@ -29,13 +29,14 @@ import (
 
 const (
 	portalBaseSelect = `
-		SELECT chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,
-		       revision, encrypted, relay_user_id, expiration_time
+		SELECT chat_id, receiver, mxid, name, topic, avatar_path, avatar_hash, avatar_url,
+		       name_set, avatar_set, topic_set, revision, encrypted, relay_user_id, expiration_time
 		FROM portal
 	`
 	getPortalByMXIDQuery       = portalBaseSelect + `WHERE mxid=$1`
 	getPortalByChatIDQuery     = portalBaseSelect + `WHERE chat_id=$1 AND receiver=$2`
 	getPortalsByReceiver       = portalBaseSelect + `WHERE receiver=$1`
+	getPortalsByUser           = portalBaseSelect + `WHERE chat_id=$1`
 	getAllPortalsWithMXIDQuery = portalBaseSelect + `WHERE mxid IS NOT NULL`
 	getChatsNotInSpaceQuery    = `
 		SELECT chat_id FROM portal
@@ -44,15 +45,14 @@ const (
 	`
 	insertPortalQuery = `
 		INSERT INTO portal (
-			chat_id, receiver, mxid, name, topic, avatar_hash, avatar_url, name_set, avatar_set,
-			revision, encrypted, relay_user_id, expiration_time
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+			chat_id, receiver, mxid, name, topic, avatar_path, avatar_hash, avatar_url,
+			name_set, avatar_set, topic_set, revision, encrypted, relay_user_id, expiration_time
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	`
 	updatePortalQuery = `
 		UPDATE portal SET
-			mxid=$3, name=$4, topic=$5, avatar_hash=$6, avatar_url=$7, name_set=$8,
-			avatar_set=$9, revision=$10, encrypted=$11, relay_user_id=$12,
-			expiration_time=$13
+			mxid=$3, name=$4, topic=$5, avatar_path=$6, avatar_hash=$7, avatar_url=$8,
+			name_set=$9, avatar_set=$10, topic_set=$11, revision=$12, encrypted=$13, relay_user_id=$14, expiration_time=$15
 		WHERE chat_id=$1 AND receiver=$2
 	`
 	deletePortalQuery = `DELETE FROM portal WHERE chat_id=$1 AND receiver=$2`
@@ -93,14 +93,16 @@ type Portal struct {
 	MXID           id.RoomID
 	Name           string
 	Topic          string
+	AvatarPath     string
 	AvatarHash     string
 	AvatarURL      id.ContentURI
 	NameSet        bool
 	AvatarSet      bool
-	Revision       int
+	TopicSet       bool
+	Revision       uint32
 	Encrypted      bool
 	RelayUserID    id.UserID
-	ExpirationTime int
+	ExpirationTime uint32
 }
 
 func newPortal(qh *dbutil.QueryHelper[*Portal]) *Portal {
@@ -113,6 +115,10 @@ func (pq *PortalQuery) GetByMXID(ctx context.Context, mxid id.RoomID) (*Portal, 
 
 func (pq *PortalQuery) GetByChatID(ctx context.Context, pk PortalKey) (*Portal, error) {
 	return pq.QueryOne(ctx, getPortalByChatIDQuery, pk.ChatID, pk.Receiver)
+}
+
+func (pq *PortalQuery) FindPrivateChatsWith(ctx context.Context, userID uuid.UUID) ([]*Portal, error) {
+	return pq.QueryMany(ctx, getPortalsByUser, userID.String())
 }
 
 func (pq *PortalQuery) FindPrivateChatsOf(ctx context.Context, receiver uuid.UUID) ([]*Portal, error) {
@@ -143,10 +149,12 @@ func (p *Portal) Scan(row dbutil.Scannable) (*Portal, error) {
 		&mxid,
 		&p.Name,
 		&p.Topic,
+		&p.AvatarPath,
 		&p.AvatarHash,
 		&p.AvatarURL,
 		&p.NameSet,
 		&p.AvatarSet,
+		&p.TopicSet,
 		&p.Revision,
 		&p.Encrypted,
 		&p.RelayUserID,
@@ -166,10 +174,12 @@ func (p *Portal) sqlVariables() []any {
 		dbutil.StrPtr(p.MXID),
 		p.Name,
 		p.Topic,
+		p.AvatarPath,
 		p.AvatarHash,
 		&p.AvatarURL,
 		p.NameSet,
 		p.AvatarSet,
+		p.TopicSet,
 		p.Revision,
 		p.Encrypted,
 		p.RelayUserID,

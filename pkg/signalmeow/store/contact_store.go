@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -47,6 +48,7 @@ const (
 			profile_name,
 			profile_about,
 			profile_about_emoji,
+			profile_avatar_path,
 			profile_avatar_hash
 		FROM signalmeow_contacts
 	`
@@ -64,9 +66,10 @@ const (
 			profile_name,
 			profile_about,
 			profile_about_emoji,
+			profile_avatar_path,
 			profile_avatar_hash
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (our_aci_uuid, aci_uuid) DO UPDATE SET
 			e164_number = excluded.e164_number,
 			contact_name = excluded.contact_name,
@@ -75,27 +78,34 @@ const (
 			profile_name = excluded.profile_name,
 			profile_about = excluded.profile_about,
 			profile_about_emoji = excluded.profile_about_emoji,
+			profile_avatar_path = excluded.profile_avatar_path,
 			profile_avatar_hash = excluded.profile_avatar_hash
 	`
 )
 
 func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 	var contact types.Contact
+	var profileKey []byte
 	err := row.Scan(
 		&contact.UUID,
 		&contact.E164,
 		&contact.ContactName,
-		&contact.ContactAvatarHash,
-		&contact.ProfileKey,
+		&contact.ContactAvatar.Hash,
+		&profileKey,
 		&contact.ProfileName,
 		&contact.ProfileAbout,
 		&contact.ProfileAboutEmoji,
+		&contact.ProfileAvatarPath,
 		&contact.ProfileAvatarHash,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
+	}
+	if len(profileKey) != 0 {
+		profileKeyConverted := libsignalgo.ProfileKey(profileKey)
+		contact.ProfileKey = &profileKeyConverted
 	}
 	return &contact, err
 }
@@ -126,11 +136,12 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 		contact.UUID,
 		contact.E164,
 		contact.ContactName,
-		contact.ContactAvatarHash,
-		contact.ProfileKey,
+		contact.ContactAvatar.Hash,
+		contact.ProfileKey.Slice(),
 		contact.ProfileName,
 		contact.ProfileAbout,
 		contact.ProfileAboutEmoji,
+		contact.ProfileAvatarPath,
 		contact.ProfileAvatarHash,
 	)
 	return err

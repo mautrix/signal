@@ -37,16 +37,36 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
-type ProfileName struct {
-	GivenName  string
-	FamilyName *string
+type Capabilities struct {
+	SenderKey         bool `json:"senderKey"`
+	AnnouncementGroup bool `json:"announcementGroup"`
+	ChangeNumber      bool `json:"changeNumber"`
+	Stories           bool `json:"stories"`
+	GiftBadges        bool `json:"giftBadges"`
+	PaymentActivation bool `json:"paymentActivation"`
+	PNI               bool `json:"pni"`
+	Gv1Migration      bool `json:"gv1-migration"`
 }
 
 type ProfileResponse struct {
-	Name       string
-	About      string
-	AboutEmoji string
-	Avatar     string
+	UUID uuid.UUID `json:"uuid"`
+
+	Name       []byte `json:"name"`
+	About      []byte `json:"about"`
+	AboutEmoji []byte `json:"aboutEmoji"`
+	Avatar     string `json:"avatar"`
+
+	Capabilities Capabilities `json:"capabilities"`
+
+	Credential         []byte `json:"credential"`
+	IdentityKey        []byte `json:"identityKey"`
+	UnidentifiedAccess []byte `json:"unidentifiedAccess"`
+
+	UnrestrictedUnidentifiedAccess bool `json:"UnrestrictedUnidentifiedAccess"`
+
+	//Badges             []any  `json:"badges"`
+	//PhoneNumberSharing []byte `json:"phoneNumberSharing"`
+	//PaymentAddress     []byte `json:"paymentAddress"`
 }
 
 type Profile struct {
@@ -61,7 +81,6 @@ type ProfileCache struct {
 	profiles    map[string]*Profile
 	errors      map[string]*error
 	lastFetched map[string]time.Time
-	avatarPaths map[string]string
 }
 
 func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uuid.UUID) ([]byte, error) {
@@ -70,10 +89,8 @@ func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uu
 		zlog.Err(err).Msg("ProfileKey error")
 		return nil, err
 	}
-	serverPublicParams := serverPublicParams()
-
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
-		serverPublicParams,
+		serverPublicParams(),
 		signalACI,
 		*profileKey,
 	)
@@ -110,7 +127,6 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 			profiles:    make(map[string]*Profile),
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
-			avatarPaths: make(map[string]string),
 		}
 	}
 
@@ -147,28 +163,6 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 	cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 
 	return profile, nil
-}
-
-func (cli *Client) RetrieveProfileAndAvatarByID(ctx context.Context, signalID uuid.UUID) (*Profile, []byte, error) {
-	profile, err := cli.RetrieveProfileByID(ctx, signalID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// If there is an avatarPath, and it's different from the cached one, fetch it
-	// (we only return the avatar if it's different from the cached one)
-	var avatarImage []byte
-	cachedAvatarPath, _ := cli.ProfileCache.avatarPaths[signalID.String()]
-	if profile.AvatarPath != "" && cachedAvatarPath != profile.AvatarPath {
-		avatarImage, err = cli.fetchAndDecryptAvatarImage(profile.AvatarPath, &profile.Key)
-		if err != nil {
-			zlog.Err(err).Msg("error fetching profile avatarImage")
-			return nil, nil, err
-		}
-	}
-	cli.ProfileCache.avatarPaths[signalID.String()] = profile.AvatarPath
-
-	return profile, avatarImage, nil
 }
 
 func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
@@ -231,38 +225,31 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 		return nil, err
 	}
 	var profileResponse ProfileResponse
-	var profile Profile
 	err = json.Unmarshal(resp.Body, &profileResponse)
 	if err != nil {
 		zlog.Err(err).Msg("json.Unmarshal error")
 		return nil, err
 	}
-	if profileResponse.Name != "" {
-		base64Name, err := base64.StdEncoding.DecodeString(profileResponse.Name)
-		decryptedName, err := decryptString(*profileKey, base64Name)
+	var profile Profile
+	if len(profileResponse.Name) > 0 {
+		profile.Name, err = decryptString(profileKey, profileResponse.Name)
 		if err != nil {
 			zlog.Err(err).Msg("error decrypting profile name")
 		}
-		profile.Name = *decryptedName
-		// I've seen profile names come in with a null byte instead of a space
-		// between first and last names, so replace any null bytes with spaces
+		// TODO store first and last name separately instead of removing the separator
 		profile.Name = strings.Replace(profile.Name, "\x00", " ", -1)
 	}
-	if profileResponse.About != "" {
-		base64About, err := base64.StdEncoding.DecodeString(profileResponse.About)
-		decryptedAbout, err := decryptString(*profileKey, base64About)
+	if len(profileResponse.About) > 0 {
+		profile.About, err = decryptString(profileKey, profileResponse.About)
 		if err != nil {
 			zlog.Err(err).Msg("error decrypting profile about")
 		}
-		profile.About = *decryptedAbout
 	}
-	if profileResponse.AboutEmoji != "" {
-		base64AboutEmoji, err := base64.StdEncoding.DecodeString(profileResponse.AboutEmoji)
-		decryptedAboutEmoji, err := decryptString(*profileKey, base64AboutEmoji)
+	if len(profileResponse.AboutEmoji) > 0 {
+		profile.AboutEmoji, err = decryptString(profileKey, profileResponse.AboutEmoji)
 		if err != nil {
 			zlog.Err(err).Msg("error decrypting profile aboutEmoji")
 		}
-		profile.AboutEmoji = *decryptedAboutEmoji
 	}
 	profile.AvatarPath = profileResponse.Avatar
 	profile.Key = *profileKey
@@ -270,45 +257,39 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	return &profile, nil
 }
 
-func (cli *Client) fetchAndDecryptAvatarImage(avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
+func (cli *Client) DownloadUserAvatar(avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
-		Host:     web.CDN1Hostname, // I guess don't use CDN2 for profiles?
+		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
-	zlog.Info().Str("avatar_path", avatarPath).Msg("Fetching profile avatar")
 	resp, err := web.SendHTTPRequest(http.MethodGet, avatarPath, opts)
 	if err != nil {
-		zlog.Err(err).Msg("error fetching profile avatar")
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
-		zlog.Err(err).Msg("bad status fetching profile avatar")
-		return nil, err
+		return nil, fmt.Errorf("unexpected response status %d", resp.StatusCode)
 	}
 	encryptedAvatar, err := io.ReadAll(resp.Body)
 	if err != nil {
-		zlog.Err(err).Msg("error reading profile avatar")
-		return nil, err
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
-	avatar, err := decryptBytes(*profileKey, encryptedAvatar)
+	avatar, err := decryptBytes(profileKey, encryptedAvatar)
 	if err != nil {
-		zlog.Err(err).Msg("error decrypting profile avatar")
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt response: %w", err)
 	}
 	return avatar, nil
 }
 
-func decryptBytes(key libsignalgo.ProfileKey, encryptedBytes []byte) ([]byte, error) {
-	if len(encryptedBytes) < NONCE_LENGTH+16+1 {
+func decryptBytes(key *libsignalgo.ProfileKey, encryptedText []byte) ([]byte, error) {
+	if len(encryptedText) < NONCE_LENGTH+16+1 {
 		return nil, errors.New("invalid encryptedBytes length")
 	}
-	nonce := encryptedBytes[:NONCE_LENGTH]
-	ciphertext := encryptedBytes[NONCE_LENGTH:]
-	keyBytes := key[:]
-	padded, err := AesgcmDecrypt(keyBytes, nonce, ciphertext, []byte{})
+	nonce := encryptedText[:NONCE_LENGTH]
+	ciphertext := encryptedText[NONCE_LENGTH:]
+	padded, err := AesgcmDecrypt(key[:], nonce, ciphertext, []byte{})
 	if err != nil {
 		return nil, err
 	}
@@ -324,27 +305,12 @@ func decryptBytes(key libsignalgo.ProfileKey, encryptedBytes []byte) ([]byte, er
 	return returnString, nil
 }
 
-func decryptString(key libsignalgo.ProfileKey, encryptedText []byte) (*string, error) {
-	if len(encryptedText) < NONCE_LENGTH+16+1 {
-		return nil, errors.New("invalid encryptedText length")
-	}
-	nonce := encryptedText[:NONCE_LENGTH]
-	ciphertext := encryptedText[NONCE_LENGTH:]
-	keyBytes := key[:]
-	padded, err := AesgcmDecrypt(keyBytes, nonce, ciphertext, []byte{})
+func decryptString(key *libsignalgo.ProfileKey, encryptedText []byte) (string, error) {
+	data, err := decryptBytes(key, encryptedText)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	paddedLength := len(padded)
-	plaintextLength := 0
-	for i := paddedLength - 1; i >= 0; i-- {
-		if padded[i] != byte(0) {
-			plaintextLength = i + 1
-			break
-		}
-	}
-	returnString := string(padded[:plaintextLength])
-	return &returnString, nil
+	return string(data), nil
 }
 
 func encryptString(key libsignalgo.ProfileKey, plaintext string, paddedLength int) ([]byte, error) {

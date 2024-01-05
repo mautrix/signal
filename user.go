@@ -18,8 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -41,7 +39,6 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var (
@@ -586,126 +583,6 @@ func (user *User) populateSignalDevice() *signalmeow.Client {
 	return user.Client
 }
 
-func updatePuppetWithSignalContact(ctx context.Context, user *User, puppet *Puppet, newContactAvatar *types.ContactAvatar) error {
-	log := user.log.With().
-		Str("action", "update puppet with signal contact").
-		Str("signal_id", puppet.SignalID.String()).
-		Logger()
-	contact, newProfileAvatar, err := user.Client.ContactByIDWithProfileAvatar(puppet.SignalID)
-	if err != nil {
-		log.Err(err).Msg("error retrieving contact")
-		return err
-	}
-
-	name := user.bridge.Config.Bridge.FormatDisplayname(contact)
-	if name != puppet.Name {
-		log.Debug().Str("new_name", name).Msg("updating puppet name")
-		puppet.Name = name
-		puppet.NameSet = false
-		err = puppet.DefaultIntent().SetDisplayName(ctx, name)
-		if err != nil {
-			log.Err(err).Msg("error setting display name")
-			return err
-		}
-		puppet.NameSet = true
-		err = puppet.Update(ctx)
-		if err != nil {
-			log.Err(err).Msg("error updating puppet with new name")
-			return err
-		}
-	}
-
-	preferredAvatarHash := contact.ProfileAvatarHash
-	newAvatar := newProfileAvatar
-	if user.bridge.Config.Bridge.UseContactAvatars {
-		if contact.ContactAvatarHash != "" {
-			preferredAvatarHash = contact.ContactAvatarHash
-		}
-		if newContactAvatar != nil {
-			newAvatar = newContactAvatar
-		}
-	}
-
-	if preferredAvatarHash == "" && puppet.AvatarSet {
-		log.Debug().Msg("clearing avatar")
-		puppet.AvatarSet = false
-		puppet.AvatarURL = id.ContentURI{}
-		puppet.AvatarHash = ""
-		err = puppet.DefaultIntent().SetAvatarURL(ctx, id.ContentURI{})
-		if err != nil {
-			log.Err(err).Msg("error clearing avatar url")
-			return err
-		}
-		err = puppet.Update(ctx)
-		if err != nil {
-			log.Err(err).Msg("error updating puppet while clearing avatar")
-			return err
-		}
-		return nil
-	}
-
-	// If avatar is set, we must have a new avatar image, so update it
-	if newAvatar != nil {
-		log.Debug().Msg("uploading avatar")
-		avatarURL, err := puppet.DefaultIntent().UploadBytes(ctx, newAvatar.Image, newAvatar.ContentType)
-		if err != nil {
-			log.Err(err).Msg("error uploading avatar")
-			return err
-		}
-		puppet.AvatarURL = avatarURL.ContentURI
-		puppet.AvatarSet = true
-		puppet.AvatarHash = newAvatar.Hash
-
-		err = puppet.DefaultIntent().SetAvatarURL(ctx, avatarURL.ContentURI)
-		if err != nil {
-			log.Err(err).Msg("error setting avatar URL")
-			return err
-		}
-		err = puppet.Update(ctx)
-		if err != nil {
-			log.Err(err).Msg("error updating puppet with new avatar")
-			return err
-		}
-	}
-	return nil
-}
-
-func ensureGroupPuppetsAreJoinedToPortal(ctx context.Context, user *User, portal *Portal) error {
-	// Ensure our puppet is joined to the room
-	err := portal.MainIntent().EnsureJoined(ctx, portal.MXID)
-	if err != nil {
-		user.log.Err(err).Msg("error ensuring joined")
-		return err
-	}
-
-	// Check if ChatID is a groupID (not a UUID), otherwise do nothing else
-	if portal.IsPrivateChat() {
-		return nil
-	}
-	user.log.Info().Msgf("Ensuring everyone is joined to room %s, groupID: %s", portal.MXID, portal.ChatID)
-	group, err := user.Client.RetrieveGroupByID(ctx, types.GroupIdentifier(portal.ChatID))
-	if err != nil {
-		user.log.Err(err).Msg("error retrieving group")
-		return err
-	}
-	for _, member := range group.Members {
-		if member.UserID == user.SignalID {
-			continue
-		}
-		memberPuppet := portal.bridge.GetPuppetBySignalID(member.UserID)
-		if memberPuppet == nil {
-			user.log.Err(err).Msgf("no puppet found for signalID %s", member.UserID)
-			continue
-		}
-		_ = updatePuppetWithSignalContact(context.TODO(), user, memberPuppet, nil)
-		err = memberPuppet.DefaultIntent().EnsureJoined(ctx, portal.MXID)
-		if err != nil {
-			user.log.Err(err).Msg("error ensuring joined")
-		}
-	}
-	return nil
-}
-
 func (user *User) handleReceipt(evt *events.Receipt) {
 	log := user.log.With().
 		Str("action", "handle receipt").
@@ -821,103 +698,14 @@ func (user *User) handleReadSelf(evt *events.ReadSelf) {
 	}
 }
 
-func (user *User) handleContactChange(evt *events.ContactChange) {
-	puppet := user.bridge.GetPuppetBySignalID(evt.UUID)
-	if puppet == nil {
-		return
-	}
-	err := updatePuppetWithSignalContact(context.TODO(), user, puppet, evt.Avatar)
-	if err != nil {
-		user.log.Err(err).Msg("error updating puppet with signal contact")
-	}
-}
-
-func (user *User) syncPortalInfo(portal *Portal) {
-	ctx := context.TODO()
-	updatePortal := false
-	if !portal.IsPrivateChat() {
-		group, avatarImage, err := user.Client.RetrieveGroupAndAvatarByID(ctx, portal.GroupID())
-		if err != nil {
-			user.log.Err(err).Msg("error retrieving group")
+func (user *User) handleContactList(evt *events.ContactList) {
+	ctx := user.log.With().Str("action", "handle contact list").Logger().WithContext(context.TODO())
+	for _, contact := range evt.Contacts {
+		puppet := user.bridge.GetPuppetBySignalID(contact.UUID)
+		if puppet == nil {
 			return
 		}
-		if portal.Revision < int(group.Revision) {
-			portal.Revision = int(group.Revision)
-			updatePortal = true
-		}
-		if portal.Name != group.Title {
-			portal.Name = group.Title
-			portal.NameSet = false
-			updatePortal = true
-		}
-		if portal.Topic != group.Description {
-			portal.Topic = group.Description
-			updatePortal = true
-		}
-		if portal.ExpirationTime != int(group.DisappearingMessagesDuration) {
-			portal.ExpirationTime = int(group.DisappearingMessagesDuration)
-			updatePortal = true
-			portal.log.Debug().Msgf("Updating expiration time to %d (group)", group.DisappearingMessagesDuration)
-			// TODO send message
-			//portal.HandleNewDisappearingMessageTime(group.DisappearingMessagesDuration)
-		}
-		// avatarImage is only not nil if there's a new avatar to set
-		if avatarImage != nil {
-			user.log.Debug().Msg("Uploading new group avatar")
-			avatarURL, err := portal.MainIntent().UploadBytes(ctx, avatarImage, http.DetectContentType(avatarImage))
-			if err != nil {
-				user.log.Err(err).Msg("error uploading group avatar")
-				return
-			}
-			portal.AvatarURL = avatarURL.ContentURI
-			portal.AvatarSet = false
-			hash := sha256.Sum256(avatarImage)
-			portal.AvatarHash = hex.EncodeToString(hash[:])
-			updatePortal = true
-		}
-
-		if portal.MXID != "" {
-			// ensure everyone is invited to the group
-			portal.ensureUserInvited(ctx, user)
-			_ = ensureGroupPuppetsAreJoinedToPortal(context.TODO(), user, portal)
-			go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
-		}
-	} else if portal.shouldSetDMRoomMetadata() {
-		puppet := user.bridge.GetPuppetBySignalID(portal.UserID())
-		if puppet.Name != portal.Name {
-			portal.Name = puppet.Name
-			portal.NameSet = false
-			updatePortal = true
-		}
-		if puppet.AvatarHash != portal.AvatarHash {
-			portal.AvatarHash = puppet.AvatarHash
-			portal.AvatarURL = puppet.AvatarURL
-			portal.AvatarSet = false
-			updatePortal = true
-		}
-	}
-	if updatePortal {
-		if portal.MXID != "" {
-			_, err := portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room name")
-			}
-			portal.NameSet = err == nil
-			_, err = portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room topic")
-			}
-			_, err = portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
-			if err != nil {
-				user.log.Err(err).Msg("error setting room avatar")
-			}
-			portal.AvatarSet = err == nil
-		}
-		err := portal.Update(context.TODO())
-		if err != nil {
-			user.log.Err(err).Msg("error updating portal")
-		}
-		portal.UpdateBridgeInfo(ctx)
+		puppet.UpdateInfo(ctx, user, contact)
 	}
 }
 
@@ -926,9 +714,6 @@ func (user *User) eventHandler(rawEvt events.SignalEvent) {
 	case *events.ChatEvent:
 		portal := user.GetPortalByChatID(evt.Info.ChatID)
 		if portal != nil {
-			if portal.Revision < evt.Info.GroupRevision {
-				user.syncPortalInfo(portal)
-			}
 			portal.signalMessages <- portalSignalMessage{user: user, evt: evt}
 		} else {
 			user.log.Warn().Str("chat_id", evt.Info.ChatID).Msg("Couldn't get portal, dropping message")
@@ -949,13 +734,8 @@ func (user *User) eventHandler(rawEvt events.SignalEvent) {
 			content.Body = "Call ended"
 		}
 		portal.sendMainIntentMessage(context.TODO(), content)
-	case *events.ContactChange:
-		user.handleContactChange(evt)
-	case *events.GroupChange:
-		portal := user.GetPortalByChatID(evt.GroupID.String())
-		if portal != nil {
-			user.syncPortalInfo(portal)
-		}
+	case *events.ContactList:
+		user.handleContactList(evt)
 	default:
 		user.log.Warn().Type("event_type", evt).Msg("Unrecognized event type from signalmeow")
 	}

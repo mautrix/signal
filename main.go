@@ -303,23 +303,7 @@ func (br *SignalBridge) createPrivatePortalFromInvite(ctx context.Context, roomI
 		br.AS.StateStore.SetMembership(roomID, br.Bot.UserID, event.MembershipJoin)
 		portal.Encrypted = true
 	}
-	//portal.Topic = PrivateChatTopic
-	_, _ = portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
-	if portal.shouldSetDMRoomMetadata() {
-		portal.Name = puppet.Name
-		portal.AvatarURL = puppet.AvatarURL
-		portal.AvatarHash = puppet.AvatarHash
-		portal.AvatarSet = puppet.AvatarSet
-		_, err = portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
-		portal.NameSet = err == nil
-		_, err = portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
-		portal.AvatarSet = err == nil
-	}
-	err = portal.Update(ctx)
-	if err != nil {
-		log.Err(err).Msg("Failed to update portal in database")
-	}
-	portal.UpdateBridgeInfo(ctx)
+	portal.UpdateDMInfo(ctx, true)
 	_, _ = intent.SendNotice(ctx, roomID, "Private chat portal created")
 	log.Info().Msg("Created private chat portal after invite")
 }

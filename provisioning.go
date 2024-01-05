@@ -242,7 +242,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 
 	portal := user.GetPortalByChatID(resp.ChatID.UUID)
 	if portal.MXID == "" {
-		if err := portal.CreateMatrixRoom(r.Context(), user, nil); err != nil {
+		if err := portal.CreateMatrixRoom(r.Context(), user, 0); err != nil {
 			log.Err(err).Msg("error looking up contact")
 			jsonResponse(w, http.StatusInternalServerError, Error{
 				Success: false,

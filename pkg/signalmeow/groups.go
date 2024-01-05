@@ -419,45 +419,39 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 	return group, nil
 }
 
-func (cli *Client) fetchAndDecryptGroupAvatarImage(path string, masterKey types.SerializedGroupMasterKey) ([]byte, error) {
-	// Fetch avatar
+func (cli *Client) DownloadGroupAvatar(ctx context.Context, group *Group) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
-	zlog.Info().Str("avatar_path", path).Msg("Fetching group avatar")
-	resp, err := web.SendHTTPRequest(http.MethodGet, path, opts)
+	resp, err := web.SendHTTPRequest(http.MethodGet, group.AvatarPath, opts)
 	if err != nil {
-		zlog.Err(err).Msg("error fetching group avatar")
-		return nil, err
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", resp.Status))
-		zlog.Err(err).Msg("bad status fetching group avatar")
-		return nil, err
+		return nil, fmt.Errorf("unexpected response status %d", resp.StatusCode)
 	}
 	encryptedAvatar, err := io.ReadAll(resp.Body)
 	if err != nil {
-		zlog.Err(err).Msg("error reading group avatar")
-		return nil, err
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	encryptedBytes := encryptedAvatar
-
-	// Decrypt avatar
-	decryptedBytes, err := decryptGroupAvatar(encryptedBytes, masterKey)
-	return decryptedBytes, nil
+	decrypted, err := decryptGroupAvatar(encryptedAvatar, group.groupMasterKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt avatar: %w", err)
+	}
+	return decrypted, nil
 }
 
-func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentifier) (*Group, error) {
+func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentifier, revision uint32) (*Group, error) {
 	cli.initGroupCache()
 
 	lastFetched, ok := cli.GroupCache.lastFetched[gid]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
 		group, ok := cli.GroupCache.groups[gid]
-		if ok {
+		if ok && group.Revision >= revision {
 			return group, nil
 		}
 	}
@@ -468,38 +462,6 @@ func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentif
 	cli.GroupCache.groups[gid] = group
 	cli.GroupCache.lastFetched[gid] = time.Now()
 	return group, nil
-}
-
-func (cli *Client) RetrieveGroupAndAvatarByID(ctx context.Context, gid types.GroupIdentifier) (*Group, []byte, error) {
-	group, err := cli.RetrieveGroupByID(ctx, gid)
-	if err != nil {
-		return nil, nil, err
-	}
-	gid = group.GroupIdentifier
-
-	// If there is an avatarPath, and it's different from the cached one, fetch it
-	// (we only return the avatar if it's different from the cached one)
-	var avatarImage []byte
-	cachedAvatarPath, _ := cli.GroupCache.avatarPaths[gid]
-	if group.AvatarPath != "" && cachedAvatarPath != group.AvatarPath {
-		avatarImage, err = cli.fetchAndDecryptGroupAvatarImage(group.AvatarPath, group.groupMasterKey)
-		if err != nil {
-			zlog.Err(err).Msg("error fetching group avatarImage")
-			return nil, nil, err
-		}
-	}
-	cli.GroupCache.avatarPaths[gid] = group.AvatarPath
-
-	return group, avatarImage, nil
-}
-
-func (cli *Client) InvalidateGroupCache(gid types.GroupIdentifier) {
-	if cli.GroupCache == nil {
-		return
-	}
-	delete(cli.GroupCache.groups, gid)
-	delete(cli.GroupCache.lastFetched, gid)
-	// Don't delete avatarPaths, they can stay cached
 }
 
 // We should store the group master key in the group store as soon as we see it,
@@ -542,7 +504,6 @@ func (cli *Client) initGroupCache() {
 		cli.GroupCache = &GroupCache{
 			groups:      make(map[types.GroupIdentifier]*Group),
 			lastFetched: make(map[types.GroupIdentifier]time.Time),
-			avatarPaths: make(map[types.GroupIdentifier]string),
 			activeCalls: make(map[types.GroupIdentifier]string),
 		}
 	}
@@ -551,6 +512,5 @@ func (cli *Client) initGroupCache() {
 type GroupCache struct {
 	groups      map[types.GroupIdentifier]*Group
 	lastFetched map[types.GroupIdentifier]time.Time
-	avatarPaths map[types.GroupIdentifier]string
 	activeCalls map[types.GroupIdentifier]string
 }

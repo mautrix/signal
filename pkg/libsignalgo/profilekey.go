@@ -44,6 +44,9 @@ func (pv *ProfileKeyVersion) String() string {
 }
 
 func (pk *ProfileKey) Slice() []byte {
+	if pk == nil {
+		return nil
+	}
 	return (*pk)[:]
 }
 

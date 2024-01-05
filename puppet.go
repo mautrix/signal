@@ -18,107 +18,23 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"net/http"
 	"regexp"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/appservice"
 	"maunium.net/go/mautrix/bridge"
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
-
-type Puppet struct {
-	*database.Puppet
-
-	bridge *SignalBridge
-	log    zerolog.Logger
-
-	MXID id.UserID
-
-	customIntent *appservice.IntentAPI
-	customUser   *User
-
-	syncLock sync.Mutex
-}
-
-var userIDRegex *regexp.Regexp
-
-var (
-	_ bridge.Ghost            = (*Puppet)(nil)
-	_ bridge.GhostWithProfile = (*Puppet)(nil)
-)
-
-func (puppet *Puppet) GetMXID() id.UserID {
-	return puppet.MXID
-}
-
-func (puppet *Puppet) DefaultIntent() *appservice.IntentAPI {
-	return puppet.bridge.AS.Intent(puppet.MXID)
-}
-
-func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
-	if puppet == nil {
-		return nil
-	}
-	return puppet.customIntent
-}
-
-func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
-	if puppet != nil {
-		if puppet.customIntent == nil || portal.UserID() == puppet.SignalID {
-			return puppet.DefaultIntent()
-		}
-		return puppet.customIntent
-	}
-	return nil
-}
-
-func (puppet *Puppet) GetDisplayname() string {
-	return puppet.Name
-}
-
-func (puppet *Puppet) GetAvatarURL() id.ContentURI {
-	return puppet.AvatarURL
-}
-
-func (br *SignalBridge) NewPuppet(dbPuppet *database.Puppet) *Puppet {
-	return &Puppet{
-		Puppet: dbPuppet,
-		bridge: br,
-		log:    br.ZLog.With().Stringer("signal_user_id", dbPuppet.SignalID).Logger(),
-
-		MXID: br.FormatPuppetMXID(dbPuppet.SignalID),
-	}
-}
-
-func (br *SignalBridge) ParsePuppetMXID(mxid id.UserID) (uuid.UUID, bool) {
-	if userIDRegex == nil {
-		pattern := fmt.Sprintf(
-			"^@%s:%s$",
-			// The "SignalID" portion of the MXID is a (lowercase) UUID
-			br.Config.Bridge.FormatUsername("([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"),
-			br.Config.Homeserver.Domain,
-		)
-		br.ZLog.Debug().Str("pattern", pattern).Msg("Compiling userIDRegex")
-
-		userIDRegex = regexp.MustCompile(pattern)
-	}
-
-	match := userIDRegex.FindStringSubmatch(string(mxid))
-	if len(match) == 2 {
-		parsed, err := uuid.Parse(match[1])
-		if err != nil {
-			return uuid.Nil, false
-		}
-		return parsed, true
-	}
-
-	return uuid.Nil, false
-}
 
 func (br *SignalBridge) GetPuppetByMXID(mxid id.UserID) *Puppet {
 	signalID, ok := br.ParsePuppetMXID(mxid)
@@ -228,4 +144,253 @@ func (br *SignalBridge) dbPuppetsToPuppets(dbPuppets []*database.Puppet) []*Pupp
 		output[index] = puppet
 	}
 	return output
+}
+
+func (br *SignalBridge) NewPuppet(dbPuppet *database.Puppet) *Puppet {
+	return &Puppet{
+		Puppet: dbPuppet,
+		bridge: br,
+		log:    br.ZLog.With().Stringer("signal_user_id", dbPuppet.SignalID).Logger(),
+
+		MXID: br.FormatPuppetMXID(dbPuppet.SignalID),
+	}
+}
+
+func (br *SignalBridge) ParsePuppetMXID(mxid id.UserID) (uuid.UUID, bool) {
+	if userIDRegex == nil {
+		pattern := fmt.Sprintf(
+			"^@%s:%s$",
+			// The "SignalID" portion of the MXID is a (lowercase) UUID
+			br.Config.Bridge.FormatUsername("([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})"),
+			br.Config.Homeserver.Domain,
+		)
+		br.ZLog.Debug().Str("pattern", pattern).Msg("Compiling userIDRegex")
+
+		userIDRegex = regexp.MustCompile(pattern)
+	}
+
+	match := userIDRegex.FindStringSubmatch(string(mxid))
+	if len(match) == 2 {
+		parsed, err := uuid.Parse(match[1])
+		if err != nil {
+			return uuid.Nil, false
+		}
+		return parsed, true
+	}
+
+	return uuid.Nil, false
+}
+
+type Puppet struct {
+	*database.Puppet
+
+	bridge *SignalBridge
+	log    zerolog.Logger
+
+	MXID id.UserID
+
+	customIntent *appservice.IntentAPI
+	customUser   *User
+
+	syncLock sync.Mutex
+}
+
+var userIDRegex *regexp.Regexp
+
+var (
+	_ bridge.Ghost            = (*Puppet)(nil)
+	_ bridge.GhostWithProfile = (*Puppet)(nil)
+)
+
+func (puppet *Puppet) GetMXID() id.UserID {
+	return puppet.MXID
+}
+
+func (puppet *Puppet) DefaultIntent() *appservice.IntentAPI {
+	return puppet.bridge.AS.Intent(puppet.MXID)
+}
+
+func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
+	if puppet == nil {
+		return nil
+	}
+	return puppet.customIntent
+}
+
+func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
+	if puppet != nil {
+		if puppet.customIntent == nil || portal.UserID() == puppet.SignalID {
+			return puppet.DefaultIntent()
+		}
+		return puppet.customIntent
+	}
+	return nil
+}
+
+func (puppet *Puppet) GetDisplayname() string {
+	return puppet.Name
+}
+
+func (puppet *Puppet) GetAvatarURL() id.ContentURI {
+	return puppet.AvatarURL
+}
+
+func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User, info *types.Contact) {
+	log := zerolog.Ctx(ctx).With().
+		Str("function", "Puppet.UpdateInfo").
+		Stringer("signal_user_id", puppet.SignalID).
+		Logger()
+	ctx = log.WithContext(ctx)
+	var err error
+	if info == nil {
+		log.Debug().Msg("Fetching contact info to update puppet")
+		info, err = source.Client.ContactByID(puppet.SignalID)
+		if err != nil {
+			log.Err(err).Msg("Failed to fetch contact info")
+			return
+		}
+	}
+
+	log.Trace().Msg("Updating puppet info")
+
+	update := false
+	if puppet.Number != info.E164 {
+		puppet.Number = info.E164
+		update = true
+	}
+	update = puppet.updateName(ctx, info) || update
+	update = puppet.updateAvatar(ctx, source, info) || update
+	if update {
+		puppet.ContactInfoSet = false
+		puppet.UpdateContactInfo(ctx)
+		err = puppet.Update(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to save puppet to database after updating")
+		}
+		go puppet.updatePortalMeta(ctx)
+		log.Debug().Msg("Puppet info updated")
+	}
+}
+func (puppet *Puppet) UpdateContactInfo(ctx context.Context) {
+	if !puppet.bridge.SpecVersions.Supports(mautrix.BeeperFeatureArbitraryProfileMeta) || puppet.ContactInfoSet {
+		return
+	}
+
+	contactInfo := map[string]any{
+		"com.beeper.bridge.identifiers": []string{
+			fmt.Sprintf("tel:%s", puppet.Number),
+			fmt.Sprintf("signal:%s", puppet.SignalID),
+		},
+		"com.beeper.bridge.remote_id": puppet.SignalID.String(),
+		"com.beeper.bridge.service":   "signal",
+		"com.beeper.bridge.network":   "signal",
+	}
+	err := puppet.DefaultIntent().BeeperUpdateProfile(ctx, contactInfo)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to store custom contact info in profile")
+	} else {
+		puppet.ContactInfoSet = true
+	}
+}
+
+func (puppet *Puppet) updatePortalMeta(ctx context.Context) {
+	for _, portal := range puppet.bridge.FindPrivateChatPortalsWith(puppet.SignalID) {
+		// Get room create lock to prevent races between receiving contact info and room creation.
+		portal.roomCreateLock.Lock()
+		portal.UpdateDMInfo(ctx, false)
+		portal.roomCreateLock.Unlock()
+	}
+}
+
+func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *types.Contact) bool {
+	var avatarData []byte
+	var avatarContentType string
+	log := zerolog.Ctx(ctx)
+	if puppet.bridge.Config.Bridge.UseContactAvatars && info.ContactAvatar.Hash != "" {
+		if puppet.AvatarHash == info.ContactAvatar.Hash && puppet.AvatarSet {
+			return false
+		}
+		avatarData = info.ContactAvatar.Image
+		avatarContentType = info.ContactAvatar.ContentType
+		if avatarData == nil {
+			// TODO what to do? 🤔
+			return false
+		}
+		puppet.AvatarSet = false
+		puppet.AvatarPath = ""
+	} else {
+		if puppet.AvatarPath == info.ProfileAvatarPath && puppet.AvatarSet {
+			return false
+		}
+		puppet.AvatarPath = info.ProfileAvatarPath
+		puppet.AvatarHash = ""
+		puppet.AvatarSet = false
+		puppet.AvatarURL = id.ContentURI{}
+		if info.ProfileAvatarPath == "" {
+			err := puppet.DefaultIntent().SetAvatarURL(ctx, puppet.AvatarURL)
+			if err != nil {
+				log.Err(err).Msg("Failed to remove user avatar")
+				return true
+			}
+			log.Debug().Msg("Avatar removed")
+			puppet.AvatarSet = true
+			return true
+		}
+		var err error
+		avatarData, err = source.Client.DownloadUserAvatar(info.ProfileAvatarPath, info.ProfileKey)
+		if err != nil {
+			log.Err(err).
+				Str("profile_avatar_path", info.ProfileAvatarPath).
+				Msg("Failed to download new user avatar")
+			return true
+		}
+		avatarContentType = http.DetectContentType(avatarData)
+	}
+	hash := sha256.Sum256(avatarData)
+	newHash := hex.EncodeToString(hash[:])
+	if puppet.AvatarHash == newHash && puppet.AvatarSet {
+		log.Debug().
+			Str("avatar_hash", newHash).
+			Str("new_avatar_path", puppet.AvatarPath).
+			Msg("Avatar path changed, but hash didn't")
+		// Path changed, but actual avatar didn't
+		return true
+	}
+	puppet.AvatarHash = newHash
+	resp, err := puppet.DefaultIntent().UploadBytes(ctx, avatarData, avatarContentType)
+	if err != nil {
+		log.Err(err).
+			Str("avatar_hash", puppet.AvatarHash).
+			Msg("Failed to upload new user avatar")
+		return true
+	}
+	puppet.AvatarURL = resp.ContentURI
+	err = puppet.DefaultIntent().SetAvatarURL(ctx, puppet.AvatarURL)
+	if err != nil {
+		log.Err(err).Msg("Failed to update user avatar")
+		return true
+	}
+	log.Debug().
+		Str("avatar_hash", newHash).
+		Stringer("avatar_mxc", resp.ContentURI).
+		Msg("Avatar updated successfully")
+	puppet.AvatarSet = true
+	return true
+}
+
+func (puppet *Puppet) updateName(ctx context.Context, contact *types.Contact) bool {
+	// TODO set name quality
+	newName := puppet.bridge.Config.Bridge.FormatDisplayname(contact)
+	if puppet.NameSet && puppet.Name == newName {
+		return false
+	}
+	puppet.Name = newName
+	puppet.NameSet = false
+	err := puppet.DefaultIntent().SetDisplayName(ctx, newName)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to update user displayname")
+	} else {
+		puppet.NameSet = true
+	}
+	return true
 }
