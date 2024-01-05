@@ -90,7 +90,7 @@ func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uu
 		return nil, err
 	}
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
-		serverPublicParams(),
+		prodServerPublicParams,
 		signalACI,
 		*profileKey,
 	)

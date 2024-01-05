@@ -156,7 +156,7 @@ func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsi
 
 	// Receive the auth credential
 	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
-		serverPublicParams(),
+		prodServerPublicParams,
 		cli.Store.ACI,
 		cli.Store.PNI,
 		redemptionTime,
@@ -175,7 +175,7 @@ func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsi
 	}
 	randomness, err := libsignalgo.GenerateRandomness()
 	authCredentialPresentation, err := libsignalgo.CreateAuthCredentialWithPniPresentation(
-		serverPublicParams(),
+		prodServerPublicParams,
 		randomness,
 		groupSecretParams,
 		*authCredential,
