@@ -100,6 +100,12 @@ func (dmm *DisappearingMessagesManager) redactExpiredMessages(ctx context.Contex
 		portal := dmm.Bridge.GetPortalByMXID(msg.RoomID)
 		if portal == nil {
 			log.Warn().Stringer("event_id", msg.EventID).Stringer("room_id", msg.RoomID).Msg("Failed to redact message: portal not found")
+			err = msg.Delete(ctx)
+			if err != nil {
+				log.Err(err).
+					Str("event_id", msg.EventID.String()).
+					Msg("Failed to delete disappearing message row in database")
+			}
 			continue
 		}
 		_, err = portal.MainIntent().RedactEvent(ctx, msg.RoomID, msg.EventID, mautrix.ReqRedact{
