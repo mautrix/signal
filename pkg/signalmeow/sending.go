@@ -60,7 +60,7 @@ func (cli *Client) senderCertificate(ctx context.Context) (*libsignalgo.SenderCe
 
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(http.MethodGet, "/v1/certificate/delivery", opts)
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v1/certificate/delivery", opts)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func addPadding(version uint32, contents []byte) ([]byte, error) {
 
 		err := padBlock(&buffer, messageLength)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Invalid message padding: %v", err))
+			return nil, fmt.Errorf("Invalid message padding: %w", err)
 		}
 		return buffer, nil
 	}

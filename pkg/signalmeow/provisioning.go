@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"nhooyr.io/websocket"
 
@@ -249,6 +250,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 
 // Returns the provisioningUrl and an error
 func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher) (string, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "start provisioning").Logger()
 	pubKey := provisioningCipher.GetPublicKey()
 
 	provisioningUrl := ""
@@ -256,7 +258,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
-		zlog.Err(err).Msg("error reading websocket message")
+		log.Err(err).Msg("error reading websocket message")
 		return "", err
 	}
 
@@ -280,10 +282,10 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		provisioningUrl = "sgnl://linkdevice?uuid=" + uuid + "&pub_key=" + pubKey
 
 		// Create and send response
-		response := web.CreateWSResponse(*msg.Request.Id, 200)
+		response := web.CreateWSResponse(ctx, *msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
-			zlog.Err(err).Msg("error writing websocket message")
+			log.Err(err).Msg("error writing websocket message")
 			return "", err
 		}
 	}
@@ -291,11 +293,12 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 }
 
 func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher) (*signalpb.ProvisionMessage, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "continue provisioning").Logger()
 	envelope := &signalpb.ProvisionEnvelope{}
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
-		zlog.Err(err).Msg("error reading websocket message")
+		log.Err(err).Msg("error reading websocket message")
 		return nil, err
 	}
 
@@ -309,15 +312,15 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 			return nil, err
 		}
 
-		response := web.CreateWSResponse(*msg.Request.Id, 200)
+		response := web.CreateWSResponse(ctx, *msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
-			zlog.Err(err).Msg("error writing websocket message")
+			log.Err(err).Msg("error writing websocket message")
 			return nil, err
 		}
 	} else {
 		err = fmt.Errorf("invalid provisioning message, type: %v, verb: %v, path: %v", *msg.Type, *msg.Request.Verb, *msg.Request.Path)
-		zlog.Err(err).Msg("problem reading websocket message")
+		log.Err(err).Msg("problem reading websocket message")
 		return nil, err
 	}
 	provisioningMessage, err := provisioningCipher.Decrypt(envelope)

@@ -219,14 +219,14 @@ func (s *SignalWebsocket) connectLoop(
 					// Unexpected status code
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventError,
-						Err:   fmt.Errorf("Bad status opening websocket: %v", resp.Status),
+						Err:   fmt.Errorf("bad status opening websocket: %v", resp.Status),
 					}
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
 					// Something is very wrong
 					s.statusChannel <- SignalWebsocketConnectionStatus{
 						Event: SignalWebsocketConnectionEventError,
-						Err:   fmt.Errorf("Unexpected error opening websocket: %v", resp.Status),
+						Err:   fmt.Errorf("unexpected error opening websocket: %v", resp.Status),
 					}
 				}
 				// Retry the connection
@@ -385,10 +385,10 @@ func readLoop(
 			return fmt.Errorf("error reading message: %w", err)
 		}
 		if msg.Type == nil {
-			return errors.New("Received message with no type")
+			return errors.New("received message with no type")
 		} else if *msg.Type == signalpb.WebSocketMessage_REQUEST {
 			if msg.Request == nil {
-				return errors.New("Received request message with no request")
+				return errors.New("received request message with no request")
 			}
 			log.Debug().
 				Uint64("request_id", *msg.Request.Id).
@@ -421,9 +421,9 @@ func readLoop(
 				Msg("Deleted response channel for ID")
 			close(responseChannel)
 		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
-			return fmt.Errorf("Received message with unknown type: %v", *msg.Type)
+			return fmt.Errorf("received message with unknown type: %v", *msg.Type)
 		} else {
-			return fmt.Errorf("Received message with actually unknown type: %v", *msg.Type)
+			return fmt.Errorf("received message with actually unknown type: %v", *msg.Type)
 		}
 	}
 }
@@ -498,7 +498,7 @@ func writeLoop(
 					return fmt.Errorf("error writing request message: %w", err)
 				}
 			} else if request.RequestMessage != nil && request.ResponseMessage != nil {
-				message := CreateWSResponse(*request.RequestMessage.Id, request.ResponseMessage.Status)
+				message := CreateWSResponse(ctx, *request.RequestMessage.Id, request.ResponseMessage.Status)
 				log.Debug().
 					Uint64("request_id", *request.RequestMessage.Id).
 					Int("response_status", request.ResponseMessage.Status).
@@ -508,7 +508,7 @@ func writeLoop(
 					return fmt.Errorf("error writing response message: %w", err)
 				}
 			} else {
-				return fmt.Errorf("Invalid request: %+v", request)
+				return fmt.Errorf("invalid request: %+v", request)
 			}
 		}
 	}
@@ -576,10 +576,10 @@ func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Res
 	return ws, resp, err
 }
 
-func CreateWSResponse(id uint64, status int) *signalpb.WebSocketMessage {
+func CreateWSResponse(ctx context.Context, id uint64, status int) *signalpb.WebSocketMessage {
 	if status != 200 && status != 400 {
 		// TODO support more responses to Signal? Are there more?
-		zlog.Fatal().Int("status", status).Msg("Error creating response. Non 200/400 not supported yet.")
+		zerolog.Ctx(ctx).Fatal().Int("status", status).Msg("Error creating response. Non 200/400 not supported yet.")
 		return nil
 	}
 	msg_type := signalpb.WebSocketMessage_RESPONSE

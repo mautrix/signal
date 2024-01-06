@@ -177,7 +177,7 @@ func fnSetDeviceName(ce *WrappedCommandEvent) {
 	}
 
 	name := strings.Join(ce.Args, " ")
-	err := ce.User.Client.UpdateDeviceName(name)
+	err := ce.User.Client.UpdateDeviceName(ce.Ctx, name)
 	if err != nil {
 		ce.Reply("Error setting device name: %v", err)
 		return

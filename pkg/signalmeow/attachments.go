@@ -139,7 +139,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	attributesPath := "/v3/attachments/form/upload"
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(http.MethodGet, attributesPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, attributesPath, opts)
 	if err != nil {
 		log.Err(err).Msg("Error sending request fetching upload attributes")
 		return nil, err
@@ -152,7 +152,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 
 	// Allocate attachment on CDN
-	resp, err = web.SendHTTPRequest(http.MethodPost, "", &web.HTTPReqOpt{
+	resp, err = web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
 		OverrideURL: uploadAttributes.SignedUploadLocation,
 		ContentType: web.ContentTypeOctetStream,
 		Headers:     uploadAttributes.Headers,
@@ -169,7 +169,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 
 	// Upload attachment to CDN
-	resp, err = web.SendHTTPRequest(http.MethodPut, "", &web.HTTPReqOpt{
+	resp, err = web.SendHTTPRequest(ctx, http.MethodPut, "", &web.HTTPReqOpt{
 		OverrideURL: resp.Header.Get("Location"),
 		Body:        encryptedWithMAC,
 		ContentType: web.ContentTypeOctetStream,

@@ -86,7 +86,7 @@ func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind type
 		preKeyUsername = cli.Store.ACI.String()
 	}
 	preKeyUsername = fmt.Sprintf("%s.%d", preKeyUsername, cli.Store.DeviceID)
-	err = RegisterPreKeys(&generatedPreKeys, uuidKind, preKeyUsername, cli.Store.Password)
+	err = RegisterPreKeys(ctx, &generatedPreKeys, uuidKind, preKeyUsername, cli.Store.Password)
 	if err != nil {
 		zlog.Err(err).Msg("RegisterPreKeys error")
 		return err
@@ -228,7 +228,8 @@ func KyberPreKeyToJSON(kyberPreKey *libsignalgo.KyberPreKeyRecord) map[string]in
 	return kyberPreKeyJson
 }
 
-func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind, username string, password string) error {
+func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind, username string, password string) error {
+	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
 	// Convert generated prekeys to JSON
 	preKeysJson := []map[string]interface{}{}
 	kyberPreKeysJson := []map[string]interface{}{}
@@ -252,22 +253,20 @@ func RegisterPreKeys(generatedPreKeys *GeneratedPreKeys, uuidKind types.UUIDKind
 	keysPath := "/v2/keys?identity=" + string(uuidKind)
 	jsonBytes, err := json.Marshal(register_json)
 	if err != nil {
-		zlog.Err(err).Msg("Error marshalling register JSON")
+		log.Err(err).Msg("Error marshalling register JSON")
 		return err
 	}
 	opts := &web.HTTPReqOpt{Body: jsonBytes, Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(http.MethodPut, keysPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, keysPath, opts)
 	if err != nil {
-		zlog.Err(err).Msg("Error sending request")
-		return err
-	}
-	// status code not 2xx
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		err := fmt.Errorf("Error registering prekeys: %v", resp.Status)
-		zlog.Err(err).Msg("Error registering prekeys")
+		log.Err(err).Msg("Error sending request")
 		return err
 	}
 	defer resp.Body.Close()
+	// status code not 2xx
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("error registering prekeys: %v", resp.Status)
+	}
 	return err
 }
 
@@ -306,7 +305,7 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 	}
 	path := "/v2/keys/" + theirUUID.String() + deviceIDPath + "?pq=true"
 	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
 		zlog.Err(err).Msg("Error sending request")
 		return err

@@ -17,6 +17,7 @@
 package signalmeow
 
 import (
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/hmac"
@@ -43,19 +44,19 @@ func aes256CTR(key, iv, dst, source []byte) {
 	cipher.NewCTR(block, iv).XORKeyStream(dst, source)
 }
 
-func (cli *Client) UpdateDeviceName(name string) error {
+func (cli *Client) UpdateDeviceName(ctx context.Context, name string) error {
 	encryptedName, err := EncryptDeviceName(name, cli.Store.ACIIdentityKeyPair.GetPublicKey())
 	if err != nil {
 		return fmt.Errorf("failed to encrypt device name: %w", err)
 	}
-	err = cli.updateDeviceName(encryptedName)
+	err = cli.updateDeviceName(ctx, encryptedName)
 	if err != nil {
 		return fmt.Errorf("failed to update device name: %w", err)
 	}
 	return nil
 }
 
-func (cli *Client) updateDeviceName(encryptedName []byte) error {
+func (cli *Client) updateDeviceName(ctx context.Context, encryptedName []byte) error {
 	reqData, err := json.Marshal(map[string]any{
 		"deviceName": encryptedName,
 	})
@@ -63,7 +64,7 @@ func (cli *Client) updateDeviceName(encryptedName []byte) error {
 		return fmt.Errorf("failed to marshal device name update request: %w", err)
 	}
 	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(http.MethodPut, "/v1/accounts/name", &web.HTTPReqOpt{
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, "/v1/accounts/name", &web.HTTPReqOpt{
 		Body:     reqData,
 		Username: &username,
 		Password: &password,

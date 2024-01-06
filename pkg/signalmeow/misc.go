@@ -22,7 +22,6 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 // Deprecated: global loggers are bad
@@ -31,7 +30,6 @@ var zlog zerolog.Logger = zerolog.New(zerolog.ConsoleWriter{}).With().Timestamp(
 func SetLogger(l zerolog.Logger) {
 	zlog = l
 	setupFFILogging()
-	web.SetLogger(l.With().Str("component", "signalmeow/web").Logger())
 }
 
 type FFILogger struct{}

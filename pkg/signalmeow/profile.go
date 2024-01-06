@@ -220,7 +220,7 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	}
 	zlog.Trace().Msg("Got profile response")
 	if *resp.Status < 200 || *resp.Status >= 300 {
-		err := errors.New(fmt.Sprintf("%v (unsuccessful status code)", *resp.Status))
+		err := fmt.Errorf("%v (unsuccessful status code)", *resp.Status)
 		zlog.Err(err).Msg("profile response error")
 		return nil, err
 	}
@@ -237,7 +237,7 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 			zlog.Err(err).Msg("error decrypting profile name")
 		}
 		// TODO store first and last name separately instead of removing the separator
-		profile.Name = strings.Replace(profile.Name, "\x00", " ", -1)
+		profile.Name = strings.ReplaceAll(profile.Name, "\x00", " ")
 	}
 	if len(profileResponse.About) > 0 {
 		profile.About, err = decryptString(profileKey, profileResponse.About)
@@ -257,14 +257,14 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	return &profile, nil
 }
 
-func (cli *Client) DownloadUserAvatar(avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
+func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
-	resp, err := web.SendHTTPRequest(http.MethodGet, avatarPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, avatarPath, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}

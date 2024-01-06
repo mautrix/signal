@@ -50,13 +50,6 @@ var CDNHosts = []string{
 	CDN3Hostname,
 }
 
-// Deprecated: global loggers should never be used
-var zlog zerolog.Logger = zerolog.New(zerolog.ConsoleWriter{}).With().Timestamp().Logger()
-
-func SetLogger(l zerolog.Logger) {
-	zlog = l
-}
-
 //go:embed signal-root.crt.der
 var signalRootCertBytes []byte
 var signalTransport = &http.Transport{
@@ -112,7 +105,7 @@ type HTTPReqOpt struct {
 
 var httpReqCounter = 0
 
-func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Response, error) {
+func SendHTTPRequest(ctx context.Context, method string, path string, opt *HTTPReqOpt) (*http.Response, error) {
 	// Set defaults
 	if opt == nil {
 		opt = &HTTPReqOpt{}
@@ -127,10 +120,16 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	if opt.OverrideURL != "" {
 		urlStr = opt.OverrideURL
 	}
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "send HTTP request").
+		Str("method", method).
+		Str("url", urlStr).
+		Logger()
+	ctx = log.WithContext(ctx)
 
-	req, err := http.NewRequest(method, urlStr, bytes.NewBuffer(opt.Body))
+	req, err := http.NewRequestWithContext(ctx, method, urlStr, bytes.NewBuffer(opt.Body))
 	if err != nil {
-		zlog.Err(err).Msg("Error creating request")
+		log.Err(err).Msg("Error creating request")
 		return nil, err
 	}
 	if opt.Headers != nil {
@@ -152,11 +151,7 @@ func SendHTTPRequest(method string, path string, opt *HTTPReqOpt) (*http.Respons
 	}
 
 	httpReqCounter++
-	log := zlog.With().
-		Int("request_number", httpReqCounter).
-		Str("method", method).
-		Str("url", urlStr).
-		Logger()
+	log = log.With().Int("request_number", httpReqCounter).Logger()
 	log.Trace().Msg("Sending HTTP request")
 	resp, err := signalHTTPClient.Do(req)
 	if err != nil {

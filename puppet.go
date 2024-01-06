@@ -337,7 +337,7 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 			return true
 		}
 		var err error
-		avatarData, err = source.Client.DownloadUserAvatar(info.ProfileAvatarPath, info.ProfileKey)
+		avatarData, err = source.Client.DownloadUserAvatar(ctx, info.ProfileAvatarPath, info.ProfileKey)
 		if err != nil {
 			log.Err(err).
 				Str("profile_avatar_path", info.ProfileAvatarPath).

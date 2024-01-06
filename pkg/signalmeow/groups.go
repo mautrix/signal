@@ -379,7 +379,7 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 		ContentType: web.ContentTypeProtobuf,
 		Host:        web.StorageHostname,
 	}
-	response, err := web.SendHTTPRequest(http.MethodGet, "/v1/groups", opts)
+	response, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v1/groups", opts)
 	if err != nil {
 		zlog.Err(err).Msg("RetrieveGroupById SendHTTPRequest error")
 		return nil, err
@@ -425,7 +425,7 @@ func (cli *Client) DownloadGroupAvatar(ctx context.Context, group *Group) ([]byt
 		Username: &username,
 		Password: &password,
 	}
-	resp, err := web.SendHTTPRequest(http.MethodGet, group.AvatarPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, group.AvatarPath, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}

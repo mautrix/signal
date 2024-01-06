@@ -341,7 +341,7 @@ func (prov *ProvisioningAPI) loginOrSendError(ctx context.Context, w http.Respon
 			Int("existing_provisioning_handle", handle.id).
 			Msg("user already has pending provisioning request, cancelling")
 		prov.clearSession(ctx, user)
-		newSessionLoggedIn, handle, err = prov.newOrExistingSession(user)
+		_, handle, err = prov.newOrExistingSession(user)
 		if err != nil {
 			return nil, fmt.Errorf("error logging in after cancelling existing session: %w", err)
 		}
