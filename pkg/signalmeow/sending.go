@@ -274,6 +274,9 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 		cli.Store.SessionStore,
 		cli.Store.IdentityStore,
 	)
+	if err != nil {
+		return 0, nil, err
+	}
 	envelopeType = int(signalpb.Envelope_UNIDENTIFIED_SENDER)
 
 	return envelopeType, encryptedPayload, nil

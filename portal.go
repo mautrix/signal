@@ -682,13 +682,11 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 	log.Debug().Msg("Sending event to Signal")
 
 	// Check to see if portal.ChatID is a standard UUID (with dashes)
-	var err error
 	if portal.IsPrivateChat() {
 		// this is a 1:1 chat
 		result := sender.Client.SendMessage(ctx, portal.UserID(), msg)
 		if !result.WasSuccessful {
-			err = result.FailedSendResult.Error
-			log.Err(err).Msg("Error sending event to Signal")
+			return result.Error
 		}
 	} else {
 		// this is a group chat
@@ -715,14 +713,15 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 			log.Debug().Msg("No successes or failures - Probably sent to myself")
 		} else if len(result.SuccessfullySentTo) == 0 {
 			log.Error().Msg("Failed to send event to all members of Signal group")
-			err = errors.New("failed to send to any members of Signal group")
+			return errors.New("failed to send to any members of Signal group")
+
 		} else if len(result.SuccessfullySentTo) < totalRecipients {
 			log.Warn().Msg("Only sent event to some members of Signal group")
 		} else {
 			log.Debug().Msg("Sent event to all members of Signal group")
 		}
 	}
-	return err
+	return nil
 }
 
 func (portal *Portal) sendMessageStatusCheckpointSuccess(ctx context.Context, evt *event.Event) {

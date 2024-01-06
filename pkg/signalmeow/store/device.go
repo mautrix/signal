@@ -74,6 +74,9 @@ func (d *Device) ClearDeviceKeys(ctx context.Context) error {
 		return nil
 	}
 	err := d.PreKeyStoreExtras.DeleteAllPreKeys(ctx)
+	if err != nil {
+		return err
+	}
 	err = d.SessionStoreExtras.RemoveAllSessions(ctx)
 	return err
 }

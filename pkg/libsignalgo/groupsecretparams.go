@@ -31,10 +31,13 @@ import (
 
 type Randomness [C.SignalRANDOMNESS_LEN]byte
 
-func GenerateRandomness() (Randomness, error) {
+func GenerateRandomness() Randomness {
 	var randomness Randomness
 	_, err := rand.Read(randomness[:])
-	return randomness, err
+	if err != nil {
+		panic(err)
+	}
+	return randomness
 }
 
 type GroupMasterKey [C.SignalGROUP_MASTER_KEY_LEN]byte
@@ -46,11 +49,7 @@ type UUIDCiphertext [C.SignalUUID_CIPHERTEXT_LEN]byte
 type ProfileKeyCiphertext [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]byte
 
 func GenerateGroupSecretParams() (GroupSecretParams, error) {
-	randomness, err := GenerateRandomness()
-	if err != nil {
-		return GroupSecretParams{}, err
-	}
-	return GenerateGroupSecretParamsWithRandomness(randomness)
+	return GenerateGroupSecretParamsWithRandomness(GenerateRandomness())
 }
 
 func GenerateGroupSecretParamsWithRandomness(randomness Randomness) (GroupSecretParams, error) {

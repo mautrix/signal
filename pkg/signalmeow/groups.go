@@ -173,10 +173,9 @@ func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsi
 		zlog.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
 	}
-	randomness, err := libsignalgo.GenerateRandomness()
 	authCredentialPresentation, err := libsignalgo.CreateAuthCredentialWithPniPresentation(
 		prodServerPublicParams,
-		randomness,
+		libsignalgo.GenerateRandomness(),
 		groupSecretParams,
 		*authCredential,
 	)

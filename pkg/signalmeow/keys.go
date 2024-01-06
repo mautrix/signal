@@ -95,6 +95,9 @@ func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind type
 	// Mark prekeys as registered
 	// (kyber prekeys don't have "mark as uploaded" we just assume they always are)
 	lastPreKeyID, err := preKeys[len(preKeys)-1].GetID()
+	if err != nil {
+		return fmt.Errorf("failed to get last prekey ID: %w", err)
+	}
 	err = cli.Store.PreKeyStoreExtras.MarkPreKeysAsUploaded(ctx, uuidKind, lastPreKeyID)
 
 	if err != nil {
@@ -316,6 +319,9 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 	}
 
 	rawIdentityKey, err := addBase64PaddingAndDecode(prekeyResponse.IdentityKey)
+	if err != nil {
+		return fmt.Errorf("error decoding identity key: %w", err)
+	}
 	identityKey, err := libsignalgo.DeserializeIdentityKey([]byte(rawIdentityKey))
 	if err != nil {
 		zlog.Err(err).Msg("Error deserializing identity key")
@@ -372,6 +378,9 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 				return err
 			}
 			kyberPreKeySignature, err = addBase64PaddingAndDecode(d.PQPreKey.Signature)
+			if err != nil {
+				return fmt.Errorf("error decoding kyber prekey signature: %w", err)
+			}
 		}
 
 		rawSignature, err := addBase64PaddingAndDecode(d.SignedPreKey.Signature)

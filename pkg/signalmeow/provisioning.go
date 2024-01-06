@@ -186,10 +186,19 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 
 		// Store identity keys?
 		address, err := libsignalgo.NewUUIDAddress(device.ACI, uint(device.DeviceID))
+		if err != nil {
+			c <- ProvisioningResponse{
+				State: StateProvisioningError,
+				Err:   fmt.Errorf("error creating new address: %w", err),
+			}
+			return
+		}
 		_, err = device.IdentityStore.SaveIdentityKey(ctx, address, device.ACIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
-			zlog.Err(err).Msg("error saving identity key")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			c <- ProvisioningResponse{
+				State: StateProvisioningError,
+				Err:   fmt.Errorf("error saving identity key: %w", err),
+			}
 			return
 		}
 
@@ -202,8 +211,10 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 		// Store our profile key
 		err = device.ProfileKeyStore.StoreProfileKey(ctx, data.ACI, profileKey)
 		if err != nil {
-			zlog.Err(err).Msg("error storing profile key")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			c <- ProvisioningResponse{
+				State: StateProvisioningError,
+				Err:   fmt.Errorf("error storing profile key: %w", err),
+			}
 			return
 		}
 
@@ -214,11 +225,20 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 		// TODO hacky client construction
 		cli := &Client{Store: device}
 		err = cli.GenerateAndRegisterPreKeys(ctx, types.UUIDKindACI)
+		if err != nil {
+			c <- ProvisioningResponse{
+				State: StateProvisioningError,
+				Err:   fmt.Errorf("error generating and registering ACI prekeys: %w", err),
+			}
+			return
+		}
 		err = cli.GenerateAndRegisterPreKeys(ctx, types.UUIDKindPNI)
 
 		if err != nil {
-			zlog.Err(err).Msg("error generating and registering prekeys")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
+			c <- ProvisioningResponse{
+				State: StateProvisioningError,
+				Err:   fmt.Errorf("error generating and registering PNI prekeys: %w", err),
+			}
 			return
 		}
 
@@ -248,6 +268,9 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		// Decode provisioning UUID
 		provisioningUuid := &signalpb.ProvisioningUuid{}
 		err = proto.Unmarshal(msg.Request.Body, provisioningUuid)
+		if err != nil {
+			return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
+		}
 
 		// Create provisioning URL
 		bytesKey, _ := pubKey.Serialize()
