@@ -184,15 +184,16 @@ func (portal *Portal) sendMessageMetrics(ctx context.Context, evt *event.Event, 
 	if evt.Type == event.EventRedaction {
 		log = log.With().Stringer("redacts", evt.Redacts).Logger()
 	}
+	ctx = log.WithContext(ctx)
 
 	origEvtID := evt.ID
 	if retryMeta := evt.Content.AsMessage().MessageSendRetry; retryMeta != nil {
 		origEvtID = retryMeta.OriginalEventID
 	}
 	if err != nil {
-		logEvt := portal.log.Error()
+		logEvt := log.Error()
 		if part == "Ignoring" {
-			logEvt = portal.log.Debug()
+			logEvt = log.Debug()
 		}
 		logEvt.Err(err).Msg("Sending message metrics for event")
 		reason, statusCode, isCertain, sendNotice, _ := errorToStatusReason(err)
@@ -203,7 +204,7 @@ func (portal *Portal) sendMessageMetrics(ctx context.Context, evt *event.Event, 
 		}
 		portal.sendStatusEvent(ctx, origEvtID, evt.ID, err, nil)
 	} else {
-		portal.log.Debug().Msg("Sending metrics for successfully handled Matrix event")
+		log.Debug().Msg("Sending metrics for successfully handled Matrix event")
 		portal.sendDeliveryReceipt(ctx, evt.ID)
 		portal.bridge.SendMessageSuccessCheckpoint(evt, status.MsgStepRemote, ms.getRetryNum())
 		var deliveredTo *[]id.UserID
@@ -218,7 +219,7 @@ func (portal *Portal) sendMessageMetrics(ctx context.Context, evt *event.Event, 
 		}
 	}
 	if ms != nil {
-		portal.log.Debug().Object("timings", ms.timings).Msg("Timings for event")
+		log.Debug().Object("timings", ms.timings).Msg("Timings for event")
 	}
 }
 
