@@ -130,7 +130,7 @@ var cmdDeleteSession = &commands.FullHandler{
 }
 
 func fnDeleteSession(ce *WrappedCommandEvent) {
-	if !ce.User.Client.IsLoggedIn() {
+	if !ce.User.IsLoggedIn() {
 		ce.Reply("You're not logged in")
 		return
 	}
@@ -150,7 +150,7 @@ var cmdPing = &commands.FullHandler{
 func fnPing(ce *WrappedCommandEvent) {
 	if ce.User.SignalID == uuid.Nil {
 		ce.Reply("You're not logged in")
-	} else if !ce.User.Client.IsLoggedIn() {
+	} else if !ce.User.IsLoggedIn() {
 		ce.Reply("You were logged in at some point, but are not anymore")
 	} else if !ce.User.Client.IsConnected() {
 		ce.Reply("You're logged into Signal, but not connected to the server")

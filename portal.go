@@ -343,13 +343,6 @@ func (portal *Portal) messageLoop() {
 }
 
 func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
-	// If we have no Client, the bridge isn't logged in properly,
-	// so send BAD_CREDENTIALS so the user knows
-	if !msg.user.Client.IsLoggedIn() && !portal.HasRelaybot() {
-		go portal.sendMessageMetrics(context.TODO(), msg.evt, errUserNotLoggedIn, "Ignoring", nil)
-		msg.user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
-		return
-	}
 	log := portal.log.With().
 		Str("action", "handle matrix event").
 		Str("event_id", msg.evt.ID.String()).
@@ -434,13 +427,12 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 	realSenderMXID := sender.MXID
 	isRelay := false
 	if !sender.IsLoggedIn() {
-		if !portal.HasRelaybot() {
-			go ms.sendMessageMetrics(evt, errUserNotLoggedIn, "Error converting", true)
-			return
-		}
 		sender = portal.GetRelayUser()
-		if !sender.IsLoggedIn() {
-			go ms.sendMessageMetrics(evt, errRelaybotNotLoggedIn, "Error converting", true)
+		if sender == nil {
+			go ms.sendMessageMetrics(evt, errUserNotLoggedIn, "Ignoring", true)
+			return
+		} else if !sender.IsLoggedIn() {
+			go ms.sendMessageMetrics(evt, errRelaybotNotLoggedIn, "Ignoring", true)
 			return
 		}
 		isRelay = true
@@ -531,6 +523,13 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 
 	if !sender.IsLoggedIn() {
 		sender = portal.GetRelayUser()
+		if sender == nil {
+			portal.sendMessageStatusCheckpointFailed(ctx, evt, errUserNotLoggedIn)
+			return
+		} else if !sender.IsLoggedIn() {
+			portal.sendMessageStatusCheckpointFailed(ctx, evt, errRelaybotNotLoggedIn)
+			return
+		}
 	}
 
 	if dbMessage != nil {
@@ -598,7 +597,7 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, evt *event.Event) {
 	log := zerolog.Ctx(ctx)
 	if !sender.IsLoggedIn() {
-		log.Error().Msg("Cannot relay reaction from non-logged-in user. Ignoring")
+		portal.sendMessageStatusCheckpointFailed(ctx, evt, errCantRelayReactions)
 		return
 	}
 	// Find the original signal message based on eventID
