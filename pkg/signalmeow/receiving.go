@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -67,20 +68,21 @@ type SignalConnectionStatus struct {
 }
 
 func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnectionStatus, error) {
-	ctx, cancel := context.WithCancel(ctx)
+	log := zerolog.Ctx(ctx).With().Str("action", "start receive loops").Logger()
+	ctx, cancel := context.WithCancel(log.WithContext(ctx))
 	cli.WSCancel = cancel
 	authChan, err := cli.ConnectAuthedWS(ctx, cli.incomingRequestHandler)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	zlog.Info().Msg("Authed websocket connecting")
+	log.Info().Msg("Authed websocket connecting")
 	unauthChan, err := cli.ConnectUnauthedWS(ctx)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-	zlog.Info().Msg("Unauthed websocket connecting")
+	log.Info().Msg("Unauthed websocket connecting")
 	statusChan := make(chan SignalConnectionStatus, 10000)
 
 	initialConnectChan := make(chan struct{})
@@ -94,7 +96,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 		for {
 			select {
 			case <-ctx.Done():
-				zlog.Info().Msg("Context done, exiting websocket status loop")
+				log.Info().Msg("Context done, exiting websocket status loop")
 				return
 			case status := <-authChan:
 				lastAuthStatus = status
@@ -104,17 +106,17 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				case web.SignalWebsocketConnectionEventConnecting:
 					// do nothing?
 				case web.SignalWebsocketConnectionEventConnected:
-					zlog.Info().Msg("Authed websocket connected")
+					log.Info().Msg("Authed websocket connected")
 				case web.SignalWebsocketConnectionEventDisconnected:
-					zlog.Err(status.Err).Msg("Authed websocket disconnected")
+					log.Err(status.Err).Msg("Authed websocket disconnected")
 				case web.SignalWebsocketConnectionEventLoggedOut:
-					zlog.Err(status.Err).Msg("Authed websocket logged out")
+					log.Err(status.Err).Msg("Authed websocket logged out")
 					// TODO: Also make sure unauthed websocket is disconnected
 					//StopReceiveLoops(d)
 				case web.SignalWebsocketConnectionEventError:
-					zlog.Err(status.Err).Msg("Authed websocket error")
+					log.Err(status.Err).Msg("Authed websocket error")
 				case web.SignalWebsocketConnectionEventCleanShutdown:
-					zlog.Info().Msg("Authed websocket clean shutdown")
+					log.Info().Msg("Authed websocket clean shutdown")
 				}
 			case status := <-unauthChan:
 				lastUnauthStatus = status
@@ -124,16 +126,19 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				case web.SignalWebsocketConnectionEventConnecting:
 					// do nothing?
 				case web.SignalWebsocketConnectionEventConnected:
-					zlog.Info().Msg("Unauthed websocket connected")
-					zlog.Info().Msgf("lastUnauthStatus: %v, lastAuthStatus: %v, currentStatus: %v", lastUnauthStatus, lastAuthStatus, currentStatus)
+					log.Info().
+						Any("last_unauth_status", lastUnauthStatus).
+						Any("last_auth_status", lastAuthStatus).
+						Any("current_status", currentStatus).
+						Msg("Unauthed websocket connected")
 				case web.SignalWebsocketConnectionEventDisconnected:
-					zlog.Err(status.Err).Msg("Unauthed websocket disconnected")
+					log.Err(status.Err).Msg("Unauthed websocket disconnected")
 				case web.SignalWebsocketConnectionEventLoggedOut:
-					zlog.Err(status.Err).Msg("Unauthed websocket logged out ** THIS SHOULD BE IMPOSSIBLE **")
+					log.Err(status.Err).Msg("Unauthed websocket logged out ** THIS SHOULD BE IMPOSSIBLE **")
 				case web.SignalWebsocketConnectionEventError:
-					zlog.Err(status.Err).Msg("Unauthed websocket error")
+					log.Err(status.Err).Msg("Unauthed websocket error")
 				case web.SignalWebsocketConnectionEventCleanShutdown:
-					zlog.Info().Msg("Unauthed websocket clean shutdown")
+					log.Info().Msg("Unauthed websocket clean shutdown")
 				}
 			}
 
@@ -167,7 +172,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				}
 			}
 			if statusToSend.Event != 0 && statusToSend.Event != lastSentStatus.Event {
-				zlog.Info().Msgf("Sending connection status: %v", statusToSend)
+				log.Info().Any("status_to_send", statusToSend).Msg("Sending connection status")
 				statusChan <- statusToSend
 				lastSentStatus = statusToSend
 			}
@@ -181,7 +186,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			case <-ctx.Done():
 				return
 			case <-initialConnectChan:
-				zlog.Info().Msg("Both websockets connected, sending contacts sync request")
+				log.Info().Msg("Both websockets connected, sending contacts sync request")
 				// TODO hacky
 				cli.SendContactSyncRequest(ctx)
 				return
@@ -244,31 +249,39 @@ func (cli *Client) checkDecryptionErrorAndDisconnect(err error) {
 }
 
 func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
+	log := zerolog.Ctx(ctx).With().
+		Str("handler", "incoming request handler").
+		Str("verb", *req.Verb).
+		Str("path", *req.Path).
+		Logger()
+	ctx = log.WithContext(ctx)
 	if *req.Verb == http.MethodPut && *req.Path == "/api/v1/message" {
 		return cli.incomingAPIMessageHandler(ctx, req)
 	} else if *req.Verb == http.MethodPut && *req.Path == "/api/v1/queue/empty" {
-		zlog.Trace().Msgf("Received queue empty. verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Trace().Msg("Received queue empty")
 	} else {
-		zlog.Warn().Msgf("######## Don't know what I received ########## req: %v", req)
+		log.Warn().Any("req", req).Msg("Unknown websocket request message")
 	}
 	return &web.SimpleResponse{
 		Status: 200,
 	}, nil
 }
 
+// TODO: we should split this up into multiple functions
 func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
+	log := zerolog.Ctx(ctx).With().Str("handler_type", "incoming API message handler").Logger()
 	responseCode := 200
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
 	if err != nil {
-		zlog.Err(err).Msg("Unmarshal error")
+		log.Err(err).Msg("Unmarshal error")
 		return nil, err
 	}
 	var result *DecryptionResult
 
 	switch *envelope.Type {
 	case signalpb.Envelope_UNIDENTIFIED_SENDER:
-		zlog.Trace().Msgf("Received envelope type UNIDENTIFIED_SENDER, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Trace().Msg("Received envelope type UNIDENTIFIED_SENDER")
 		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
 			ctx,
 			envelope.GetContent(),
@@ -278,48 +291,54 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			if err == nil {
 				err = fmt.Errorf("usmc is nil")
 			}
-			zlog.Err(err).Msg("SealedSenderDecryptToUSMC error")
+			log.Err(err).Msg("SealedSenderDecryptToUSMC error")
 			return nil, err
 		}
 
 		messageType, err := usmc.GetMessageType()
 		if err != nil {
-			zlog.Err(err).Msg("GetMessageType error")
+			log.Err(err).Msg("GetMessageType error")
 		}
 		senderCertificate, err := usmc.GetSenderCertificate()
 		if err != nil {
-			zlog.Err(err).Msg("GetSenderCertificate error")
+			log.Err(err).Msg("GetSenderCertificate error")
 		}
 		senderUUID, err := senderCertificate.GetSenderUUID()
 		if err != nil {
-			zlog.Err(err).Msg("GetSenderUUID error")
+			log.Err(err).Msg("GetSenderUUID error")
 		}
 		senderDeviceID, err := senderCertificate.GetDeviceID()
 		if err != nil {
-			zlog.Err(err).Msg("GetDeviceID error")
+			log.Err(err).Msg("GetDeviceID error")
 		}
 		senderAddress, err := libsignalgo.NewUUIDAddress(senderUUID, uint(senderDeviceID))
 		if err != nil {
-			zlog.Err(err).Msg("NewAddress error")
+			log.Err(err).Msg("NewAddress error")
 		}
 		senderE164, err := senderCertificate.GetSenderE164()
 		if err != nil {
-			zlog.Err(err).Msg("GetSenderE164 error")
+			log.Err(err).Msg("GetSenderE164 error")
 		}
 		usmcContents, err := usmc.GetContents()
 		if err != nil {
-			zlog.Err(err).Msg("GetContents error")
+			log.Err(err).Msg("GetContents error")
 		}
-		zlog.Trace().Msgf("SealedSender senderUUID: %v, senderDeviceID: %v", senderUUID, senderDeviceID)
+		log = log.With().
+			Str("sender_uuid", senderUUID.String()).
+			Uint32("sender_device_id", senderDeviceID).
+			Str("sender_e164", senderE164).
+			Logger()
+		ctx = log.WithContext(ctx)
+		log.Trace().Msg("Received SealedSender message")
 
 		err = cli.UpdateContactE164(ctx, senderUUID, senderE164)
 		if err != nil {
-			zlog.Err(err).Msg("UpdateContactE164 error")
+			log.Err(err).Msg("UpdateContactE164 error")
 		}
 
 		switch messageType {
 		case libsignalgo.CiphertextMessageTypeSenderKey:
-			zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypeSenderKey ")
+			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeSenderKey")
 			decryptedText, err := libsignalgo.GroupDecrypt(
 				ctx,
 				usmcContents,
@@ -328,9 +347,9 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			)
 			if err != nil {
 				if strings.Contains(err.Error(), "message with old counter") {
-					zlog.Warn().Msg("Duplicate message, ignoring")
+					log.Warn().Msg("Duplicate message, ignoring")
 				} else {
-					zlog.Err(err).Msg("GroupDecrypt error")
+					log.Err(err).Msg("GroupDecrypt error")
 				}
 			} else {
 				err = stripPadding(&decryptedText)
@@ -340,7 +359,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				content := signalpb.Content{}
 				err = proto.Unmarshal(decryptedText, &content)
 				if err != nil {
-					zlog.Err(err).Msg("Unmarshal error")
+					log.Err(err).Msg("Unmarshal error")
 				}
 				result = &DecryptionResult{
 					SenderAddress: senderAddress,
@@ -350,17 +369,17 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}
 
 		case libsignalgo.CiphertextMessageTypePreKey:
-			zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
+			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
 			result, err = cli.prekeyDecrypt(ctx, senderAddress, usmcContents)
 			if err != nil {
-				zlog.Err(err).Msg("prekeyDecrypt error")
+				log.Err(err).Msg("prekeyDecrypt error")
 			}
 
 		case libsignalgo.CiphertextMessageTypeWhisper:
-			zlog.Trace().Msg("SealedSender messageType is CiphertextMessageTypeWhisper")
+			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeWhisper")
 			message, err := libsignalgo.DeserializeMessage(usmcContents)
 			if err != nil {
-				zlog.Err(err).Msg("DeserializeMessage error")
+				log.Err(err).Msg("DeserializeMessage error")
 			}
 			decryptedText, err := libsignalgo.Decrypt(
 				ctx,
@@ -370,7 +389,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				cli.Store.IdentityStore,
 			)
 			if err != nil {
-				zlog.Err(err).Msg("Sealed sender Whisper Decryption error")
+				log.Err(err).Msg("Sealed sender Whisper Decryption error")
 			} else {
 				err = stripPadding(&decryptedText)
 				if err != nil {
@@ -379,7 +398,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				content := signalpb.Content{}
 				err = proto.Unmarshal(decryptedText, &content)
 				if err != nil {
-					zlog.Err(err).Msg("Unmarshal error")
+					log.Err(err).Msg("Unmarshal error")
 				}
 				result = &DecryptionResult{
 					SenderAddress: senderAddress,
@@ -389,22 +408,22 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}
 
 		case libsignalgo.CiphertextMessageTypePlaintext:
-			zlog.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
+			log.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
 			// TODO: handle plaintext (usually DecryptionErrorMessage) and retries
 			// when implementing SenderKey groups
 
 			//plaintextContent, err := libsignalgo.DeserializePlaintextContent(usmcContents)
 			//if err != nil {
-			//	zlog.Err(err).Msg("DeserializePlaintextContent error")
+			//	log.Err(err).Msg("DeserializePlaintextContent error")
 			//}
 			//body, err := plaintextContent.GetBody()
 			//if err != nil {
-			//	zlog.Err(err).Msg("PlaintextContent GetBody error")
+			//	log.Err(err).Msg("PlaintextContent GetBody error")
 			//}
 			//content := signalpb.Content{}
 			//err = proto.Unmarshal(body, &content)
 			//if err != nil {
-			//	zlog.Err(err).Msg("PlaintextContent Unmarshal error")
+			//	log.Err(err).Msg("PlaintextContent Unmarshal error")
 			//}
 			//result = &DecryptionResult{
 			//	SenderAddress: *senderAddress,
@@ -417,28 +436,31 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}, nil
 
 		default:
-			zlog.Warn().Msg("SealedSender messageType is unknown")
+			log.Warn().Msg("SealedSender messageType is unknown")
 		}
 
 		// If we couldn't decrypt with specific decryption methods, try sealedSenderDecrypt
 		if result == nil || responseCode != 200 {
-			zlog.Debug().Msg("Didn't decrypt with specific methods, trying sealedSenderDecrypt")
+			log.Debug().Msg("Didn't decrypt with specific methods, trying sealedSenderDecrypt")
 			var err error
 			result, err = cli.sealedSenderDecrypt(ctx, envelope)
 			if err != nil {
 				if strings.Contains(err.Error(), "self send of a sealed sender message") {
-					zlog.Debug().Msg("Message sent by us, ignoring")
+					log.Debug().Msg("Message sent by us, ignoring")
 				} else {
-					zlog.Err(err).Msg("sealedSenderDecrypt error")
+					log.Err(err).Msg("sealedSenderDecrypt error")
 					cli.checkDecryptionErrorAndDisconnect(err)
 				}
 			} else {
-				zlog.Trace().Msgf("SealedSender decrypt result - address: %v, content: %v", result.SenderAddress, result.Content)
+				log.Trace().
+					Any("sender_address", result.SenderAddress).
+					Any("content", result.Content).
+					Msg("SealedSender decrypt result")
 			}
 		}
 
 	case signalpb.Envelope_PREKEY_BUNDLE:
-		zlog.Debug().Msgf("Received envelope type PREKEY_BUNDLE, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Debug().Msg("Received envelope type PREKEY_BUNDLE")
 		sender, err := libsignalgo.NewUUIDAddressFromString(
 			*envelope.SourceServiceId,
 			uint(*envelope.SourceDevice),
@@ -448,27 +470,30 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 		result, err = cli.prekeyDecrypt(ctx, sender, envelope.Content)
 		if err != nil {
-			zlog.Err(err).Msg("prekeyDecrypt error")
+			log.Err(err).Msg("prekeyDecrypt error")
 			cli.checkDecryptionErrorAndDisconnect(err)
 		} else {
-			zlog.Trace().Msgf("prekey decrypt result -  address: %v, data: %v", result.SenderAddress, result.Content)
+			log.Trace().
+				Any("sender_address", result.SenderAddress).
+				Any("content", result.Content).
+				Msg("prekey decrypt result")
 		}
 
 	case signalpb.Envelope_PLAINTEXT_CONTENT:
-		zlog.Debug().Msgf("Received envelope type PLAINTEXT_CONTENT, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Debug().Msg("Received envelope type PLAINTEXT_CONTENT")
 
 	case signalpb.Envelope_CIPHERTEXT:
-		zlog.Debug().Msgf("Received envelope type CIPHERTEXT, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Debug().Msg("Received envelope type CIPHERTEXT")
 		message, err := libsignalgo.DeserializeMessage(envelope.Content)
 		if err != nil {
-			zlog.Err(err).Msg("DeserializeMessage error")
+			log.Err(err).Msg("DeserializeMessage error")
 		}
 		senderAddress, err := libsignalgo.NewUUIDAddressFromString(
 			*envelope.SourceServiceId,
 			uint(*envelope.SourceDevice),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("NewAddress error: %v", err)
+			return nil, fmt.Errorf("NewAddress error: %w", err)
 		}
 		decryptedText, err := libsignalgo.Decrypt(
 			ctx,
@@ -479,9 +504,9 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		)
 		if err != nil {
 			if strings.Contains(err.Error(), "message with old counter") {
-				zlog.Info().Msg("Duplicate message, ignoring")
+				log.Info().Msg("Duplicate message, ignoring")
 			} else {
-				zlog.Err(err).Msg("Whisper Decryption error")
+				log.Err(err).Msg("Whisper Decryption error")
 			}
 		} else {
 			err = stripPadding(&decryptedText)
@@ -491,7 +516,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			content := signalpb.Content{}
 			err = proto.Unmarshal(decryptedText, &content)
 			if err != nil {
-				zlog.Err(err).Msg("Unmarshal error")
+				log.Err(err).Msg("Unmarshal error")
 			}
 			result = &DecryptionResult{
 				SenderAddress: senderAddress,
@@ -500,19 +525,19 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 
 	case signalpb.Envelope_RECEIPT:
-		zlog.Debug().Msgf("Received envelope type RECEIPT, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Debug().Msg("Received envelope type RECEIPT")
 		// TODO: handle receipt
 
 	case signalpb.Envelope_KEY_EXCHANGE:
-		zlog.Debug().Msgf("Received envelope type KEY_EXCHANGE, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Debug().Msg("Received envelope type KEY_EXCHANGE")
 		responseCode = 400
 
 	case signalpb.Envelope_UNKNOWN:
-		zlog.Warn().Msgf("Received envelope type UNKNOWN, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Warn().Msg("Received envelope type UNKNOWN")
 		responseCode = 400
 
 	default:
-		zlog.Warn().Msgf("Received actual unknown envelope type, verb: %v, path: %v", *req.Verb, *req.Path)
+		log.Warn().Msg("Received actual unknown envelope type")
 		responseCode = 400
 	}
 
@@ -523,16 +548,20 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 
 		name, _ := result.SenderAddress.Name()
 		deviceId, _ := result.SenderAddress.DeviceID()
-		zlog.Debug().Msgf("Decrypted message from %v:%v", name, deviceId)
-		printMessage := fmt.Sprintf("Decrypted content fields (%v:%v)", name, deviceId)
-		printContentFieldString(content, printMessage)
+		log = log.With().
+			Str("sender_name", name).
+			Uint("sender_device_id", deviceId).
+			Logger()
+		ctx = log.WithContext(ctx)
+		log.Debug().Msg("Decrypted message")
+		printContentFieldString(ctx, content, "Decrypted content fields")
 
 		// If there's a sender key distribution message, process it
 		if content.GetSenderKeyDistributionMessage() != nil {
-			zlog.Debug().Msg("content includes sender key distribution message")
+			log.Debug().Msg("content includes sender key distribution message")
 			skdm, err := libsignalgo.DeserializeSenderKeyDistributionMessage(content.GetSenderKeyDistributionMessage())
 			if err != nil {
-				zlog.Err(err).Msg("DeserializeSenderKeyDistributionMessage error")
+				log.Err(err).Msg("DeserializeSenderKeyDistributionMessage error")
 				return nil, err
 			}
 			err = libsignalgo.ProcessSenderKeyDistributionMessage(
@@ -542,14 +571,14 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				cli.Store.SenderKeyStore,
 			)
 			if err != nil {
-				zlog.Err(err).Msg("ProcessSenderKeyDistributionMessage error")
+				log.Err(err).Msg("ProcessSenderKeyDistributionMessage error")
 				return nil, err
 			}
 		}
 
 		theirUUID, err := result.SenderAddress.NameUUID()
 		if err != nil {
-			zlog.Err(err).Msg("Name error")
+			log.Err(err).Msg("Name error")
 			return nil, err
 		}
 
@@ -562,12 +591,12 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				if destination != nil {
 					destinationUUID, err = uuid.Parse(*destination)
 					if err != nil {
-						zlog.Err(err).Msg("Sync message destination parse error")
+						log.Err(err).Msg("Sync message destination parse error")
 						return nil, err
 					}
 				}
 				if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
-					zlog.Warn().Msg("sync message sent destination is nil")
+					log.Warn().Msg("sync message sent destination is nil")
 				} else if content.SyncMessage.Sent.Message != nil {
 					// TODO handle expiration start ts, and maybe the sync message ts?
 					cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, destinationUUID)
@@ -576,28 +605,30 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				}
 			}
 			if content.SyncMessage.Contacts != nil {
-				zlog.Debug().Msgf("Recieved sync message contacts")
+				log.Debug().Msg("Recieved sync message contacts")
 				blob := content.SyncMessage.Contacts.Blob
 				if blob != nil {
 					contactsBytes, err := DownloadAttachment(ctx, blob)
 					if err != nil {
-						zlog.Err(err).Msg("Contacts Sync DownloadAttachment error")
+						log.Err(err).Msg("Contacts Sync DownloadAttachment error")
 					}
 					// unmarshall contacts
 					contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
 					if err != nil {
-						zlog.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
+						log.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
 					}
-					zlog.Debug().Msgf("Contacts Sync received %v contacts", len(contacts))
+					log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
 					convertedContacts := make([]*types.Contact, 0, len(contacts))
 					for i, signalContact := range contacts {
 						if signalContact.Aci == nil || *signalContact.Aci == "" {
-							zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
+							log.Info().
+								Any("contact", signalContact).
+								Msg("Signal Contact UUID is nil, skipping")
 							continue
 						}
 						contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
 						if err != nil {
-							zlog.Err(err).Msg("StoreContactDetailsAsContact error")
+							log.Err(err).Msg("StoreContactDetailsAsContact error")
 							continue
 						}
 						convertedContacts = append(convertedContacts, contact)
@@ -625,7 +656,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			// TODO send delivery receipts after actually bridging instead of here
 			err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirUUID)
 			if err != nil {
-				zlog.Err(err).Msg("sendDeliveryReceipts error")
+				log.Err(err).Msg("sendDeliveryReceipts error")
 			}
 		}
 
@@ -678,7 +709,7 @@ func printStructFields(message protoreflect.Message, parent string, builder *str
 	message.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
 		fieldName := string(fd.Name())
 		currentField := parent + fieldName
-		builder.WriteString(fmt.Sprintf("%s (%s), ", currentField, fd.Kind().String()))
+		fmt.Fprintf(builder, "%s (%s), ", currentField, fd.Kind().String())
 		//builder.WriteString(fmt.Sprintf("%s (%s): %s, ", currentField, fd.Kind().String(), v.String())) // DEBUG: printing value, don't commit
 		if fd.Kind() == protoreflect.MessageKind && !fd.IsList() && v.Message().IsValid() {
 			builder.WriteString("{ ")
@@ -706,21 +737,22 @@ func printStructFields(message protoreflect.Message, parent string, builder *str
 	})
 }
 
-func printContentFieldString(c *signalpb.Content, message string) {
+func printContentFieldString(ctx context.Context, c *signalpb.Content, message string) {
+	log := zerolog.Ctx(ctx)
 	go func() {
 		// catch panic
 		defer func() {
 			if r := recover(); r != nil {
-				zlog.Warn().Msgf("Panic in contentFieldsString: %v", r)
+				log.Warn().Any("recover", r).Msg("Panic in contentFieldsString")
 			}
 		}()
-		zlog.Debug().Msgf("%v: %v", message, contentFieldsString(c))
+		log.Debug().Str("content_fields", contentFieldsString(c)).Msg(message)
 	}()
 }
 
 func contentFieldsString(c *signalpb.Content) string {
-	builder := &strings.Builder{}
-	printStructFields(c.ProtoReflect(), "", builder)
+	var builder strings.Builder
+	printStructFields(c.ProtoReflect(), "", &builder)
 	return builder.String()
 }
 
@@ -814,7 +846,7 @@ func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps
 		receipt := DeliveredReceiptMessageForTimestamps(deliveredTimestamps)
 		result := cli.SendMessage(ctx, senderUUID, receipt)
 		if !result.WasSuccessful {
-			zlog.Error().Msgf("Failed to send delivery receipts: %v", result)
+			return fmt.Errorf("failed to send delivery receipts: %v", result)
 		}
 	}
 	return nil

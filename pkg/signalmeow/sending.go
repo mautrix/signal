@@ -615,7 +615,7 @@ func (cli *Client) sendContent(
 	content *signalpb.Content,
 	retryCount int, // For ending recursive retries
 ) (sentUnidentified bool, err error) {
-	printContentFieldString(content, "Outgoing message")
+	printContentFieldString(ctx, content, "Outgoing message")
 	zerolog.Ctx(ctx).Trace().Any("raw_content", content).Msg("Raw data of outgoing message")
 
 	// If it's a data message, add our profile key
