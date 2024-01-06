@@ -173,7 +173,10 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipientUUID uuid.U
 	addresses, sessionRecords, err := cli.Store.SessionStoreExtras.AllSessionsForUUID(ctx, recipientUUID)
 	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
 		// No sessions, make one with prekey
-		cli.FetchAndProcessPreKey(ctx, recipientUUID, -1)
+		err = cli.FetchAndProcessPreKey(ctx, recipientUUID, -1)
+		if err != nil {
+			return nil, err
+		}
 		addresses, sessionRecords, err = cli.Store.SessionStoreExtras.AllSessionsForUUID(ctx, recipientUUID)
 	}
 	err = checkForErrorWithSessions(err, addresses, sessionRecords)
@@ -797,6 +800,7 @@ func (cli *Client) sendContent(
 func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
+	// TODO use an actual struct for this
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
 	if err != nil {
@@ -809,7 +813,10 @@ func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, respo
 		log.Debug().Any("missing_devices", missingDevices).Msg("missing devices found in 409 response")
 		// TODO: establish session with missing devices
 		for _, missingDevice := range missingDevices {
-			cli.FetchAndProcessPreKey(ctx, recipientUUID, int(missingDevice.(float64)))
+			err = cli.FetchAndProcessPreKey(ctx, recipientUUID, int(missingDevice.(float64)))
+			if err != nil {
+				return nil
+			}
 		}
 	}
 	if body["extraDevices"] != nil {
@@ -839,6 +846,7 @@ func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, respo
 func (cli *Client) handle410(ctx context.Context, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
+	// TODO use an actual struct
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
 	if err != nil {
@@ -863,7 +871,10 @@ func (cli *Client) handle410(ctx context.Context, recipientUUID uuid.UUID, respo
 				log.Err(err).Msg("RemoveSession error")
 				return err
 			}
-			cli.FetchAndProcessPreKey(ctx, recipientUUID, int(staleDevice.(float64)))
+			err = cli.FetchAndProcessPreKey(ctx, recipientUUID, int(staleDevice.(float64)))
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return err
@@ -875,6 +886,7 @@ func (cli *Client) handle410(ctx context.Context, recipientUUID uuid.UUID, respo
 func (cli *Client) handle428(ctx context.Context, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
+	// TODO use an actual struct
 	var body map[string]interface{}
 	err := json.Unmarshal(response.Body, &body)
 	if err != nil {

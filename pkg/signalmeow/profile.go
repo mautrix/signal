@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -86,8 +87,7 @@ type ProfileCache struct {
 func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uuid.UUID) ([]byte, error) {
 	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalACI)
 	if err != nil {
-		zlog.Err(err).Msg("ProfileKey error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile key for ACI: %w", err)
 	}
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
 		prodServerPublicParams,
@@ -95,14 +95,12 @@ func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uu
 		*profileKey,
 	)
 	if err != nil {
-		zlog.Err(err).Msg("CreateProfileKeyCredentialRequestContext error")
-		return nil, err
+		return nil, fmt.Errorf("error creating profile key credential request context: %w", err)
 	}
 
 	request, err := requestContext.ProfileKeyCredentialRequestContextGetRequest()
 	if err != nil {
-		zlog.Err(err).Msg("CreateProfileKeyCredentialRequest error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile key credential request: %w", err)
 	}
 
 	// convert request bytes to hexidecimal representation
@@ -113,8 +111,7 @@ func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uu
 func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
 	profileKey, err := cli.Store.ProfileKeyStore.LoadProfileKey(ctx, signalACI)
 	if err != nil {
-		zlog.Err(err).Msg("GetProfileKey error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile key: %w", err)
 	}
 	return profileKey, nil
 }
@@ -166,39 +163,36 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 }
 
 func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
+	log := zerolog.Ctx(ctx)
 	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalID)
 	if err != nil {
-		zlog.Err(err).Msg("ProfileKey error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile key: %w", err)
 	}
 	if profileKey == nil {
-		zlog.Err(err).Msg("profileKey is nil")
+		log.Warn().Msg("profileKey is nil")
 		return nil, nil
 	}
 
 	profileKeyVersion, err := profileKey.GetProfileKeyVersion(signalID)
 	if err != nil {
-		zlog.Err(err).Msg("profileKey error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile key version: %w", err)
 	}
 
 	accessKey, err := profileKey.DeriveAccessKey()
 	if err != nil {
-		zlog.Err(err).Msg("DeriveAccessKey error")
-		return nil, err
+		return nil, fmt.Errorf("error deriving access key: %w", err)
 	}
 	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
 
 	credentialRequest, err := cli.ProfileKeyCredentialRequest(ctx, signalID)
 	if err != nil {
-		zlog.Err(err).Msg("ProfileKeyCredentialRequest error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile key credential request: %w", err)
 	}
 
 	path := "/v1/profile/" + signalID.String()
 	useUnidentified := profileKeyVersion != nil && accessKey != nil
 	if useUnidentified {
-		zlog.Trace().
+		log.Trace().
 			Hex("profile_key_version", profileKeyVersion[:]).
 			Msg("Using unidentified profile request")
 		// Assuming we can just make the version bytes into a string
@@ -215,26 +209,22 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	}
 	resp, err := cli.UnauthedWS.SendRequest(ctx, profileRequest)
 	if err != nil {
-		zlog.Err(err).Msg("SendRequest error")
-		return nil, err
+		return nil, fmt.Errorf("error sending request: %w", err)
 	}
-	zlog.Trace().Msg("Got profile response")
+	log.Trace().Msg("Got profile response")
 	if *resp.Status < 200 || *resp.Status >= 300 {
-		err := fmt.Errorf("%v (unsuccessful status code)", *resp.Status)
-		zlog.Err(err).Msg("profile response error")
-		return nil, err
+		return nil, fmt.Errorf("error getting profile (unsuccessful status code %d)", *resp.Status)
 	}
 	var profileResponse ProfileResponse
 	err = json.Unmarshal(resp.Body, &profileResponse)
 	if err != nil {
-		zlog.Err(err).Msg("json.Unmarshal error")
-		return nil, err
+		return nil, fmt.Errorf("error unmarshalling profile response: %w", err)
 	}
 	var profile Profile
 	if len(profileResponse.Name) > 0 {
 		profile.Name, err = decryptString(profileKey, profileResponse.Name)
 		if err != nil {
-			zlog.Err(err).Msg("error decrypting profile name")
+			return nil, fmt.Errorf("error decrypting profile name: %w", err)
 		}
 		// TODO store first and last name separately instead of removing the separator
 		profile.Name = strings.ReplaceAll(profile.Name, "\x00", " ")
@@ -242,13 +232,13 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	if len(profileResponse.About) > 0 {
 		profile.About, err = decryptString(profileKey, profileResponse.About)
 		if err != nil {
-			zlog.Err(err).Msg("error decrypting profile about")
+			return nil, fmt.Errorf("error decrypting profile about: %w", err)
 		}
 	}
 	if len(profileResponse.AboutEmoji) > 0 {
 		profile.AboutEmoji, err = decryptString(profileKey, profileResponse.AboutEmoji)
 		if err != nil {
-			zlog.Err(err).Msg("error decrypting profile aboutEmoji")
+			return nil, fmt.Errorf("error decrypting profile aboutEmoji: %w", err)
 		}
 	}
 	profile.AvatarPath = profileResponse.Avatar
@@ -307,10 +297,7 @@ func decryptBytes(key *libsignalgo.ProfileKey, encryptedText []byte) ([]byte, er
 
 func decryptString(key *libsignalgo.ProfileKey, encryptedText []byte) (string, error) {
 	data, err := decryptBytes(key, encryptedText)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
+	return string(data), err
 }
 
 func encryptString(key libsignalgo.ProfileKey, plaintext string, paddedLength int) ([]byte, error) {

@@ -88,8 +88,7 @@ func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind type
 	preKeyUsername = fmt.Sprintf("%s.%d", preKeyUsername, cli.Store.DeviceID)
 	err = RegisterPreKeys(ctx, &generatedPreKeys, uuidKind, preKeyUsername, cli.Store.Password)
 	if err != nil {
-		zlog.Err(err).Msg("RegisterPreKeys error")
-		return err
+		return fmt.Errorf("failed to register prekeys: %w", err)
 	}
 
 	// Mark prekeys as registered
@@ -112,13 +111,11 @@ func GeneratePreKeys(startKeyId uint, count uint, uuidKind types.UUIDKind) []*li
 	for i := startKeyId; i < startKeyId+count; i++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
 		if err != nil {
-			zlog.Err(err).Msg("Error generating private key")
-			panic(err)
+			panic(fmt.Errorf("error generating private key: %w", err))
 		}
 		preKey, err := libsignalgo.NewPreKeyRecordFromPrivateKey(uint32(i), privateKey)
 		if err != nil {
-			zlog.Err(err).Msg("Error creating preKey record")
-			panic(err)
+			panic(fmt.Errorf("error creating prekey record: %w", err))
 		}
 		generatedPreKeys = append(generatedPreKeys, preKey)
 	}
@@ -130,28 +127,23 @@ func GenerateKyberPreKeys(startKeyId uint, count uint, uuidKind types.UUIDKind, 
 	for i := startKeyId; i < startKeyId+count; i++ {
 		kyberPreKeyPair, err := libsignalgo.KyberKeyPairGenerate()
 		if err != nil {
-			zlog.Err(err).Msg("Error generating kyber key pair")
-			panic(err)
+			panic(fmt.Errorf("error generating kyber key pair: %w", err))
 		}
 		publicKey, err := kyberPreKeyPair.GetPublicKey()
 		if err != nil {
-			zlog.Err(err).Msg("Error getting kyber public key")
-			panic(err)
+			panic(fmt.Errorf("error getting kyber public key: %w", err))
 		}
 		serializedPublicKey, err := publicKey.Serialize()
 		if err != nil {
-			zlog.Err(err).Msg("Error serializing kyber public key")
-			panic(err)
+			panic(fmt.Errorf("error serializing kyber public key: %w", err))
 		}
 		signature, err := identityKeyPair.GetPrivateKey().Sign(serializedPublicKey)
 		if err != nil {
-			zlog.Err(err).Msg("Error signing kyber public key")
-			panic(err)
+			panic(fmt.Errorf("error signing kyber public key: %w", err))
 		}
 		preKey, err := libsignalgo.NewKyberPreKeyRecord(uint32(i), time.Now(), kyberPreKeyPair, signature)
 		if err != nil {
-			zlog.Err(err).Msg("Error creating kyber preKey record")
-			panic(err)
+			panic(fmt.Errorf("error creating kyber prekey record: %w", err))
 
 		}
 		generatedKyberPreKeys = append(generatedKyberPreKeys, preKey)
@@ -163,29 +155,24 @@ func GenerateSignedPreKey(startSignedKeyId uint32, uuidKind types.UUIDKind, iden
 	// Generate a signed prekey
 	privateKey, err := libsignalgo.GeneratePrivateKey()
 	if err != nil {
-		zlog.Err(err).Msg("Error generating private key")
-		panic(err)
+		panic(fmt.Errorf("error generating private key: %w", err))
 	}
 	timestamp := time.Now()
 	publicKey, err := privateKey.GetPublicKey()
 	if err != nil {
-		zlog.Err(err).Msg("Error getting public key")
-		panic(err)
+		panic(fmt.Errorf("error getting public key: %w", err))
 	}
 	serializedPublicKey, err := publicKey.Serialize()
 	if err != nil {
-		zlog.Err(err).Msg("Error serializing public key")
-		panic(err)
+		panic(fmt.Errorf("error serializing public key: %w", err))
 	}
 	signature, err := identityKeyPair.GetPrivateKey().Sign(serializedPublicKey)
 	if err != nil {
-		zlog.Err(err).Msg("Error signing public key")
-		panic(err)
+		panic(fmt.Errorf("error signing public key: %w", err))
 	}
 	signedPreKey, err := libsignalgo.NewSignedPreKeyRecordFromPrivateKey(startSignedKeyId, timestamp, privateKey, signature)
 	if err != nil {
-		zlog.Err(err).Msg("Error creating signed preKey record")
-		panic(err)
+		panic(fmt.Errorf("error creating signed prekey record: %w", err))
 	}
 
 	return signedPreKey
@@ -307,14 +294,12 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 	username, password := cli.Store.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
-		zlog.Err(err).Msg("Error sending request")
-		return err
+		return fmt.Errorf("error sending request: %w", err)
 	}
 	var prekeyResponse prekeyResponse
 	err = web.DecodeHTTPResponseBody(ctx, &prekeyResponse, resp)
 	if err != nil {
-		zlog.Err(err).Msg("Fetching prekeys, error with response body")
-		return err
+		return fmt.Errorf("error decoding response body: %w", err)
 	}
 
 	rawIdentityKey, err := addBase64PaddingAndDecode(prekeyResponse.IdentityKey)
@@ -323,13 +308,10 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 	}
 	identityKey, err := libsignalgo.DeserializeIdentityKey([]byte(rawIdentityKey))
 	if err != nil {
-		zlog.Err(err).Msg("Error deserializing identity key")
-		return err
+		return fmt.Errorf("error deserializing identity key: %w", err)
 	}
 	if identityKey == nil {
-		err := fmt.Errorf("Deserializing identity key returned nil with no error")
-		zlog.Err(err).Msg("")
-		return err
+		return fmt.Errorf("deserializing identity key returned nil with no error")
 	}
 
 	// Process each prekey in response (should only be one at the moment)
@@ -340,25 +322,21 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 			preKeyID = uint32(d.PreKey.KeyID)
 			rawPublicKey, err := addBase64PaddingAndDecode(d.PreKey.PublicKey)
 			if err != nil {
-				zlog.Err(err).Msg("Error decoding public key")
-				return err
+				return fmt.Errorf("error decoding public key: %w", err)
 			}
 			publicKey, err = libsignalgo.DeserializePublicKey(rawPublicKey)
 			if err != nil {
-				zlog.Err(err).Msg("Error deserializing public key")
-				return err
+				return fmt.Errorf("error deserializing public key: %w", err)
 			}
 		}
 
 		rawSignedPublicKey, err := addBase64PaddingAndDecode(d.SignedPreKey.PublicKey)
 		if err != nil {
-			zlog.Err(err).Msg("Error decoding signed public key")
-			return err
+			return fmt.Errorf("error decoding signed public key: %w", err)
 		}
 		signedPublicKey, err := libsignalgo.DeserializePublicKey(rawSignedPublicKey)
 		if err != nil {
-			zlog.Err(err).Msg("Error deserializing signed public key")
-			return err
+			return fmt.Errorf("error deserializing signed public key: %w", err)
 		}
 
 		var kyberPublicKey *libsignalgo.KyberPublicKey
@@ -368,13 +346,11 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 			kyberPreKeyID = uint32(d.PQPreKey.KeyID)
 			rawKyberPublicKey, err := addBase64PaddingAndDecode(d.PQPreKey.PublicKey)
 			if err != nil {
-				zlog.Err(err).Msg("Error decoding kyber public key")
-				return err
+				return fmt.Errorf("error decoding kyber public key: %w", err)
 			}
 			kyberPublicKey, err = libsignalgo.DeserializeKyberPublicKey(rawKyberPublicKey)
 			if err != nil {
-				zlog.Err(err).Msg("Error deserializing kyber public key")
-				return err
+				return fmt.Errorf("error deserializing kyber public key: %w", err)
 			}
 			kyberPreKeySignature, err = addBase64PaddingAndDecode(d.PQPreKey.Signature)
 			if err != nil {
@@ -384,8 +360,7 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 
 		rawSignature, err := addBase64PaddingAndDecode(d.SignedPreKey.Signature)
 		if err != nil {
-			zlog.Err(err).Msg("Error decoding signature")
-			return err
+			return fmt.Errorf("error decoding signature: %w", err)
 		}
 
 		preKeyBundle, err := libsignalgo.NewPreKeyBundle(
@@ -402,13 +377,11 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 			identityKey,
 		)
 		if err != nil {
-			zlog.Err(err).Msg("Error creating prekey bundle")
-			return err
+			return fmt.Errorf("error creating prekey bundle: %w", err)
 		}
 		address, err := libsignalgo.NewUUIDAddress(theirUUID, uint(d.DeviceID))
 		if err != nil {
-			zlog.Err(err).Msg("Error creating address")
-			return err
+			return fmt.Errorf("error creating address: %w", err)
 		}
 		err = libsignalgo.ProcessPreKeyBundle(
 			ctx,
@@ -417,10 +390,8 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 			cli.Store.SessionStore,
 			cli.Store.IdentityStore,
 		)
-
 		if err != nil {
-			zlog.Err(err).Msg("Error processing prekey bundle")
-			return err
+			return fmt.Errorf("error processing prekey bundle: %w", err)
 		}
 	}
 

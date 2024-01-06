@@ -235,15 +235,17 @@ func (cli *Client) ClearKeysAndDisconnect(ctx context.Context) error {
 }
 
 // If a bridge can't decrypt prekeys, it's probably because the prekeys are broken so force re-registration
-func (cli *Client) checkDecryptionErrorAndDisconnect(err error) {
-	if err != nil {
-		if strings.Contains(err.Error(), "30: invalid PreKey message: decryption failed") ||
-			strings.Contains(err.Error(), "70: invalid signed prekey identifier") {
-			zlog.Warn().Msg("Failed decrypting a PreKey message, probably our prekeys are broken, force re-registration")
-			disconnectErr := cli.ClearKeysAndDisconnect(context.TODO())
-			if disconnectErr != nil {
-				zlog.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
-			}
+func (cli *Client) checkDecryptionErrorAndDisconnect(ctx context.Context, err error) {
+	if err == nil {
+		return
+	}
+	log := zerolog.Ctx(ctx).With().Str("action", "check decryption error and disconnect").Logger()
+	if strings.Contains(err.Error(), "30: invalid PreKey message: decryption failed") ||
+		strings.Contains(err.Error(), "70: invalid signed prekey identifier") {
+		log.Warn().Msg("Failed decrypting a PreKey message, probably our prekeys are broken, force re-registration")
+		disconnectErr := cli.ClearKeysAndDisconnect(ctx)
+		if disconnectErr != nil {
+			log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
 		}
 	}
 }
@@ -449,7 +451,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 					log.Debug().Msg("Message sent by us, ignoring")
 				} else {
 					log.Err(err).Msg("sealedSenderDecrypt error")
-					cli.checkDecryptionErrorAndDisconnect(err)
+					cli.checkDecryptionErrorAndDisconnect(ctx, err)
 				}
 			} else {
 				log.Trace().
@@ -471,7 +473,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		result, err = cli.prekeyDecrypt(ctx, sender, envelope.Content)
 		if err != nil {
 			log.Err(err).Msg("prekeyDecrypt error")
-			cli.checkDecryptionErrorAndDisconnect(err)
+			cli.checkDecryptionErrorAndDisconnect(ctx, err)
 		} else {
 			log.Trace().
 				Any("sender_address", result.SenderAddress).
@@ -544,7 +546,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 	// Handle content that is now decrypted
 	if result != nil && result.Content != nil {
 		content := result.Content
-		zlog.Trace().Any("raw_data", content).Msg("Raw event data")
+		log.Trace().Any("raw_data", content).Msg("Raw event data")
 
 		name, _ := result.SenderAddress.Name()
 		deviceId, _ := result.SenderAddress.DeviceID()
@@ -774,7 +776,7 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 		var err error
 		groupID, err = cli.StoreMasterKey(ctx, masterKey)
 		if err != nil {
-			zlog.Err(err).Msg("StoreMasterKey error")
+			zerolog.Ctx(ctx).Err(err).Msg("StoreMasterKey error")
 			return false
 		}
 		groupRevision = editMessage.GetDataMessage().GetGroupV2().GetRevision()
@@ -796,7 +798,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
 		err := cli.Store.ProfileKeyStore.StoreProfileKey(ctx, messageSender, profileKey)
 		if err != nil {
-			zlog.Err(err).Msg("StoreProfileKey error")
+			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
 			return false
 		}
 	}
@@ -811,7 +813,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 		var err error
 		groupID, err = cli.StoreMasterKey(ctx, masterKey)
 		if err != nil {
-			zlog.Err(err).Msg("StoreMasterKey error")
+			zerolog.Ctx(ctx).Err(err).Msg("StoreMasterKey error")
 			return false
 		}
 		groupRevision = dataMessage.GetGroupV2().GetRevision()
@@ -863,13 +865,11 @@ func serverTrustRootKey() *libsignalgo.PublicKey {
 	serverTrustRoot := "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
 	serverTrustRootBytes, err := base64.StdEncoding.DecodeString(serverTrustRoot)
 	if err != nil {
-		zlog.Err(err).Msg("DecodeString error")
-		panic(err)
+		panic(fmt.Errorf("DecodeString error: %w", err))
 	}
 	serverTrustRootKey, err := libsignalgo.DeserializePublicKey(serverTrustRootBytes)
 	if err != nil {
-		zlog.Err(err).Msg("DeserializePublicKey error")
-		panic(err)
+		panic(fmt.Errorf("DeserializePublicKey error: %w", err))
 	}
 	return serverTrustRootKey
 }
@@ -892,30 +892,26 @@ func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.E
 		cli.Store.PreKeyStore,
 		cli.Store.SignedPreKeyStore,
 	)
-
 	if err != nil {
-		zlog.Err(err).Msg("SealedSenderDecrypt error")
-		return nil, err
+		return nil, fmt.Errorf("SealedSenderDecrypt error: %w", err)
 	}
+
 	msg := result.Message
 	err = stripPadding(&msg)
 	if err != nil {
-		zlog.Err(err).Msg("stripPadding error")
-		return nil, err
+		return nil, fmt.Errorf("stripPadding error: %w", err)
 	}
 	address, err := libsignalgo.NewUUIDAddress(
 		result.Sender.UUID,
 		uint(result.Sender.DeviceID),
 	)
 	if err != nil {
-		zlog.Err(err).Msg("NewAddress error")
-		return nil, err
+		return nil, fmt.Errorf("NewAddress error: %w", err)
 	}
 	content := &signalpb.Content{}
 	err = proto.Unmarshal(msg, content)
 	if err != nil {
-		zlog.Err(err).Msg("Unmarshal error")
-		return nil, err
+		return nil, fmt.Errorf("Unmarshal error: %w", err)
 	}
 	DecryptionResult := &DecryptionResult{
 		SenderAddress: address,

@@ -24,31 +24,37 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-// Deprecated: global loggers are bad
-var zlog zerolog.Logger = zerolog.New(zerolog.ConsoleWriter{}).With().Timestamp().Logger()
+var loggingSetup = false
 
 func SetLogger(l zerolog.Logger) {
-	zlog = l
-	setupFFILogging()
+	if loggingSetup {
+		return
+	}
+	libsignalgo.InitLogger(libsignalgo.LogLevelInfo, FFILogger{
+		logger: l,
+	})
+	loggingSetup = true
 }
 
-type FFILogger struct{}
+type FFILogger struct {
+	logger zerolog.Logger
+}
 
 func (FFILogger) Enabled(target string, level libsignalgo.LogLevel) bool { return true }
 
-func (FFILogger) Log(target string, level libsignalgo.LogLevel, file string, line uint, message string) {
+func (l FFILogger) Log(target string, level libsignalgo.LogLevel, file string, line uint, message string) {
 	var evt *zerolog.Event
 	switch level {
 	case libsignalgo.LogLevelError:
-		evt = zlog.Error()
+		evt = l.logger.Error()
 	case libsignalgo.LogLevelWarn:
-		evt = zlog.Warn()
+		evt = l.logger.Warn()
 	case libsignalgo.LogLevelInfo:
-		evt = zlog.Info()
+		evt = l.logger.Info()
 	case libsignalgo.LogLevelDebug:
-		evt = zlog.Debug()
+		evt = l.logger.Debug()
 	case libsignalgo.LogLevelTrace:
-		evt = zlog.Trace()
+		evt = l.logger.Trace()
 	default:
 		panic("invalid log level from libsignal")
 	}
@@ -64,15 +70,6 @@ func (FFILogger) Flush() {}
 
 // Ensure FFILogger implements the Logger interface
 var _ libsignalgo.Logger = FFILogger{}
-
-var loggingSetup = false
-
-func setupFFILogging() {
-	if !loggingSetup {
-		libsignalgo.InitLogger(libsignalgo.LogLevelInfo, FFILogger{})
-		loggingSetup = true
-	}
-}
 
 //go:embed prod-server-public-params.dat
 var prodServerPublicParamsSlice []byte

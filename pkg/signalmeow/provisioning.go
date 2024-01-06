@@ -79,16 +79,17 @@ type ProvisioningResponse struct {
 	Err              error
 }
 
-func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceStore, deviceName string) chan ProvisioningResponse {
+func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, deviceName string) chan ProvisioningResponse {
+	log := zerolog.Ctx(ctx).With().Str("action", "perform provisioning").Logger()
 	c := make(chan ProvisioningResponse)
 	go func() {
 		defer close(c)
 
-		ctx, cancel := context.WithTimeout(incomingCtx, 2*time.Minute)
+		ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
 		ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketProvisioningPath)
 		if err != nil {
-			zlog.Err(err).Any("resp", resp).Msg("error opening provisioning websocket")
+			log.Err(err).Any("resp", resp).Msg("error opening provisioning websocket")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -97,7 +98,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 
 		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
 		if err != nil {
-			zlog.Err(err).Msg("startProvisioning error")
+			log.Err(err).Msg("startProvisioning error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -105,7 +106,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 
 		provisioningMessage, err := continueProvisioning(ctx, ws, provisioningCipher)
 		if err != nil {
-			zlog.Err(err).Msg("continueProvisioning error")
+			log.Err(err).Msg("continueProvisioning error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -145,7 +146,7 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 			deviceName,
 		)
 		if err != nil {
-			zlog.Err(err).Msg("confirmDevice error")
+			log.Err(err).Msg("confirmDevice error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -170,14 +171,14 @@ func PerformProvisioning(incomingCtx context.Context, deviceStore store.DeviceSt
 		// Store the provisioning data
 		err = deviceStore.PutDevice(ctx, data)
 		if err != nil {
-			zlog.Err(err).Msg("error storing new device")
+			log.Err(err).Msg("error storing new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
 
 		device, err := deviceStore.DeviceByACI(ctx, data.ACI)
 		if err != nil {
-			zlog.Err(err).Msg("error retrieving new device")
+			log.Err(err).Msg("error retrieving new device")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -341,6 +342,8 @@ func confirmDevice(
 	aciIdentityKeyPair *libsignalgo.IdentityKeyPair,
 	deviceName string,
 ) (*ConfirmDeviceResponse, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "confirm device").Logger()
+	ctx = log.WithContext(ctx)
 	encryptedDeviceName, err := EncryptDeviceName(deviceName, aciIdentityKeyPair.GetPublicKey())
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt device name: %w", err)
@@ -348,7 +351,7 @@ func confirmDevice(
 
 	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
 	if err != nil {
-		zlog.Err(err).Any("resp", resp).Msg("error opening websocket")
+		log.Err(err).Any("resp", resp).Msg("error opening websocket")
 		return nil, err
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
@@ -359,14 +362,14 @@ func confirmDevice(
 	aciPQLastResortPreKeyJson := KyberPreKeyToJSON(aciPQLastResortPreKey)
 	pniPQLastResortPreKeyJson := KyberPreKeyToJSON(pniPQLastResortPreKey)
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"verificationCode": code,
-		"accountAttributes": map[string]interface{}{
+		"accountAttributes": map[string]any{
 			"fetchesMessages":   true,
 			"name":              encryptedDeviceName,
 			"registrationId":    registrationId,
 			"pniRegistrationId": pniRegistrationId,
-			"capabilities": map[string]interface{}{
+			"capabilities": map[string]any{
 				"pni": true,
 			},
 		},
@@ -378,8 +381,7 @@ func confirmDevice(
 
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		zlog.Err(err).Msg("failed to marshal JSON")
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal JSON: %w", err)
 	}
 
 	// Create and send request TODO: Use SignalWebsocket
@@ -393,30 +395,25 @@ func confirmDevice(
 	}
 	err = wspb.Write(ctx, ws, message)
 	if err != nil {
-		zlog.Err(err).Msg("failed on write protobuf data to websocket")
-		return nil, err
+		return nil, fmt.Errorf("failed on write protobuf data to websocket: %w", err)
 	}
 
 	receivedMsg := &signalpb.WebSocketMessage{}
 	err = wspb.Read(ctx, ws, receivedMsg)
 	if err != nil {
-		zlog.Err(err).Msg("failed to read from websocket after devices call")
-		return nil, err
+		return nil, fmt.Errorf("failed to read from websocket after devices call: %w", err)
 	}
 
 	status := int(*receivedMsg.Response.Status)
 	if status < 200 || status >= 300 {
-		err := fmt.Errorf("problem with devices response - status: %d, message: %s", status, *receivedMsg.Response.Message)
-		zlog.Err(err).Msg("non-200 status code from devices response")
-		return nil, err
+		return nil, fmt.Errorf("non-200 status code (%d) from devices response: %s", status, *receivedMsg.Response.Message)
 	}
 
 	// unmarshal JSON response into ConfirmDeviceResponse
 	deviceResp := ConfirmDeviceResponse{}
 	err = json.Unmarshal(receivedMsg.Response.Body, &deviceResp)
 	if err != nil {
-		zlog.Err(err).Msg("failed to unmarshal JSON")
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
 	return &deviceResp, nil

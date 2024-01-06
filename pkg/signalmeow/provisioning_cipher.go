@@ -44,8 +44,7 @@ func (c *ProvisioningCipher) GetPublicKey() *libsignalgo.PublicKey {
 	if c.keyPair == nil {
 		keyPair, err := libsignalgo.GenerateIdentityKeyPair()
 		if err != nil {
-			zlog.Err(err).Msg("")
-			zlog.Fatal().Msg("Unable to generate key pair")
+			panic(fmt.Errorf("unable to generate key pair: %w", err))
 		}
 		c.keyPair = keyPair
 	}
@@ -65,52 +64,40 @@ const CIPHERTEXT_OFFSET uint = IV_OFFSET + IV_LENGTH
 func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) (*signalpb.ProvisionMessage, error) {
 	masterEphemeral, err := libsignalgo.DeserializePublicKey(env.GetPublicKey())
 	if err != nil {
-		zlog.Err(err).Msg("Unable to deserialize public key")
-		return nil, err
+		return nil, fmt.Errorf("unable to deserialize public key: %w", err)
 	}
 	if masterEphemeral == nil {
-		err = fmt.Errorf("No public key: %v", env)
-		zlog.Err(err).Msg("")
-		return nil, err
+		return nil, fmt.Errorf("no public key: %v", env)
 	}
 	body := env.GetBody()
 	if body == nil {
-		err = fmt.Errorf("No body: %v", env)
-		zlog.Err(err).Msg("")
-		return nil, err
+		return nil, fmt.Errorf("no body: %v", env)
 	}
 	if body[0] != 1 {
-		err = fmt.Errorf("Invalid ProvisionMessage version: %v", body[0])
-		zlog.Err(err).Msg("")
-		return nil, err
+		return nil, fmt.Errorf("invalid ProvisionMessage version: %v", body[0])
 	}
 	bodyLen := uint(len(body))
 	iv := body[IV_OFFSET : IV_OFFSET+IV_LENGTH]
 	mac := body[bodyLen-MAC_SIZE : bodyLen]
 	if uint(len(mac)) != MAC_SIZE {
-		err = fmt.Errorf("Invalid MAC size: %v", len(mac))
-		zlog.Err(err).Msg("")
-		return nil, err
+		return nil, fmt.Errorf("invalid MAC size: %d", len(mac))
 	}
 	if uint(len(iv)) != IV_LENGTH {
-		err = fmt.Errorf("Invalid IV size: %v", len(iv))
-		zlog.Err(err).Msg("")
-		return nil, err
+		return nil, fmt.Errorf("invalid IV size: %d", len(iv))
 	}
 	cipherText := body[CIPHERTEXT_OFFSET : bodyLen-CIPHER_KEY_SIZE]
 	ivAndCipherText := body[0 : bodyLen-CIPHER_KEY_SIZE]
 
 	agreement, err := c.keyPair.GetPrivateKey().Agree(masterEphemeral)
 	if err != nil {
-		zlog.Err(err).Msg("Unable to agree on key")
-		return nil, err
+		return nil, fmt.Errorf("unable to agree on key: %w", err)
 	}
 
 	sharedSecrets := make([]byte, 64)
 	hkdfReader := hkdf.New(sha256.New, agreement, nil, []byte("TextSecure Provisioning Message"))
 
 	if _, err := io.ReadFull(hkdfReader, sharedSecrets); err != nil {
-		zlog.Err(err).Msg("Unable to read from hkdfReader")
+		return nil, fmt.Errorf("unable to read from hkdfReader: %w", err)
 	}
 
 	parts1 := sharedSecrets[:32]
@@ -120,18 +107,15 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) (*signalpb
 	verifier.Write(ivAndCipherText)
 	ourMac := verifier.Sum(nil)
 	if len(ourMac) != len(mac) {
-		err = fmt.Errorf("Invalid MAC length: ourmac:%v mac:%v", len(ourMac), len(mac))
-		zlog.Err(err).Msg("")
+		return nil, fmt.Errorf("Invalid MAC length: ourmac:%d mac:%d", len(ourMac), len(mac))
 	}
 	if !hmac.Equal(ourMac[:32], mac) {
-		err = fmt.Errorf("Invalid MAC: %v", ourMac)
-		zlog.Err(err).Msg("")
+		return nil, fmt.Errorf("invalid MAC: %v", ourMac)
 	}
 
 	block, err := aes.NewCipher(parts1)
 	if err != nil {
-		zlog.Err(err).Msg("Unable to create cipher")
-		return nil, err
+		return nil, fmt.Errorf("unable to create cipher: %w", err)
 	}
 
 	mode := cipher.NewCBCDecrypter(block, iv)
@@ -140,14 +124,13 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) (*signalpb
 
 	decrypted, err := UnpadPKCS7(decryptedWithPadding)
 	if err != nil {
-		zlog.Err(err).Msg("Unable to unpad")
+		return nil, fmt.Errorf("unable to unpad: %w", err)
 	}
 
 	message := &signalpb.ProvisionMessage{}
 	err = proto.Unmarshal(decrypted, message)
 	if err != nil {
-		zlog.Err(err).Msg("Unable to unmarshal ProvisionMessage")
-		return nil, err
+		return nil, fmt.Errorf("unable to unmarshal ProvisionMessage: %w", err)
 	}
 
 	return message, nil
