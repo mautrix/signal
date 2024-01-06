@@ -152,7 +152,7 @@ func (mq *MessageQuery) GetManyBySignalID(ctx context.Context, sender uuid.UUID,
 			arguments[i+varargIndex] = timestamp
 			placeholders[i] = fmt.Sprintf("?%d", i+varargIndex+1)
 		}
-		return mq.QueryMany(ctx, strings.Replace(getManyMessagesBySignalIDQuerySQLite, fmt.Sprintf("?%d", varargIndex+1), strings.Join(placeholders, ", ?"), 1), arguments...)
+		return mq.QueryMany(ctx, strings.Replace(getManyMessagesBySignalIDQuerySQLite, fmt.Sprintf("?%d", varargIndex+1), strings.Join(placeholders, ", "), 1), arguments...)
 	}
 }
 
