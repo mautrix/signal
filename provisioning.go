@@ -146,14 +146,14 @@ type ResolveIdentifierResponseOtherUser struct {
 	AvatarURL   string `json:"avatar_url"`
 }
 
-func (prov *ProvisioningAPI) resolveIdentifier(user *User, phoneNum string) (int, *ResolveIdentifierResponse, error) {
+func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, phoneNum string) (int, *ResolveIdentifierResponse, error) {
 	if !strings.HasPrefix(phoneNum, "+") {
 		phoneNum = "+" + phoneNum
 	}
 	if user.Client == nil {
-		return http.StatusUnauthorized, nil, fmt.Errorf("Not currently connected to Signal")
+		return http.StatusUnauthorized, nil, errors.New("not currently connected to Signal")
 	}
-	contact, err := user.Client.ContactByE164(phoneNum)
+	contact, err := user.Client.ContactByE164(ctx, phoneNum)
 	if err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("Error looking up number in local contact list: %w", err)
 	}
@@ -187,9 +187,10 @@ func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Re
 		Str("user_id", user.MXID.String()).
 		Str("phone_num", phoneNum).
 		Logger()
+	ctx := log.WithContext(r.Context())
 	log.Debug().Msg("resolving identifier")
 
-	status, resp, err := prov.resolveIdentifier(user, phoneNum)
+	status, resp, err := prov.resolveIdentifier(ctx, user, phoneNum)
 	if err != nil {
 		errCode := "M_INTERNAL"
 		if status == http.StatusNotFound {
@@ -221,9 +222,10 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 		Str("user_id", user.MXID.String()).
 		Str("phone_num", phoneNum).
 		Logger()
+	ctx := log.WithContext(r.Context())
 	log.Debug().Msg("starting private message")
 
-	status, resp, err := prov.resolveIdentifier(user, phoneNum)
+	status, resp, err := prov.resolveIdentifier(ctx, user, phoneNum)
 	if err != nil {
 		errCode := "M_INTERNAL"
 		if status == http.StatusNotFound {

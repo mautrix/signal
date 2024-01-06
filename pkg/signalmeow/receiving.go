@@ -312,7 +312,10 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 		zlog.Trace().Msgf("SealedSender senderUUID: %v, senderDeviceID: %v", senderUUID, senderDeviceID)
 
-		cli.UpdateContactE164(senderUUID, senderE164)
+		err = cli.UpdateContactE164(ctx, senderUUID, senderE164)
+		if err != nil {
+			zlog.Err(err).Msg("UpdateContactE164 error")
+		}
 
 		switch messageType {
 		case libsignalgo.CiphertextMessageTypeSenderKey:
@@ -592,7 +595,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 							zlog.Info().Msgf("Signal Contact UUID is nil, skipping: %v", signalContact)
 							continue
 						}
-						contact, err := cli.StoreContactDetailsAsContact(signalContact, &avatars[i])
+						contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
 						if err != nil {
 							zlog.Err(err).Msg("StoreContactDetailsAsContact error")
 							continue

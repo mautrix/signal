@@ -204,7 +204,7 @@ func fnPM(ce *WrappedCommandEvent) {
 
 	user := ce.User
 	number := strings.Join(ce.Args, "")
-	contact, err := user.Client.ContactByE164(number)
+	contact, err := user.Client.ContactByE164(ce.Ctx, number)
 	if err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return

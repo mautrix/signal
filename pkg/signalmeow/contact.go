@@ -27,6 +27,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -34,24 +35,27 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.ContactDetails, avatar *[]byte) (*types.Contact, error) {
-	ctx := context.TODO()
+func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDetails *signalpb.ContactDetails, avatar *[]byte) (*types.Contact, error) {
 	parsedUUID, err := uuid.Parse(contactDetails.GetAci())
 	if err != nil {
 		return nil, err
 	}
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "store contact details as contact").
+		Str("uuid", parsedUUID.String()).
+		Logger()
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, parsedUUID)
 	if err != nil {
-		zlog.Err(err).Msg("StoreContactDetailsAsContact error loading contact")
+		log.Err(err).Msg("error loading contact")
 		return nil, err
 	}
 	if existingContact == nil {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: creating new contact for uuid: %v", parsedUUID)
+		log.Debug().Msg("creating new contact")
 		existingContact = &types.Contact{
 			UUID: parsedUUID,
 		}
 	} else {
-		zlog.Debug().Msgf("StoreContactDetailsAsContact: updating existing contact for uuid: %v", parsedUUID)
+		log.Debug().Msg("updating existing contact")
 	}
 
 	existingContact.E164 = contactDetails.GetNumber()
@@ -61,7 +65,7 @@ func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.Contact
 		existingContact.ProfileKey = &profileKey
 		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
 		if err != nil {
-			zlog.Err(err).Msg("StoreContactDetailsAsContact error storing profile key")
+			log.Err(err).Msg("storing profile key")
 			//return *existingContact, nil, err
 		}
 	}
@@ -82,36 +86,39 @@ func (cli *Client) StoreContactDetailsAsContact(contactDetails *signalpb.Contact
 		}
 	}
 
-	zlog.Debug().Msgf("StoreContactDetailsAsContact: storing contact for uuid: %v", contactDetails.GetAci())
+	log.Debug().Msg("storing contact")
 	storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 	if storeErr != nil {
-		zlog.Err(storeErr).Msg("StoreContactDetailsAsContact: error storing contact")
+		log.Err(storeErr).Msg("error storing contact")
 		return existingContact, storeErr
 	}
 	return existingContact, nil
 }
 
-func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID) (*types.Contact, error) {
-	ctx := context.TODO()
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, profileUUID uuid.UUID) (*types.Contact, error) {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "fetch contact then try and update with profile").
+		Stringer("profile_uuid", profileUUID).
+		Logger()
 	contactChanged := false
 
-	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUuid)
+	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUUID)
 	if err != nil {
-		zlog.Err(err).Msg("fetchContactThenTryAndUpdateWithProfile: error loading contact")
+		log.Err(err).Msg("error loading contact")
 		return nil, err
 	}
 	if existingContact == nil {
-		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: creating new contact for uuid: %v", profileUuid)
+		log.Debug().Msg("creating new contact")
 		existingContact = &types.Contact{
-			UUID: profileUuid,
+			UUID: profileUUID,
 		}
 		contactChanged = true
 	} else {
-		zlog.Debug().Msgf("fetchContactThenTryAndUpdateWithProfile: updating existing contact for uuid: %v", profileUuid)
+		log.Debug().Msg("updating existing contact")
 	}
-	profile, err := cli.RetrieveProfileByID(ctx, profileUuid)
+	profile, err := cli.RetrieveProfileByID(ctx, profileUUID)
 	if err != nil {
-		zlog.Err(err).Msgf("fetchContactThenTryAndUpdateWithProfile: error retrieving profile for uuid: %v", profileUuid)
+		log.Err(err).Msg("error retrieving profile")
 		//return nil, nil, err
 		// Don't return here, we still want to return what we have
 	}
@@ -140,56 +147,56 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(profileUuid uuid.UUID
 	}
 
 	if contactChanged {
-		storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
-		if storeErr != nil {
-			zlog.Err(storeErr).Msg("fetchContactThenTryAndUpdateWithProfile: error storing contact")
+		err := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
+		if err != nil {
+			log.Err(err).Msg("error storing contact")
+			return nil, err
 		}
 	}
 	return existingContact, nil
 }
 
-func (cli *Client) UpdateContactE164(uuid uuid.UUID, e164 string) error {
-	ctx := context.TODO()
+func (cli *Client) UpdateContactE164(ctx context.Context, uuid uuid.UUID, e164 string) error {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "update contact e164").
+		Stringer("uuid", uuid).
+		Str("e164", e164).
+		Logger()
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, uuid)
 	if err != nil {
-		zlog.Err(err).Msg("UpdateContactE164: error loading contact")
+		log.Err(err).Msg("error loading contact")
 		return err
 	}
 	if existingContact == nil {
-		zlog.Debug().Msgf("UpdateContactE164: creating new contact for uuid: %v", uuid)
+		log.Debug().Msg("creating new contact")
 		existingContact = &types.Contact{
 			UUID: uuid,
 		}
 	} else {
-		zlog.Debug().Msgf("UpdateContactE164: found existing contact for uuid: %v", uuid)
+		log.Debug().Msg("found existing contact")
 	}
-	if existingContact.E164 != e164 {
-		zlog.Debug().Msgf("UpdateContactE164: e164 changed for uuid: %v", uuid)
-		existingContact.E164 = e164
-		storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
-		if storeErr != nil {
-			zlog.Err(storeErr).Msg("UpdateContactE164: error storing contact")
-			return storeErr
-		}
+	if existingContact.E164 == e164 {
+		return nil
 	}
-	return nil
+	log.Debug().Msg("e164 changed for contact")
+	existingContact.E164 = e164
+	return cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 }
 
-func (cli *Client) ContactByID(uuid uuid.UUID) (*types.Contact, error) {
-	return cli.fetchContactThenTryAndUpdateWithProfile(uuid)
+func (cli *Client) ContactByID(ctx context.Context, uuid uuid.UUID) (*types.Contact, error) {
+	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, uuid)
 }
 
-func (cli *Client) ContactByE164(e164 string) (*types.Contact, error) {
-	ctx := context.TODO()
+func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
 	contact, err := cli.Store.ContactStore.LoadContactByE164(ctx, e164)
 	if err != nil {
-		zlog.Err(err).Msg("ContactByE164 error loading contact")
+		zerolog.Ctx(ctx).Err(err).Msg("ContactByE164 error loading contact")
 		return nil, err
 	}
 	if contact == nil {
 		return nil, nil
 	}
-	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(contact.UUID)
+	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.UUID)
 	return contact, err
 }
 
