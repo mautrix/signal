@@ -201,10 +201,15 @@ var signalFormatParams *signalfmt.FormatParams
 var matrixFormatParams *matrixfmt.HTMLParser
 
 func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
+	log := br.ZLog.With().Str("chat_id", dbPortal.ChatID).Logger()
+	if dbPortal.MXID != "" {
+		log = log.With().Stringer("room_id", dbPortal.MXID).Logger()
+	}
+
 	portal := &Portal{
 		Portal: dbPortal,
 		bridge: br,
-		log:    br.ZLog.With().Str("chat_id", dbPortal.ChatID).Logger(),
+		log:    log,
 
 		signalMessages: make(chan portalSignalMessage, br.Config.Bridge.PortalMessageBuffer),
 		matrixMessages: make(chan portalMatrixMessage, br.Config.Bridge.PortalMessageBuffer),
@@ -618,7 +623,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 	err = portal.sendSignalMessage(ctx, msg, sender, evt.ID)
 	if err != nil {
 		portal.sendMessageStatusCheckpointFailed(ctx, evt, err)
-		portal.log.Error().Msgf("Failed to send reaction %s", evt.ID)
+		log.Error().Msg("Failed to send reaction")
 		return
 	}
 
@@ -714,7 +719,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 		} else if len(result.SuccessfullySentTo) < totalRecipients {
 			log.Warn().Msg("Only sent event to some members of Signal group")
 		} else {
-			log.Debug().Msgf("Sent event to all members of Signal group")
+			log.Debug().Msg("Sent event to all members of Signal group")
 		}
 	}
 	return err
@@ -1245,7 +1250,7 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 		// require SenderKey sending to not be terrible
 		if portal.IsPrivateChat() {
 			// this is a 1:1 chat
-			portal.log.Debug().Msgf("Sending Typing event to Signal %s", portal.ChatID)
+			portal.log.Debug().Msg("Sending Typing event to Signal")
 			ctx := context.TODO()
 			typingMessage := signalmeow.TypingMessage(isTyping)
 			result := user.Client.SendMessage(ctx, portal.UserID(), typingMessage)
@@ -1497,6 +1502,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 		portal.log.Warn().Err(err).Msg("failed to create room")
 		return err
 	}
+	portal.log = portal.log.With().Stringer("room_id", resp.RoomID).Logger()
 
 	portal.NameSet = len(req.Name) > 0
 	portal.TopicSet = len(req.Topic) > 0
@@ -1507,9 +1513,10 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	portal.bridge.portalsLock.Unlock()
 	err = portal.Update(ctx)
 	if err != nil {
-		portal.log.Err(err).Msg("Failed to save created portal mxid")
+		portal.log.Err(err).Msg("Failed to save portal room ID")
+		return err
 	}
-	portal.log.Info().Msgf("Created matrix room %s", portal.MXID)
+	portal.log.Info().Msg("Created matrix room for portal")
 
 	inviteMembership := event.MembershipInvite
 	if autoJoinInvites {
