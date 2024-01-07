@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -860,18 +861,14 @@ type DecryptionResult struct {
 	SealedSender  bool
 }
 
-func serverTrustRootKey() *libsignalgo.PublicKey {
-	// TODO: put this server's trust root in the config or DB or something
-	serverTrustRoot := "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
-	serverTrustRootBytes, err := base64.StdEncoding.DecodeString(serverTrustRoot)
-	if err != nil {
-		panic(fmt.Errorf("DecodeString error: %w", err))
-	}
-	serverTrustRootKey, err := libsignalgo.DeserializePublicKey(serverTrustRootBytes)
-	if err != nil {
-		panic(fmt.Errorf("DeserializePublicKey error: %w", err))
-	}
-	return serverTrustRootKey
+const prodServerTrustRootStr = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
+
+var prodServerTrustRootBytes = exerrors.Must(base64.StdEncoding.DecodeString(prodServerTrustRootStr))
+var prodServerTrustRootKey = exerrors.Must(libsignalgo.DeserializePublicKey(prodServerTrustRootBytes))
+
+func init() {
+	// It's never going to be freed anyway
+	prodServerTrustRootKey.CancelFinalizer()
 }
 
 func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.Envelope) (*DecryptionResult, error) {
@@ -885,7 +882,7 @@ func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.E
 		ctx,
 		envelope.Content,
 		localAddress,
-		serverTrustRootKey(),
+		prodServerTrustRootKey,
 		timestamp,
 		cli.Store.SessionStore,
 		cli.Store.IdentityStore,
