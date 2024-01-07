@@ -305,8 +305,7 @@ func (portal *Portal) getBridgeInfo() (string, CustomBridgeInfoContent) {
 			AvatarURL:   portal.AvatarURL.CUString(),
 		},
 	}
-	var bridgeInfoStateKey string
-	bridgeInfoStateKey = fmt.Sprintf("fi.mau.signal://signal/%s", portal.ChatID)
+	bridgeInfoStateKey := fmt.Sprintf("fi.mau.signal://signal/%s", portal.ChatID)
 	bridgeInfo.Channel.ExternalURL = fmt.Sprintf("https://signal.me/#p/%s", portal.ChatID)
 	var roomType string
 	if portal.IsPrivateChat() {
