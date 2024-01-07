@@ -146,7 +146,7 @@ func (mh *MetricsHandler) TrackMatrixEvent(eventType event.Type) func() {
 	}
 	start := time.Now()
 	return func() {
-		duration := time.Now().Sub(start)
+		duration := time.Since(start)
 		mh.matrixEventHandling.
 			With(prometheus.Labels{"event_type": eventType.Type}).
 			Observe(duration.Seconds())
@@ -160,11 +160,11 @@ func (mh *MetricsHandler) TrackSignalMessage(timestamp time.Time, messageType st
 
 	start := time.Now()
 	return func() {
-		duration := time.Now().Sub(start)
+		duration := time.Since(start)
 		mh.signalMessageHandling.
 			With(prometheus.Labels{"message_type": messageType}).
 			Observe(duration.Seconds())
-		mh.signalMessageAge.Observe(time.Now().Sub(timestamp).Seconds())
+		mh.signalMessageAge.Observe(time.Since(timestamp).Seconds())
 	}
 }
 
@@ -271,7 +271,7 @@ func (mh *MetricsHandler) updateStats() {
 		mh.unencryptedGroupCount.Set(float64(unencryptedGroupCount))
 		mh.unencryptedPrivateCount.Set(float64(encryptedPrivateCount))
 	}
-	mh.countCollection.Observe(time.Now().Sub(start).Seconds())
+	mh.countCollection.Observe(time.Since(start).Seconds())
 }
 
 func (mh *MetricsHandler) startUpdatingStats() {

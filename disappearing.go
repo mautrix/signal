@@ -75,7 +75,7 @@ func (dmm *DisappearingMessagesManager) StartDisappearingLoop(ctx context.Contex
 				log.Err(err).Msg("Failed to get next disappearing message")
 				continue
 			} else if nextMsg != nil {
-				duration = nextMsg.ExpireAt.Sub(time.Now())
+				duration = time.Until(nextMsg.ExpireAt)
 			}
 
 			select {
