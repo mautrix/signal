@@ -35,6 +35,9 @@ type BridgeConfig struct {
 	DisplaynameTemplate   string `yaml:"displayname_template"`
 	PrivateChatPortalMeta string `yaml:"private_chat_portal_meta"`
 	UseContactAvatars     bool   `yaml:"use_contact_avatars"`
+	NumberInTopic         bool   `yaml:"number_in_topic"`
+
+	NoteToSelfAvatar id.ContentURIString `yaml:"note_to_self_avatar"`
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 

@@ -878,6 +878,9 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	// If this message is a group change, don't handle it here, it's handled below.
 	if msg.GetGroupV2().GetGroupChange() == nil && portal.Revision < msg.GetGroupV2().GetRevision() {
 		portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
+	} else if portal.IsPrivateChat() && portal.UserID() == portal.Receiver && portal.Name != NoteToSelfName {
+		// Slightly hacky way to make note to self names backfill
+		portal.UpdateDMInfo(genericCtx, false)
 	}
 
 	switch {
@@ -1554,8 +1557,6 @@ func (portal *Portal) GetDMPuppet() *Puppet {
 	return portal.bridge.GetPuppetBySignalID(portal.UserID())
 }
 
-const PrivateChatTopic = "Signal private chat"
-
 func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *signalmeow.Group, revision uint32) {
 	if portal.IsPrivateChat() {
 		portal.UpdateDMInfo(ctx, false)
@@ -1567,6 +1568,9 @@ func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *s
 	}
 }
 
+const PrivateChatTopic = "Signal private chat"
+const NoteToSelfName = "Signal Note to Self"
+
 func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	log := zerolog.Ctx(ctx).With().
 		Str("function", "UpdateDMInfo").
@@ -1576,12 +1580,18 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	puppet := portal.GetDMPuppet()
 
 	update := forceSave
-	if portal.shouldSetDMRoomMetadata() {
+	if portal.UserID() == portal.Receiver {
+		noteToSelfAvatar := portal.bridge.Config.Bridge.NoteToSelfAvatar.ParseOrIgnore()
+		avatarHash := sha256.Sum256([]byte(noteToSelfAvatar.String()))
+
+		update = portal.updateName(ctx, NoteToSelfName) || update
+		update = portal.updateAvatarWithMXC(ctx, "notetoself", hex.EncodeToString(avatarHash[:]), noteToSelfAvatar) || update
+	} else if portal.shouldSetDMRoomMetadata() {
 		update = portal.updateName(ctx, puppet.Name) || update
 		update = portal.updateAvatarWithMXC(ctx, puppet.AvatarPath, puppet.AvatarHash, puppet.AvatarURL) || update
 	}
 	topic := PrivateChatTopic
-	if puppet.Number != "" {
+	if portal.bridge.Config.Bridge.NumberInTopic && puppet.Number != "" {
 		topic = fmt.Sprintf("%s with %s", topic, puppet.Number)
 	}
 	update = portal.updateTopic(ctx, topic) || update
