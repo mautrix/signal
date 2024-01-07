@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -191,8 +190,6 @@ type Puppet struct {
 
 	customIntent *appservice.IntentAPI
 	customUser   *User
-
-	syncLock sync.Mutex
 }
 
 var userIDRegex *regexp.Regexp
