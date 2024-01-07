@@ -582,6 +582,29 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 	return result, nil
 }
 
+func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, messageTS uint64, result *SuccessfulSendResult) bool {
+	// If we have other devices, send Sync messages to them too
+	if cli.howManyOtherDevicesDoWeHave(ctx) > 0 {
+		var syncContent *signalpb.Content
+		if content.GetDataMessage() != nil {
+			syncContent = syncMessageFromSoloDataMessage(content.DataMessage, *result)
+		} else if content.GetEditMessage() != nil {
+			syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result)
+		} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.RecipientUUID)
+		}
+		if syncContent != nil {
+			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTS, syncContent, 0)
+			if selfSendErr != nil {
+				zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
+			} else {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, content *signalpb.Content) SendMessageResult {
 	// Assemble the content to send
 	var messageTimestamp uint64
@@ -591,6 +614,19 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, conte
 		messageTimestamp = *content.EditMessage.DataMessage.Timestamp
 	} else {
 		messageTimestamp = currentMessageTimestamp()
+	}
+
+	isDeliveryReceipt := content.ReceiptMessage != nil && content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY
+	if recipientID == cli.Store.ACI && !isDeliveryReceipt {
+		res := &SuccessfulSendResult{
+			RecipientUUID: recipientID,
+			Unidentified:  false,
+		}
+		ok := cli.sendSyncCopy(ctx, content, messageTimestamp, res)
+		return SendMessageResult{
+			WasSuccessful:        ok,
+			SuccessfulSendResult: res,
+		}
 	}
 
 	// Send to the recipient
@@ -612,28 +648,8 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, conte
 		},
 	}
 
-	// TODO: don't fetch every time
-	// (But for now this makes sure we know about all our other devices)
-	// ((Actually I don't think this is necessary?))
-	//FetchAndProcessPreKey(ctx, device, device.Data.ACI, -1)
+	cli.sendSyncCopy(ctx, content, messageTimestamp, result.SuccessfulSendResult)
 
-	// If we have other devices, send Sync messages to them too
-	if cli.howManyOtherDevicesDoWeHave(ctx) > 0 {
-		var syncContent *signalpb.Content
-		if content.GetDataMessage() != nil {
-			syncContent = syncMessageFromSoloDataMessage(content.DataMessage, *result.SuccessfulSendResult)
-		} else if content.GetEditMessage() != nil {
-			syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result.SuccessfulSendResult)
-		} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
-			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, recipientID)
-		}
-		if syncContent != nil {
-			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTimestamp, syncContent, 0)
-			if selfSendErr != nil {
-				zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
-			}
-		}
-	}
 	return result
 }
 

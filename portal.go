@@ -267,16 +267,13 @@ func (portal *Portal) GetRelayUser() *User {
 	return portal.relayUser
 }
 
-func isUUID(s string) bool {
-	if _, uuidErr := uuid.Parse(s); uuidErr == nil {
-		return true
-	}
-	return false
+func (portal *Portal) IsPrivateChat() bool {
+	return portal.UserID() != uuid.Nil
 }
 
-func (portal *Portal) IsPrivateChat() bool {
-	// If ChatID is a UUID, it's a private chat, otherwise it's base64 and a group chat
-	return isUUID(portal.ChatID)
+func (portal *Portal) IsNoteToSelf() bool {
+	userID := portal.UserID()
+	return userID != uuid.Nil && userID == portal.Receiver
 }
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
@@ -1264,6 +1261,10 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 }
 
 func (portal *Portal) HandleMatrixTyping(newTyping []id.UserID) {
+	if portal.IsNoteToSelf() {
+		return
+	}
+
 	portal.currentlyTypingLock.Lock()
 	defer portal.currentlyTypingLock.Unlock()
 	startedTyping, stoppedTyping := typingDiff(portal.currentlyTyping, newTyping)
