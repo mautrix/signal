@@ -229,7 +229,7 @@ func (user *User) GetIGhost() bridge.Ghost {
 
 func (user *User) ensureInvited(ctx context.Context, intent *appservice.IntentAPI, roomID id.RoomID, isDirect bool) (ok bool) {
 	log := user.log.With().Str("action", "ensure_invited").Stringer("room_id", roomID).Logger()
-	if user.bridge.StateStore.GetMembership(roomID, user.MXID) == event.MembershipJoin {
+	if user.bridge.StateStore.IsMembership(ctx, roomID, user.MXID, event.MembershipJoin) {
 		ok = true
 		return
 	}
@@ -247,7 +247,10 @@ func (user *User) ensureInvited(ctx context.Context, intent *appservice.IntentAP
 	_, err := intent.InviteUser(ctx, roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
 	var httpErr mautrix.HTTPError
 	if err != nil && errors.As(err, &httpErr) && httpErr.RespError != nil && strings.Contains(httpErr.RespError.Err, "is already in the room") {
-		user.bridge.StateStore.SetMembership(roomID, user.MXID, event.MembershipJoin)
+		err = user.bridge.StateStore.SetMembership(ctx, roomID, user.MXID, event.MembershipJoin)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to update membership in state store")
+		}
 		ok = true
 		return
 	} else if err != nil {

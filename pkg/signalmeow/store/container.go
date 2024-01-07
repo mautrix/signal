@@ -40,8 +40,8 @@ FROM signalmeow_device
 
 const getDeviceQuery = getAllDevicesQuery + " WHERE aci_uuid=$1"
 
-func (c *StoreContainer) Upgrade() error {
-	return c.db.Upgrade()
+func (c *StoreContainer) Upgrade(ctx context.Context) error {
+	return c.db.Upgrade(ctx)
 }
 
 func (c *StoreContainer) scanDevice(row dbutil.Scannable) (*Device, error) {
@@ -85,7 +85,7 @@ func (c *StoreContainer) scanDevice(row dbutil.Scannable) (*Device, error) {
 
 // GetAllDevices finds all the devices in the database.
 func (c *StoreContainer) GetAllDevices(ctx context.Context) ([]*Device, error) {
-	rows, err := c.db.Conn(ctx).QueryContext(ctx, getAllDevicesQuery)
+	rows, err := c.db.Query(ctx, getAllDevicesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query sessions: %w", err)
 	}
@@ -104,7 +104,7 @@ func (c *StoreContainer) GetAllDevices(ctx context.Context) ([]*Device, error) {
 // GetDevice finds the device with the specified ACI UUID in the database.
 // If the device is not found, nil is returned instead.
 func (c *StoreContainer) DeviceByACI(ctx context.Context, aci uuid.UUID) (*Device, error) {
-	sess, err := c.scanDevice(c.db.Conn(ctx).QueryRowContext(ctx, getDeviceQuery, aci))
+	sess, err := c.scanDevice(c.db.QueryRow(ctx, getDeviceQuery, aci))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -150,7 +150,7 @@ func (c *StoreContainer) PutDevice(ctx context.Context, device *DeviceData) erro
 		zerolog.Ctx(ctx).Err(err).Msg("failed to serialize pni identity key pair")
 		return err
 	}
-	_, err = c.db.Conn(ctx).ExecContext(ctx, insertDeviceQuery,
+	_, err = c.db.Exec(ctx, insertDeviceQuery,
 		device.ACI, aciIdentityKeyPair, device.RegistrationID,
 		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
 		device.DeviceID, device.Number, device.Password,
@@ -166,6 +166,6 @@ func (c *StoreContainer) DeleteDevice(ctx context.Context, device *DeviceData) e
 	if device.ACI == uuid.Nil {
 		return ErrDeviceIDMustBeSet
 	}
-	_, err := c.db.Conn(ctx).ExecContext(ctx, deleteDeviceQuery, device.ACI)
+	_, err := c.db.Exec(ctx, deleteDeviceQuery, device.ACI)
 	return err
 }

@@ -260,7 +260,7 @@ func fnSyncSpace(ce *WrappedCommandEvent) {
 		if portal.IsPrivateChat() {
 			continue
 		}
-		if ce.Bridge.StateStore.IsInRoom(portal.MXID, ce.User.MXID) && portal.addToPersonalSpace(ctx, ce.User) {
+		if ce.Bridge.StateStore.IsInRoom(ctx, portal.MXID, ce.User.MXID) && portal.addToPersonalSpace(ctx, ce.User) {
 			count++
 		}
 	}

@@ -61,7 +61,7 @@ func scanGroup(row dbutil.Scannable) (*dbGroup, error) {
 }
 
 func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error) {
-	g, err := scanGroup(s.db.Conn(ctx).QueryRowContext(ctx, getGroupByIDQuery, s.ACI, groupID))
+	g, err := scanGroup(s.db.QueryRow(ctx, getGroupByIDQuery, s.ACI, groupID))
 	if g == nil {
 		return "", err
 	} else {
@@ -70,6 +70,6 @@ func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID typ
 }
 
 func (s *SQLStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, upsertGroupMasterKeyQuery, s.ACI, groupID, key)
+	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.ACI, groupID, key)
 	return err
 }

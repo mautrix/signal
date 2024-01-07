@@ -55,14 +55,14 @@ func scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {
 }
 
 func (s *SQLStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.Conn(ctx).QueryRowContext(ctx, loadProfileKeyQuery, s.ACI, theirACI))
+	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.ACI, theirACI))
 }
 
 func (s *SQLStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.Conn(ctx).QueryRowContext(ctx, loadProfileKeyQuery, s.ACI, s.ACI))
+	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.ACI, s.ACI))
 }
 
 func (s *SQLStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, storeProfileKeyQuery, s.ACI, theirACI, key.Slice())
+	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.ACI, theirACI, key.Slice())
 	return err
 }

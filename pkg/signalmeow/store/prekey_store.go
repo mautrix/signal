@@ -108,7 +108,7 @@ const (
 func (s *SQLStore) KyberPreKey(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) (*libsignalgo.KyberPreKeyRecord, error) {
 	var record []byte
 	var isLastResort bool
-	err := s.db.Conn(ctx).QueryRowContext(ctx, getKyberPreKeyQuery, s.ACI, preKeyID, uuidKind).Scan(&record, &isLastResort)
+	err := s.db.QueryRow(ctx, getKyberPreKeyQuery, s.ACI, preKeyID, uuidKind).Scan(&record, &isLastResort)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -127,18 +127,18 @@ func (s *SQLStore) SaveKyberPreKey(ctx context.Context, uuidKind types.UUIDKind,
 	if err != nil {
 		return fmt.Errorf("failed to serialize kyber prekey record: %w", err)
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, insertKyberPreKeyQuery, s.ACI, id, uuidKind, serialized, lastResort)
+	_, err = s.db.Exec(ctx, insertKyberPreKeyQuery, s.ACI, id, uuidKind, serialized, lastResort)
 	return err
 }
 
 func (s *SQLStore) DeleteKyberPreKey(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, deleteKyberPreKeyQuery, s.ACI, preKeyID, uuidKind)
+	_, err := s.db.Exec(ctx, deleteKyberPreKeyQuery, s.ACI, preKeyID, uuidKind)
 	return err
 }
 
 func (s *SQLStore) GetNextKyberPreKeyID(ctx context.Context, uuidKind types.UUIDKind) (uint, error) {
 	var lastKeyID sql.NullInt64
-	err := s.db.Conn(ctx).QueryRowContext(ctx, getLastKyberPreKeyIDQuery, s.ACI, uuidKind).Scan(&lastKeyID)
+	err := s.db.QueryRow(ctx, getLastKyberPreKeyIDQuery, s.ACI, uuidKind).Scan(&lastKeyID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to query next kyber prekey ID: %w", err)
 	}
@@ -147,7 +147,7 @@ func (s *SQLStore) GetNextKyberPreKeyID(ctx context.Context, uuidKind types.UUID
 
 func (s *SQLStore) IsKyberPreKeyLastResort(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) (bool, error) {
 	var isLastResort bool
-	err := s.db.Conn(ctx).QueryRowContext(ctx, isLastResortQuery, s.ACI, preKeyID, uuidKind).Scan(&isLastResort)
+	err := s.db.QueryRow(ctx, isLastResortQuery, s.ACI, preKeyID, uuidKind).Scan(&isLastResort)
 	if err != nil {
 		return false, err
 	}
@@ -189,11 +189,11 @@ func scanSignedPreKey(row dbutil.Scannable) (*libsignalgo.SignedPreKeyRecord, er
 }
 
 func (s *SQLStore) PreKey(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) (*libsignalgo.PreKeyRecord, error) {
-	return scanPreKey(s.db.Conn(ctx).QueryRowContext(ctx, getPreKeyQuery, s.ACI, preKeyID, uuidKind, false))
+	return scanPreKey(s.db.QueryRow(ctx, getPreKeyQuery, s.ACI, preKeyID, uuidKind, false))
 }
 
 func (s *SQLStore) SignedPreKey(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) (*libsignalgo.SignedPreKeyRecord, error) {
-	return scanSignedPreKey(s.db.Conn(ctx).QueryRowContext(ctx, getPreKeyQuery, s.ACI, preKeyID, uuidKind, true))
+	return scanSignedPreKey(s.db.QueryRow(ctx, getPreKeyQuery, s.ACI, preKeyID, uuidKind, true))
 }
 
 func (s *SQLStore) SavePreKey(ctx context.Context, uuidKind types.UUIDKind, preKey *libsignalgo.PreKeyRecord, markUploaded bool) error {
@@ -205,7 +205,7 @@ func (s *SQLStore) SavePreKey(ctx context.Context, uuidKind types.UUIDKind, preK
 	if err != nil {
 		return fmt.Errorf("failed to serialize prekey: %w", err)
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, insertPreKeyQuery, s.ACI, id, uuidKind, false, serialized, markUploaded)
+	_, err = s.db.Exec(ctx, insertPreKeyQuery, s.ACI, id, uuidKind, false, serialized, markUploaded)
 	return err
 }
 
@@ -218,23 +218,23 @@ func (s *SQLStore) SaveSignedPreKey(ctx context.Context, uuidKind types.UUIDKind
 	if err != nil {
 		return fmt.Errorf("failed to serialize signed prekey: %w", err)
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, insertPreKeyQuery, s.ACI, id, uuidKind, true, serialized, markUploaded)
+	_, err = s.db.Exec(ctx, insertPreKeyQuery, s.ACI, id, uuidKind, true, serialized, markUploaded)
 	return err
 }
 
 func (s *SQLStore) DeletePreKey(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, deletePreKeyQuery, s.ACI, preKeyID, uuidKind, false)
+	_, err := s.db.Exec(ctx, deletePreKeyQuery, s.ACI, preKeyID, uuidKind, false)
 	return err
 }
 
 func (s *SQLStore) DeleteSignedPreKey(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, deletePreKeyQuery, s.ACI, preKeyID, uuidKind, true)
+	_, err := s.db.Exec(ctx, deletePreKeyQuery, s.ACI, preKeyID, uuidKind, true)
 	return err
 }
 
 func (s *SQLStore) GetNextPreKeyID(ctx context.Context, uuidKind types.UUIDKind) (uint, error) {
 	var lastKeyID sql.NullInt64
-	err := s.db.Conn(ctx).QueryRowContext(ctx, getLastPreKeyIDQuery, s.ACI, uuidKind, false).Scan(&lastKeyID)
+	err := s.db.QueryRow(ctx, getLastPreKeyIDQuery, s.ACI, uuidKind, false).Scan(&lastKeyID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to query next prekey ID: %w", err)
 	}
@@ -243,7 +243,7 @@ func (s *SQLStore) GetNextPreKeyID(ctx context.Context, uuidKind types.UUIDKind)
 
 func (s *SQLStore) GetSignedNextPreKeyID(ctx context.Context, uuidKind types.UUIDKind) (uint, error) {
 	var lastKeyID sql.NullInt64
-	err := s.db.Conn(ctx).QueryRowContext(ctx, getLastPreKeyIDQuery, s.ACI, uuidKind, true).Scan(&lastKeyID)
+	err := s.db.QueryRow(ctx, getLastPreKeyIDQuery, s.ACI, uuidKind, true).Scan(&lastKeyID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to query next signed prekey ID: %w", err)
 	}
@@ -251,22 +251,22 @@ func (s *SQLStore) GetSignedNextPreKeyID(ctx context.Context, uuidKind types.UUI
 }
 
 func (s *SQLStore) MarkPreKeysAsUploaded(ctx context.Context, uuidKind types.UUIDKind, upToID uint) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, markPreKeysAsUploadedQuery, s.ACI, uuidKind, false, upToID)
+	_, err := s.db.Exec(ctx, markPreKeysAsUploadedQuery, s.ACI, uuidKind, false, upToID)
 	return err
 }
 
 func (s *SQLStore) MarkSignedPreKeysAsUploaded(ctx context.Context, uuidKind types.UUIDKind, upToID uint) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, markPreKeysAsUploadedQuery, s.ACI, uuidKind, true, upToID)
+	_, err := s.db.Exec(ctx, markPreKeysAsUploadedQuery, s.ACI, uuidKind, true, upToID)
 	return err
 }
 
 func (s *SQLStore) DeleteAllPreKeys(ctx context.Context) error {
 	return s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
-		_, err := s.db.Conn(ctx).ExecContext(ctx, "DELETE FROM signalmeow_pre_keys WHERE aci_uuid=$1", s.ACI)
+		_, err := s.db.Exec(ctx, "DELETE FROM signalmeow_pre_keys WHERE aci_uuid=$1", s.ACI)
 		if err != nil {
 			return err
 		}
-		_, err = s.db.Conn(ctx).ExecContext(ctx, "DELETE FROM signalmeow_kyber_pre_keys WHERE aci_uuid=$1", s.ACI)
+		_, err = s.db.Exec(ctx, "DELETE FROM signalmeow_kyber_pre_keys WHERE aci_uuid=$1", s.ACI)
 		return err
 	})
 }

@@ -71,12 +71,12 @@ func scanIdentityKey(row dbutil.Scannable) (*libsignalgo.IdentityKey, error) {
 }
 
 func (s *SQLStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
-	return scanIdentityKeyPair(s.db.Conn(ctx).QueryRowContext(ctx, getIdentityKeyPairQuery, s.ACI))
+	return scanIdentityKeyPair(s.db.QueryRow(ctx, getIdentityKeyPairQuery, s.ACI))
 }
 
 func (s *SQLStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
 	var regID sql.NullInt64
-	err := s.db.Conn(ctx).QueryRowContext(ctx, getRegistrationLocalIDQuery, s.ACI).Scan(&regID)
+	err := s.db.QueryRow(ctx, getRegistrationLocalIDQuery, s.ACI).Scan(&regID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get local registration ID: %w", err)
 	}
@@ -97,7 +97,7 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 	if err != nil {
 		return false, fmt.Errorf("failed to get device ID: %w", err)
 	}
-	oldKey, err := scanIdentityKey(s.db.Conn(ctx).QueryRowContext(ctx, getIdentityKeyQuery, s.ACI, theirUUID, deviceID))
+	oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirUUID, deviceID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get old identity key: %w", err)
 	}
@@ -110,7 +110,7 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 		// We are replacing the old key if the old key exists, and it is not equal to the new key
 		replacing = !equal
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, insertIdentityKeyQuery, s.ACI, theirUUID, deviceID, serialized, trustLevel)
+	_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.ACI, theirUUID, deviceID, serialized, trustLevel)
 	if err != nil {
 		return replacing, fmt.Errorf("failed to insert new identity key: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *SQLStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.A
 		return false, fmt.Errorf("failed to get device ID: %w", err)
 	}
 	var trustLevel string
-	err = s.db.Conn(ctx).QueryRowContext(ctx, getIdentityKeyTrustLevelQuery, s.ACI, theirUUID, deviceID).Scan(&trustLevel)
+	err = s.db.QueryRow(ctx, getIdentityKeyTrustLevelQuery, s.ACI, theirUUID, deviceID).Scan(&trustLevel)
 	if errors.Is(err, sql.ErrNoRows) {
 		// If no rows, they are a new identity, so trust by default
 		return true, nil
@@ -148,7 +148,7 @@ func (s *SQLStore) GetIdentityKey(ctx context.Context, address *libsignalgo.Addr
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device ID: %w", err)
 	}
-	key, err := scanIdentityKey(s.db.Conn(ctx).QueryRowContext(ctx, getIdentityKeyQuery, s.ACI, theirUUID, deviceID))
+	key, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirUUID, deviceID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity key from database: %w", err)
 	}

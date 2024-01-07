@@ -1371,7 +1371,7 @@ func (portal *Portal) encrypt(ctx context.Context, intent *appservice.IntentAPI,
 	// TODO maybe the locking should be inside mautrix-go?
 	portal.encryptLock.Lock()
 	defer portal.encryptLock.Unlock()
-	err := portal.bridge.Crypto.Encrypt(portal.MXID, eventType, content)
+	err := portal.bridge.Crypto.Encrypt(ctx, portal.MXID, eventType, content)
 	if err != nil {
 		return eventType, fmt.Errorf("failed to encrypt event: %w", err)
 	}
@@ -1521,13 +1521,6 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	}
 	portal.log.Info().Msg("Created matrix room for portal")
 
-	inviteMembership := event.MembershipInvite
-	if autoJoinInvites {
-		inviteMembership = event.MembershipJoin
-	}
-	for _, userID := range invite {
-		portal.bridge.StateStore.SetMembership(portal.MXID, userID, inviteMembership)
-	}
 	if !autoJoinInvites {
 		if !portal.IsPrivateChat() {
 			portal.SyncParticipants(ctx, user, groupInfo)

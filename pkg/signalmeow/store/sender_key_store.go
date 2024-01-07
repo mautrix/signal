@@ -55,7 +55,7 @@ func (s *SQLStore) LoadSenderKey(ctx context.Context, sender *libsignalgo.Addres
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender device ID: %w", err)
 	}
-	return scanSenderKey(s.db.Conn(ctx).QueryRowContext(ctx, loadSenderKeyQuery, s.ACI, senderUUID, deviceID, distributionID))
+	return scanSenderKey(s.db.QueryRow(ctx, loadSenderKeyQuery, s.ACI, senderUUID, deviceID, distributionID))
 }
 
 func (s *SQLStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord) error {
@@ -71,6 +71,6 @@ func (s *SQLStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Addre
 	if err != nil {
 		return fmt.Errorf("failed to serialize sender key: %w", err)
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, storeSenderKeyQuery, s.ACI, senderUUID, deviceID, distributionID, serialized)
+	_, err = s.db.Exec(ctx, storeSenderKeyQuery, s.ACI, senderUUID, deviceID, distributionID, serialized)
 	return err
 }

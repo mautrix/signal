@@ -172,7 +172,7 @@ func (br *SignalBridge) logLostPortals(ctx context.Context) {
 
 func (br *SignalBridge) Start() {
 	go br.logLostPortals(context.TODO())
-	err := br.MeowStore.Upgrade()
+	err := br.MeowStore.Upgrade(context.TODO())
 	if err != nil {
 		br.Log.Fatalln("Failed to upgrade signalmeow database: %v", err)
 		os.Exit(15)
@@ -298,9 +298,9 @@ func (br *SignalBridge) createPrivatePortalFromInvite(ctx context.Context, roomI
 				log.Err(err).Msg("Failed to enable e2be")
 			}
 		}
-		br.AS.StateStore.SetMembership(roomID, inviter.MXID, event.MembershipJoin)
-		br.AS.StateStore.SetMembership(roomID, puppet.MXID, event.MembershipJoin)
-		br.AS.StateStore.SetMembership(roomID, br.Bot.UserID, event.MembershipJoin)
+		br.AS.StateStore.SetMembership(ctx, roomID, inviter.MXID, event.MembershipJoin)
+		br.AS.StateStore.SetMembership(ctx, roomID, puppet.MXID, event.MembershipJoin)
+		br.AS.StateStore.SetMembership(ctx, roomID, br.Bot.UserID, event.MembershipJoin)
 		portal.Encrypted = true
 	}
 	portal.UpdateDMInfo(ctx, true)

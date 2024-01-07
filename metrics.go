@@ -229,7 +229,7 @@ func (mh *MetricsHandler) TrackConnectionState(signalID string, connected bool) 
 func (mh *MetricsHandler) updateStats() {
 	start := time.Now()
 	var puppetCount int
-	err := mh.db.QueryRowContext(mh.ctx, "SELECT COUNT(*) FROM puppet").Scan(&puppetCount)
+	err := mh.db.QueryRow(mh.ctx, "SELECT COUNT(*) FROM puppet").Scan(&puppetCount)
 	if err != nil {
 		mh.log.Warnln("Failed to scan number of puppets:", err)
 	} else {
@@ -237,7 +237,7 @@ func (mh *MetricsHandler) updateStats() {
 	}
 
 	var userCount int
-	err = mh.db.QueryRowContext(mh.ctx, `SELECT COUNT(*) FROM "user"`).Scan(&userCount)
+	err = mh.db.QueryRow(mh.ctx, `SELECT COUNT(*) FROM "user"`).Scan(&userCount)
 	if err != nil {
 		mh.log.Warnln("Failed to scan number of users:", err)
 	} else {
@@ -245,7 +245,7 @@ func (mh *MetricsHandler) updateStats() {
 	}
 
 	var messageCount int
-	err = mh.db.QueryRowContext(mh.ctx, "SELECT COUNT(*) FROM message").Scan(&messageCount)
+	err = mh.db.QueryRow(mh.ctx, "SELECT COUNT(*) FROM message").Scan(&messageCount)
 	if err != nil {
 		mh.log.Warnln("Failed to scan number of messages:", err)
 	} else {
@@ -255,7 +255,7 @@ func (mh *MetricsHandler) updateStats() {
 	var encryptedGroupCount, encryptedPrivateCount, unencryptedGroupCount, unencryptedPrivateCount int
 	// TODO Use a more precise way to check if a chat_id is a UUID.
 	// It should also be compatible with both SQLite & Postgres.
-	err = mh.db.QueryRowContext(mh.ctx, `
+	err = mh.db.QueryRow(mh.ctx, `
 			SELECT
 				COUNT(CASE WHEN chat_id NOT LIKE '%-%-%-%-%' AND     encrypted THEN 1 END) AS encrypted_group_portals,
 				COUNT(CASE WHEN chat_id     LIKE '%-%-%-%-%' AND     encrypted THEN 1 END) AS encrypted_private_portals,

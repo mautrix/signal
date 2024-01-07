@@ -111,25 +111,23 @@ func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 }
 
 func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
-	return scanContact(s.db.Conn(ctx).QueryRowContext(ctx, getContactByUUIDQuery, s.ACI, theirUUID))
+	return scanContact(s.db.QueryRow(ctx, getContactByUUIDQuery, s.ACI, theirUUID))
 }
 
 func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
-	return scanContact(s.db.Conn(ctx).QueryRowContext(ctx, getContactByPhoneQuery, s.ACI, e164))
+	return scanContact(s.db.QueryRow(ctx, getContactByPhoneQuery, s.ACI, e164))
 }
 
 func (s *SQLStore) AllContacts(ctx context.Context) ([]*types.Contact, error) {
-	rows, err := s.db.Conn(ctx).QueryContext(ctx, getAllContactsOfUserQuery, s.ACI)
+	rows, err := s.db.Query(ctx, getAllContactsOfUserQuery, s.ACI)
 	if err != nil {
 		return nil, err
 	}
-	return dbutil.NewRowIter(rows, func(rows dbutil.Rows) (*types.Contact, error) {
-		return scanContact(rows)
-	}).AsList()
+	return dbutil.NewRowIter(rows, scanContact).AsList()
 }
 
 func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) error {
-	_, err := s.db.Conn(ctx).ExecContext(
+	_, err := s.db.Exec(
 		ctx,
 		upsertContactQuery,
 		s.ACI,

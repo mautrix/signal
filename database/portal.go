@@ -130,11 +130,11 @@ func (pq *PortalQuery) GetAllWithMXID(ctx context.Context) ([]*Portal, error) {
 }
 
 func (pq *PortalQuery) FindPrivateChatsNotInSpace(ctx context.Context, receiver uuid.UUID) ([]PortalKey, error) {
-	rows, err := pq.GetDB().QueryContext(ctx, getChatsNotInSpaceQuery, receiver)
+	rows, err := pq.GetDB().Query(ctx, getChatsNotInSpaceQuery, receiver)
 	if err != nil {
 		return nil, err
 	}
-	return dbutil.NewRowIter(rows, func(rows dbutil.Rows) (key PortalKey, err error) {
+	return dbutil.NewRowIter(rows, func(rows dbutil.Scannable) (key PortalKey, err error) {
 		err = rows.Scan(&key.ChatID)
 		key.Receiver = receiver
 		return

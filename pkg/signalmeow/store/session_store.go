@@ -69,12 +69,12 @@ func (s *SQLStore) RemoveSession(ctx context.Context, address *libsignalgo.Addre
 	if err != nil {
 		return fmt.Errorf("failed to get their device ID: %w", err)
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, removeSessionQuery, s.ACI, theirUUID, deviceID)
+	_, err = s.db.Exec(ctx, removeSessionQuery, s.ACI, theirUUID, deviceID)
 	return err
 }
 
 func (s *SQLStore) AllSessionsForUUID(ctx context.Context, theirUUID uuid.UUID) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error) {
-	rows, err := s.db.Conn(ctx).QueryContext(ctx, allSessionsQuery, s.ACI, theirUUID)
+	rows, err := s.db.Query(ctx, allSessionsQuery, s.ACI, theirUUID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -105,7 +105,7 @@ func (s *SQLStore) LoadSession(ctx context.Context, address *libsignalgo.Address
 	if err != nil {
 		return nil, fmt.Errorf("failed to get their device ID: %w", err)
 	}
-	_, record, err := scanRecord(s.db.Conn(ctx).QueryRowContext(ctx, loadSessionQuery, s.ACI, theirUUID, deviceID))
+	_, record, err := scanRecord(s.db.QueryRow(ctx, loadSessionQuery, s.ACI, theirUUID, deviceID))
 	return record, err
 }
 
@@ -122,11 +122,11 @@ func (s *SQLStore) StoreSession(ctx context.Context, address *libsignalgo.Addres
 	if err != nil {
 		return fmt.Errorf("failed to serialize session record: %w", err)
 	}
-	_, err = s.db.Conn(ctx).ExecContext(ctx, storeSessionQuery, s.ACI, theirUUID, deviceID, serialized)
+	_, err = s.db.Exec(ctx, storeSessionQuery, s.ACI, theirUUID, deviceID, serialized)
 	return err
 }
 
 func (s *SQLStore) RemoveAllSessions(ctx context.Context) error {
-	_, err := s.db.Conn(ctx).ExecContext(ctx, "DELETE FROM signalmeow_sessions WHERE our_aci_uuid=$1", s.ACI)
+	_, err := s.db.Exec(ctx, "DELETE FROM signalmeow_sessions WHERE our_aci_uuid=$1", s.ACI)
 	return err
 }

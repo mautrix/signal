@@ -45,7 +45,7 @@ func (u *User) GetLastReadTS(ctx context.Context, portal PortalKey) uint64 {
 		return cached
 	}
 	var ts int64
-	err := u.qh.GetDB().QueryRowContext(ctx, getLastReadTSQuery, u.MXID, portal.ChatID, portal.Receiver).Scan(&ts)
+	err := u.qh.GetDB().QueryRow(ctx, getLastReadTSQuery, u.MXID, portal.ChatID, portal.Receiver).Scan(&ts)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		zerolog.Ctx(ctx).Err(err).
 			Str("user_id", u.MXID.String()).
@@ -83,7 +83,7 @@ func (u *User) IsInSpace(ctx context.Context, portal PortalKey) bool {
 		return cached
 	}
 	var inSpace bool
-	err := u.qh.GetDB().QueryRowContext(ctx, getIsInSpaceQuery, u.MXID, portal.ChatID, portal.Receiver).Scan(&inSpace)
+	err := u.qh.GetDB().QueryRow(ctx, getIsInSpaceQuery, u.MXID, portal.ChatID, portal.Receiver).Scan(&inSpace)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		zerolog.Ctx(ctx).Err(err).
 			Str("user_id", u.MXID.String()).
