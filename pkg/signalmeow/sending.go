@@ -417,16 +417,15 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 		cli.LastContactRequestTime = new(int64)
 	}
 	currentUnixTime := time.Now().Unix()
-	lastRequestTime := cli.LastContactRequestTime
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send contact sync request").
 		Int64("current_unix_time", currentUnixTime).
-		Int64("last_request_time", *lastRequestTime).
-		Int64("seconds_since_last_request", currentUnixTime-*lastRequestTime).
+		Int64("last_request_time", *cli.LastContactRequestTime).
+		Int64("seconds_since_last_request", currentUnixTime-*cli.LastContactRequestTime).
 		Logger()
 	ctx = log.WithContext(ctx)
 	// If we've requested in the last minute, don't request again
-	if lastRequestTime != nil && currentUnixTime-*lastRequestTime < 60 {
+	if cli.LastContactRequestTime != nil && currentUnixTime-*cli.LastContactRequestTime < 60 {
 		log.Warn().Msg("Not sending contact sync request because we already requested it in the past minute")
 		return nil
 	}
