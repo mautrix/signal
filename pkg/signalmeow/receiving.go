@@ -195,6 +195,9 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 		}
 	}()
 
+	// Start loop to check for and upload more prekeys
+	cli.StartKeyCheckLoop(ctx, types.UUIDKindACI)
+
 	return statusChan, nil
 }
 
