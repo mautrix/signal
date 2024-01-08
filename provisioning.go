@@ -180,7 +180,7 @@ func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, 
 
 func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
-	phoneNum, _ := mux.Vars(r)["phonenum"]
+	phoneNum := mux.Vars(r)["phonenum"]
 
 	log := prov.log.With().
 		Str("action", "resolve_identifier").
@@ -215,7 +215,7 @@ func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Re
 
 func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
-	phoneNum, _ := mux.Vars(r)["phonenum"]
+	phoneNum := mux.Vars(r)["phonenum"]
 
 	log := prov.log.With().
 		Str("action", "start_pm").
