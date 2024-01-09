@@ -777,6 +777,14 @@ func (cli *Client) sendContent(
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
 		}
+	} else if *response.Status == 401 {
+		log.Debug().Msg("Retrying send without sealed sender")
+		// Try to send again (**RECURSIVELY**)
+		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, true)
+		if err != nil {
+			log.Err(err).Msg("2nd try sendMessage error")
+			return sentUnidentified, err
+		}
 	} else if *response.Status != 200 {
 		return sentUnidentified, fmt.Errorf("unexpected status code while sending: %d", *response.Status)
 	}
