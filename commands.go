@@ -286,14 +286,14 @@ var cmdLogin = &commands.FullHandler{
 }
 
 func fnLogin(ce *WrappedCommandEvent) {
-	//if ce.User.Session != nil {
-	//	if ce.User.IsConnected() {
-	//		ce.Reply("You're already logged in")
-	//	} else {
-	//		ce.Reply("You're already logged in. Perhaps you wanted to `reconnect`?")
-	//	}
-	//	return
-	//}
+	if ce.User.IsLoggedIn() {
+		if ce.User.Client.IsConnected() {
+			ce.Reply("You're already logged in")
+		} else {
+			ce.Reply("You're already logged in, but not connected 🤔")
+		}
+		return
+	}
 
 	var qrEventID, msgEventID id.EventID
 	var signalID uuid.UUID
@@ -334,8 +334,6 @@ func fnLogin(ce *WrappedCommandEvent) {
 	if resp.State == signalmeow.StateProvisioningDataReceived {
 		signalID = resp.ProvisioningData.ACI
 		signalPhone = resp.ProvisioningData.Number
-		ce.Reply("Successfully logged in!")
-		ce.Reply("ACI: %v, Phone Number: %v", resp.ProvisioningData.ACI, resp.ProvisioningData.Number)
 	} else {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return
@@ -346,10 +344,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 	if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
 		ce.Reply("Error with prekeys: %v", resp.Err)
 		return
-	}
-	if resp.State == signalmeow.StateProvisioningPreKeysRegistered {
-		ce.Reply("Successfully generated, registered and stored prekeys! 🎉")
-	} else {
+	} else if resp.State != signalmeow.StateProvisioningPreKeysRegistered {
 		ce.Reply("Unexpected state: %v", resp.State)
 		return
 	}
@@ -369,6 +364,7 @@ func fnLogin(ce *WrappedCommandEvent) {
 
 	// Connect to Signal
 	ce.User.Connect()
+	ce.Reply("Successfully logged in as %s (UUID: %s)", ce.User.SignalUsername, ce.User.SignalID)
 }
 
 func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevQR, prevMsg id.EventID) (qr, msg id.EventID) {

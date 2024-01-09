@@ -18,11 +18,9 @@ package signalmeow
 
 import (
 	"context"
-	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	mrand "math/rand"
 	"net/http"
 	"net/url"
@@ -30,6 +28,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
+	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 	"nhooyr.io/websocket"
 
@@ -96,13 +96,13 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 		provisioningCipher := NewProvisioningCipher()
 
-		provisioningUrl, err := startProvisioning(ctx, ws, provisioningCipher)
+		provisioningURL, err := startProvisioning(ctx, ws, provisioningCipher)
 		if err != nil {
 			log.Err(err).Msg("startProvisioning error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
-		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningURL: provisioningUrl, Err: err}
+		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningURL: provisioningURL, Err: err}
 
 		provisioningMessage, err := continueProvisioning(ctx, ws, provisioningCipher)
 		if err != nil {
@@ -112,16 +112,16 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		}
 		ws.Close(websocket.StatusNormalClosure, "")
 
-		aciPublicKey, _ := libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic())
-		aciPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
-		aciIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(aciPublicKey, aciPrivateKey)
-		pniPublicKey, _ := libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic())
-		pniPrivateKey, _ := libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate())
-		pniIdentityKeyPair, _ := libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
+		aciPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic()))
+		aciPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate()))
+		aciIdentityKeyPair := exerrors.Must(libsignalgo.NewIdentityKeyPair(aciPublicKey, aciPrivateKey))
+		pniPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic()))
+		pniPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate()))
+		pniIdentityKeyPair := exerrors.Must(libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey))
 		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
 
 		username := *provisioningMessage.Number
-		password, _ := generateRandomPassword(22)
+		password := random.String(22)
 		code := provisioningMessage.ProvisioningCode
 		registrationId := mrand.Intn(16383) + 1
 		pniRegistrationId := mrand.Intn(16383) + 1
@@ -235,7 +235,6 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			return
 		}
 		err = cli.GenerateAndRegisterPreKeys(ctx, types.UUIDKindPNI)
-
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -254,8 +253,6 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 	log := zerolog.Ctx(ctx).With().Str("action", "start provisioning").Logger()
 	pubKey := provisioningCipher.GetPublicKey()
 
-	provisioningUrl := ""
-
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
@@ -264,33 +261,33 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 	}
 
 	// Ensure the message is a request and has a valid verb and path
-	if *msg.Type == signalpb.WebSocketMessage_REQUEST &&
-		*msg.Request.Verb == http.MethodPut &&
-		*msg.Request.Path == "/v1/address" {
-
-		// Decode provisioning UUID
-		provisioningUuid := &signalpb.ProvisioningUuid{}
-		err = proto.Unmarshal(msg.Request.Body, provisioningUuid)
-		if err != nil {
-			return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
-		}
-
-		// Create provisioning URL
-		bytesKey, _ := pubKey.Serialize()
-		base64Key := base64.StdEncoding.EncodeToString(bytesKey)
-		uuid := url.QueryEscape(*provisioningUuid.Uuid)
-		pubKey := url.QueryEscape(base64Key)
-		provisioningUrl = "sgnl://linkdevice?uuid=" + uuid + "&pub_key=" + pubKey
-
-		// Create and send response
-		response := web.CreateWSResponse(ctx, *msg.Request.Id, 200)
-		err = wspb.Write(ctx, ws, response)
-		if err != nil {
-			log.Err(err).Msg("error writing websocket message")
-			return "", err
-		}
+	if msg.GetType() != signalpb.WebSocketMessage_REQUEST || msg.GetRequest().GetVerb() != http.MethodPut || msg.GetRequest().GetPath() != "/v1/address" {
+		return "", fmt.Errorf("unexpected websocket message: %v", msg)
 	}
-	return provisioningUrl, nil
+
+	var provisioningBody signalpb.ProvisioningUuid
+	err = proto.Unmarshal(msg.GetRequest().GetBody(), &provisioningBody)
+	if err != nil {
+		return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
+	}
+
+	provisioningURL := (&url.URL{
+		Scheme: "sgnl",
+		Host:   "linkdevice",
+		RawQuery: url.Values{
+			"uuid":    []string{provisioningBody.GetUuid()},
+			"pub_key": []string{base64.StdEncoding.EncodeToString(exerrors.Must(pubKey.Serialize()))},
+		}.Encode(),
+	}).String()
+
+	// Create and send response
+	response := web.CreateWSResponse(ctx, msg.GetRequest().GetId(), 200)
+	err = wspb.Write(ctx, ws, response)
+	if err != nil {
+		log.Err(err).Msg("error writing websocket message")
+		return "", err
+	}
+	return provisioningURL, nil
 }
 
 func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher) (*signalpb.ProvisionMessage, error) {
@@ -417,22 +414,4 @@ func confirmDevice(
 	}
 
 	return &deviceResp, nil
-}
-
-func generateRandomPassword(length int) (string, error) {
-	if length < 1 {
-		return "", fmt.Errorf("password length must be at least 1")
-	}
-
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	var password []byte
-	for i := 0; i < length; i++ {
-		index, err := crand.Int(crand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			return "", fmt.Errorf("error generating random index: %v", err)
-		}
-		password = append(password, charset[index.Int64()])
-	}
-
-	return string(password), nil
 }

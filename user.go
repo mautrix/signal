@@ -485,6 +485,9 @@ func (user *User) startupTryConnect(retryCount int) {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
 				user.clearKeysAndDisconnect()
+				if managementRoom := user.GetManagementRoomID(); managementRoom != "" {
+					_, _ = user.bridge.Bot.SendText(ctx, managementRoom, "You've been logged out of Signal")
+				}
 
 			case signalmeow.SignalConnectionEventError:
 				user.log.Debug().Msg("Sending UnknownError BridgeState")
@@ -565,9 +568,11 @@ func (user *User) populateSignalDevice() *signalmeow.Client {
 
 	if user.SignalID == uuid.Nil {
 		return nil
-	} else if user.Client != nil {
-		return user.Client
 	}
+	// TODO clear client on logout properly so that populating can skip creating if it already exists
+	/*else if user.Client != nil {
+		return user.Client
+	}*/
 
 	device, err := user.bridge.MeowStore.DeviceByACI(context.TODO(), user.SignalID)
 	if err != nil {
