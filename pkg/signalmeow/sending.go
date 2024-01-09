@@ -696,15 +696,17 @@ func (cli *Client) sendContent(
 		useUnidentifiedSender = false
 	}
 	var accessKey *libsignalgo.AccessKey
-	profileKey, err := cli.ProfileKeyForSignalID(ctx, recipientUUID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get profile key: %w", err)
-	} else if profileKey == nil {
-		log.Warn().Msg("Profile key not found")
-		useUnidentifiedSender = false
-	} else if accessKey, err = profileKey.DeriveAccessKey(); err != nil {
-		log.Err(err).Msg("Error deriving access key")
-		useUnidentifiedSender = false
+	if useUnidentifiedSender {
+		profileKey, err := cli.ProfileKeyForSignalID(ctx, recipientUUID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get profile key: %w", err)
+		} else if profileKey == nil {
+			log.Warn().Msg("Profile key not found")
+			useUnidentifiedSender = false
+		} else if accessKey, err = profileKey.DeriveAccessKey(); err != nil {
+			log.Err(err).Msg("Error deriving access key")
+			useUnidentifiedSender = false
+		}
 	}
 
 	var messages []MyMessage
