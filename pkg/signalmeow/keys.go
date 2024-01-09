@@ -100,7 +100,7 @@ func (cli *Client) RegisterAllPreKeys(ctx context.Context, uuidKind types.UUIDKi
 	}
 	preKeyUsername = fmt.Sprintf("%s.%d", preKeyUsername, cli.Store.DeviceID)
 	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
-	log.Debug().Int("num_prekeys", len(preKeys)).Int("num_kyber_prekeys", len(kyberPreKeys)).Interface("generated_prekeys", generatedPreKeys).Msg("Registering prekeys")
+	log.Debug().Int("num_prekeys", len(preKeys)).Int("num_kyber_prekeys", len(kyberPreKeys)).Msg("Registering prekeys")
 	err = RegisterPreKeys(ctx, &generatedPreKeys, uuidKind, preKeyUsername, cli.Store.Password)
 	if err != nil {
 		return fmt.Errorf("failed to register prekeys: %w", err)
