@@ -431,7 +431,7 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 	}
 
 	groupRequest := syncMessageForContactRequest()
-	_, err := cli.sendContent(ctx, cli.Store.ACI, uint64(currentUnixTime), groupRequest, 0)
+	_, err := cli.sendContent(ctx, cli.Store.ACI, uint64(currentUnixTime), groupRequest, 0, true)
 	if err != nil {
 		log.Err(err).Msg("Failed to send contact sync request message to myself")
 		return err
@@ -543,7 +543,7 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		}
 		log := log.With().Stringer("member", member.UserID).Logger()
 		ctx := log.WithContext(ctx)
-		sentUnidentified, err := cli.sendContent(ctx, member.UserID, messageTimestamp, content, 0)
+		sentUnidentified, err := cli.sendContent(ctx, member.UserID, messageTimestamp, content, 0, true)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
 				RecipientUUID: member.UserID,
@@ -567,7 +567,7 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		} else if content.GetEditMessage() != nil {
 			syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
 		}
-		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTimestamp, syncContent, 0)
+		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTimestamp, syncContent, 0, true)
 		if selfSendErr != nil {
 			log.Err(selfSendErr).Msg("Failed to send sync message to myself")
 		}
@@ -596,7 +596,7 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.RecipientUUID)
 		}
 		if syncContent != nil {
-			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTS, syncContent, 0)
+			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTS, syncContent, 0, true)
 			if selfSendErr != nil {
 				zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 			} else {
@@ -632,7 +632,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, conte
 	}
 
 	// Send to the recipient
-	sentUnidentified, err := cli.sendContent(ctx, recipientID, messageTimestamp, content, 0)
+	sentUnidentified, err := cli.sendContent(ctx, recipientID, messageTimestamp, content, 0, true)
 	if err != nil {
 		return SendMessageResult{
 			WasSuccessful: false,
@@ -664,7 +664,8 @@ func (cli *Client) sendContent(
 	recipientUUID uuid.UUID,
 	messageTimestamp uint64,
 	content *signalpb.Content,
-	retryCount int, // For ending recursive retries
+	retryCount int,
+	useUnidentifiedSender bool,
 ) (sentUnidentified bool, err error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send content").
@@ -690,34 +691,24 @@ func (cli *Client) sendContent(
 		return false, fmt.Errorf("too many retries")
 	}
 
-	useUnidentifiedSender := true
 	// Don't use unauthed websocket to send a payload to my own other devices
 	if recipientUUID == cli.Store.ACI {
 		useUnidentifiedSender = false
 	}
-	profileKey, err := cli.ProfileKeyForSignalID(ctx, recipientUUID)
-	if err != nil || profileKey == nil {
-		log.Err(err).Msg("Error getting profile key")
-		useUnidentifiedSender = false
-		// Try to self heal by requesting contact sync, though this is slow and not guaranteed to help
-		cli.SendContactSyncRequest(ctx)
-	}
 	var accessKey *libsignalgo.AccessKey
-	if profileKey != nil {
-		accessKey, err = profileKey.DeriveAccessKey()
+	if useUnidentifiedSender {
+		profileKey, err := cli.ProfileKeyForSignalID(ctx, recipientUUID)
 		if err != nil {
+			return false, fmt.Errorf("failed to get profile key: %w", err)
+		} else if profileKey == nil {
+			log.Warn().Msg("Profile key not found")
+			useUnidentifiedSender = false
+		} else if accessKey, err = profileKey.DeriveAccessKey(); err != nil {
 			log.Err(err).Msg("Error deriving access key")
 			useUnidentifiedSender = false
 		}
 	}
-	// TODO: JUST FOR DEBUGGING
-	//if content.DataMessage != nil {
-	//	if *content.DataMessage.Body == "UNSEAL" {
-	//		useUnidentifiedSender = false
-	//	}
-	//}
 
-	// Encrypt messages
 	var messages []MyMessage
 	messages, err = cli.buildMessagesToSend(ctx, recipientUUID, content, useUnidentifiedSender)
 	if err != nil {
@@ -757,6 +748,11 @@ func (cli *Client) sendContent(
 		Uint32("response_status", *response.Status).
 		Logger()
 	ctx = log.WithContext(ctx)
+	if json.Valid(response.GetBody()) {
+		log.Debug().RawJSON("response_body", response.GetBody()).Msg("DEBUG: message send response data")
+	} else {
+		log.Debug().Bytes("response_body", response.GetBody()).Msg("DEBUG: message send response data")
+	}
 	log.Trace().Msg("Received a response to a message send")
 
 	retryableStatuses := []uint32{409, 410, 428, 500, 503}
@@ -783,7 +779,15 @@ func (cli *Client) sendContent(
 			return false, err
 		}
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1)
+		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, sentUnidentified)
+		if err != nil {
+			log.Err(err).Msg("2nd try sendMessage error")
+			return sentUnidentified, err
+		}
+	} else if *response.Status == 401 && useUnidentifiedSender {
+		log.Debug().Msg("Retrying send without sealed sender")
+		// Try to send again (**RECURSIVELY**)
+		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, false)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
