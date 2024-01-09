@@ -785,7 +785,7 @@ func (cli *Client) sendContent(
 	} else if *response.Status == 401 {
 		log.Debug().Msg("Retrying send without sealed sender")
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, true)
+		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, false)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
