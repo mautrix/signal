@@ -746,6 +746,11 @@ func (cli *Client) sendContent(
 		Uint32("response_status", *response.Status).
 		Logger()
 	ctx = log.WithContext(ctx)
+	if json.Valid(response.GetBody()) {
+		log.Debug().RawJSON("response_body", response.GetBody()).Msg("DEBUG: message send response data")
+	} else {
+		log.Debug().Bytes("response_body", response.GetBody()).Msg("DEBUG: message send response data")
+	}
 	log.Trace().Msg("Received a response to a message send")
 
 	retryableStatuses := []uint32{409, 410, 428, 500, 503}
