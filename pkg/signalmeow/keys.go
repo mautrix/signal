@@ -34,6 +34,8 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
+const PREKEY_BATCH_SIZE = 100
+
 type GeneratedPreKeys struct {
 	PreKeys      []*libsignalgo.PreKeyRecord
 	KyberPreKeys []*libsignalgo.KyberPreKeyRecord
@@ -41,16 +43,17 @@ type GeneratedPreKeys struct {
 }
 
 func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind types.UUIDKind) error {
-	preKeys, err := cli.GenerateAndSaveNextPreKeyBatch(ctx, uuidKind)
+	_, err := cli.GenerateAndSaveNextPreKeyBatch(ctx, uuidKind)
 	if err != nil {
 		return fmt.Errorf("failed to generate and save next prekey batch: %w", err)
 	}
-	kyberPreKeys, err := cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, uuidKind)
+	_, err = cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, uuidKind)
 	if err != nil {
 		return fmt.Errorf("failed to generate and save next kyber prekey batch: %w", err)
 	}
 
-	err = cli.RegisterPreKeyBatches(ctx, preKeys, kyberPreKeys, uuidKind)
+	// We need to upload all currently valid prekeys, not just the ones we just generated
+	err = cli.RegisterAllPreKeys(ctx, uuidKind)
 	if err != nil {
 		return fmt.Errorf("failed to register prekey batches: %w", err)
 	}
@@ -58,12 +61,22 @@ func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, uuidKind type
 	return err
 }
 
-func (cli *Client) RegisterPreKeyBatches(ctx context.Context, preKeys []*libsignalgo.PreKeyRecord, kyberPreKeys []*libsignalgo.KyberPreKeyRecord, uuidKind types.UUIDKind) error {
+func (cli *Client) RegisterAllPreKeys(ctx context.Context, uuidKind types.UUIDKind) error {
 	var identityKeyPair *libsignalgo.IdentityKeyPair
 	if uuidKind == types.UUIDKindPNI {
 		identityKeyPair = cli.Store.PNIIdentityKeyPair
 	} else {
 		identityKeyPair = cli.Store.ACIIdentityKeyPair
+	}
+
+	// Get all prekeys and kyber prekeys from the database
+	preKeys, err := cli.Store.PreKeyStoreExtras.AllPreKeys(ctx, uuidKind)
+	if err != nil {
+		return fmt.Errorf("failed to get all prekeys: %w", err)
+	}
+	kyberPreKeys, err := cli.Store.PreKeyStoreExtras.AllNormalKyberPreKeys(ctx, uuidKind)
+	if err != nil {
+		return fmt.Errorf("failed to get all kyber prekeys: %w", err)
 	}
 
 	// We need to have some keys to upload
@@ -75,6 +88,7 @@ func (cli *Client) RegisterPreKeyBatches(ctx context.Context, preKeys []*libsign
 	if err != nil {
 		return fmt.Errorf("failed to serialize identity key: %w", err)
 	}
+
 	generatedPreKeys := GeneratedPreKeys{
 		PreKeys:      preKeys,
 		KyberPreKeys: kyberPreKeys,
@@ -85,6 +99,8 @@ func (cli *Client) RegisterPreKeyBatches(ctx context.Context, preKeys []*libsign
 		preKeyUsername = cli.Store.ACI.String()
 	}
 	preKeyUsername = fmt.Sprintf("%s.%d", preKeyUsername, cli.Store.DeviceID)
+	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
+	log.Debug().Int("num_prekeys", len(preKeys)).Int("num_kyber_prekeys", len(kyberPreKeys)).Interface("generated_prekeys", generatedPreKeys).Msg("Registering prekeys")
 	err = RegisterPreKeys(ctx, &generatedPreKeys, uuidKind, preKeyUsername, cli.Store.Password)
 	if err != nil {
 		return fmt.Errorf("failed to register prekeys: %w", err)
@@ -92,6 +108,8 @@ func (cli *Client) RegisterPreKeyBatches(ctx context.Context, preKeys []*libsign
 
 	// Mark prekeys as registered
 	// (kyber prekeys don't have "mark as uploaded" we just assume they always are)
+	// TODO: we don't need to mark prekeys as uploaded, since we just upload all unused prekeys each time.
+	// So we can drop this column and remove these methods
 	lastPreKeyID, err := preKeys[len(preKeys)-1].GetID()
 	if err != nil {
 		return fmt.Errorf("failed to get last prekey ID: %w", err)
@@ -109,7 +127,7 @@ func (cli *Client) GenerateAndSaveNextPreKeyBatch(ctx context.Context, uuidKind 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get next prekey ID: %w", err)
 	}
-	preKeys := GeneratePreKeys(nextPreKeyID, 100, uuidKind)
+	preKeys := GeneratePreKeys(nextPreKeyID, PREKEY_BATCH_SIZE, uuidKind)
 	for _, preKey := range preKeys {
 		err = cli.Store.PreKeyStoreExtras.SavePreKey(ctx, uuidKind, preKey, false)
 		if err != nil {
@@ -130,7 +148,7 @@ func (cli *Client) GenerateAndSaveNextKyberPreKeyBatch(ctx context.Context, uuid
 	if err != nil {
 		return nil, fmt.Errorf("failed to get next kyber prekey ID: %w", err)
 	}
-	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyID, 100, uuidKind, identityKeyPair)
+	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyID, PREKEY_BATCH_SIZE, uuidKind, identityKeyPair)
 	for _, kyberPreKey := range kyberPreKeys {
 		err = cli.Store.PreKeyStoreExtras.SaveKyberPreKey(ctx, uuidKind, kyberPreKey, false)
 		if err != nil {
@@ -468,7 +486,7 @@ func (cli *Client) CheckAndUploadNewPreKeys(ctx context.Context, uuidKind types.
 	var preKeys []*libsignalgo.PreKeyRecord
 	var kyberPreKeys []*libsignalgo.KyberPreKeyRecord
 	if preKeyCount < 10 {
-		log.Info().Int("preKeyCount", preKeyCount).Msg("Generating and uploading new prekeys")
+		log.Info().Int("preKeyCount", preKeyCount).Msg("Generating and saving new prekeys")
 		preKeys, err = cli.GenerateAndSaveNextPreKeyBatch(ctx, uuidKind)
 		if err != nil {
 			log.Err(err).Msg("Error generating and saving next prekey batch")
@@ -476,15 +494,23 @@ func (cli *Client) CheckAndUploadNewPreKeys(ctx context.Context, uuidKind types.
 		}
 	}
 	if kyberPreKeyCount < 10 {
-		log.Info().Int("kyberPreKeyCount", kyberPreKeyCount).Msg("Generating and uploading new kyber prekeys")
+		log.Info().Int("kyberPreKeyCount", kyberPreKeyCount).Msg("Generating and saving new kyber prekeys")
 		kyberPreKeys, err = cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, uuidKind)
 		if err != nil {
 			log.Err(err).Msg("Error generating and saving next kyber prekey batch")
 			return err
 		}
 	}
-	cli.RegisterPreKeyBatches(ctx, preKeys, kyberPreKeys, uuidKind)
-	return err
+	if len(preKeys) == 0 && len(kyberPreKeys) == 0 {
+		log.Debug().Msg("No new prekeys to upload")
+		return nil
+	}
+	err = cli.RegisterAllPreKeys(ctx, uuidKind)
+	if err != nil {
+		log.Err(err).Msg("Error registering prekey batches")
+		return err
+	}
+	return nil
 }
 
 func (cli *Client) StartKeyCheckLoop(ctx context.Context, uuidKind types.UUIDKind) {
@@ -492,11 +518,11 @@ func (cli *Client) StartKeyCheckLoop(ctx context.Context, uuidKind types.UUIDKin
 	go func() {
 		// Do the initial check within an hour of starting the loop
 		window_start := 0
-		window_size := 60
+		window_size := 1
 		for {
 			random_minutes_in_window := rand.Intn(window_size) + window_start
 			check_time := time.Duration(random_minutes_in_window) * time.Minute
-			log.Debug().Int("check_time", int(check_time.Minutes())).Msg("Waiting to check for new prekeys")
+			log.Debug().Dur("check_time", check_time).Msg("Waiting to check for new prekeys")
 
 			select {
 			case <-ctx.Done():
