@@ -3,8 +3,12 @@
 * Rewrote bridge in Go.
   * The bridge doesn't use signald anymore.
   * All users will have to re-link the bridge.
-  * Primary device mode is no longer supported.
+  * Primary device mode is no longer supported, signal-cli is recommended if
+    you don't want to use the official Signal mobile apps.
+  * Some old features are not yet supported (e.g. membership action bridging,
+    join rules and getting group invite links).
 * Renamed main branch from `master` to `main`.
+* Added support for edits and message formatting.
 
 # v0.4.3 (2023-05-17)
 
