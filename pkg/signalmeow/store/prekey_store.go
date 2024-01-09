@@ -51,6 +51,8 @@ type PreKeyStoreExtras interface {
 	MarkPreKeysAsUploaded(ctx context.Context, uuidKind types.UUIDKind, upToID uint) error
 	MarkSignedPreKeysAsUploaded(ctx context.Context, uuidKind types.UUIDKind, upToID uint) error
 	IsKyberPreKeyLastResort(ctx context.Context, uuidKind types.UUIDKind, preKeyID int) (bool, error)
+	AllPreKeys(ctx context.Context, uuidKind types.UUIDKind) ([]*libsignalgo.PreKeyRecord, error)
+	AllNormalKyberPreKeys(ctx context.Context, uuidKind types.UUIDKind) ([]*libsignalgo.KyberPreKeyRecord, error)
 	DeleteAllPreKeys(ctx context.Context) error
 }
 
@@ -269,4 +271,35 @@ func (s *SQLStore) DeleteAllPreKeys(ctx context.Context) error {
 		_, err = s.db.Exec(ctx, "DELETE FROM signalmeow_kyber_pre_keys WHERE aci_uuid=$1", s.ACI)
 		return err
 	})
+}
+
+func (s *SQLStore) AllPreKeys(ctx context.Context, uuidKind types.UUIDKind) ([]*libsignalgo.PreKeyRecord, error) {
+	queryString := "SELECT key_id, key_pair FROM signalmeow_pre_keys WHERE aci_uuid=$1 AND uuid_kind=$2 AND is_signed=$3"
+	rows, err := s.db.Query(ctx, queryString, s.ACI, uuidKind, false)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return dbutil.NewRowIter(rows, scanPreKey).AsList()
+}
+
+func (s *SQLStore) AllNormalKyberPreKeys(ctx context.Context, uuidKind types.UUIDKind) ([]*libsignalgo.KyberPreKeyRecord, error) {
+	queryString := "SELECT key_id, key_pair FROM signalmeow_kyber_pre_keys WHERE aci_uuid=$1 AND uuid_kind=$2 AND is_last_resort=false"
+	rows, err := s.db.Query(ctx, queryString, s.ACI, uuidKind)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	return dbutil.NewRowIter(rows, func(row dbutil.Scannable) (*libsignalgo.KyberPreKeyRecord, error) {
+		var id uint
+		var record []byte
+		err := row.Scan(&id, &record)
+		if err != nil {
+			return nil, err
+		}
+		return libsignalgo.DeserializeKyberPreKeyRecord(record)
+	}).AsList()
 }
