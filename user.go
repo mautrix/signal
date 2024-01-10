@@ -518,7 +518,6 @@ func (br *SignalBridge) StartUsers() {
 	br.ZLog.Debug().Msg("Starting users")
 
 	usersWithToken := br.GetAllLoggedInUsers()
-	numUsersStarting := 0
 	for _, u := range usersWithToken {
 		device := u.populateSignalDevice()
 		if device == nil || !device.IsLoggedIn() {
@@ -527,9 +526,8 @@ func (br *SignalBridge) StartUsers() {
 			continue
 		}
 		go u.Connect()
-		numUsersStarting++
 	}
-	if numUsersStarting == 0 {
+	if len(usersWithToken) == 0 {
 		br.SendGlobalBridgeState(status.BridgeState{StateEvent: status.StateUnconfigured}.Fill(nil))
 	}
 
