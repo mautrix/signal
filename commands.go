@@ -60,6 +60,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdDeletePortal,
 		cmdDeleteAllPortals,
 		cmdCleanupLostPortals,
+		cmdTestCDSI,
 	)
 }
 
@@ -73,6 +74,23 @@ func wrapCommand(handler func(*WrappedCommandEvent)) func(*commands.Event) {
 		br := ce.Bridge.Child.(*SignalBridge)
 		handler(&WrappedCommandEvent{ce, br, user, portal})
 	}
+}
+
+// TODO remove this
+var cmdTestCDSI = &commands.FullHandler{
+	Func: wrapCommand(func(ce *WrappedCommandEvent) {
+		resp, err := ce.User.Client.LookupPhone(ce.Ctx, ce.Args...)
+		if err != nil {
+			ce.Reply("It broke 😿 %v", err)
+		} else {
+			var out strings.Builder
+			for phone, result := range resp {
+				_, _ = fmt.Fprintf(&out, "%s: %+v\n", phone, result)
+			}
+			ce.Reply(strings.TrimSpace(out.String()))
+		}
+	}),
+	Name: "cdsi-test-lookup",
 }
 
 var cmdSetRelay = &commands.FullHandler{
