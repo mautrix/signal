@@ -47,6 +47,10 @@ type Client struct {
 	WSCancel   context.CancelFunc
 
 	EventHandler func(events.SignalEvent)
+
+	cdAuthLock sync.Mutex
+	cdAuth     *contactDiscoveryAuth
+	cdToken    []byte
 }
 
 func (cli *Client) handleEvent(evt events.SignalEvent) {

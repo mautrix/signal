@@ -58,7 +58,7 @@ var signalTransport = &http.Transport{
 		RootCAs: x509.NewCertPool(),
 	},
 }
-var signalHTTPClient = &http.Client{
+var SignalHTTPClient = &http.Client{
 	Transport: signalTransport,
 }
 
@@ -153,7 +153,7 @@ func SendHTTPRequest(ctx context.Context, method string, path string, opt *HTTPR
 	httpReqCounter++
 	log = log.With().Int("request_number", httpReqCounter).Logger()
 	log.Trace().Msg("Sending HTTP request")
-	resp, err := signalHTTPClient.Do(req)
+	resp, err := SignalHTTPClient.Do(req)
 	if err != nil {
 		log.Err(err).Msg("Error sending request")
 		return nil, err
@@ -233,7 +233,7 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTP
 		Logger()
 
 	log.Debug().Msg("Sending Attachment HTTP request")
-	resp, err := signalHTTPClient.Do(req)
+	resp, err := SignalHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

@@ -566,7 +566,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 
 func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
-		HTTPClient: signalHTTPClient,
+		HTTPClient: SignalHTTPClient,
 	}
 	urlStr := "wss://" + APIHostname + path
 	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
