@@ -25,8 +25,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -67,30 +65,30 @@ type ContactDiscoveryClient struct {
 	stateLock sync.Mutex
 }
 
-type ContactDiscoveryResponse map[string]CDSResponseEntry
+type ContactDiscoveryResponse map[uint64]CDSResponseEntry
 
 type CDSResponseEntry struct {
 	ACI uuid.UUID
 	PNI uuid.UUID
 }
 
-func (cli *Client) LookupPhone(ctx context.Context, e164s ...string) (ContactDiscoveryResponse, error) {
+func (cli *Client) LookupPhone(ctx context.Context, e164s ...uint64) (ContactDiscoveryResponse, error) {
 	if len(e164s) == 0 {
 		return nil, nil
 	}
 	requestData := make([]byte, len(e164s)*8)
 	for i, e164 := range e164s {
-		e164Int, err := strconv.ParseInt(strings.TrimPrefix(e164, "+"), 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid E164 number %s: %w", e164, err)
-		}
-		binary.BigEndian.PutUint64(requestData[i*8:(i+1)*8], uint64(e164Int))
+		binary.BigEndian.PutUint64(requestData[i*8:(i+1)*8], e164)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 	resp, token, err := cli.doContactDiscovery(ctx, &signalpb.CDSClientRequest{
-		Token:    cli.cdToken,
+		// TODO figure out if tokens are useful
+		//      (it's meant for old_e164s)
+		//Token:    cli.cdToken,
 		NewE164S: requestData,
+
+		ReturnAcisWithoutUaks: proto.Bool(true),
 	})
 	if token != nil {
 		cli.cdToken = token
@@ -257,7 +255,10 @@ func (cdc *ContactDiscoveryClient) handleResponse(ctx context.Context, msg []byt
 			e164 := binary.BigEndian.Uint64(data[:8])
 			pni := uuid.UUID(data[8:24])
 			aci := uuid.UUID(data[24:40])
-			resp[fmt.Sprintf("+%d", e164)] = CDSResponseEntry{PNI: pni, ACI: aci}
+			// If some entries were not found, the server will return all zeros
+			if e164 != 0 {
+				resp[e164] = CDSResponseEntry{PNI: pni, ACI: aci}
+			}
 		}
 		cdc.Response = resp
 	}

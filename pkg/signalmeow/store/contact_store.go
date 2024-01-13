@@ -33,6 +33,7 @@ type ContactStore interface {
 	LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error)
 	StoreContact(ctx context.Context, contact types.Contact) error
 	AllContacts(ctx context.Context) ([]*types.Contact, error)
+	UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error
 }
 
 var _ ContactStore = (*SQLStore)(nil)
@@ -80,6 +81,24 @@ const (
 			profile_about_emoji = excluded.profile_about_emoji,
 			profile_avatar_path = excluded.profile_avatar_path,
 			profile_avatar_hash = excluded.profile_avatar_hash
+	`
+	upsertContactPhoneQuery = `
+		INSERT INTO signalmeow_contacts (
+			our_aci_uuid,
+			aci_uuid,
+			e164_number,
+			contact_name,
+			contact_avatar_hash,
+			profile_key,
+			profile_name,
+			profile_about,
+			profile_about_emoji,
+			profile_avatar_path,
+			profile_avatar_hash
+		)
+		VALUES ($1, $2, $3, '', '', NULL, '', '', '', '', '')
+		ON CONFLICT (our_aci_uuid, aci_uuid) DO UPDATE
+			SET e164_number = excluded.e164_number
 	`
 )
 
@@ -141,6 +160,13 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 		contact.ProfileAboutEmoji,
 		contact.ProfileAvatarPath,
 		contact.ProfileAvatarHash,
+	)
+	return err
+}
+
+func (s *SQLStore) UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error {
+	_, err := s.db.Exec(
+		ctx, upsertContactPhoneQuery, s.ACI, theirUUID, newE164,
 	)
 	return err
 }

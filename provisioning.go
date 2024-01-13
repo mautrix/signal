@@ -146,29 +146,40 @@ type ResolveIdentifierResponseOtherUser struct {
 	AvatarURL   string `json:"avatar_url"`
 }
 
-func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, phoneNum string) (int, *ResolveIdentifierResponse, error) {
-	if !strings.HasPrefix(phoneNum, "+") {
-		phoneNum = "+" + phoneNum
-	}
+func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, inputPhone string) (int, *ResolveIdentifierResponse, error) {
 	if user.Client == nil {
 		return http.StatusUnauthorized, nil, errors.New("not currently connected to Signal")
 	}
-	contact, err := user.Client.ContactByE164(ctx, phoneNum)
+	e164Number, err := strconv.ParseUint(numberCleaner.Replace(inputPhone), 10, 64)
 	if err != nil {
-		return http.StatusInternalServerError, nil, fmt.Errorf("Error looking up number in local contact list: %w", err)
+		return http.StatusBadRequest, nil, fmt.Errorf("error parsing phone number: %w", err)
 	}
-	if contact == nil {
-		return http.StatusNotFound, nil, fmt.Errorf("The bridge does not have the Signal ID for the number %s", phoneNum)
+	e164String := fmt.Sprintf("+%d", e164Number)
+	var targetUUID uuid.UUID
+	if contact, err := user.Client.ContactByE164(ctx, e164String); err != nil {
+		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number in local contact list: %w", err)
+	} else if contact != nil {
+		targetUUID = contact.UUID
+	} else if resp, err := user.Client.LookupPhone(ctx, e164Number); err != nil {
+		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number on server: %w", err)
+	} else if resp[e164Number].ACI != uuid.Nil {
+		targetUUID = resp[e164Number].ACI
+		err = user.Client.Store.ContactStore.UpdatePhone(ctx, targetUUID, e164String)
+		if err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to update phone number in user's contact store")
+		}
+	} else {
+		return http.StatusNotFound, nil, errors.New("user not found on Signal")
 	}
 
-	portal := user.GetPortalByChatID(contact.UUID.String())
-	puppet := prov.bridge.GetPuppetBySignalID(contact.UUID)
+	portal := user.GetPortalByChatID(targetUUID.String())
+	puppet := prov.bridge.GetPuppetBySignalID(targetUUID)
 
 	return http.StatusOK, &ResolveIdentifierResponse{
 		RoomID: portal.MXID,
 		ChatID: ResolveIdentifierResponseChatID{
-			UUID:   contact.UUID.String(),
-			Number: phoneNum,
+			UUID:   targetUUID.String(),
+			Number: e164String,
 		},
 		OtherUser: ResolveIdentifierResponseOtherUser{
 			MXID:        puppet.MXID.String(),

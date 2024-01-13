@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -53,6 +54,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdLogin,
 		cmdSetDeviceName,
 		cmdPM,
+		cmdResolvePhone,
 		cmdSyncSpace,
 		cmdDeleteSession,
 		cmdSetRelay,
@@ -60,7 +62,6 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdDeletePortal,
 		cmdDeleteAllPortals,
 		cmdCleanupLostPortals,
-		cmdTestCDSI,
 	)
 }
 
@@ -74,23 +75,6 @@ func wrapCommand(handler func(*WrappedCommandEvent)) func(*commands.Event) {
 		br := ce.Bridge.Child.(*SignalBridge)
 		handler(&WrappedCommandEvent{ce, br, user, portal})
 	}
-}
-
-// TODO remove this
-var cmdTestCDSI = &commands.FullHandler{
-	Func: wrapCommand(func(ce *WrappedCommandEvent) {
-		resp, err := ce.User.Client.LookupPhone(ce.Ctx, ce.Args...)
-		if err != nil {
-			ce.Reply("It broke 😿 %v", err)
-		} else {
-			var out strings.Builder
-			for phone, result := range resp {
-				_, _ = fmt.Fprintf(&out, "%s: %+v\n", phone, result)
-			}
-			ce.Reply(strings.TrimSpace(out.String()))
-		}
-	}),
-	Name: "cdsi-test-lookup",
 }
 
 var cmdSetRelay = &commands.FullHandler{
@@ -214,40 +198,105 @@ var cmdPM = &commands.FullHandler{
 	RequiresLogin: true,
 }
 
+var numberCleaner = strings.NewReplacer("-", "", " ", "", "(", "", ")", "", "+", "")
+
 func fnPM(ce *WrappedCommandEvent) {
 	if len(ce.Args) == 0 {
 		ce.Reply("**Usage:** `pm <international phone number>`")
 		return
 	}
+	number, err := strconv.ParseUint(numberCleaner.Replace(strings.Join(ce.Args, "")), 10, 64)
+	if err != nil {
+		ce.Reply("Failed to parse number")
+		return
+	}
 
 	user := ce.User
-	number := strings.Join(ce.Args, "")
-	contact, err := user.Client.ContactByE164(ce.Ctx, number)
-	if err != nil {
+	var targetUUID uuid.UUID
+
+	if contact, err := user.Client.ContactByE164(ce.Ctx, fmt.Sprintf("+%d", number)); err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return
-	}
-	if contact == nil {
-		ce.Reply("The bridge does not have the Signal ID for the number %s", number)
+	} else if contact != nil {
+		targetUUID = contact.UUID
+	} else if resp, err := user.Client.LookupPhone(ce.Ctx, number); err != nil {
+		ce.ZLog.Err(err).Uint64("e164", number).Msg("Failed to lookup number on server")
+		ce.Reply("Error looking up number on server: %v", err)
 		return
+	} else if resp[number].ACI == uuid.Nil {
+		if resp[number].PNI == uuid.Nil {
+			ce.Reply("+%d doesn't seem to be on Signal", number)
+		} else {
+			ce.Reply("Server only returned PNI (%s) for +%d, but the bridge doesn't know what to do with it", resp[number].PNI, number)
+		}
+		return
+	} else {
+		targetUUID = resp[number].ACI
+		err = user.Client.Store.ContactStore.UpdatePhone(ce.Ctx, targetUUID, fmt.Sprintf("+%d", number))
+		if err != nil {
+			ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
+		}
 	}
+	ce.ZLog.Debug().
+		Uint64("e164", number).
+		Stringer("uuid", targetUUID).
+		Msg("Found DM target user")
 
-	portal := user.GetPortalByChatID(contact.UUID.String())
+	portal := user.GetPortalByChatID(targetUUID.String())
 	if portal == nil {
-		ce.Reply("Error creating portal to %s", number)
-		ce.Log.Errorln("Error creating portal to", number)
-		return
+		ce.Reply("Couldn't get portal with %s/+%d", targetUUID, number)
+	} else if portal.MXID != "" {
+		ce.Reply("You already have a portal with +%d at [%s](%s)", number, portal.MXID, portal.MXID.URI(portal.bridge.Config.Homeserver.Domain).MatrixToURL())
+	} else if err = portal.CreateMatrixRoom(ce.Ctx, user, 0); err != nil {
+		ce.ZLog.Err(err).Msg("Failed to create portal room")
+		ce.Reply("Error creating Matrix room for portal to +%d", number)
+	} else {
+		ce.Reply("Created portal room [%s](%s) with +%d and invited you to it.", portal.MXID, portal.MXID.URI(portal.bridge.Config.Homeserver.Domain).MatrixToURL(), number)
 	}
-	if portal.MXID != "" {
-		ce.Reply("You already have a portal to %s at %s", number, portal.MXID)
-		return
+}
+
+var cmdResolvePhone = &commands.FullHandler{
+	Func: wrapCommand(fnResolvePhone),
+	Name: "resolve-phone",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionCreatingPortals,
+		Description: "Look up phone numbers on the Signal servers.",
+		Args:        "<numbers...>",
+	},
+	RequiresLogin: true,
+}
+
+func fnResolvePhone(ce *WrappedCommandEvent) {
+	numbers := make([]uint64, len(ce.Args))
+	for i, arg := range ce.Args {
+		var err error
+		numbers[i], err = strconv.ParseUint(numberCleaner.Replace(arg), 10, 64)
+		if err != nil {
+			ce.Reply("Failed to parse number %s: %v", arg, err)
+			return
+		}
 	}
-	if err := portal.CreateMatrixRoom(ce.Ctx, user, 0); err != nil {
-		ce.Reply("Error creating Matrix room for portal to %s", number)
-		ce.Log.Errorln("Error creating Matrix room for portal to %s: %s", number, err)
-		return
+	resp, err := ce.User.Client.LookupPhone(ce.Ctx, numbers...)
+	if err != nil {
+		ce.Reply("Failed to look up: %v", err)
+	} else {
+		var out strings.Builder
+		for _, phone := range numbers {
+			result, found := resp[phone]
+			if found {
+				_, _ = fmt.Fprintf(&out, "+%d: %s / %s\n", phone, result.ACI, result.PNI)
+				if result.ACI != uuid.Nil {
+					err = ce.User.Client.Store.ContactStore.UpdatePhone(ce.Ctx, result.ACI, fmt.Sprintf("+%d", phone))
+					if err != nil {
+						ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
+					}
+				}
+			} else {
+				_, _ = fmt.Fprintf(&out, "+%d: not found\n", phone)
+			}
+		}
+		ce.Reply(strings.TrimSpace(out.String()))
 	}
-	ce.Reply("Created portal room with and invited you to it.")
 }
 
 var cmdSyncSpace = &commands.FullHandler{
