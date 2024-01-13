@@ -245,9 +245,19 @@ func fnPM(ce *WrappedCommandEvent) {
 	portal := user.GetPortalByChatID(targetUUID.String())
 	if portal == nil {
 		ce.Reply("Couldn't get portal with %s/+%d", targetUUID, number)
+		return
 	} else if portal.MXID != "" {
-		ce.Reply("You already have a portal with +%d at [%s](%s)", number, portal.MXID, portal.MXID.URI(portal.bridge.Config.Homeserver.Domain).MatrixToURL())
-	} else if err = portal.CreateMatrixRoom(ce.Ctx, user, 0); err != nil {
+		ok := portal.ensureUserInvited(ce.Ctx, ce.User)
+		if ok {
+			ce.Reply("You already have a portal with +%d at [%s](%s)", number, portal.MXID, portal.MXID.URI(portal.bridge.Config.Homeserver.Domain).MatrixToURL())
+			return
+		}
+		ce.ZLog.Warn().Stringer("existing_room_id", portal.MXID).Msg("Ensuring user is invited to existing room failed, creating new room")
+		portal.Cleanup(ce.Ctx, false)
+		portal.MXID = ""
+	}
+
+	if err = portal.CreateMatrixRoom(ce.Ctx, user, 0); err != nil {
 		ce.ZLog.Err(err).Msg("Failed to create portal room")
 		ce.Reply("Error creating Matrix room for portal to +%d", number)
 	} else {
