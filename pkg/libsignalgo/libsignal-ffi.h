@@ -168,12 +168,17 @@ typedef enum {
   SignalErrorCodeUsernameCannotBeEmpty = 120,
   SignalErrorCodeUsernameCannotStartWithDigit = 121,
   SignalErrorCodeUsernameMissingSeparator = 122,
-  SignalErrorCodeUsernameBadDiscriminator = 123,
-  SignalErrorCodeUsernameBadCharacter = 124,
+  SignalErrorCodeUsernameBadDiscriminatorCharacter = 123,
+  SignalErrorCodeUsernameBadNicknameCharacter = 124,
   SignalErrorCodeUsernameTooShort = 125,
   SignalErrorCodeUsernameTooLong = 126,
   SignalErrorCodeUsernameLinkInvalidEntropyDataLength = 127,
   SignalErrorCodeUsernameLinkInvalid = 128,
+  SignalErrorCodeUsernameDiscriminatorCannotBeEmpty = 140,
+  SignalErrorCodeUsernameDiscriminatorCannotBeZero = 141,
+  SignalErrorCodeUsernameDiscriminatorCannotBeSingleDigit = 142,
+  SignalErrorCodeUsernameDiscriminatorCannotHaveLeadingZeros = 143,
+  SignalErrorCodeUsernameDiscriminatorTooLarge = 144,
   SignalErrorCodeIoError = 130,
   SignalErrorCodeInvalidMediaInput = 131,
   SignalErrorCodeUnsupportedMediaInput = 132,
@@ -1238,6 +1243,8 @@ SignalFfiError *signal_username_proof(SignalOwnedBuffer *out, const char *userna
 SignalFfiError *signal_username_verify(SignalBorrowedBuffer proof, SignalBorrowedBuffer hash);
 
 SignalFfiError *signal_username_candidates_from(const char **out, const char *nickname, uint32_t min_len, uint32_t max_len);
+
+SignalFfiError *signal_username_hash_from_parts(uint8_t (*out)[32], const char *nickname, const char *discriminator, uint32_t min_len, uint32_t max_len);
 
 SignalFfiError *signal_username_link_create(SignalOwnedBuffer *out, const char *username, SignalBorrowedBuffer entropy);
 
