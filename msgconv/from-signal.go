@@ -17,12 +17,15 @@
 package msgconv
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/emersion/go-vcard"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/exmime"
@@ -211,16 +214,157 @@ func (mc *MessageConverter) convertGiftBadgeToMatrix(ctx context.Context, giftBa
 	}
 }
 
+func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *signalpb.DataMessage_Contact) vcard.Card {
+	card := make(vcard.Card)
+	card.SetValue(vcard.FieldVersion, "4.0")
+	name := contact.GetName()
+	if name.GetFamilyName() != "" || name.GetGivenName() != "" {
+		card.SetName(&vcard.Name{
+			FamilyName:      name.GetFamilyName(),
+			GivenName:       name.GetGivenName(),
+			AdditionalName:  name.GetMiddleName(),
+			HonorificPrefix: name.GetPrefix(),
+			HonorificSuffix: name.GetSuffix(),
+		})
+	}
+	if name.GetDisplayName() != "" {
+		card.SetValue(vcard.FieldFormattedName, name.GetDisplayName())
+	}
+	if contact.GetOrganization() != "" {
+		card.SetValue(vcard.FieldOrganization, contact.GetOrganization())
+	}
+	for _, addr := range contact.GetAddress() {
+		field := vcard.Field{
+			Value: strings.Join([]string{
+				addr.GetPobox(),
+				"", // extended address,
+				addr.GetStreet(),
+				addr.GetCity(),
+				addr.GetRegion(),
+				addr.GetPostcode(),
+				addr.GetCountry(),
+				// TODO put neighborhood somewhere?
+			}, ";"),
+			Params: make(vcard.Params),
+		}
+		if addr.GetLabel() != "" {
+			field.Params.Set("LABEL", addr.GetLabel())
+		}
+		field.Params.Set(vcard.ParamType, strings.ToLower(addr.GetType().String()))
+		card.Add(vcard.FieldAddress, &field)
+	}
+	for _, email := range contact.GetEmail() {
+		field := vcard.Field{
+			Value:  email.GetValue(),
+			Params: make(vcard.Params),
+		}
+		field.Params.Set(vcard.ParamType, strings.ToLower(email.GetType().String()))
+		if email.GetLabel() != "" {
+			field.Params.Set("LABEL", email.GetLabel())
+		}
+		card.Add(vcard.FieldEmail, &field)
+	}
+	for _, phone := range contact.GetNumber() {
+		field := vcard.Field{
+			Value:  phone.GetValue(),
+			Params: make(vcard.Params),
+		}
+		field.Params.Set(vcard.ParamType, strings.ToLower(phone.GetType().String()))
+		if phone.GetLabel() != "" {
+			field.Params.Set("LABEL", phone.GetLabel())
+		}
+		card.Add(vcard.FieldTelephone, &field)
+	}
+	if contact.GetAvatar().GetAvatar() != nil {
+		avatarData, err := signalmeow.DownloadAttachment(ctx, contact.GetAvatar().GetAvatar())
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to download contact avatar")
+		} else {
+			mimeType := contact.GetAvatar().GetAvatar().GetContentType()
+			if mimeType == "" {
+				mimeType = http.DetectContentType(avatarData)
+			}
+			card.SetValue(vcard.FieldPhoto, fmt.Sprintf("data:%s;base64,%s", mimeType, base64.StdEncoding.EncodeToString(avatarData)))
+		}
+	}
+	return card
+}
+
 func (mc *MessageConverter) convertContactToMatrix(ctx context.Context, contact *signalpb.DataMessage_Contact) *ConvertedMessagePart {
+	card := mc.convertContactToVCard(ctx, contact)
+	contact.Avatar = nil
+	extraData := map[string]any{
+		"fi.mau.signal.contact": contact,
+	}
+	var buf bytes.Buffer
+	err := vcard.NewEncoder(&buf).Encode(card)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to encode vCard")
+		return &ConvertedMessagePart{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    "Failed to encode vCard",
+			},
+			Extra: extraData,
+		}
+	}
+	data := buf.Bytes()
+	var file *event.EncryptedFileInfo
+	uploadMime := "text/vcard"
+	uploadFileName := "contact.vcf"
+	if mc.GetData(ctx).Encrypted {
+		file = &event.EncryptedFileInfo{
+			EncryptedFile: *attachment.NewEncryptedFile(),
+			URL:           "",
+		}
+		file.EncryptInPlace(data)
+		uploadMime = "application/octet-stream"
+		uploadFileName = ""
+	}
+	mxc, err := mc.UploadMatrixMedia(ctx, data, uploadFileName, uploadMime)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to upload vCard")
+		return &ConvertedMessagePart{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    "Failed to upload vCard",
+			},
+			Extra: extraData,
+		}
+	}
+	displayName := contact.GetName().GetDisplayName()
+	if displayName == "" {
+		displayName = contact.GetName().GetGivenName()
+		if contact.GetName().GetFamilyName() != "" {
+			if displayName != "" {
+				displayName += " "
+			}
+			displayName += contact.GetName().GetFamilyName()
+		}
+	}
+	if displayName == "" {
+		displayName = "contact"
+	}
+	content := &event.MessageEventContent{
+		MsgType: event.MsgFile,
+		Body:    displayName + ".vcf",
+		Info: &event.FileInfo{
+			MimeType: "text/vcf",
+			Size:     len(data),
+		},
+	}
+	if file != nil {
+		file.URL = mxc
+		content.File = file
+	} else {
+		content.URL = mxc
+	}
 	return &ConvertedMessagePart{
-		Type: event.EventMessage,
-		Content: &event.MessageEventContent{
-			MsgType: event.MsgNotice,
-			Body:    "Contact messages are not yet supported",
-		},
-		Extra: map[string]any{
-			"fi.mau.signal.contact": contact,
-		},
+		Type:    event.EventMessage,
+		Content: content,
+		Extra:   extraData,
 	}
 }
 

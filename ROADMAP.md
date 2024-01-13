@@ -39,7 +39,7 @@
       * [x] Files
       * [x] Gifs
       * [x] Stickers
-      * [ ] Contacts
+      * [x] Contacts
       * [ ] Payment messages
   * [x] Message edits
   * [x] Message reactions
