@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-e17b07bb12110c0ebeae193cb6fad35d33b57d40}
-DESKTOP_GIT_REVISION=${1:-c6c072319993fefd9fcfab55ca77dc75263bc875}
+ANDROID_GIT_REVISION=${1:-c725a2fabb76f88d555c9f8b3c4f1cbdde4d4593}
+DESKTOP_GIT_REVISION=${1:-060c58be527396918fa3753ace4f9f38d7c67876}
 
 update_proto() {
   case "$1" in
@@ -28,3 +28,4 @@ update_proto Signal-Android WebSocketResources.proto
 
 update_proto Signal-Desktop DeviceName.proto
 update_proto Signal-Desktop UnidentifiedDelivery.proto
+update_proto Signal-Desktop ContactDiscovery.proto
