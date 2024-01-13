@@ -254,7 +254,7 @@ func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User, info *types.
 	log.Trace().Msg("Updating puppet info")
 
 	update := false
-	if puppet.Number != info.E164 {
+	if info.E164 != "" && puppet.Number != info.E164 {
 		puppet.Number = info.E164
 		update = true
 	}
