@@ -22,7 +22,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"path"
 	"sync"
@@ -97,7 +96,7 @@ func (cli *Client) LookupPhone(ctx context.Context, e164s ...uint64) (ContactDis
 }
 
 func (cli *Client) doContactDiscovery(ctx context.Context, req *signalpb.CDSClientRequest) (ContactDiscoveryResponse, []byte, error) {
-	creds, err := cli.getContactDiscoveryAuth(ctx)
+	creds, err := cli.getContactDiscoveryCredentials(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to fetch contact discovery auth: %w", err)
 	}
@@ -260,40 +259,4 @@ func (cdc *ContactDiscoveryClient) handleResponse(ctx context.Context, msg []byt
 		cdc.Response = resp
 	}
 	return nil
-}
-
-type contactDiscoveryAuth struct {
-	Username  string    `json:"username"`
-	Password  string    `json:"password"`
-	CreatedAt time.Time `json:"-"`
-}
-
-func (cda *contactDiscoveryAuth) Expired() bool {
-	return cda == nil || cda.CreatedAt.IsZero() || time.Since(cda.CreatedAt) > ContactDiscoveryAuthTTL
-}
-
-func (cli *Client) getContactDiscoveryAuth(ctx context.Context) (*contactDiscoveryAuth, error) {
-	cli.cdAuthLock.Lock()
-	defer cli.cdAuthLock.Unlock()
-	if cli.cdAuth.Expired() {
-		username, password := cli.Store.BasicAuthCreds()
-		resp, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v2/directory/auth", &web.HTTPReqOpt{
-			Username: &username,
-			Password: &password,
-		})
-		if err != nil {
-			return nil, err
-		} else if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-			return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
-		}
-
-		var auth contactDiscoveryAuth
-		auth.CreatedAt = time.Now()
-		err = web.DecodeHTTPResponseBody(ctx, &auth, resp)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode response: %w", err)
-		}
-		cli.cdAuth = &auth
-	}
-	return cli.cdAuth, nil
 }

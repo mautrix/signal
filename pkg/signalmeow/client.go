@@ -48,9 +48,11 @@ type Client struct {
 
 	EventHandler func(events.SignalEvent)
 
-	cdAuthLock sync.Mutex
-	cdAuth     *contactDiscoveryAuth
-	cdToken    []byte
+	storageAuthLock sync.Mutex
+	storageAuth     *basicExpiringCredentials
+	cdAuthLock      sync.Mutex
+	cdAuth          *basicExpiringCredentials
+	cdToken         []byte
 }
 
 func (cli *Client) handleEvent(evt events.SignalEvent) {

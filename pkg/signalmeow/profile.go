@@ -266,20 +266,20 @@ func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, pr
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
-	avatar, err := decryptBytes(profileKey, encryptedAvatar)
+	avatar, err := decryptBytes(profileKey[:], encryptedAvatar)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt response: %w", err)
 	}
 	return avatar, nil
 }
 
-func decryptBytes(key *libsignalgo.ProfileKey, encryptedText []byte) ([]byte, error) {
+func decryptBytes(key []byte, encryptedText []byte) ([]byte, error) {
 	if len(encryptedText) < NONCE_LENGTH+16+1 {
 		return nil, errors.New("invalid encryptedBytes length")
 	}
 	nonce := encryptedText[:NONCE_LENGTH]
 	ciphertext := encryptedText[NONCE_LENGTH:]
-	padded, err := AesgcmDecrypt(key[:], nonce, ciphertext, []byte{})
+	padded, err := AesgcmDecrypt(key, nonce, ciphertext, []byte{})
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func decryptBytes(key *libsignalgo.ProfileKey, encryptedText []byte) ([]byte, er
 }
 
 func decryptString(key *libsignalgo.ProfileKey, encryptedText []byte) (string, error) {
-	data, err := decryptBytes(key, encryptedText)
+	data, err := decryptBytes(key[:], encryptedText)
 	return string(data), err
 }
 
