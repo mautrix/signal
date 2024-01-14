@@ -25,7 +25,9 @@ update_proto Signal-Android Provisioning.proto
 update_proto Signal-Android SignalService.proto
 update_proto Signal-Android StickerResources.proto
 update_proto Signal-Android WebSocketResources.proto
+update_proto Signal-Android StorageService.proto
 
 update_proto Signal-Desktop DeviceName.proto
 update_proto Signal-Desktop UnidentifiedDelivery.proto
+# Android has CDSI.proto too, but the types have more generic names (since android uses a different package name)
 update_proto Signal-Desktop ContactDiscovery.proto
