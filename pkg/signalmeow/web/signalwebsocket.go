@@ -565,11 +565,17 @@ func (s *SignalWebsocket) sendRequestInternal(
 }
 
 func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
+	return OpenWebsocketURL(ctx, "wss://"+APIHostname+path)
+}
+
+func OpenWebsocketURL(ctx context.Context, url string) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
 		HTTPClient: SignalHTTPClient,
+		HTTPHeader: make(http.Header, 2),
 	}
-	urlStr := "wss://" + APIHostname + path
-	ws, resp, err := websocket.Dial(ctx, urlStr, opt)
+	opt.HTTPHeader.Set("User-Agent", UserAgent)
+	opt.HTTPHeader.Set("X-Signal-Agent", SignalAgent)
+	ws, resp, err := websocket.Dial(ctx, url, opt)
 	if ws != nil {
 		ws.SetReadLimit(1 << 20) // Increase read limit to 1MB from default of 32KB
 	}

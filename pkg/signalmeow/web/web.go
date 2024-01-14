@@ -28,12 +28,19 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime"
+	"strings"
 
 	"github.com/rs/zerolog"
+
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
 const proxyUrlStr = "" // Set this to proxy requests
 const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmproxy)
+
+var UserAgent = "signalmeow/0.1.0 libsignal/" + libsignalgo.Version + " go/" + strings.TrimPrefix(runtime.Version(), "go")
+var SignalAgent = "MAU"
 
 const (
 	APIHostname     = "chat.signal.org"
@@ -143,9 +150,8 @@ func SendHTTPRequest(ctx context.Context, method string, path string, opt *HTTPR
 		req.Header.Set("Content-Type", string(ContentTypeJSON))
 	}
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(opt.Body)))
-	// TODO: figure out what user agent to use
-	//req.Header.Set("User-Agent", "SignalBridge/0.1")
-	//req.Header.Set("X-Signal-Agent", "SignalBridge/0.1")
+	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("X-Signal-Agent", SignalAgent)
 	if opt.Username != nil && opt.Password != nil {
 		req.SetBasicAuth(*opt.Username, *opt.Password)
 	}
@@ -185,7 +191,6 @@ func DecodeHTTPResponseBody(ctx context.Context, out any, resp *http.Response) e
 	return nil
 }
 
-// Download an attachment from the CDN
 func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Response, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "get_attachment").
@@ -225,6 +230,7 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTP
 	//const SERVICE_REFLECTOR_HOST = "europe-west1-signal-cdn-reflector.cloudfunctions.net"
 	//req.Header.Add("Host", SERVICE_REFLECTOR_HOST)
 	req.Header.Add("Content-Type", "application/octet-stream")
+	req.Header.Set("User-Agent", UserAgent)
 
 	httpReqCounter++
 	log = log.With().
@@ -241,6 +247,3 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTP
 
 	return resp, err
 }
-
-// Upload an attachment to the CDN
-//func PutAttachment(

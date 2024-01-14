@@ -114,9 +114,7 @@ func (cli *Client) doContactDiscovery(ctx context.Context, req *signalpb.CDSClie
 		Path:   path.Join("v1", ProdContactDiscoveryMrenclave, "discovery"),
 	}).String()
 	log.Trace().Msg("Connecting to contact discovery websocket")
-	ws, _, err := websocket.Dial(ctx, addr, &websocket.DialOptions{
-		HTTPClient: web.SignalHTTPClient,
-	})
+	ws, _, err := web.OpenWebsocketURL(ctx, addr)
 	if err != nil {
 		var closeErr websocket.CloseError
 		if errors.As(err, &closeErr) && closeErr.Code == rateLimitCloseCode {
@@ -128,7 +126,6 @@ func (cli *Client) doContactDiscovery(ctx context.Context, req *signalpb.CDSClie
 		}
 		return nil, nil, fmt.Errorf("failed to open contact discovery websocket: %w", err)
 	}
-	ws.SetReadLimit(1 << 20) // Increase read limit to 1MB from default of 32KB
 	defer func() {
 		_ = ws.CloseNow()
 	}()
