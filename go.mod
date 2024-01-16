@@ -3,7 +3,7 @@ module go.mau.fi/mautrix-signal
 go 1.20
 
 require (
-	github.com/beeper/libserv v0.0.0-20231231163024-8eba5b0c509d
+	github.com/beeper/libserv v0.0.0-20231231202820-c7303abfc32c
 	github.com/emersion/go-vcard v0.0.0-20230815062825-8fda7d206ec9
 	github.com/google/uuid v1.5.0
 	github.com/gorilla/mux v1.8.0
@@ -15,13 +15,13 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.8.4
 	github.com/tidwall/gjson v1.17.0
-	go.mau.fi/util v0.2.2-0.20240112154312-b89d6e13ae53
+	go.mau.fi/util v0.3.0
 	golang.org/x/crypto v0.18.0
 	golang.org/x/exp v0.0.0-20240112132812-db7319d0e0e3
 	golang.org/x/net v0.20.0
 	google.golang.org/protobuf v1.32.0
 	maunium.net/go/maulogger/v2 v2.4.1
-	maunium.net/go/mautrix v0.16.3-0.20240113170152-d7c1cf6b64bf
+	maunium.net/go/mautrix v0.17.0
 	nhooyr.io/websocket v1.8.10
 )
 
