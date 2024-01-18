@@ -428,49 +428,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 	realSenderMXID := sender.MXID
 	isRelay := false
 	if !sender.IsLoggedIn() {
-
-		// TODO: *** temporary debugging logs ***
-		if sender != nil {
-			if sender.Client != nil {
-				if sender.Client.Store != nil {
-					log.Warn().
-						Str("ACI", sender.Client.Store.ACI.String()[:5]).
-						Int("device_id", sender.Client.Store.DeviceID).
-						Str("password", sender.Client.Store.Password[:2]).
-						Msg("Sender debugging")
-				} else {
-					log.Warn().Msg("Sender debugging (no store)")
-				}
-			} else {
-				log.Warn().Msg("Sender debugging (no client)")
-			}
-		} else {
-			log.Warn().Msg("Sender debugging (no sender)")
-		}
-		// *** end of temporary debugging logs ***
-
 		sender = portal.GetRelayUser()
-
-		// TODO: *** temporary debugging logs ***
-		if sender != nil {
-			if sender.Client != nil {
-				if sender.Client.Store != nil {
-					log.Warn().
-						Str("ACI", sender.Client.Store.ACI.String()[:5]).
-						Int("device_id", sender.Client.Store.DeviceID).
-						Str("password", sender.Client.Store.Password[:2]).
-						Msg("Sender debugging post-portal")
-				} else {
-					log.Warn().Msg("Sender debugging post-portal (no store)")
-				}
-			} else {
-				log.Warn().Msg("Sender debugging post-portal (no client)")
-			}
-		} else {
-			log.Warn().Msg("Sender debugging post-portal (no sender)")
-		}
-		// *** end of temporary debugging logs ***
-
 		if sender == nil {
 			go ms.sendMessageMetrics(evt, errUserNotLoggedIn, "Ignoring", true)
 			return
