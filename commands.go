@@ -426,18 +426,11 @@ func fnLogin(ce *WrappedCommandEvent) {
 		return
 	}
 
-	// Update user with SignalID
-	if signalID != uuid.Nil {
-		ce.User.SignalID = signalID
-		ce.User.SignalUsername = signalPhone
-	} else {
+	if signalID == uuid.Nil {
 		ce.Reply("Problem logging in - No SignalID received")
 		return
 	}
-	err = ce.User.Update(ce.Ctx)
-	if err != nil {
-		ce.ZLog.Err(err).Msg("Failed to save user to database")
-	}
+	ce.User.saveSignalID(ce.Ctx, signalID, signalPhone)
 
 	// Connect to Signal
 	ce.User.Connect()

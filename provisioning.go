@@ -524,12 +524,7 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 
 		// Update user with SignalID
 		if resp.ProvisioningData.ACI != uuid.Nil {
-			user.SignalID = resp.ProvisioningData.ACI
-			user.SignalUsername = resp.ProvisioningData.Number
-			err = user.Update(r.Context())
-			if err != nil {
-				prov.log.Err(err).Msg("Failed to save user after login")
-			}
+			user.saveSignalID(ctx, resp.ProvisioningData.ACI, resp.ProvisioningData.Number)
 		}
 		return
 	case <-time.After(45 * time.Second):

@@ -81,7 +81,7 @@ func (user *User) tryAutomaticDoublePuppeting() {
 	}
 	user.log.Debug().Msg("Checking if double puppeting needs to be enabled")
 	puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
-	if len(puppet.CustomMXID) > 0 {
+	if puppet.CustomMXID == user.MXID {
 		user.log.Debug().Msg("User already has double-puppeting enabled")
 		// Custom puppet already enabled
 		return

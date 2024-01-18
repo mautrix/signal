@@ -76,7 +76,10 @@ func (br *SignalBridge) maybeGetUserByMXID(userID id.UserID, userIDPtr *id.UserI
 func (br *SignalBridge) GetUserBySignalID(id uuid.UUID) *User {
 	br.usersLock.Lock()
 	defer br.usersLock.Unlock()
+	return br.unlockedGetUserBySignalID(id)
+}
 
+func (br *SignalBridge) unlockedGetUserBySignalID(id uuid.UUID) *User {
 	user, ok := br.usersBySignalID[id]
 	if !ok {
 		dbUser, err := br.DB.User.GetBySignalID(context.TODO(), id)
@@ -554,6 +557,39 @@ func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
 
 func (user *User) Connect() {
 	user.startupTryConnect(0)
+}
+
+func (user *User) saveSignalID(ctx context.Context, id uuid.UUID, number string) {
+	user.bridge.usersLock.Lock()
+	defer user.bridge.usersLock.Unlock()
+	if user.SignalID == id && user.SignalUsername == number {
+		return
+	}
+	if user.SignalID != id {
+		existingUser := user.bridge.unlockedGetUserBySignalID(id)
+		if existingUser != nil {
+			// TODO this doesn't clear the signal store properly
+			//      the store also only has the uuid as primary key, even though it should have uuid + device id
+			zerolog.Ctx(ctx).Warn().
+				Stringer("previous_user", existingUser.MXID).
+				Stringer("signal_uuid", id).
+				Msg("Another user is already logged in with same UUID, logging out previous user")
+			_ = existingUser.Disconnect()
+			existingUser.SignalID = uuid.Nil
+			existingUser.SignalUsername = ""
+			err := existingUser.Update(ctx)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to clear previous user's signal UUID")
+			}
+		}
+	}
+	user.SignalID = id
+	user.SignalUsername = number
+	user.bridge.usersBySignalID[id] = user
+	err := user.Update(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to save user's signal UUID")
+	}
 }
 
 func (user *User) populateSignalDevice() *signalmeow.Client {
