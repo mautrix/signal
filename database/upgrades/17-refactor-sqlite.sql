@@ -91,7 +91,7 @@ CREATE TABLE lost_portals (
 );
 INSERT INTO lost_portals SELECT mxid, chat_id, receiver FROM portal WHERE mxid<>'';
 DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE uuid<>'');
-UPDATE portal SET receiver=(SELECT uuid FROM "user" WHERE username=receiver LIMIT 1) WHERE receiver<>'';
+UPDATE portal SET receiver=(SELECT uuid FROM "user" WHERE username=receiver AND uuid<>'' LIMIT 1) WHERE receiver<>'';
 UPDATE portal SET receiver='00000000-0000-0000-0000-000000000000' WHERE receiver='';
 DELETE FROM portal WHERE chat_id NOT LIKE '________-____-____-____-____________' AND LENGTH(chat_id) <> 44;
 DELETE FROM lost_portals WHERE mxid IN (SELECT mxid FROM portal WHERE mxid<>'');
