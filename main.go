@@ -152,6 +152,12 @@ func (br *SignalBridge) Init() {
 }
 
 func (br *SignalBridge) logLostPortals(ctx context.Context) {
+	exists, err := br.DB.TableExists(ctx, "lost_portals")
+	if err != nil {
+		br.ZLog.Err(err).Msg("Failed to check if lost_portals table exists")
+	} else if !exists {
+		return
+	}
 	lostPortals, err := br.DB.LostPortal.GetAll(ctx)
 	if err != nil {
 		br.ZLog.Err(err).Msg("Failed to get lost portals")
