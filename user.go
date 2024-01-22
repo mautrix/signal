@@ -517,8 +517,9 @@ func (user *User) clearKeysAndDisconnect() {
 	}
 }
 
-func (br *SignalBridge) StartUsers() {
+func (br *SignalBridge) StartUsers() []*User {
 	br.ZLog.Debug().Msg("Starting users")
+	var startingUsers []*User
 
 	usersWithToken := br.GetAllLoggedInUsers()
 	for _, u := range usersWithToken {
@@ -528,6 +529,7 @@ func (br *SignalBridge) StartUsers() {
 			u.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 			continue
 		}
+		startingUsers = append(startingUsers, u)
 		go u.Connect()
 	}
 	if len(usersWithToken) == 0 {
@@ -544,6 +546,7 @@ func (br *SignalBridge) StartUsers() {
 			}
 		}(customPuppet)
 	}
+	return startingUsers
 }
 
 func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {

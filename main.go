@@ -34,6 +34,7 @@ import (
 	"maunium.net/go/mautrix/format"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/bpnsclient"
 	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
@@ -79,6 +80,8 @@ type SignalBridge struct {
 	puppetsLock         sync.Mutex
 
 	disappearingMessagesManager *DisappearingMessagesManager
+
+	bpnsClient *bpnsclient.BPNSClient
 }
 
 var _ bridge.ChildOverride = (*SignalBridge)(nil)
@@ -187,7 +190,24 @@ func (br *SignalBridge) Start() {
 		br.Log.Debugln("Initializing provisioning API")
 		br.provisioning.Init()
 	}
-	go br.StartUsers()
+	go func() {
+		startingUsers := br.StartUsers()
+
+		logger := br.ZLog.With().Str("component", "bpnsclient").Logger()
+		br.bpnsClient = bpnsclient.NewBPNSClient(
+			&logger,
+			"http://localhost:8000",
+			"myimaToken",
+			"mypushToken",
+			startingUsers[0].SignalID,
+			startingUsers[0].Client.Store.Password,
+			startingUsers[0].Client.Store.DeviceID,
+		)
+		if br.bpnsClient != nil {
+			br.Log.Debugln("Starting BPNS client")
+			br.bpnsClient.Start(context.TODO())
+		}
+	}()
 	if br.Config.Metrics.Enabled {
 		go br.Metrics.Start()
 	}
@@ -199,6 +219,9 @@ func (br *SignalBridge) Stop() {
 	for _, user := range br.usersByMXID {
 		br.Log.Debugln("Disconnecting", user.MXID)
 		user.Disconnect()
+	}
+	if br.bpnsClient != nil {
+		br.bpnsClient.Stop(context.TODO())
 	}
 }
 
