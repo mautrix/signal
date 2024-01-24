@@ -325,11 +325,11 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 		if puppet.AvatarPath == info.ProfileAvatarPath && puppet.AvatarSet {
 			return false
 		}
-		puppet.AvatarPath = info.ProfileAvatarPath
-		puppet.AvatarHash = ""
-		puppet.AvatarSet = false
-		puppet.AvatarURL = id.ContentURI{}
 		if info.ProfileAvatarPath == "" {
+			puppet.AvatarURL = id.ContentURI{}
+			puppet.AvatarPath = ""
+			puppet.AvatarHash = ""
+			puppet.AvatarSet = false
 			err := puppet.DefaultIntent().SetAvatarURL(ctx, puppet.AvatarURL)
 			if err != nil {
 				log.Err(err).Msg("Failed to remove user avatar")
@@ -359,7 +359,10 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 		// Path changed, but actual avatar didn't
 		return true
 	}
+	puppet.AvatarPath = info.ProfileAvatarPath
 	puppet.AvatarHash = newHash
+	puppet.AvatarSet = false
+	puppet.AvatarURL = id.ContentURI{}
 	resp, err := puppet.DefaultIntent().UploadBytes(ctx, avatarData, avatarContentType)
 	if err != nil {
 		log.Err(err).

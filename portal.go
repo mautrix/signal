@@ -1708,11 +1708,11 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 		(portal.AvatarSet || portal.MXID == "") {
 		return false
 	}
-	portal.AvatarPath = group.AvatarPath
-	portal.AvatarSet = false
-	portal.AvatarURL = id.ContentURI{}
-	portal.AvatarHash = ""
 	if portal.AvatarPath == "" {
+		portal.AvatarPath = ""
+		portal.AvatarSet = false
+		portal.AvatarURL = id.ContentURI{}
+		portal.AvatarHash = ""
 		// Just clear the Matrix room avatar and return
 		portal.updateAvatarInRoom(ctx)
 		return true
@@ -1730,6 +1730,9 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 		// No need to change anything else, but save the new path to the database
 		return true
 	}
+	portal.AvatarPath = group.AvatarPath
+	portal.AvatarSet = false
+	portal.AvatarURL = id.ContentURI{}
 	portal.AvatarHash = newAvatarHash
 	log.Debug().Str("avatar_hash", portal.AvatarHash).Msg("Uploading new group avatar to Matrix")
 	resp, err := portal.MainIntent().UploadBytes(ctx, avatarBytes, http.DetectContentType(avatarBytes))
