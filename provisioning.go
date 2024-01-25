@@ -117,9 +117,6 @@ type Response struct {
 	Success bool   `json:"success"`
 	Status  string `json:"status"`
 
-	// For response in WhoAmI
-	*WhoAmIResponse
-
 	// For response in LinkNew
 	SessionID string `json:"session_id,omitempty"`
 	URI       string `json:"uri,omitempty"`
@@ -414,15 +411,13 @@ func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
 		Logger()
 	log.Debug().Msg("getting whoami")
 
-	status := http.StatusOK
-	data := &WhoAmIResponse{
+	data := WhoAmIResponse{
 		Permissions: int(user.PermissionLevel),
 		MXID:        user.MXID.String(),
 	}
 	if user.IsLoggedIn() {
 		puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
 		if puppet == nil {
-			status = http.StatusInternalServerError
 			data.Signal = &WhoAmIResponseSignal{
 				Number: user.SignalUsername,
 				Ok:     false,
@@ -440,11 +435,7 @@ func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	jsonResponse(w, status, Response{
-		Success:        true,
-		Status:         "ok",
-		WhoAmIResponse: data,
-	})
+	jsonResponse(w, http.StatusOK, data)
 }
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
