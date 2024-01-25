@@ -946,6 +946,12 @@ func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataM
 		_, err = intent.RedactEvent(ctx, portal.MXID, existingReaction.MXID, mautrix.ReqRedact{
 			TxnID: "mxsg_unreact_" + existingReaction.MXID.String(),
 		})
+		if errors.Is(err, mautrix.MForbidden) {
+			log.Debug().Err(err).Msg("Failed to redact reaction with ghost, retrying with main intent")
+			_, err = portal.MainIntent().RedactEvent(ctx, portal.MXID, existingReaction.MXID, mautrix.ReqRedact{
+				TxnID: "mxsg_unreact_" + existingReaction.MXID.String(),
+			})
+		}
 		if err != nil {
 			log.Err(err).Msg("Failed to redact reaction")
 		}
