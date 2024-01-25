@@ -418,7 +418,7 @@ func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
 		data.Signal = &WhoAmIResponseSignal{
 			Number: user.SignalUsername,
 			UUID:   user.SignalID.String(),
-			Ok:     true,
+			Ok:     user.Client.IsConnected(),
 		}
 		puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
 		if puppet != nil {
