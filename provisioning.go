@@ -137,8 +137,8 @@ type WhoAmIResponse struct {
 
 type WhoAmIResponseSignal struct {
 	Number string `json:"number"`
-	UUID   string `json:"uuid,omitempty"`
-	Name   string `json:"name,omitempty"`
+	UUID   string `json:"uuid"`
+	Name   string `json:"name"`
 	Ok     bool   `json:"ok"`
 }
 
