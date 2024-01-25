@@ -101,6 +101,9 @@ ALTER TABLE puppet ALTER COLUMN avatar_url SET NOT NULL;
 ALTER TABLE puppet ALTER COLUMN access_token SET NOT NULL;
 ALTER TABLE puppet ALTER COLUMN name_quality DROP DEFAULT;
 
+UPDATE "user"
+    SET uuid=NULL
+    WHERE uuid IN (SELECT DISTINCT uuid FROM "user" WHERE uuid IS NOT NULL GROUP BY uuid HAVING COUNT(*)>1);
 ALTER TABLE "user" ADD CONSTRAINT user_uuid_unique UNIQUE(uuid);
 ALTER TABLE "user" RENAME COLUMN username TO phone;
 
