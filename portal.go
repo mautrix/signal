@@ -1043,6 +1043,8 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 			log.Error().Err(err).Msg("Failed to create portal room")
 			return
 		}
+	} else if !portal.ensureUserInvited(ctx, source) {
+		log.Warn().Stringer("user_id", source.MXID).Msg("Failed to ensure source user is joined to portal")
 	}
 
 	existingMessage, err := portal.bridge.DB.Message.GetBySignalID(ctx, sender.SignalID, msg.GetTimestamp(), 0, portal.Receiver)
