@@ -940,6 +940,12 @@ func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataM
 	}
 	intent := sender.IntentFor(portal)
 	if existingReaction != nil {
+		if resp, err := intent.GetEvent(ctx, portal.MXID, existingReaction.MXID); err != nil {
+			log.Warn().Err(err).Msg("Failed to retrieve event for existing reaction")
+		} else if user := portal.bridge.GetUserByMXID(resp.Sender); user != nil && user.SignalID == sender.SignalID {
+			portal.log.Debug().Msg("Not replacing existing reaction echoed from Matrix")
+			return
+		}
 		_, err = intent.RedactEvent(ctx, portal.MXID, existingReaction.MXID, mautrix.ReqRedact{
 			TxnID: "mxsg_unreact_" + existingReaction.MXID.String(),
 		})
