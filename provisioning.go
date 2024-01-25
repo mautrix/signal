@@ -140,7 +140,6 @@ type WhoAmIResponseSignal struct {
 	UUID   string `json:"uuid,omitempty"`
 	Name   string `json:"name,omitempty"`
 	Ok     bool   `json:"ok"`
-	Error  string `json:"error,omitempty"`
 }
 
 type ResolveIdentifierResponse struct {
@@ -416,23 +415,14 @@ func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
 		MXID:        user.MXID.String(),
 	}
 	if user.IsLoggedIn() {
+		data.Signal = &WhoAmIResponseSignal{
+			Number: user.SignalUsername,
+			UUID:   user.SignalID.String(),
+			Ok:     true,
+		}
 		puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
-		if puppet == nil {
-			data.Signal = &WhoAmIResponseSignal{
-				Number: user.SignalUsername,
-				Ok:     false,
-				Error:  "Failed to get puppet by Signal ID",
-			}
-			log.Error().
-				Str("signal_id", user.SignalID.String()).
-				Msg(data.Signal.Error)
-		} else {
-			data.Signal = &WhoAmIResponseSignal{
-				Number: user.SignalUsername,
-				UUID:   user.SignalID.String(),
-				Name:   puppet.Name,
-				Ok:     true,
-			}
+		if puppet != nil {
+			data.Signal.Name = puppet.Name
 		}
 	}
 	jsonResponse(w, http.StatusOK, data)
