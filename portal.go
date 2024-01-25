@@ -937,6 +937,9 @@ func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataM
 	if err != nil {
 		log.Err(err).Msg("Failed to get existing reaction from database")
 		return
+	} else if existingReaction.Emoji == react.GetEmoji() {
+		log.Debug().Msg("Ignoring duplicate reaction")
+		return
 	}
 	intent := sender.IntentFor(portal)
 	if existingReaction != nil {
