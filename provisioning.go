@@ -68,6 +68,7 @@ func (prov *ProvisioningAPI) Init() {
 	r.Use(hlog.NewHandler(prov.log))
 	r.Use(requestlog.AccessLogger(true))
 	r.Use(prov.AuthMiddleware)
+	r.HandleFunc("/v2/whoami", prov.WhoAmI).Methods(http.MethodGet)
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/account", prov.LinkWaitForAccount).Methods(http.MethodPost)
@@ -116,6 +117,9 @@ type Response struct {
 	Success bool   `json:"success"`
 	Status  string `json:"status"`
 
+	// For response in WhoAmI
+	*WhoAmIResponse
+
 	// For response in LinkNew
 	SessionID string `json:"session_id,omitempty"`
 	URI       string `json:"uri,omitempty"`
@@ -126,6 +130,20 @@ type Response struct {
 
 	// For response in ResolveIdentifier
 	*ResolveIdentifierResponse
+}
+
+type WhoAmIResponse struct {
+	Permissions int                   `json:"permissions"`
+	MXID        string                `json:"mxid"`
+	Signal      *WhoAmIResponseSignal `json:"signal,omitempty"`
+}
+
+type WhoAmIResponseSignal struct {
+	Number string `json:"number"`
+	UUID   string `json:"uuid,omitempty"`
+	Name   string `json:"name,omitempty"`
+	Ok     bool   `json:"ok"`
+	Error  string `json:"error,omitempty"`
 }
 
 type ResolveIdentifierResponse struct {
@@ -386,6 +404,47 @@ func (prov *ProvisioningAPI) checkSessionAndReturnHandle(ctx context.Context, w 
 		return nil
 	}
 	return handle
+}
+
+func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value(provisioningUserKey).(*User)
+	log := prov.log.With().
+		Str("action", "whoami").
+		Str("user_id", user.MXID.String()).
+		Logger()
+	log.Debug().Msg("getting whoami")
+
+	status := http.StatusOK
+	data := &WhoAmIResponse{
+		Permissions: int(user.PermissionLevel),
+		MXID:        user.MXID.String(),
+	}
+	if user.IsLoggedIn() {
+		puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
+		if puppet == nil {
+			status = http.StatusInternalServerError
+			data.Signal = &WhoAmIResponseSignal{
+				Number: user.SignalUsername,
+				Ok:     false,
+				Error:  "Failed to get puppet by Signal ID",
+			}
+			log.Error().
+				Str("signal_id", user.SignalID.String()).
+				Msg(data.Signal.Error)
+		} else {
+			data.Signal = &WhoAmIResponseSignal{
+				Number: user.SignalUsername,
+				UUID:   user.SignalID.String(),
+				Name:   puppet.Name,
+				Ok:     true,
+			}
+		}
+	}
+	jsonResponse(w, status, Response{
+		Success:        true,
+		Status:         "ok",
+		WhoAmIResponse: data,
+	})
 }
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
