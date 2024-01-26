@@ -903,8 +903,81 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		Uint32("new_revision", groupMeta.GetRevision()).
 		Logger()
 	ctx := log.WithContext(context.TODO())
-	// TODO handle group changes properly
-	portal.UpdateInfo(ctx, source, nil, groupMeta.GetRevision())
+	groupChange, err := source.Client.GetGroupChange(ctx, groupMeta, types.GroupIdentifier(portal.ChatID))
+	if err != nil {
+		log.Err(err).Msg("Handling GroupChange failed")
+		return
+	}
+	if groupChange.ModifyTitle != nil {
+		portal.updateName(ctx, *groupChange.ModifyTitle, sender)
+	}
+	if groupChange.ModifyDescription != nil {
+		portal.updateTopic(ctx, *groupChange.ModifyDescription, sender)
+	}
+	if groupChange.ModifyAvatar != nil {
+		portal.updateAvatarWithInfo(ctx, source, groupChange, sender)
+	}
+	intent := sender.IntentFor(portal)
+	for _, addMember := range groupChange.AddMembers {
+		puppet := portal.bridge.GetPuppetBySignalID(addMember.UserID)
+		if puppet == nil {
+			log.Warn().Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for added member")
+			continue
+		}
+		reqInviteUser := mautrix.ReqInviteUser{
+			Reason: "",
+			UserID: puppet.MXID,
+		}
+		_, err = intent.InviteUser(ctx, portal.MXID, &reqInviteUser)
+		if errors.Is(err, mautrix.MForbidden) {
+			if addMember.JoinFromInviteLink {
+				reqInviteUser.Reason = "Joined From Invite Link"
+			} else {
+				reqInviteUser.Reason = fmt.Sprintf("Added by %s", sender.GetDisplayname())
+			}
+			_, err = portal.MainIntent().InviteUser(ctx, portal.MXID, &reqInviteUser)
+		}
+		if err == nil {
+			err = puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+		}
+		if err != nil {
+			log.Err(err).Msg("Adding Member failed")
+			return
+		}
+	}
+	for _, deleteMember := range groupChange.DeleteMembers {
+		puppet := portal.bridge.GetPuppetBySignalID(*deleteMember)
+		if puppet == nil {
+			log.Warn().Stringer("signal_user_id", deleteMember).Msg("Couldn't get puppet for deleted member")
+			continue
+		}
+		reqKickUser := mautrix.ReqKickUser{
+			Reason: "",
+			UserID: puppet.MXID,
+		}
+		_, err := intent.KickUser(ctx, portal.MXID, &reqKickUser)
+		if errors.Is(err, mautrix.MForbidden) {
+			reqKickUser.Reason = fmt.Sprintf("Kicked by %s", sender.GetDisplayname())
+			_, err = portal.MainIntent().KickUser(ctx, portal.MXID, &reqKickUser)
+		}
+	}
+	for _, modifyRole := range groupChange.ModifyMemberRoles {
+		puppet := portal.bridge.GetPuppetBySignalID(modifyRole.UserID)
+		if puppet == nil {
+			log.Warn().Stringer("signal_user_id", modifyRole.UserID).Msg("Couldn't get puppet for deleted member")
+			continue
+		}
+		powerLevel := 0
+		// we might want to make this more efficient by sending all power level changes at once
+		// The most likely case is a single Role change, so maybe it doesn't matter
+		if modifyRole.Role == signalmeow.GroupMember_ADMINISTRATOR {
+			powerLevel = 50
+		}
+		_, err = intent.SetPowerLevel(ctx, portal.MXID, puppet.MXID, powerLevel)
+		if errors.Is(err, mautrix.MForbidden) {
+			_, err = portal.MainIntent().SetPowerLevel(ctx, portal.MXID, puppet.MXID, powerLevel)
+		}
+	}
 }
 
 func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataMessage_Reaction, ts uint64) {
@@ -1584,17 +1657,17 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 		noteToSelfAvatar := portal.bridge.Config.Bridge.NoteToSelfAvatar.ParseOrIgnore()
 		avatarHash := sha256.Sum256([]byte(noteToSelfAvatar.String()))
 
-		update = portal.updateName(ctx, NoteToSelfName) || update
+		update = portal.updateName(ctx, NoteToSelfName, nil) || update
 		update = portal.updateAvatarWithMXC(ctx, "notetoself", hex.EncodeToString(avatarHash[:]), noteToSelfAvatar) || update
 	} else if portal.shouldSetDMRoomMetadata() {
-		update = portal.updateName(ctx, puppet.Name) || update
+		update = portal.updateName(ctx, puppet.Name, nil) || update
 		update = portal.updateAvatarWithMXC(ctx, puppet.AvatarPath, puppet.AvatarHash, puppet.AvatarURL) || update
 	}
 	topic := PrivateChatTopic
 	if portal.bridge.Config.Bridge.NumberInTopic && puppet.Number != "" {
 		topic = fmt.Sprintf("%s with %s", topic, puppet.Number)
 	}
-	update = portal.updateTopic(ctx, topic) || update
+	update = portal.updateTopic(ctx, topic, nil) || update
 	if update {
 		err := portal.Update(ctx)
 		if err != nil {
@@ -1643,9 +1716,9 @@ func (portal *Portal) UpdateGroupInfo(ctx context.Context, source *User, info *s
 		portal.Revision = info.Revision
 		update = true
 	}
-	update = portal.updateName(ctx, info.Title) || update
-	update = portal.updateTopic(ctx, info.Description) || update
-	update = portal.updateAvatarWithInfo(ctx, source, info) || update
+	update = portal.updateName(ctx, info.Title, nil) || update
+	update = portal.updateTopic(ctx, info.Description, nil) || update
+	update = portal.updateAvatarWithInfo(ctx, source, info, nil) || update
 	update = portal.updateExpirationTimer(ctx, info.DisappearingMessagesDuration) || update
 	if update {
 		err := portal.Update(ctx)
@@ -1672,14 +1745,21 @@ func (portal *Portal) updateExpirationTimer(ctx context.Context, newExpirationTi
 	return true
 }
 
-func (portal *Portal) updateName(ctx context.Context, newName string) bool {
+func (portal *Portal) updateName(ctx context.Context, newName string, sender *Puppet) bool {
 	if portal.Name == newName && (portal.NameSet || portal.MXID == "") {
 		return false
 	}
 	portal.Name = newName
 	portal.NameSet = false
 	if portal.MXID != "" {
-		_, err := portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
+		intent := portal.MainIntent()
+		if sender != nil {
+			intent = sender.IntentFor(portal)
+		}
+		_, err := intent.SetRoomName(ctx, portal.MXID, portal.Name)
+		if errors.Is(err, mautrix.MForbidden) && intent != portal.MainIntent() {
+			_, err = portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
+		}
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to update room name")
 		} else {
@@ -1689,14 +1769,21 @@ func (portal *Portal) updateName(ctx context.Context, newName string) bool {
 	return true
 }
 
-func (portal *Portal) updateTopic(ctx context.Context, newTopic string) bool {
+func (portal *Portal) updateTopic(ctx context.Context, newTopic string, sender *Puppet) bool {
 	if portal.Topic == newTopic && (portal.TopicSet || portal.MXID == "") {
 		return false
 	}
 	portal.Topic = newTopic
 	portal.TopicSet = false
 	if portal.MXID != "" {
-		_, err := portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		intent := portal.MainIntent()
+		if sender != nil {
+			intent = sender.IntentFor(portal)
+		}
+		_, err := intent.SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		if errors.Is(err, mautrix.MForbidden) && intent != portal.MainIntent() {
+			_, err = portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		}
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to update room topic")
 		} else {
@@ -1706,27 +1793,31 @@ func (portal *Portal) updateTopic(ctx context.Context, newTopic string) bool {
 	return true
 }
 
-func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, group *signalmeow.Group) bool {
+func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, group signalmeow.GroupAvatarMeta, sender *Puppet) bool {
 	// If the avatar path is different, the avatar probably changed
-	if portal.AvatarPath == group.AvatarPath &&
+	avatarPath := group.GetAvatarPath()
+	if avatarPath == nil {
+		return false
+	}
+	if portal.AvatarPath == *avatarPath &&
 		// If the avatar mxc isn't set, we need to reupload it (except if the avatar is unset in Signal)
-		(!portal.AvatarURL.IsEmpty() || group.AvatarPath == "") &&
+		(!portal.AvatarURL.IsEmpty() || *avatarPath == "") &&
 		// If the avatar isn't set in the room, we need to update the room state (except if there's no Matrix room yet)
 		(portal.AvatarSet || portal.MXID == "") {
 		return false
 	}
-	if portal.AvatarPath == "" {
+	if *avatarPath == "" {
 		portal.AvatarPath = ""
 		portal.AvatarSet = false
 		portal.AvatarURL = id.ContentURI{}
 		portal.AvatarHash = ""
 		// Just clear the Matrix room avatar and return
-		portal.updateAvatarInRoom(ctx)
+		portal.updateAvatarInRoom(ctx, sender)
 		return true
 	}
 	log := zerolog.Ctx(ctx)
 	log.Debug().Str("avatar_path", portal.AvatarPath).Msg("Downloading new group avatar from Signal")
-	avatarBytes, err := source.Client.DownloadGroupAvatar(ctx, group)
+	avatarBytes, err := source.Client.DownloadGroupAvatarWithInfo(ctx, group)
 	if err != nil {
 		log.Err(err).Msg("Failed to download new avatar for portal")
 		return true
@@ -1737,7 +1828,7 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 		// No need to change anything else, but save the new path to the database
 		return true
 	}
-	portal.AvatarPath = group.AvatarPath
+	portal.AvatarPath = *avatarPath
 	portal.AvatarSet = false
 	portal.AvatarURL = id.ContentURI{}
 	portal.AvatarHash = newAvatarHash
@@ -1747,7 +1838,7 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 		log.Err(err).Msg("Failed to upload new avatar for portal")
 	} else {
 		portal.AvatarURL = resp.ContentURI
-		portal.updateAvatarInRoom(ctx)
+		portal.updateAvatarInRoom(ctx, sender)
 	}
 	return true
 }
@@ -1760,11 +1851,11 @@ func (portal *Portal) updateAvatarWithMXC(ctx context.Context, newAvatarPath, ne
 	portal.AvatarHash = newAvatarHash
 	portal.AvatarURL = newAvatarURI
 	portal.AvatarSet = false
-	portal.updateAvatarInRoom(ctx)
+	portal.updateAvatarInRoom(ctx, nil)
 	return true
 }
 
-func (portal *Portal) updateAvatarInRoom(ctx context.Context) {
+func (portal *Portal) updateAvatarInRoom(ctx context.Context, sender *Puppet) {
 	if portal.MXID == "" || portal.AvatarSet {
 		return
 	}
@@ -1773,7 +1864,14 @@ func (portal *Portal) updateAvatarInRoom(ctx context.Context) {
 		Str("avatar_hash", portal.AvatarHash).
 		Stringer("avatar_mxc", portal.AvatarURL).
 		Msg("Updating avatar in Matrix room")
-	_, err := portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	intent := portal.MainIntent()
+	if sender != nil {
+		intent = sender.IntentFor(portal)
+	}
+	_, err := intent.SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	if errors.Is(err, mautrix.MForbidden) && intent != portal.MainIntent() {
+		_, err = portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	}
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to update room avatar")
 	} else {
