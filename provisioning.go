@@ -68,6 +68,7 @@ func (prov *ProvisioningAPI) Init() {
 	r.Use(hlog.NewHandler(prov.log))
 	r.Use(requestlog.AccessLogger(true))
 	r.Use(prov.AuthMiddleware)
+	r.HandleFunc("/v2/whoami", prov.WhoAmI).Methods(http.MethodGet)
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/account", prov.LinkWaitForAccount).Methods(http.MethodPost)
@@ -126,6 +127,19 @@ type Response struct {
 
 	// For response in ResolveIdentifier
 	*ResolveIdentifierResponse
+}
+
+type WhoAmIResponse struct {
+	Permissions int                   `json:"permissions"`
+	MXID        string                `json:"mxid"`
+	Signal      *WhoAmIResponseSignal `json:"signal,omitempty"`
+}
+
+type WhoAmIResponseSignal struct {
+	Number string `json:"number"`
+	UUID   string `json:"uuid"`
+	Name   string `json:"name"`
+	Ok     bool   `json:"ok"`
 }
 
 type ResolveIdentifierResponse struct {
@@ -386,6 +400,32 @@ func (prov *ProvisioningAPI) checkSessionAndReturnHandle(ctx context.Context, w 
 		return nil
 	}
 	return handle
+}
+
+func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value(provisioningUserKey).(*User)
+	log := prov.log.With().
+		Str("action", "whoami").
+		Str("user_id", user.MXID.String()).
+		Logger()
+	log.Debug().Msg("getting whoami")
+
+	data := WhoAmIResponse{
+		Permissions: int(user.PermissionLevel),
+		MXID:        user.MXID.String(),
+	}
+	if user.IsLoggedIn() {
+		data.Signal = &WhoAmIResponseSignal{
+			Number: user.SignalUsername,
+			UUID:   user.SignalID.String(),
+			Ok:     user.Client.IsConnected(),
+		}
+		puppet := user.bridge.GetPuppetBySignalID(user.SignalID)
+		if puppet != nil {
+			data.Signal.Name = puppet.Name
+		}
+	}
+	jsonResponse(w, http.StatusOK, data)
 }
 
 func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
