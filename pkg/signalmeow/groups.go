@@ -498,7 +498,7 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 	return group, nil
 }
 
-func (cli *Client) DownloadGroupAvatarWithInfo(ctx context.Context, group GroupAvatarMeta) ([]byte, error) {
+func (cli *Client) DownloadGroupAvatar(ctx context.Context, group GroupAvatarMeta) ([]byte, error) {
 	groupMasterKey := group.getGroupMasterKey()
 	avatarPath := group.GetAvatarPath()
 	username, password := cli.Store.BasicAuthCreds()
@@ -594,26 +594,14 @@ type GroupCache struct {
 	activeCalls map[types.GroupIdentifier]string
 }
 
-func (cli *Client) GetGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2, gid types.GroupIdentifier) (*GroupChange, error) {
-	// did I already get authorization for today if I received a GroupChange?
+func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2) (*GroupChange, error) {
 	masterKeyBytes := libsignalgo.GroupMasterKey(groupContext.MasterKey)
-	_, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
-	if err != nil {
-		return nil, err
-	}
 	groupMasterKey := masterKeyFromBytes(masterKeyBytes)
-	if groupContext.GroupChange == nil {
-		return nil, fmt.Errorf("No GroupChange found")
-	}
-	groupChangeBytes := groupContext.GroupChange
-	return decryptGroupChange(ctx, groupChangeBytes, groupMasterKey)
-}
-
-func decryptGroupChange(ctx context.Context, groupChangeBytes []byte, groupMasterKey types.SerializedGroupMasterKey) (*GroupChange, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group change").Logger()
 
 	encryptedGroupChange := &signalpb.GroupChange{}
 
+	groupChangeBytes := groupContext.GroupChange
 	err := proto.Unmarshal(groupChangeBytes, encryptedGroupChange)
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling group change: %w", err)
@@ -641,7 +629,6 @@ func decryptGroupChange(ctx context.Context, groupChangeBytes []byte, groupMaste
 
 	decryptedGroupChange := &GroupChange{groupMasterKey: groupMasterKey}
 
-	log.Info().Msg("trying to decrypt title")
 	if encryptedActions.ModifyTitle != nil {
 		titleBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyTitle.Title)
 		if err != nil {

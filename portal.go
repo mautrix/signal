@@ -903,7 +903,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		Uint32("new_revision", groupMeta.GetRevision()).
 		Logger()
 	ctx := log.WithContext(context.TODO())
-	groupChange, err := source.Client.GetGroupChange(ctx, groupMeta, types.GroupIdentifier(portal.ChatID))
+	groupChange, err := signalmeow.DecryptGroupChange(ctx, groupMeta)
 	if err != nil {
 		log.Err(err).Msg("Handling GroupChange failed")
 		return
@@ -926,7 +926,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 		reqInviteUser := mautrix.ReqInviteUser{
 			Reason: "",
-			UserID: puppet.MXID,
+			UserID: puppet.IntentFor(portal).UserID,
 		}
 		_, err = intent.InviteUser(ctx, portal.MXID, &reqInviteUser)
 		if errors.Is(err, mautrix.MForbidden) {
@@ -941,8 +941,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			err = puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
 		}
 		if err != nil {
-			log.Err(err).Msg("Adding Member failed")
-			return
+			log.Err(err).Msg("inviting User failed")
 		}
 	}
 	for _, deleteMember := range groupChange.DeleteMembers {
@@ -952,13 +951,15 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			continue
 		}
 		reqKickUser := mautrix.ReqKickUser{
-			Reason: "",
-			UserID: puppet.MXID,
+			UserID: puppet.IntentFor(portal).UserID,
 		}
 		_, err := intent.KickUser(ctx, portal.MXID, &reqKickUser)
 		if errors.Is(err, mautrix.MForbidden) {
 			reqKickUser.Reason = fmt.Sprintf("Kicked by %s", sender.GetDisplayname())
 			_, err = portal.MainIntent().KickUser(ctx, portal.MXID, &reqKickUser)
+		}
+		if err != nil {
+			log.Err(err).Msg("kicking User failed")
 		}
 	}
 	for _, modifyRole := range groupChange.ModifyMemberRoles {
@@ -975,7 +976,10 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 		_, err = intent.SetPowerLevel(ctx, portal.MXID, puppet.MXID, powerLevel)
 		if errors.Is(err, mautrix.MForbidden) {
-			_, err = portal.MainIntent().SetPowerLevel(ctx, portal.MXID, puppet.MXID, powerLevel)
+			_, err = portal.MainIntent().SetPowerLevel(ctx, portal.MXID, puppet.IntentFor(portal).UserID, powerLevel)
+		}
+		if err != nil {
+			log.Err(err).Msg("Changing power level failed")
 		}
 	}
 }
@@ -1817,7 +1821,7 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 	}
 	log := zerolog.Ctx(ctx)
 	log.Debug().Str("avatar_path", portal.AvatarPath).Msg("Downloading new group avatar from Signal")
-	avatarBytes, err := source.Client.DownloadGroupAvatarWithInfo(ctx, group)
+	avatarBytes, err := source.Client.DownloadGroupAvatar(ctx, group)
 	if err != nil {
 		log.Err(err).Msg("Failed to download new avatar for portal")
 		return true
