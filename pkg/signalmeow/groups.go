@@ -690,7 +690,6 @@ func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContext
 		decryptedGroupChange.DeleteMembers = append(decryptedGroupChange.DeleteMembers, &userID)
 	}
 
-	decryptedGroupChange.ModifyMemberRoles = make([]*RoleMember, 0)
 	for _, modifyMemberRole := range encryptedActions.ModifyMemberRoles {
 		encryptedUserID := libsignalgo.UUIDCiphertext(modifyMemberRole.UserId)
 		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
