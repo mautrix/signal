@@ -677,7 +677,6 @@ func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContext
 		})
 	}
 
-	decryptedGroupChange.DeleteMembers = make([]*uuid.UUID, 0)
 	for _, deleteMember := range encryptedActions.DeleteMembers {
 		if deleteMember == nil {
 			continue
