@@ -650,7 +650,6 @@ func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContext
 		}
 	}
 
-	decryptedGroupChange.AddMembers = make([]*AddMember, 0)
 	for _, addMember := range encryptedActions.AddMembers {
 		if addMember == nil {
 			continue
