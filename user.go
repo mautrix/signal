@@ -241,10 +241,7 @@ func (user *User) ensureInvited(ctx context.Context, intent *appservice.IntentAP
 	}
 	customPuppet := user.bridge.GetPuppetByCustomMXID(user.MXID)
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
-		log.Debug().Msg("adding will_auto_accept to invite content")
 		extraContent["fi.mau.will_auto_accept"] = true
-	} else {
-		log.Debug().Msg("NOT adding will_auto_accept to invite content")
 	}
 	_, err := intent.InviteUser(ctx, roomID, &mautrix.ReqInviteUser{UserID: user.MXID}, extraContent)
 	var httpErr mautrix.HTTPError
@@ -262,7 +259,6 @@ func (user *User) ensureInvited(ctx context.Context, intent *appservice.IntentAP
 	}
 
 	if customPuppet != nil && customPuppet.CustomIntent() != nil {
-		log.Debug().Msg("ensuring custom puppet is joined")
 		err = customPuppet.CustomIntent().EnsureJoined(ctx, roomID, appservice.EnsureJoinedParams{IgnoreCache: true})
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to auto-join custom puppet")
