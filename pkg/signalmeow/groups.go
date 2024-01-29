@@ -140,6 +140,7 @@ type BannedMember struct {
 type GroupChange struct {
 	groupMasterKey types.SerializedGroupMasterKey
 
+	Revision                        uint32
 	AddMembers                      []*AddMember
 	DeleteMembers                   []*uuid.UUID
 	ModifyMemberRoles               []*RoleMember
@@ -150,6 +151,7 @@ type GroupChange struct {
 	ModifyTitle                     *string
 	ModifyAvatar                    *string
 	ModifyDisappearingMessagesTimer *uint32
+	ModifyAttributesAccess          *AccessControl
 	ModifyMemberAccess              *AccessControl
 	ModifyAddFromInviteLinkAccess   *AccessControl
 	AddRequestingMembers            []*RequestingMember
@@ -594,7 +596,7 @@ type GroupCache struct {
 	activeCalls map[types.GroupIdentifier]string
 }
 
-func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2) (*GroupChange, error) {
+func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2) (*GroupChange, error) {
 	masterKeyBytes := libsignalgo.GroupMasterKey(groupContext.MasterKey)
 	groupMasterKey := masterKeyFromBytes(masterKeyBytes)
 	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group change").Logger()
@@ -628,6 +630,8 @@ func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContext
 	}
 
 	decryptedGroupChange := &GroupChange{groupMasterKey: groupMasterKey}
+
+	decryptedGroupChange.Revision = encryptedActions.Revision
 
 	if encryptedActions.ModifyTitle != nil {
 		titleBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyTitle.Title)
@@ -675,6 +679,11 @@ func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContext
 			},
 			JoinFromInviteLink: addMember.JoinFromInviteLink,
 		})
+		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		if err != nil {
+			log.Err(err).Msg("failed to store profile key")
+			return nil, err
+		}
 	}
 
 	for _, deleteMember := range encryptedActions.DeleteMembers {
@@ -702,5 +711,217 @@ func DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContext
 			Role:   GroupMemberRole(modifyMemberRole.Role),
 		})
 	}
+
+	for _, modifyProfileKey := range encryptedActions.ModifyMemberProfileKeys {
+		if modifyProfileKey == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(modifyProfileKey.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(modifyProfileKey.ProfileKey)
+		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+		if err != nil {
+			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+			return nil, err
+		}
+		decryptedGroupChange.ModifyMemberProfileKeys = append(decryptedGroupChange.ModifyMemberProfileKeys, &ProfileKeyMember{
+			UserID:     userID,
+			ProfileKey: *profileKey,
+		})
+		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		if err != nil {
+			log.Err(err).Msg("failed to store profile key")
+			return nil, err
+		}
+	}
+
+	for _, addPendingMember := range encryptedActions.AddPendingMembers {
+		if addPendingMember == nil {
+			continue
+		}
+		pendingMember := addPendingMember.Added
+		encryptedUserID := libsignalgo.UUIDCiphertext(pendingMember.Member.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(pendingMember.Member.ProfileKey)
+		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+		if err != nil {
+			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+			return nil, err
+		}
+		encryptedAddedByUserID := pendingMember.AddedByUserId
+		addedByUserId, err := groupSecretParams.DecryptUUID(libsignalgo.UUIDCiphertext(encryptedAddedByUserID))
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID addedByUserId error")
+			return nil, err
+		}
+		decryptedGroupChange.AddPendingMembers = append(decryptedGroupChange.AddPendingMembers, &PendingMember{
+			GroupMember: GroupMember{
+				UserID:           userID,
+				ProfileKey:       *profileKey,
+				Role:             GroupMemberRole(pendingMember.Member.Role),
+				JoinedAtRevision: pendingMember.Member.JoinedAtRevision,
+			},
+			AddedByUserID: addedByUserId,
+			Timestamp:     addPendingMember.Added.Timestamp,
+		})
+		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		if err != nil {
+			log.Err(err).Msg("failed to store profile key")
+			return nil, err
+		}
+	}
+
+	for _, deletePendingMember := range encryptedActions.DeletePendingMembers {
+		if deletePendingMember == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(deletePendingMember.DeletedUserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		decryptedGroupChange.DeletePendingMembers = append(decryptedGroupChange.DeletePendingMembers, &userID)
+	}
+
+	for _, promotePendingMember := range encryptedActions.PromotePendingMembers {
+		if promotePendingMember == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(promotePendingMember.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(promotePendingMember.ProfileKey)
+		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+		if err != nil {
+			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+			return nil, err
+		}
+		decryptedGroupChange.PromotePendingMembers = append(decryptedGroupChange.PromotePendingMembers, &ProfileKeyMember{
+			UserID:     userID,
+			ProfileKey: *profileKey,
+		})
+		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		if err != nil {
+			log.Err(err).Msg("failed to store profile key")
+			return nil, err
+		}
+	}
+
+	for _, addRequestingMember := range encryptedActions.AddRequestingMembers {
+		if addRequestingMember == nil {
+			continue
+		}
+		requestingMember := addRequestingMember.Added
+		encryptedUserID := libsignalgo.UUIDCiphertext(requestingMember.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(requestingMember.ProfileKey)
+		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+		if err != nil {
+			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+			return nil, err
+		}
+		decryptedGroupChange.AddRequestingMembers = append(decryptedGroupChange.AddRequestingMembers, &RequestingMember{
+			UserID:     userID,
+			ProfileKey: *profileKey,
+			Timestamp:  addRequestingMember.Added.Timestamp,
+		})
+		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		if err != nil {
+			log.Err(err).Msg("failed to store profile key")
+			return nil, err
+		}
+	}
+
+	for _, deleteRequestingMember := range encryptedActions.DeleteRequestingMembers {
+		if deleteRequestingMember == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(deleteRequestingMember.DeletedUserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		decryptedGroupChange.DeleteRequestingMembers = append(decryptedGroupChange.DeleteRequestingMembers, &userID)
+	}
+
+	for _, promoteRequestingMember := range encryptedActions.PromoteRequestingMembers {
+		if promoteRequestingMember == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(promoteRequestingMember.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		decryptedGroupChange.PromoteRequestingMembers = append(decryptedGroupChange.PromoteRequestingMembers, &RoleMember{
+			UserID: userID,
+			Role:   GroupMemberRole(promoteRequestingMember.Role),
+		})
+	}
+
+	for _, addBannedMember := range encryptedActions.AddBannedMembers {
+		if addBannedMember == nil {
+			continue
+		}
+		bannedMember := addBannedMember.Added
+		encryptedUserID := libsignalgo.UUIDCiphertext(bannedMember.UserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		decryptedGroupChange.AddBannedMembers = append(decryptedGroupChange.AddBannedMembers, &BannedMember{
+			UserID:    userID,
+			Timestamp: addBannedMember.Added.Timestamp,
+		})
+	}
+
+	for _, deleteBannedMember := range encryptedActions.DeleteBannedMembers {
+		if deleteBannedMember == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(deleteBannedMember.DeletedUserId)
+		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		if err != nil {
+			log.Err(err).Msg("DecryptUUID UserId error")
+			return nil, err
+		}
+		decryptedGroupChange.DeleteBannedMembers = append(decryptedGroupChange.DeleteBannedMembers, &userID)
+	}
+
+	if encryptedActions.ModifyAttributesAccess != nil {
+		decryptedGroupChange.ModifyAttributesAccess = (*AccessControl)(&encryptedActions.ModifyAttributesAccess.AttributesAccess)
+	}
+
+	if encryptedActions.ModifyMemberAccess != nil {
+		decryptedGroupChange.ModifyMemberAccess = (*AccessControl)(&encryptedActions.ModifyMemberAccess.MembersAccess)
+	}
+
+	if encryptedActions.ModifyAddFromInviteLinkAccess != nil {
+		decryptedGroupChange.ModifyAddFromInviteLinkAccess = (*AccessControl)(&encryptedActions.ModifyAddFromInviteLinkAccess.AddFromInviteLinkAccess)
+	}
+
+	if encryptedActions.ModifyAnnouncementsOnly != nil {
+		decryptedGroupChange.ModifyAnnouncementsOnly = &encryptedActions.ModifyAnnouncementsOnly.AnnouncementsOnly
+	}
+
 	return decryptedGroupChange, nil
 }
