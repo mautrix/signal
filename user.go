@@ -35,6 +35,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/database"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
@@ -527,6 +528,17 @@ func (br *SignalBridge) StartUsers() {
 			br.ZLog.Warn().Stringer("user_id", u.MXID).Msg("No device found for user, skipping Connect and sending BadCredentials BridgeState")
 			u.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
 			continue
+		}
+		if u.PermissionLevel < config.PermissionLevelFull {
+			customPuppet := br.GetPuppetByCustomMXID(u.MXID)
+			if customPuppet != nil {
+				br.ZLog.Warn().Stringer("user_id", u.MXID).Msg("User has custom puppet without permission to do so, logging them out of it")
+				customPuppet.ClearCustomMXID()
+				ctx := u.log.WithContext(context.Background())
+				if managementRoom := u.GetManagementRoomID(); managementRoom != "" {
+					u.bridge.Bot.SendText(ctx, managementRoom, "Double puppetting has been disabled for your Matrix account.")
+				}
+			}
 		}
 		go u.Connect()
 	}
