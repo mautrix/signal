@@ -263,9 +263,11 @@ bridge:
 
     # Permissions for using the bridge.
     # Permitted values:
+    #    block - No access (default)
     #    relay - Talk through the relaybot (if enabled), no access otherwise
-    #     user - Access to use the bridge to chat with a Signal account.
-    #    admin - User level and some additional administration tools
+    #     user - Access to use the bridge by logging in with a Signal account
+    #     full - User level + Matrix login
+    #    admin - Full level + additional administration tools
     # Permitted keys:
     #        * - All Matrix users
     #   domain - All users on that homeserver

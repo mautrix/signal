@@ -133,6 +133,7 @@ func DoUpgrade(helper *up.Helper) {
 	}
 	helper.Copy(up.Bool, "bridge", "provisioning", "debug_endpoints")
 
+	bridgeconfig.RegisterPermissionLevel("full", 15)
 	helper.Copy(up.Map, "bridge", "permissions")
 	helper.Copy(up.Bool, "bridge", "relay", "enabled")
 	helper.Copy(up.Bool, "bridge", "relay", "admin_only")

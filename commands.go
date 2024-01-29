@@ -29,6 +29,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/config"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
@@ -62,6 +63,9 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdDeletePortal,
 		cmdDeleteAllPortals,
 		cmdCleanupLostPortals,
+		cmdLoginMatrix,
+		cmdPingMatrix,
+		cmdLogoutMatrix,
 	)
 }
 
@@ -642,3 +646,23 @@ func fnCleanupLostPortals(ce *WrappedCommandEvent) {
 	}
 	ce.Reply("Finished cleaning up portals")
 }
+
+type WrappedMatrixPuppetHandler struct {
+	*commands.FullHandler
+}
+
+func (wh *WrappedMatrixPuppetHandler) ShowInHelp(ce *commands.Event) bool {
+	return ce.User.GetPermissionLevel() >= config.PermissionLevelFull && wh.FullHandler.ShowInHelp(ce)
+}
+
+func (wh *WrappedMatrixPuppetHandler) Run(ce *commands.Event) {
+	if ce.User.GetPermissionLevel() < config.PermissionLevelFull {
+		ce.Reply("That command is limited to users with full puppeting privileges.")
+	} else {
+		wh.FullHandler.Run(ce)
+	}
+}
+
+var cmdLoginMatrix = &WrappedMatrixPuppetHandler{commands.CommandLoginMatrix}
+var cmdPingMatrix = &WrappedMatrixPuppetHandler{commands.CommandPingMatrix}
+var cmdLogoutMatrix = &WrappedMatrixPuppetHandler{commands.CommandLogoutMatrix}

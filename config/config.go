@@ -21,6 +21,8 @@ import (
 	"maunium.net/go/mautrix/id"
 )
 
+const PermissionLevelFull bridgeconfig.PermissionLevel = 15
+
 type Config struct {
 	*bridgeconfig.BaseConfig `yaml:",inline"`
 
