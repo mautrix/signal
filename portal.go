@@ -988,8 +988,8 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, promoteRequestingMember := range groupChange.PromoteRequestingMembers {
-		puppet := portal.bridge.GetPuppetBySignalID(promoteRequestingMember.UserID)
-		if puppet != nil {
+		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promoteRequestingMember.UserID, event.MembershipInvite, "accepted")
+		if err == nil {
 			err = puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
 			if err != nil {
 				log.Warn().Stringer("signal_user_id", promoteRequestingMember.UserID).Msg("failed to join puppet")
@@ -1026,7 +1026,51 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			log.Err(err).Msg("Changing power level failed")
 		}
 	}
-	// TODO: Join Rules/AccessControl
+	if groupChange.ModifyAttributesAccess != nil || groupChange.ModifyAnnouncementsOnly != nil || groupChange.ModifyMemberAccess != nil {
+		levels, err := portal.MainIntent().PowerLevels(ctx, portal.MXID)
+		if err != nil {
+			log.Err(err).Msg("Couldn't get power levels")
+		} else {
+			if groupChange.ModifyAnnouncementsOnly != nil {
+				levels.EventsDefault = 0
+				if *groupChange.ModifyAnnouncementsOnly {
+					levels.EventsDefault = 50
+				}
+			}
+			if groupChange.ModifyAttributesAccess != nil {
+				level := 0
+				if *groupChange.ModifyAttributesAccess == signalmeow.AccessControl_ADMINISTRATOR {
+					level = 50
+				}
+				levels.EnsureEventLevel(event.StateRoomName, level)
+				levels.EnsureEventLevel(event.StateTopic, level)
+				levels.EnsureEventLevel(event.StateRoomAvatar, level)
+			}
+			if groupChange.ModifyMemberAccess != nil {
+				level := 0
+				if *groupChange.ModifyMemberAccess == signalmeow.AccessControl_ADMINISTRATOR {
+					level = 50
+				}
+				levels.InvitePtr = &level
+			}
+			_, err = intent.SetPowerLevels(ctx, portal.MXID, levels)
+			if errors.Is(err, mautrix.MForbidden) {
+				_, err = portal.MainIntent().SetPowerLevels(ctx, portal.MXID, levels)
+			}
+			if err != nil {
+				log.Err(err).Msg("Couldn't set power levels")
+			}
+		}
+	}
+	// TODO: join rules
+	// if groupChange.ModifyAddFromInviteLinkAccess != nil {
+	// 	joinRule := event.JoinRuleInvite
+	// 	if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ADMINISTRATOR {
+	// 		joinRule = event.JoinRuleKnock
+	// 	} else if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ANY && portal.bridge.Config.Bridge.PublicPortals {
+	// 		joinRule = event.JoinRulePublic
+	// 	}
+	// }
 }
 
 func (portal *Portal) sendMembershipForPuppetAndUser(ctx context.Context, sender *Puppet, target uuid.UUID, membership event.Membership, action string) (puppet *Puppet, err error) {
