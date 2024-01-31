@@ -1,4 +1,4 @@
-//go:build !gccgo
+//go:build darwin || android
 
 package libsignalgo
 
