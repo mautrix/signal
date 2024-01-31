@@ -140,27 +140,27 @@ type BannedMember struct {
 type GroupChange struct {
 	groupMasterKey types.SerializedGroupMasterKey
 
-	Revision                        uint32
-	AddMembers                      []*AddMember
-	DeleteMembers                   []*uuid.UUID
-	ModifyMemberRoles               []*RoleMember
-	ModifyMemberProfileKeys         []*ProfileKeyMember
-	AddPendingMembers               []*PendingMember
-	DeletePendingMembers            []*uuid.UUID
-	PromotePendingMembers           []*ProfileKeyMember
-	ModifyTitle                     *string
-	ModifyAvatar                    *string
-	ModifyDisappearingMessagesTimer *uint32
-	ModifyAttributesAccess          *AccessControl
-	ModifyMemberAccess              *AccessControl
-	ModifyAddFromInviteLinkAccess   *AccessControl
-	AddRequestingMembers            []*RequestingMember
-	DeleteRequestingMembers         []*uuid.UUID
-	PromoteRequestingMembers        []*RoleMember
-	ModifyDescription               *string
-	ModifyAnnouncementsOnly         *bool
-	AddBannedMembers                []*BannedMember
-	DeleteBannedMembers             []*uuid.UUID
+	Revision                           uint32
+	AddMembers                         []*AddMember
+	DeleteMembers                      []*uuid.UUID
+	ModifyMemberRoles                  []*RoleMember
+	ModifyMemberProfileKeys            []*ProfileKeyMember
+	AddPendingMembers                  []*PendingMember
+	DeletePendingMembers               []*uuid.UUID
+	PromotePendingMembers              []*ProfileKeyMember
+	ModifyTitle                        *string
+	ModifyAvatar                       *string
+	ModifyDisappearingMessagesDuration *uint32
+	ModifyAttributesAccess             *AccessControl
+	ModifyMemberAccess                 *AccessControl
+	ModifyAddFromInviteLinkAccess      *AccessControl
+	AddRequestingMembers               []*RequestingMember
+	DeleteRequestingMembers            []*uuid.UUID
+	PromoteRequestingMembers           []*RoleMember
+	ModifyDescription                  *string
+	ModifyAnnouncementsOnly            *bool
+	AddBannedMembers                   []*BannedMember
+	DeleteBannedMembers                []*uuid.UUID
 	//PromotePendingPniAciMembers     []*PromotePniAciMember
 	//ModifyInviteLinkPassword        []byte
 }
@@ -921,6 +921,14 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 
 	if encryptedActions.ModifyAnnouncementsOnly != nil {
 		decryptedGroupChange.ModifyAnnouncementsOnly = &encryptedActions.ModifyAnnouncementsOnly.AnnouncementsOnly
+	}
+	if encryptedActions.ModifyDisappearingMessagesTimer != nil && len(encryptedActions.ModifyDisappearingMessagesTimer.Timer) > 0 {
+		timerBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyDisappearingMessagesTimer.Timer)
+		if err != nil {
+			return nil, err
+		}
+		newDisappaeringMessagesDuration := timerBlob.GetDisappearingMessagesDuration()
+		decryptedGroupChange.ModifyDisappearingMessagesDuration = &newDisappaeringMessagesDuration
 	}
 
 	return decryptedGroupChange, nil

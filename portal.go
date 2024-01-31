@@ -929,6 +929,9 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 	if groupChange.ModifyAvatar != nil {
 		portal.updateAvatarWithInfo(ctx, source, groupChange, sender)
 	}
+	if groupChange.ModifyDisappearingMessagesDuration != nil {
+		portal.updateExpirationTimer(ctx, *groupChange.ModifyDisappearingMessagesDuration)
+	}
 	intent := sender.IntentFor(portal)
 	modifyRoles := groupChange.ModifyMemberRoles
 	for _, deleteBannedMember := range groupChange.DeleteBannedMembers {
@@ -946,21 +949,46 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addMember.UserID, Role: addMember.Role})
 	}
-	// signal deletes, then bans, matrix can ban directly. We might want to reduce noise by removing
-	// members that are to be banned from those to be deleted
 	for _, deleteMember := range groupChange.DeleteMembers {
+		banned := false
+		for _, addBannedMember := range groupChange.AddBannedMembers {
+			if *&addBannedMember.UserID == *deleteMember {
+				banned = true
+			}
+		}
+		if banned {
+			continue
+		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteMember, event.MembershipLeave, "deleted")
 		if err != nil {
 			log.Warn().Stringer("signal_user_id", deleteMember).Msg("Couldn't get puppet for removal")
 		}
 	}
 	for _, deletePendingMember := range groupChange.DeletePendingMembers {
+		banned := false
+		for _, addBannedMember := range groupChange.AddBannedMembers {
+			if *&addBannedMember.UserID == *deletePendingMember {
+				banned = true
+			}
+		}
+		if banned {
+			continue
+		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deletePendingMember, event.MembershipLeave, "invite withdrawn")
 		if err != nil {
 			log.Warn().Stringer("signal_user_id", deletePendingMember).Msg("Couldn't get puppet for removal")
 		}
 	}
 	for _, deleteRequestingMember := range groupChange.DeleteRequestingMembers {
+		banned := false
+		for _, addBannedMember := range groupChange.AddBannedMembers {
+			if *&addBannedMember.UserID == *deleteRequestingMember {
+				banned = true
+			}
+		}
+		if banned {
+			continue
+		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteRequestingMember, event.MembershipLeave, "request rejected")
 		if err != nil {
 			log.Warn().Stringer("signal_user_id", deleteRequestingMember).Msg("Couldn't get puppet for removal")
@@ -1062,15 +1090,26 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			}
 		}
 	}
-	// TODO: join rules
-	// if groupChange.ModifyAddFromInviteLinkAccess != nil {
-	// 	joinRule := event.JoinRuleInvite
-	// 	if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ADMINISTRATOR {
-	// 		joinRule = event.JoinRuleKnock
-	// 	} else if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ANY && portal.bridge.Config.Bridge.PublicPortals {
-	// 		joinRule = event.JoinRulePublic
-	// 	}
-	// }
+	if groupChange.ModifyAddFromInviteLinkAccess != nil {
+		joinRule := event.JoinRuleInvite
+		if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ADMINISTRATOR {
+			joinRule = event.JoinRuleKnock
+		} else if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ANY && portal.bridge.Config.Bridge.PublicPortals {
+			joinRule = event.JoinRulePublic
+		}
+		_, err = intent.SendMassagedStateEvent(ctx, portal.MXID, event.StateJoinRules, "", &event.JoinRulesEventContent{JoinRule: joinRule}, int64(ts))
+		if errors.Is(err, mautrix.MForbidden) {
+			_, err = portal.MainIntent().SendMassagedStateEvent(ctx, portal.MXID, event.StateJoinRules, "", &event.JoinRulesEventContent{JoinRule: joinRule}, int64(ts))
+		}
+		if err != nil {
+			log.Err(err).Msg("Couldn't set join rule")
+		}
+	}
+	err = portal.Update(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to save portal in database after processing group change")
+	}
+	portal.UpdateBridgeInfo(ctx)
 }
 
 func (portal *Portal) sendMembershipForPuppetAndUser(ctx context.Context, sender *Puppet, target uuid.UUID, membership event.Membership, action string) (puppet *Puppet, err error) {
@@ -1791,7 +1830,7 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	if update {
 		err := portal.Update(ctx)
 		if err != nil {
-			log.Err(err).Msg("Failed to save portal in database after updatin group info")
+			log.Err(err).Msg("Failed to save portal in database after updating group info")
 		}
 		portal.UpdateBridgeInfo(ctx)
 	}
@@ -1843,7 +1882,7 @@ func (portal *Portal) UpdateGroupInfo(ctx context.Context, source *User, info *s
 	if update {
 		err := portal.Update(ctx)
 		if err != nil {
-			log.Err(err).Msg("Failed to save portal in database after updatin group info")
+			log.Err(err).Msg("Failed to save portal in database after updating group info")
 		}
 		portal.UpdateBridgeInfo(ctx)
 	}
