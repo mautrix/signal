@@ -943,20 +943,22 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 	for _, addMember := range groupChange.AddMembers {
 		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
 		if err == nil {
-			puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+			puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
 		} else {
 			log.Warn().Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for invite")
 		}
 		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addMember.UserID, Role: addMember.Role})
 	}
-	for _, deleteMember := range groupChange.DeleteMembers {
-		banned := false
-		for _, addBannedMember := range groupChange.AddBannedMembers {
-			if *&addBannedMember.UserID == *deleteMember {
-				banned = true
-			}
+	bannedMembers := make(map[uuid.UUID]bool)
+	for _, addBannedMember := range groupChange.AddBannedMembers {
+		bannedMembers[addBannedMember.UserID] = true
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addBannedMember.UserID, event.MembershipBan, "banned")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", addBannedMember.UserID).Msg("Couldn't get puppet for ban")
 		}
-		if banned {
+	}
+	for _, deleteMember := range groupChange.DeleteMembers {
+		if bannedMembers[*deleteMember] {
 			continue
 		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteMember, event.MembershipLeave, "deleted")
@@ -965,13 +967,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, deletePendingMember := range groupChange.DeletePendingMembers {
-		banned := false
-		for _, addBannedMember := range groupChange.AddBannedMembers {
-			if *&addBannedMember.UserID == *deletePendingMember {
-				banned = true
-			}
-		}
-		if banned {
+		if bannedMembers[*deletePendingMember] {
 			continue
 		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deletePendingMember, event.MembershipLeave, "invite withdrawn")
@@ -980,13 +976,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, deleteRequestingMember := range groupChange.DeleteRequestingMembers {
-		banned := false
-		for _, addBannedMember := range groupChange.AddBannedMembers {
-			if *&addBannedMember.UserID == *deleteRequestingMember {
-				banned = true
-			}
-		}
-		if banned {
+		if bannedMembers[*deleteRequestingMember] {
 			continue
 		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteRequestingMember, event.MembershipLeave, "request rejected")
@@ -1008,12 +998,6 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			log.Warn().Stringer("signal_user_id", addPendingMember.UserID).Msg("Couldn't get puppet for invite")
 		}
 		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addPendingMember.UserID, Role: addPendingMember.Role})
-	}
-	for _, addBannedMember := range groupChange.AddBannedMembers {
-		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addBannedMember.UserID, event.MembershipBan, "banned")
-		if err != nil {
-			log.Warn().Stringer("signal_user_id", addBannedMember.UserID).Msg("Couldn't get puppet for ban")
-		}
 	}
 	for _, promoteRequestingMember := range groupChange.PromoteRequestingMembers {
 		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promoteRequestingMember.UserID, event.MembershipInvite, "accepted")

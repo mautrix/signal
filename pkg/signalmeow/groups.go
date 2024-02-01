@@ -629,9 +629,10 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		return nil, err
 	}
 
-	decryptedGroupChange := &GroupChange{groupMasterKey: groupMasterKey}
-
-	decryptedGroupChange.Revision = encryptedActions.Revision
+	decryptedGroupChange := &GroupChange{
+		groupMasterKey: groupMasterKey,
+		Revision:       encryptedActions.Revision,
+	}
 
 	if encryptedActions.ModifyTitle != nil {
 		titleBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyTitle.Title)
