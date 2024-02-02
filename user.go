@@ -516,6 +516,15 @@ func (br *SignalBridge) StartUsers() {
 	br.ZLog.Debug().Msg("Starting users")
 
 	usersWithToken := br.GetAllLoggedInUsers()
+	if !br.Config.Bridge.DoublePuppetConfig.AllowManual {
+		for _, u := range usersWithToken {
+			customPuppet := br.GetPuppetByCustomMXID(u.MXID)
+			if customPuppet != nil && !br.DoublePuppet.CanAutoDoublePuppet(u.MXID) {
+				br.ZLog.Warn().Stringer("user_id", u.MXID).Msg("User has custom puppet without permission to do so, logging them out of it")
+				customPuppet.ClearCustomMXID()
+			}
+		}
+	}
 	for _, u := range usersWithToken {
 		device := u.populateSignalDevice()
 		if device == nil || !device.IsLoggedIn() {
