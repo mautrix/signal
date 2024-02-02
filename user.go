@@ -551,6 +551,7 @@ func (user *User) Login() (<-chan signalmeow.ProvisioningResponse, error) {
 }
 
 func (user *User) Connect() {
+	go user.tryAutomaticDoublePuppeting()
 	user.startupTryConnect(0)
 }
 
@@ -616,7 +617,6 @@ func (user *User) populateSignalDevice() *signalmeow.Client {
 		Store:        device,
 		EventHandler: user.eventHandler,
 	}
-	go user.tryAutomaticDoublePuppeting()
 	return user.Client
 }
 
