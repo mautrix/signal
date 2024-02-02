@@ -30,7 +30,7 @@ func (puppet *Puppet) SwitchCustomMXID(accessToken string, mxid id.UserID) error
 	if err != nil {
 		return fmt.Errorf("failed to save access token: %w", err)
 	}
-	err = puppet.StartCustomMXID(false)
+	err = puppet.StartCustomMXID(accessToken == "")
 	if err != nil {
 		return err
 	}
@@ -55,6 +55,11 @@ func (puppet *Puppet) ClearCustomMXID() {
 			puppet.log.Err(err).Msg("Failed to clear custom MXID")
 		}
 	}
+}
+
+func (puppet *Puppet) RefreshCustomMXID() error {
+	puppet.AccessToken = ""
+	return puppet.StartCustomMXID(true)
 }
 
 func (puppet *Puppet) StartCustomMXID(reloginOnFail bool) error {

@@ -152,6 +152,9 @@ bridge:
     # manually.
     login_shared_secret_map:
         example.com: foobar
+    # Allow users to provide the bridge with an access token to manage double puppeting manually.
+    # Relevant for users on servers where automatic double puppeting has not been enabled.
+    allow_manual_double_puppeting: true
 
     # Maximum time for handling Matrix events. Duration strings formatted for https://pkg.go.dev/time#ParseDuration
     # Null means there's no enforced timeout.
