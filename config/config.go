@@ -18,7 +18,6 @@ package config
 
 import (
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
-	"maunium.net/go/mautrix/id"
 )
 
 type Config struct {
@@ -34,11 +33,4 @@ type Config struct {
 	} `yaml:"signal"`
 
 	Bridge BridgeConfig `yaml:"bridge"`
-}
-
-func (config *Config) CanAutoDoublePuppet(userID id.UserID) bool {
-	_, homeserver, _ := userID.Parse()
-	_, hasSecret := config.Bridge.DoublePuppetConfig.SharedSecretMap[homeserver]
-
-	return hasSecret
 }
