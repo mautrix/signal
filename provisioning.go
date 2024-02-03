@@ -672,13 +672,22 @@ func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 		Stringer("user_id", user.MXID).
 		Logger()
 	ctx := log.WithContext(r.Context())
-	log.Debug().Msg("Logout called (but not logging out)")
+	log.Debug().Msg("Logout called")
+
+	if !user.IsLoggedIn() {
+		jsonResponse(w, http.StatusOK, Error{
+			Error:   "You're not logged in",
+			ErrCode: "not logged in",
+		})
+		return
+	}
 
 	prov.clearSession(ctx, user)
+	err := user.Logout()
+	if err != nil {
+		user.log.Warn().Err(err).Msg("Error while logging out")
+	}
 
-	// For now do nothing - we need this API to return 200 to be compatible with
-	// the old Signal bridge, which needed a call to Logout before allowing LinkNew
-	// to be called, but we don't actually want to logout, we want to allow a reconnect.
 	jsonResponse(w, http.StatusOK, Response{
 		Success: true,
 		Status:  "logged_out",

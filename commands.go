@@ -52,6 +52,7 @@ func (br *SignalBridge) RegisterCommands() {
 	proc.AddHandlers(
 		cmdPing,
 		cmdLogin,
+		cmdLogout,
 		cmdSetDeviceName,
 		cmdPM,
 		cmdResolvePhone,
@@ -435,6 +436,27 @@ func fnLogin(ce *WrappedCommandEvent) {
 	// Connect to Signal
 	ce.User.Connect()
 	ce.Reply("Successfully logged in as %s (UUID: %s)", ce.User.SignalUsername, ce.User.SignalID)
+}
+
+var cmdLogout = &commands.FullHandler{
+	Func: wrapCommand(fnLogout),
+	Name: "logout",
+	Help: commands.HelpMeta{
+		Section:     commands.HelpSectionAuth,
+		Description: "Unlink the bridge from your Signal account.",
+	},
+}
+
+func fnLogout(ce *WrappedCommandEvent) {
+	if !ce.User.IsLoggedIn() {
+		ce.Reply("You're not logged in.")
+		return
+	}
+	err := ce.User.Logout()
+	if err != nil {
+		ce.User.log.Warn().Err(err).Msg("Error while logging out")
+	}
+	ce.Reply("Logged out successfully.")
 }
 
 func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevQR, prevMsg id.EventID) (qr, msg id.EventID) {
