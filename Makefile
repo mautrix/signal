@@ -6,11 +6,12 @@ LIBRARY_FILENAME=libsignal_ffi.a
 RUST_DIR=pkg/libsignalgo/libsignal
 GO_BINARY=mautrix-signal
 
-ifneq ($(DBG),1)
+# TODO fix linking with debug library
+#ifneq ($(DBG),1)
 RUST_TARGET_SUBDIR=release
-else
-RUST_TARGET_SUBDIR=debug
-endif
+#else
+#RUST_TARGET_SUBDIR=debug
+#endif
 
 build_rust:
 	./build-rust.sh
