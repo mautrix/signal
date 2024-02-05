@@ -51,6 +51,8 @@ COPY --from=go-builder /build/docker-run.sh /docker-run.sh
 COPY --from=go-builder /go/bin/dlv /usr/bin/dlv
 VOLUME /data
 
+ARG DBG
 ARG DBGWAIT=0
-ENV DBGWAIT=${DBGWAIT}
+ENV DBG=${DBG} DBGWAIT=${DBGWAIT}
+RUN echo "Debug mode: DBG=${DBG} DBGWAIT=${DBGWAIT}"
 CMD ["/docker-run.sh"]
