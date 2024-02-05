@@ -27,7 +27,7 @@ COPY .git .git
 
 ARG DBG=0
 ENV LIBRARY_PATH=.
-COPY --from=rust-builder /build/pkg/libsignalgo/libsignal/target/*/libsignal_ffi.a /build/libsignal_ffi.a
+COPY --from=rust-builder /build/pkg/libsignalgo/libsignal/target/*/libsignal_ffi.a ./
 RUN <<EOF
 if [[ $DBG -eq 1 ]]; then
     go install github.com/go-delve/delve/cmd/dlv@latest
