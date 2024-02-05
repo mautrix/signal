@@ -811,7 +811,9 @@ func (user *User) Logout() error {
 	user.log.Info().Msg("Logging out of session")
 	loggedOutDevice, err := user.disconnectNoLock()
 	user.bridge.MeowStore.DeleteDevice(context.TODO(), &loggedOutDevice.Store.DeviceData)
-	user.bridge.GetPuppetByCustomMXID(user.MXID).ClearCustomMXID()
+	if puppet := user.GetIDoublePuppet(); puppet != nil {
+		puppet.ClearCustomMXID()
+	}
 	return err
 }
 
