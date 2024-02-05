@@ -1,6 +1,6 @@
 #!/bin/sh
 # TODO fix linking with debug library
-#if [[ $DBG -ne 1 ]]; then
+#if [ "$DBG" != 1 ]; then
 #    RUST_PROFILE=release
 #else
 #    RUST_PROFILE=dev
