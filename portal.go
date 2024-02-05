@@ -941,13 +941,32 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, addMember := range groupChange.AddMembers {
-		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
-		if err == nil {
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addMember.UserID, Role: addMember.Role})
+		var puppet *Puppet
+		if addMember.JoinFromInviteLink {
+			puppet = portal.bridge.GetPuppetBySignalID(addMember.UserID)
+			if puppet != nil {
+				if puppet.customIntent == nil {
+					user := portal.bridge.GetUserBySignalID(addMember.UserID)
+					if user != nil {
+						portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, user.MXID, event.MembershipInvite, "Joined via invite Link")
+					}
+				}
+				_, err = puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
+				if errors.Is(err, mautrix.MForbidden) {
+					_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipInvite, "Joined via invite Link")
+				} else if err == nil {
+					continue
+				}
+			}
+		} else {
+			puppet, _ = portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
+		}
+		if puppet != nil {
 			puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
 		} else {
 			log.Warn().Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for invite")
 		}
-		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addMember.UserID, Role: addMember.Role})
 	}
 	bannedMembers := make(map[uuid.UUID]bool)
 	for _, addBannedMember := range groupChange.AddBannedMembers {
@@ -1103,10 +1122,10 @@ func (portal *Portal) sendMembershipForPuppetAndUser(ctx context.Context, sender
 		return
 	}
 	err = portal.sendMembershipWithPuppet(ctx, sender, puppet.IntentFor(portal).UserID, membership, action)
-	if puppet.customIntent == nil && err != nil {
+	if puppet.customIntent == nil {
 		user := portal.bridge.GetUserBySignalID(target)
 		if user != nil {
-			portal.sendMembershipWithPuppet(ctx, sender, user.MXID, membership, action)
+			err = portal.sendMembershipWithPuppet(ctx, sender, user.MXID, membership, action)
 		}
 	}
 	return
