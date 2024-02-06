@@ -27,7 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "maunium.net/go/maulogger/v2"
+	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -37,7 +37,7 @@ import (
 type MetricsHandler struct {
 	db     *database.Database
 	server *http.Server
-	log    log.Logger
+	log    zerolog.Logger
 
 	running      bool
 	ctx          context.Context
@@ -67,7 +67,7 @@ type MetricsHandler struct {
 	loggedInStateLock  sync.Mutex
 }
 
-func NewMetricsHandler(address string, log log.Logger, db *database.Database) *MetricsHandler {
+func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database) *MetricsHandler {
 	portalCount := promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "bridge_portals_total",
 		Help: "Number of portal rooms on Matrix",
@@ -231,7 +231,7 @@ func (mh *MetricsHandler) updateStats() {
 	var puppetCount int
 	err := mh.db.QueryRow(mh.ctx, "SELECT COUNT(*) FROM puppet").Scan(&puppetCount)
 	if err != nil {
-		mh.log.Warnln("Failed to scan number of puppets:", err)
+		mh.log.Warn().Err(err).Msg("Failed to scan number of puppets")
 	} else {
 		mh.puppetCount.Set(float64(puppetCount))
 	}
@@ -239,7 +239,7 @@ func (mh *MetricsHandler) updateStats() {
 	var userCount int
 	err = mh.db.QueryRow(mh.ctx, `SELECT COUNT(*) FROM "user"`).Scan(&userCount)
 	if err != nil {
-		mh.log.Warnln("Failed to scan number of users:", err)
+		mh.log.Warn().Err(err).Msg("Failed to scan number of users:")
 	} else {
 		mh.userCount.Set(float64(userCount))
 	}
@@ -247,7 +247,7 @@ func (mh *MetricsHandler) updateStats() {
 	var messageCount int
 	err = mh.db.QueryRow(mh.ctx, "SELECT COUNT(*) FROM message").Scan(&messageCount)
 	if err != nil {
-		mh.log.Warnln("Failed to scan number of messages:", err)
+		mh.log.Warn().Err(err).Msg("Failed to scan number of messages")
 	} else {
 		mh.messageCount.Set(float64(messageCount))
 	}
@@ -264,7 +264,7 @@ func (mh *MetricsHandler) updateStats() {
 			FROM portal WHERE mxid<>''
 		`).Scan(&encryptedGroupCount, &encryptedPrivateCount, &unencryptedGroupCount, &unencryptedPrivateCount)
 	if err != nil {
-		mh.log.Warnln("Failed to scan number of portals:", err)
+		mh.log.Warn().Err(err).Msg("Failed to scan number of portals")
 	} else {
 		mh.encryptedGroupCount.Set(float64(encryptedGroupCount))
 		mh.encryptedPrivateCount.Set(float64(encryptedPrivateCount))
@@ -276,9 +276,15 @@ func (mh *MetricsHandler) updateStats() {
 
 func (mh *MetricsHandler) startUpdatingStats() {
 	defer func() {
-		err := recover()
-		if err != nil {
-			mh.log.Fatalfln("Panic in metric updater: %v\n%s", err, string(debug.Stack()))
+		r := recover()
+		if r != nil {
+			evt := mh.log.Fatal()
+			if err, ok := r.(error); ok {
+				evt = evt.Stack().Err(err)
+			} else {
+				evt = evt.Str("stack", string(debug.Stack())).Any("error", r)
+			}
+			evt.Msg("Panic in metric updater")
 		}
 	}()
 	ticker := time.Tick(10 * time.Second)
@@ -299,7 +305,7 @@ func (mh *MetricsHandler) Start() {
 	err := mh.server.ListenAndServe()
 	mh.running = false
 	if err != nil && err != http.ErrServerClosed {
-		mh.log.Fatalln("Error in metrics listener:", err)
+		mh.log.Fatal().Err(err).Msg("Error in metrics listener")
 	}
 }
 
@@ -310,6 +316,6 @@ func (mh *MetricsHandler) Stop() {
 	mh.stopRecorder()
 	err := mh.server.Close()
 	if err != nil {
-		mh.log.Errorln("Error closing metrics listener:", err)
+		mh.log.Err(err).Msg("Error closing metrics listener")
 	}
 }

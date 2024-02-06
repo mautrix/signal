@@ -114,7 +114,7 @@ func (br *SignalBridge) Init() {
 		Bridge: br,
 	}
 
-	br.Metrics = NewMetricsHandler(br.Config.Metrics.Listen, br.Log.Sub("Metrics"), br.DB)
+	br.Metrics = NewMetricsHandler(br.Config.Metrics.Listen, br.ZLog.With().Str("component", "metrics").Logger(), br.DB)
 	br.MatrixHandler.TrackEventDuration = br.Metrics.TrackMatrixEvent
 
 	signalFormatParams = &signalfmt.FormatParams{
@@ -180,11 +180,11 @@ func (br *SignalBridge) Start() {
 	go br.logLostPortals(context.TODO())
 	err := br.MeowStore.Upgrade(context.TODO())
 	if err != nil {
-		br.Log.Fatalln("Failed to upgrade signalmeow database: %v", err)
+		br.ZLog.Fatal().Err(err).Msg("Failed to upgrade signalmeow database")
 		os.Exit(15)
 	}
 	if br.provisioning != nil {
-		br.Log.Debugln("Initializing provisioning API")
+		br.ZLog.Debug().Msg("Initializing provisioning API")
 		br.provisioning.Init()
 	}
 	go br.StartUsers()
@@ -197,7 +197,7 @@ func (br *SignalBridge) Start() {
 func (br *SignalBridge) Stop() {
 	br.Metrics.Stop()
 	for _, user := range br.usersByMXID {
-		br.Log.Debugln("Disconnecting", user.MXID)
+		br.ZLog.Debug().Stringer("user_id", user.MXID).Msg("Disconnecting")
 		user.Disconnect()
 	}
 }
