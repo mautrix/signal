@@ -278,11 +278,11 @@ func (mh *MetricsHandler) startUpdatingStats() {
 	defer func() {
 		r := recover()
 		if r != nil {
-			evt := mh.log.Fatal()
+			evt := mh.log.Fatal().Str("stack", string(debug.Stack()))
 			if err, ok := r.(error); ok {
-				evt = evt.Stack().Err(err)
+				evt = evt.Err(err)
 			} else {
-				evt = evt.Str("stack", string(debug.Stack())).Any("error", r)
+				evt = evt.Any("error", r)
 			}
 			evt.Msg("Panic in metric updater")
 		}
