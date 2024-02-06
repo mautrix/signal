@@ -330,7 +330,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			log.Err(err).Msg("GetContents error")
 		}
 		log = log.With().
-			Str("sender_uuid", senderUUID.String()).
+			Stringer("sender_uuid", senderUUID).
 			Uint32("sender_device_id", senderDeviceID).
 			Str("sender_e164", senderE164).
 			Logger()

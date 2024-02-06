@@ -209,7 +209,7 @@ func (prov *ProvisioningAPI) ResolveIdentifier(w http.ResponseWriter, r *http.Re
 
 	log := prov.log.With().
 		Str("action", "resolve_identifier").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Str("phone_num", phoneNum).
 		Logger()
 	ctx := log.WithContext(r.Context())
@@ -244,7 +244,7 @@ func (prov *ProvisioningAPI) StartPM(w http.ResponseWriter, r *http.Request) {
 
 	log := prov.log.With().
 		Str("action", "start_pm").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Str("phone_num", phoneNum).
 		Logger()
 	ctx := log.WithContext(r.Context())
@@ -406,7 +406,7 @@ func (prov *ProvisioningAPI) WhoAmI(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
 	log := prov.log.With().
 		Str("action", "whoami").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Logger()
 	log.Debug().Msg("getting whoami")
 
@@ -432,7 +432,7 @@ func (prov *ProvisioningAPI) LinkNew(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
 	log := prov.log.With().
 		Str("action", "link_new").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Logger()
 	ctx := log.WithContext(r.Context())
 	log.Debug().Msg("starting login")
@@ -517,7 +517,7 @@ func (prov *ProvisioningAPI) LinkWaitForScan(w http.ResponseWriter, r *http.Requ
 
 	log := prov.log.With().
 		Str("action", "link_wait_for_scan").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Str("session_id", body.SessionID).
 		Logger()
 	ctx := log.WithContext(r.Context())
@@ -610,7 +610,7 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 
 	log := prov.log.With().
 		Str("action", "link_wait_for_account").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Int("session_id", sessionID).
 		Str("device_name", deviceName).
 		Logger()
@@ -669,7 +669,7 @@ func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
 	log := prov.log.With().
 		Str("action", "logout").
-		Str("user_id", user.MXID.String()).
+		Stringer("user_id", user.MXID).
 		Logger()
 	ctx := log.WithContext(r.Context())
 	log.Debug().Msg("Logout called (but not logging out)")

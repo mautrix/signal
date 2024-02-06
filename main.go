@@ -237,9 +237,9 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 
 	log := br.ZLog.With().
 		Str("action", "create private portal").
-		Str("target_room_id", roomID.String()).
-		Str("inviter_mxid", brInviter.GetMXID().String()).
-		Str("invitee_uuid", puppet.SignalID.String()).
+		Stringer("target_room_id", roomID).
+		Stringer("inviter_mxid", brInviter.GetMXID()).
+		Stringer("invitee_uuid", puppet.SignalID).
 		Logger()
 	log.Debug().Msg("Creating private chat portal")
 
@@ -252,7 +252,7 @@ func (br *SignalBridge) CreatePrivatePortal(roomID id.RoomID, brInviter bridge.U
 		return
 	}
 	log.Debug().
-		Str("existing_room_id", portal.MXID.String()).
+		Stringer("existing_room_id", portal.MXID).
 		Msg("Existing private chat portal found, trying to invite user")
 
 	ok := portal.ensureUserInvited(ctx, inviter)

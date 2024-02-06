@@ -48,7 +48,7 @@ func (u *User) GetLastReadTS(ctx context.Context, portal PortalKey) uint64 {
 	err := u.qh.GetDB().QueryRow(ctx, getLastReadTSQuery, u.MXID, portal.ChatID, portal.Receiver).Scan(&ts)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		zerolog.Ctx(ctx).Err(err).
-			Str("user_id", u.MXID.String()).
+			Stringer("user_id", u.MXID).
 			Any("portal_key", portal).
 			Msg("Failed to query last read timestamp")
 		return 0
@@ -63,12 +63,12 @@ func (u *User) SetLastReadTS(ctx context.Context, portal PortalKey, ts uint64) {
 	err := u.qh.Exec(ctx, setLastReadTSQuery, u.MXID, portal.ChatID, portal.Receiver, int64(ts))
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).
-			Str("user_id", u.MXID.String()).
+			Stringer("user_id", u.MXID).
 			Any("portal_key", portal).
 			Msg("Failed to update last read timestamp")
 	} else {
 		zerolog.Ctx(ctx).Debug().
-			Str("user_id", u.MXID.String()).
+			Stringer("user_id", u.MXID).
 			Any("portal_key", portal).
 			Uint64("last_read_ts", ts).
 			Msg("Updated last read timestamp of portal")
@@ -86,7 +86,7 @@ func (u *User) IsInSpace(ctx context.Context, portal PortalKey) bool {
 	err := u.qh.GetDB().QueryRow(ctx, getIsInSpaceQuery, u.MXID, portal.ChatID, portal.Receiver).Scan(&inSpace)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		zerolog.Ctx(ctx).Err(err).
-			Str("user_id", u.MXID.String()).
+			Stringer("user_id", u.MXID).
 			Any("portal_key", portal).
 			Msg("Failed to query in space status")
 		return false
@@ -101,7 +101,7 @@ func (u *User) MarkInSpace(ctx context.Context, portal PortalKey) {
 	err := u.qh.Exec(ctx, setIsInSpaceQuery, u.MXID, portal.ChatID, portal.Receiver)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).
-			Str("user_id", u.MXID.String()).
+			Stringer("user_id", u.MXID).
 			Any("portal_key", portal).
 			Msg("Failed to update in space status")
 	} else {
