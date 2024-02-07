@@ -242,12 +242,17 @@ func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User, info *types.
 		Logger()
 	ctx = log.WithContext(ctx)
 	var err error
-	if info == nil {
-		log.Debug().Msg("Fetching contact info to update puppet")
-		info, err = source.Client.ContactByID(ctx, puppet.SignalID)
+	{
+		var infoWithProfile *types.Contact
+		log.Debug().Msg("Fetching profile & contact info to update puppet")
+		infoWithProfile, err = source.Client.ContactByID(ctx, puppet.SignalID)
 		if err != nil {
-			log.Err(err).Msg("Failed to fetch contact info")
-			return
+			log.Err(err).Msg("Failed to fetch profile & contact info")
+			if info == nil {
+				return
+			}
+		} else if infoWithProfile != nil {
+			info = infoWithProfile
 		}
 	}
 
