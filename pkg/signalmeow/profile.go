@@ -162,6 +162,10 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 	return profile, nil
 }
 
+func (cli *Client) IsProfileHiddenFromOthers(ctx context.Context, profileUUID uuid.UUID) (bool, error) {
+	return cli.Store.ContactStore.IsProfileHiddenFromOthers(ctx, profileUUID)
+}
+
 func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
 	log := zerolog.Ctx(ctx)
 	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalID)

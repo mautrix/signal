@@ -255,6 +255,19 @@ func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User, info *types.
 			info = infoWithProfile
 		}
 	}
+	if info.ProfileKey != nil {
+		if profileIsHiddenFromOthers, err := source.Client.IsProfileHiddenFromOthers(ctx, info.UUID); err != nil {
+			log.Err(err).Msg("Failed to check if profile is hidden from other user(s)")
+			return
+		} else if profileIsHiddenFromOthers {
+			log.Debug().Msg("Profile is hidden from other user(s), so hide it globally to avoid leaking it")
+			info.ProfileName = ""
+			info.ProfileAbout = ""
+			info.ProfileAboutEmoji = ""
+			info.ProfileAvatarPath = ""
+			info.ProfileAvatarHash = ""
+		}
+	}
 
 	log.Trace().Msg("Updating puppet info")
 

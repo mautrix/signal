@@ -31,6 +31,7 @@ import (
 type ContactStore interface {
 	LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error)
 	LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error)
+	IsProfileHiddenFromOthers(ctx context.Context, theirUUID uuid.UUID) (bool, error)
 	StoreContact(ctx context.Context, contact types.Contact) error
 	AllContacts(ctx context.Context) ([]*types.Contact, error)
 	UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error
@@ -131,6 +132,16 @@ func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 
 func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
 	return scanContact(s.db.QueryRow(ctx, getContactByUUIDQuery, s.ACI, theirUUID))
+}
+
+func (s *SQLStore) IsProfileHiddenFromOthers(ctx context.Context, theirUUID uuid.UUID) (bool, error) {
+	var count uint32
+	err := s.db.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM signalmeow_contacts
+		WHERE our_aci_uuid <> $1 AND aci_uuid = $2 AND LENGTH(COALESCE(profile_key, '')) = 0
+	`, s.ACI, theirUUID).Scan(&count)
+	return count > 0, err
 }
 
 func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
