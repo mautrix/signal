@@ -33,7 +33,6 @@ import (
 	"golang.org/x/exp/slices"
 	"maunium.net/go/mautrix/crypto/attachment"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
@@ -139,11 +138,7 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 			},
 		})
 	}
-	var replyTo id.EventID
-	var sender id.UserID
-	if dm.Quote != nil {
-		replyTo, sender = mc.GetMatrixReply(ctx, dm.Quote)
-	}
+	replyTo, sender := mc.GetMatrixReply(ctx, dm.Quote)
 	for _, part := range cm.Parts {
 		if part.Content.Mentions == nil {
 			part.Content.Mentions = &event.Mentions{}
