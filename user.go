@@ -742,7 +742,7 @@ func (user *User) handleContactList(evt *events.ContactList) {
 		if puppet == nil {
 			return
 		}
-		puppet.UpdateInfo(ctx, user, contact)
+		puppet.UpdateInfo(ctx, user)
 	}
 }
 

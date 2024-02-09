@@ -865,11 +865,7 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 		Uint64("msg_ts", msg.GetTimestamp()).
 		Logger().WithContext(context.TODO())
 	// Always update sender info when we receive a message from them, there's caching inside the function
-	sender.UpdateInfo(
-		genericCtx,
-		source,
-		nil,
-	)
+	sender.UpdateInfo(genericCtx, source)
 	// Handle earlier missed group changes here.
 	// If this message is a group change, don't handle it here, it's handled below.
 	if msg.GetGroupV2().GetGroupChange() == nil && portal.Revision < msg.GetGroupV2().GetRevision() {
@@ -1487,7 +1483,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	var groupInfo *signalmeow.Group
 	if portal.IsPrivateChat() {
 		dmPuppet = portal.GetDMPuppet()
-		dmPuppet.UpdateInfo(ctx, user, nil)
+		dmPuppet.UpdateInfo(ctx, user)
 		portal.UpdateDMInfo(ctx, false)
 	} else {
 		groupInfo = portal.UpdateGroupInfo(ctx, user, nil, groupRevision, true)
@@ -1797,7 +1793,7 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			log.Warn().Stringer("signal_user_id", member.UserID).Msg("Couldn't get puppet for group member")
 			continue
 		}
-		puppet.UpdateInfo(ctx, source, nil)
+		puppet.UpdateInfo(ctx, source)
 		intent := puppet.IntentFor(portal)
 		userIDs = append(userIDs, intent.UserID)
 		if portal.MXID != "" {

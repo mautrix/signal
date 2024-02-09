@@ -232,20 +232,18 @@ func (puppet *Puppet) GetAvatarURL() id.ContentURI {
 	return puppet.AvatarURL
 }
 
-func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User, info *types.Contact) {
+func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User) {
 	log := zerolog.Ctx(ctx).With().
 		Str("function", "Puppet.UpdateInfo").
 		Stringer("signal_user_id", puppet.SignalID).
 		Logger()
 	ctx = log.WithContext(ctx)
 	var err error
-	if info == nil {
-		log.Debug().Msg("Fetching contact info to update puppet")
-		info, err = source.Client.ContactByID(ctx, puppet.SignalID)
-		if err != nil {
-			log.Err(err).Msg("Failed to fetch contact info")
-			return
-		}
+	log.Debug().Msg("Fetching contact info to update puppet")
+	info, err := source.Client.ContactByID(ctx, puppet.SignalID)
+	if err != nil {
+		log.Err(err).Msg("Failed to fetch contact info")
+		return
 	}
 
 	log.Trace().Msg("Updating puppet info")
