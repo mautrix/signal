@@ -507,7 +507,7 @@ func canDeletePortal(ctx context.Context, portal *Portal, userID id.UserID) bool
 	members, err := portal.MainIntent().JoinedMembers(ctx, portal.MXID)
 	if err != nil {
 		portal.log.Err(err).
-			Str("user_id", userID.String()).
+			Stringer("user_id", userID).
 			Msg("Failed to get joined members to check if user can delete portal")
 		return false
 	}

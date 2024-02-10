@@ -249,15 +249,15 @@ func niceRound(dur time.Duration) time.Duration {
 func (mt *messageTimings) MarshalZerologObject(evt *zerolog.Event) {
 	evt.
 		Dict("bridge", zerolog.Dict().
-			Str("init_receive", niceRound(mt.initReceive).String()).
-			Str("decrypt", niceRound(mt.decrypt).String()).
-			Str("queue", niceRound(mt.portalQueue).String()).
-			Str("total_hs_to_portal", niceRound(mt.totalReceive).String())).
+			Stringer("init_receive", niceRound(mt.initReceive)).
+			Stringer("decrypt", niceRound(mt.decrypt)).
+			Stringer("queue", niceRound(mt.portalQueue)).
+			Stringer("total_hs_to_portal", niceRound(mt.totalReceive))).
 		Dict("portal", zerolog.Dict().
-			Str("implicit_rr", niceRound(mt.implicitRR).String()).
-			Str("preproc", niceRound(mt.preproc).String()).
-			Str("convert", niceRound(mt.convert).String()).
-			Str("total_send", niceRound(mt.totalSend).String()))
+			Stringer("implicit_rr", niceRound(mt.implicitRR)).
+			Stringer("preproc", niceRound(mt.preproc)).
+			Stringer("convert", niceRound(mt.convert)).
+			Stringer("total_send", niceRound(mt.totalSend)))
 }
 
 type metricSender struct {

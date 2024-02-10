@@ -42,7 +42,7 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 	}
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "store contact details as contact").
-		Str("uuid", parsedUUID.String()).
+		Stringer("uuid", parsedUUID).
 		Logger()
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, parsedUUID)
 	if err != nil {

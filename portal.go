@@ -346,7 +346,7 @@ func (portal *Portal) messageLoop() {
 func (portal *Portal) handleMatrixMessages(msg portalMatrixMessage) {
 	log := portal.log.With().
 		Str("action", "handle matrix event").
-		Str("event_id", msg.evt.ID.String()).
+		Stringer("event_id", msg.evt.ID).
 		Str("event_type", msg.evt.Type.String()).
 		Logger()
 	ctx := log.WithContext(context.TODO())
@@ -379,7 +379,7 @@ func (portal *Portal) handleMatrixMessage(ctx context.Context, sender *User, evt
 	messageAge := timings.totalReceive
 	ms := metricSender{portal: portal, timings: &timings, ctx: ctx}
 	log.Debug().
-		Str("sender", evt.Sender.String()).
+		Stringer("sender", evt.Sender).
 		Dur("age", messageAge).
 		Msg("Received message")
 
@@ -559,14 +559,14 @@ func (portal *Portal) handleMatrixRedaction(ctx context.Context, sender *User, e
 				})
 				if err != nil {
 					log.Err(err).
-						Str("part_event_id", otherPart.MXID.String()).
+						Stringer("part_event_id", otherPart.MXID).
 						Int("part_index", otherPart.PartIndex).
 						Msg("Failed to redact other part of redacted message")
 				}
 				err = otherPart.Delete(ctx)
 				if err != nil {
 					log.Err(err).
-						Str("part_event_id", otherPart.MXID.String()).
+						Stringer("part_event_id", otherPart.MXID).
 						Int("part_index", otherPart.PartIndex).
 						Msg("Failed to delete other part of redacted message from database")
 				}
@@ -670,7 +670,7 @@ func (portal *Portal) handleMatrixReaction(ctx context.Context, sender *User, ev
 func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Content, sender *User, evtID id.EventID) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send signal message").
-		Str("event_id", evtID.String()).
+		Stringer("event_id", evtID).
 		Str("portal_chat_id", portal.ChatID).
 		Logger()
 	ctx = log.WithContext(ctx)
@@ -816,11 +816,11 @@ func (portal *Portal) GetSignalReply(ctx context.Context, content *event.Message
 	replyToMsg, err := portal.bridge.DB.Message.GetByMXID(ctx, replyToID)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).
-			Str("reply_to_mxid", replyToID.String()).
+			Stringer("reply_to_mxid", replyToID).
 			Msg("Failed to get reply target message from database")
 	} else if replyToMsg == nil {
 		zerolog.Ctx(ctx).Warn().
-			Str("reply_to_mxid", replyToID.String()).
+			Stringer("reply_to_mxid", replyToID).
 			Msg("Reply target message not found")
 	} else {
 		return &signalpb.DataMessage_Quote{
@@ -841,7 +841,7 @@ func (portal *Portal) handleSignalMessage(portalMessage portalSignalMessage) {
 	sender := portal.bridge.GetPuppetBySignalID(portalMessage.evt.Info.Sender)
 	if sender == nil {
 		portal.log.Warn().
-			Str("sender_uuid", portalMessage.evt.Info.Sender.String()).
+			Stringer("sender_uuid", portalMessage.evt.Info.Sender).
 			Msg("Couldn't get puppet for message")
 		return
 	}
@@ -893,7 +893,7 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	default:
 		portal.log.Warn().
 			Str("action", "handle signal message").
-			Str("sender_uuid", sender.SignalID.String()).
+			Stringer("sender_uuid", sender.SignalID).
 			Uint64("msg_ts", msg.GetTimestamp()).
 			Msg("Unrecognized content in message")
 	}
@@ -902,7 +902,7 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal group change").
-		Str("sender_uuid", sender.SignalID.String()).
+		Stringer("sender_uuid", sender.SignalID).
 		Uint64("change_ts", ts).
 		Uint32("new_revision", groupMeta.GetRevision()).
 		Logger()
@@ -914,7 +914,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataMessage_Reaction, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal reaction").
-		Str("sender_uuid", sender.SignalID.String()).
+		Stringer("sender_uuid", sender.SignalID).
 		Uint64("target_msg_ts", react.GetTargetSentTimestamp()).
 		Str("target_msg_sender", react.GetTargetAuthorAci()).
 		Bool("remove", react.GetRemove()).
@@ -1006,7 +1006,7 @@ func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataM
 func (portal *Portal) handleSignalDelete(sender *Puppet, delete *signalpb.DataMessage_Delete, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal delete").
-		Str("sender_uuid", sender.SignalID.String()).
+		Stringer("sender_uuid", sender.SignalID).
 		Uint64("target_msg_ts", delete.GetTargetSentTimestamp()).
 		Uint64("delete_ts", ts).
 		Logger()
@@ -1027,7 +1027,7 @@ func (portal *Portal) handleSignalDelete(sender *Puppet, delete *signalpb.DataMe
 		if err != nil {
 			log.Err(err).
 				Int("part_index", part.PartIndex).
-				Str("event_id", part.MXID.String()).
+				Stringer("event_id", part.MXID).
 				Msg("Failed to redact message")
 		}
 		err = part.Delete(ctx)
@@ -1042,7 +1042,7 @@ func (portal *Portal) handleSignalDelete(sender *Puppet, delete *signalpb.DataMe
 func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet, msg *signalpb.DataMessage) {
 	log := portal.log.With().
 		Str("action", "handle signal message").
-		Str("sender_uuid", sender.SignalID.String()).
+		Stringer("sender_uuid", sender.SignalID).
 		Uint64("msg_ts", msg.GetTimestamp()).
 		Logger()
 	ctx := log.WithContext(context.TODO())
@@ -1087,7 +1087,7 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 func (portal *Portal) handleSignalEditMessage(sender *Puppet, timestamp uint64, msg *signalpb.DataMessage) {
 	log := portal.log.With().
 		Str("action", "handle signal edit").
-		Str("sender_uuid", sender.SignalID.String()).
+		Stringer("sender_uuid", sender.SignalID).
 		Uint64("target_msg_ts", timestamp).
 		Uint64("edit_msg_ts", msg.GetTimestamp()).
 		Logger()
@@ -1158,7 +1158,7 @@ func (portal *Portal) handleSignalTypingMessage(sender *Puppet, msg *signalpb.Ty
 	}
 	if err != nil {
 		portal.log.Err(err).
-			Str("user_id", sender.SignalID.String()).
+			Stringer("user_id", sender.SignalID).
 			Msg("Failed to handle Signal typing notification")
 	}
 }
@@ -1292,8 +1292,8 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		return
 	}
 	logWith := portal.log.With().
-		Str("event_id", eventID.String()).
-		Str("sender", sender.MXID.String()).
+		Stringer("event_id", eventID).
+		Stringer("sender", sender.MXID).
 		Bool("explicit", isExplicit)
 	if isExplicit {
 		logWith = logWith.Str("action", "handle matrix read receipt")
@@ -1829,14 +1829,14 @@ func (portal *Portal) addToPersonalSpace(ctx context.Context, user *User) bool {
 	})
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).
-			Str("user_id", user.MXID.String()).
-			Str("space_id", spaceID.String()).
+			Stringer("user_id", user.MXID).
+			Stringer("space_id", spaceID).
 			Msg("Failed to add room to user's personal filtering space")
 		return false
 	} else {
 		zerolog.Ctx(ctx).Debug().
-			Str("user_id", user.MXID.String()).
-			Str("space_id", spaceID.String()).
+			Stringer("user_id", user.MXID).
+			Stringer("space_id", spaceID).
 			Msg("Added room to user's personal filtering space")
 		user.MarkInSpace(ctx, portal.PortalKey)
 		return true
