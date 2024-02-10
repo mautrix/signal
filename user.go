@@ -166,8 +166,7 @@ type User struct {
 
 	Client *signalmeow.Client
 
-	BridgeState     *bridge.BridgeStateQueue
-	bridgeStateLock sync.Mutex
+	BridgeState *bridge.BridgeStateQueue
 
 	spaceMembershipChecked bool
 	spaceCreateLock        sync.Mutex
