@@ -9,7 +9,7 @@ homeserver:
     # Standard Matrix homeservers like Synapse, Dendrite and Conduit should just use "standard" here.
     software: standard
     # The URL to push real-time bridge status to.
-    # If set, the bridge will make POST requests to this URL whenever a user's discord connection state changes.
+    # If set, the bridge will make POST requests to this URL whenever a user's Signal connection state changes.
     # The bridge will use the appservice as_token to authorize requests.
     status_endpoint: null
     # Endpoint for reporting per-message status.
