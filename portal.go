@@ -1037,31 +1037,30 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			portal.sendMembershipWithPuppet(ctx, sender, puppet.IntentFor(portal).UserID, event.MembershipKnock, "knocked")
 		}
 	}
-	for _, modifyRole := range modifyRoles {
-		puppet := portal.bridge.GetPuppetBySignalID(modifyRole.UserID)
-		if puppet == nil {
-			log.Warn().Stringer("signal_user_id", modifyRole.UserID).Msg("Couldn't get puppet for deleted member")
-			continue
-		}
-		powerLevel := 0
-		// we might want to make this more efficient by sending all power level changes at once
-		// The most likely case is a single Role change, so maybe it doesn't matter
-		if modifyRole.Role == signalmeow.GroupMember_ADMINISTRATOR {
-			powerLevel = 50
-		}
-		_, err = intent.SetPowerLevel(ctx, portal.MXID, puppet.MXID, powerLevel)
-		if errors.Is(err, mautrix.MForbidden) {
-			_, err = portal.MainIntent().SetPowerLevel(ctx, portal.MXID, puppet.IntentFor(portal).UserID, powerLevel)
-		}
-		if err != nil {
-			log.Err(err).Msg("Changing power level failed")
-		}
-	}
-	if groupChange.ModifyAttributesAccess != nil || groupChange.ModifyAnnouncementsOnly != nil || groupChange.ModifyMemberAccess != nil {
+
+	if groupChange.ModifyAttributesAccess != nil || groupChange.ModifyAnnouncementsOnly != nil || groupChange.ModifyMemberAccess != nil || len(modifyRoles) > 0 {
 		levels, err := portal.MainIntent().PowerLevels(ctx, portal.MXID)
 		if err != nil {
 			log.Err(err).Msg("Couldn't get power levels")
 		} else {
+			for _, modifyRole := range modifyRoles {
+				puppet := portal.bridge.GetPuppetBySignalID(modifyRole.UserID)
+				if puppet == nil {
+					log.Warn().Stringer("signal_user_id", modifyRole.UserID).Msg("Couldn't get puppet for power level change")
+					continue
+				}
+				powerLevel := 0
+				if modifyRole.Role == signalmeow.GroupMember_ADMINISTRATOR {
+					powerLevel = 50
+				}
+				levels.EnsureUserLevel(puppet.MXID, powerLevel)
+				if puppet.customIntent == nil {
+					user := portal.bridge.GetUserBySignalID(modifyRole.UserID)
+					if user != nil {
+						levels.EnsureUserLevel(user.MXID, powerLevel)
+					}
+				}
+			}
 			if groupChange.ModifyAnnouncementsOnly != nil {
 				levels.EventsDefault = 0
 				if *groupChange.ModifyAnnouncementsOnly {
