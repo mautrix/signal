@@ -895,6 +895,14 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	}
 }
 
+type groupChangeMemberAction struct {
+	userID             uuid.UUID
+	membership         event.Membership
+	ensureJoined       bool
+	joinFromInviteLink bool
+	action             string
+}
+
 func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal group change").
@@ -903,8 +911,234 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		Uint32("new_revision", groupMeta.GetRevision()).
 		Logger()
 	ctx := log.WithContext(context.TODO())
-	// TODO handle group changes properly
-	portal.UpdateInfo(ctx, source, nil, groupMeta.GetRevision())
+	groupChange, err := source.Client.DecryptGroupChange(ctx, groupMeta)
+	if err != nil {
+		log.Err(err).Msg("Handling GroupChange failed")
+		return
+	}
+	if groupChange.Revision <= portal.Revision {
+		return
+	}
+	portal.Revision = groupChange.Revision
+	if groupChange.ModifyTitle != nil {
+		portal.updateName(ctx, *groupChange.ModifyTitle, sender)
+	}
+	if groupChange.ModifyDescription != nil {
+		portal.updateTopic(ctx, *groupChange.ModifyDescription, sender)
+	}
+	if groupChange.ModifyAvatar != nil {
+		portal.updateAvatarWithInfo(ctx, source, groupChange, sender)
+	}
+	if groupChange.ModifyDisappearingMessagesDuration != nil {
+		portal.updateExpirationTimer(ctx, *groupChange.ModifyDisappearingMessagesDuration)
+	}
+	intent := sender.IntentFor(portal)
+	modifyRoles := groupChange.ModifyMemberRoles
+	for _, deleteBannedMember := range groupChange.DeleteBannedMembers {
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteBannedMember, event.MembershipLeave, "unbanned")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", deleteBannedMember).Msg("Couldn't get puppet for unban")
+		}
+	}
+	for _, addMember := range groupChange.AddMembers {
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addMember.UserID, Role: addMember.Role})
+		var puppet *Puppet
+		if addMember.JoinFromInviteLink {
+			puppet = portal.bridge.GetPuppetBySignalID(addMember.UserID)
+			if puppet != nil {
+				if puppet.customIntent == nil {
+					user := portal.bridge.GetUserBySignalID(addMember.UserID)
+					if user != nil {
+						portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, user.MXID, event.MembershipInvite, "Joined via invite Link")
+					}
+				}
+				_, err = puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
+				if errors.Is(err, mautrix.MForbidden) {
+					_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipInvite, "Joined via invite Link")
+				} else if err == nil {
+					continue
+				}
+			}
+		} else {
+			puppet, _ = portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
+		}
+		if puppet != nil {
+			puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
+		} else {
+			log.Warn().Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for invite")
+		}
+	}
+	bannedMembers := make(map[uuid.UUID]bool)
+	for _, addBannedMember := range groupChange.AddBannedMembers {
+		bannedMembers[addBannedMember.UserID] = true
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addBannedMember.UserID, event.MembershipBan, "banned")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", addBannedMember.UserID).Msg("Couldn't get puppet for ban")
+		}
+	}
+	for _, deleteMember := range groupChange.DeleteMembers {
+		if bannedMembers[*deleteMember] {
+			continue
+		}
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteMember, event.MembershipLeave, "deleted")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", deleteMember).Msg("Couldn't get puppet for removal")
+		}
+	}
+	for _, deletePendingMember := range groupChange.DeletePendingMembers {
+		if bannedMembers[*deletePendingMember] {
+			continue
+		}
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deletePendingMember, event.MembershipLeave, "invite withdrawn")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", deletePendingMember).Msg("Couldn't get puppet for removal")
+		}
+	}
+	for _, deleteRequestingMember := range groupChange.DeleteRequestingMembers {
+		if bannedMembers[*deleteRequestingMember] {
+			continue
+		}
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteRequestingMember, event.MembershipLeave, "request rejected")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", deleteRequestingMember).Msg("Couldn't get puppet for removal")
+		}
+	}
+	for _, promotePendingMember := range groupChange.PromotePendingMembers {
+		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promotePendingMember.UserID, event.MembershipInvite, "request accepted")
+		if err == nil {
+			puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+		} else {
+			log.Warn().Stringer("signal_user_id", promotePendingMember.UserID).Msg("Couldn't get puppet for invite")
+		}
+	}
+	for _, addPendingMember := range groupChange.AddPendingMembers {
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addPendingMember.UserID, event.MembershipInvite, "invited")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", addPendingMember.UserID).Msg("Couldn't get puppet for invite")
+		}
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addPendingMember.UserID, Role: addPendingMember.Role})
+	}
+	for _, promoteRequestingMember := range groupChange.PromoteRequestingMembers {
+		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promoteRequestingMember.UserID, event.MembershipInvite, "accepted")
+		if err == nil {
+			err = puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+			if err != nil {
+				log.Warn().Stringer("signal_user_id", promoteRequestingMember.UserID).Msg("failed to join puppet")
+			}
+		} else {
+			log.Warn().Stringer("signal_user_id", promoteRequestingMember.UserID).Msg("Couldn't get puppet for join")
+		}
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: promoteRequestingMember.UserID, Role: promoteRequestingMember.Role})
+	}
+	for _, addRequestingMember := range groupChange.AddRequestingMembers {
+		// sender and target should be the same SignalID
+		puppet := portal.bridge.GetPuppetBySignalID(addRequestingMember.UserID)
+		if puppet != nil {
+			portal.sendMembershipWithPuppet(ctx, sender, puppet.IntentFor(portal).UserID, event.MembershipKnock, "knocked")
+		}
+	}
+
+	if groupChange.ModifyAttributesAccess != nil || groupChange.ModifyAnnouncementsOnly != nil || groupChange.ModifyMemberAccess != nil || len(modifyRoles) > 0 {
+		levels, err := portal.MainIntent().PowerLevels(ctx, portal.MXID)
+		if err != nil {
+			log.Err(err).Msg("Couldn't get power levels")
+		} else {
+			for _, modifyRole := range modifyRoles {
+				puppet := portal.bridge.GetPuppetBySignalID(modifyRole.UserID)
+				if puppet == nil {
+					log.Warn().Stringer("signal_user_id", modifyRole.UserID).Msg("Couldn't get puppet for power level change")
+					continue
+				}
+				powerLevel := 0
+				if modifyRole.Role == signalmeow.GroupMember_ADMINISTRATOR {
+					powerLevel = 50
+				}
+				levels.EnsureUserLevel(puppet.IntentFor(portal).UserID, powerLevel)
+				if puppet.customIntent == nil {
+					user := portal.bridge.GetUserBySignalID(modifyRole.UserID)
+					if user != nil {
+						levels.EnsureUserLevel(user.MXID, powerLevel)
+					}
+				}
+			}
+			if groupChange.ModifyAnnouncementsOnly != nil {
+				levels.EventsDefault = 0
+				if *groupChange.ModifyAnnouncementsOnly {
+					levels.EventsDefault = 50
+				}
+			}
+			if groupChange.ModifyAttributesAccess != nil {
+				level := 0
+				if *groupChange.ModifyAttributesAccess == signalmeow.AccessControl_ADMINISTRATOR {
+					level = 50
+				}
+				levels.EnsureEventLevel(event.StateRoomName, level)
+				levels.EnsureEventLevel(event.StateTopic, level)
+				levels.EnsureEventLevel(event.StateRoomAvatar, level)
+			}
+			if groupChange.ModifyMemberAccess != nil {
+				level := 0
+				if *groupChange.ModifyMemberAccess == signalmeow.AccessControl_ADMINISTRATOR {
+					level = 50
+				}
+				levels.InvitePtr = &level
+			}
+			_, err = intent.SetPowerLevels(ctx, portal.MXID, levels)
+			if errors.Is(err, mautrix.MForbidden) {
+				_, err = portal.MainIntent().SetPowerLevels(ctx, portal.MXID, levels)
+			}
+			if err != nil {
+				log.Err(err).Msg("Couldn't set power levels")
+			}
+		}
+	}
+	if groupChange.ModifyAddFromInviteLinkAccess != nil {
+		joinRule := event.JoinRuleInvite
+		if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ADMINISTRATOR {
+			joinRule = event.JoinRuleKnock
+		} else if *groupChange.ModifyAddFromInviteLinkAccess == signalmeow.AccessControl_ANY && portal.bridge.Config.Bridge.PublicPortals {
+			joinRule = event.JoinRulePublic
+		}
+		_, err = intent.SendMassagedStateEvent(ctx, portal.MXID, event.StateJoinRules, "", &event.JoinRulesEventContent{JoinRule: joinRule}, int64(ts))
+		if errors.Is(err, mautrix.MForbidden) {
+			_, err = portal.MainIntent().SendMassagedStateEvent(ctx, portal.MXID, event.StateJoinRules, "", &event.JoinRulesEventContent{JoinRule: joinRule}, int64(ts))
+		}
+		if err != nil {
+			log.Err(err).Msg("Couldn't set join rule")
+		}
+	}
+	err = portal.Update(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to save portal in database after processing group change")
+	}
+	portal.UpdateBridgeInfo(ctx)
+}
+
+func (portal *Portal) sendMembershipForPuppetAndUser(ctx context.Context, sender *Puppet, target uuid.UUID, membership event.Membership, action string) (puppet *Puppet, err error) {
+	puppet = portal.bridge.GetPuppetBySignalID(target)
+	if puppet == nil {
+		err = fmt.Errorf("couldn't get Puppet for Signal uuid %s", target)
+		return
+	}
+	err = portal.sendMembershipWithPuppet(ctx, sender, puppet.IntentFor(portal).UserID, membership, action)
+	if puppet.customIntent == nil {
+		user := portal.bridge.GetUserBySignalID(target)
+		if user != nil {
+			err = portal.sendMembershipWithPuppet(ctx, sender, user.MXID, membership, action)
+		}
+	}
+	return
+}
+
+func (portal *Portal) sendMembershipWithPuppet(ctx context.Context, sender *Puppet, target id.UserID, membership event.Membership, action string) (err error) {
+	_, err = sender.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, target, membership, "")
+	if errors.Is(err, mautrix.MForbidden) {
+		_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, target, membership, fmt.Sprintf("%s by %s", action, sender.GetDisplayname()))
+	}
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Stringer("Membership Action failed for user", target).Msg(action)
+	}
+	return
 }
 
 func (portal *Portal) handleSignalReaction(sender *Puppet, react *signalpb.DataMessage_Reaction, ts uint64) {
@@ -1584,21 +1818,21 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 		noteToSelfAvatar := portal.bridge.Config.Bridge.NoteToSelfAvatar.ParseOrIgnore()
 		avatarHash := sha256.Sum256([]byte(noteToSelfAvatar.String()))
 
-		update = portal.updateName(ctx, NoteToSelfName) || update
+		update = portal.updateName(ctx, NoteToSelfName, nil) || update
 		update = portal.updateAvatarWithMXC(ctx, "notetoself", hex.EncodeToString(avatarHash[:]), noteToSelfAvatar) || update
 	} else if portal.shouldSetDMRoomMetadata() {
-		update = portal.updateName(ctx, puppet.Name) || update
+		update = portal.updateName(ctx, puppet.Name, nil) || update
 		update = portal.updateAvatarWithMXC(ctx, puppet.AvatarPath, puppet.AvatarHash, puppet.AvatarURL) || update
 	}
 	topic := PrivateChatTopic
 	if portal.bridge.Config.Bridge.NumberInTopic && puppet.Number != "" {
 		topic = fmt.Sprintf("%s with %s", topic, puppet.Number)
 	}
-	update = portal.updateTopic(ctx, topic) || update
+	update = portal.updateTopic(ctx, topic, nil) || update
 	if update {
 		err := portal.Update(ctx)
 		if err != nil {
-			log.Err(err).Msg("Failed to save portal in database after updatin group info")
+			log.Err(err).Msg("Failed to save portal in database after updating group info")
 		}
 		portal.UpdateBridgeInfo(ctx)
 	}
@@ -1643,14 +1877,14 @@ func (portal *Portal) UpdateGroupInfo(ctx context.Context, source *User, info *s
 		portal.Revision = info.Revision
 		update = true
 	}
-	update = portal.updateName(ctx, info.Title) || update
-	update = portal.updateTopic(ctx, info.Description) || update
-	update = portal.updateAvatarWithInfo(ctx, source, info) || update
+	update = portal.updateName(ctx, info.Title, nil) || update
+	update = portal.updateTopic(ctx, info.Description, nil) || update
+	update = portal.updateAvatarWithInfo(ctx, source, info, nil) || update
 	update = portal.updateExpirationTimer(ctx, info.DisappearingMessagesDuration) || update
 	if update {
 		err := portal.Update(ctx)
 		if err != nil {
-			log.Err(err).Msg("Failed to save portal in database after updatin group info")
+			log.Err(err).Msg("Failed to save portal in database after updating group info")
 		}
 		portal.UpdateBridgeInfo(ctx)
 	}
@@ -1672,14 +1906,21 @@ func (portal *Portal) updateExpirationTimer(ctx context.Context, newExpirationTi
 	return true
 }
 
-func (portal *Portal) updateName(ctx context.Context, newName string) bool {
+func (portal *Portal) updateName(ctx context.Context, newName string, sender *Puppet) bool {
 	if portal.Name == newName && (portal.NameSet || portal.MXID == "") {
 		return false
 	}
 	portal.Name = newName
 	portal.NameSet = false
 	if portal.MXID != "" {
-		_, err := portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
+		intent := portal.MainIntent()
+		if sender != nil {
+			intent = sender.IntentFor(portal)
+		}
+		_, err := intent.SetRoomName(ctx, portal.MXID, portal.Name)
+		if errors.Is(err, mautrix.MForbidden) && intent != portal.MainIntent() {
+			_, err = portal.MainIntent().SetRoomName(ctx, portal.MXID, portal.Name)
+		}
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to update room name")
 		} else {
@@ -1689,14 +1930,21 @@ func (portal *Portal) updateName(ctx context.Context, newName string) bool {
 	return true
 }
 
-func (portal *Portal) updateTopic(ctx context.Context, newTopic string) bool {
+func (portal *Portal) updateTopic(ctx context.Context, newTopic string, sender *Puppet) bool {
 	if portal.Topic == newTopic && (portal.TopicSet || portal.MXID == "") {
 		return false
 	}
 	portal.Topic = newTopic
 	portal.TopicSet = false
 	if portal.MXID != "" {
-		_, err := portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		intent := portal.MainIntent()
+		if sender != nil {
+			intent = sender.IntentFor(portal)
+		}
+		_, err := intent.SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		if errors.Is(err, mautrix.MForbidden) && intent != portal.MainIntent() {
+			_, err = portal.MainIntent().SetRoomTopic(ctx, portal.MXID, portal.Topic)
+		}
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to update room topic")
 		} else {
@@ -1706,22 +1954,26 @@ func (portal *Portal) updateTopic(ctx context.Context, newTopic string) bool {
 	return true
 }
 
-func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, group *signalmeow.Group) bool {
+func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, group signalmeow.GroupAvatarMeta, sender *Puppet) bool {
 	// If the avatar path is different, the avatar probably changed
-	if portal.AvatarPath == group.AvatarPath &&
+	avatarPath := group.GetAvatarPath()
+	if avatarPath == nil {
+		return false
+	}
+	if portal.AvatarPath == *avatarPath &&
 		// If the avatar mxc isn't set, we need to reupload it (except if the avatar is unset in Signal)
-		(!portal.AvatarURL.IsEmpty() || group.AvatarPath == "") &&
+		(!portal.AvatarURL.IsEmpty() || *avatarPath == "") &&
 		// If the avatar isn't set in the room, we need to update the room state (except if there's no Matrix room yet)
 		(portal.AvatarSet || portal.MXID == "") {
 		return false
 	}
-	if portal.AvatarPath == "" {
+	if *avatarPath == "" {
 		portal.AvatarPath = ""
 		portal.AvatarSet = false
 		portal.AvatarURL = id.ContentURI{}
 		portal.AvatarHash = ""
 		// Just clear the Matrix room avatar and return
-		portal.updateAvatarInRoom(ctx)
+		portal.updateAvatarInRoom(ctx, sender)
 		return true
 	}
 	log := zerolog.Ctx(ctx)
@@ -1737,7 +1989,7 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 		// No need to change anything else, but save the new path to the database
 		return true
 	}
-	portal.AvatarPath = group.AvatarPath
+	portal.AvatarPath = *avatarPath
 	portal.AvatarSet = false
 	portal.AvatarURL = id.ContentURI{}
 	portal.AvatarHash = newAvatarHash
@@ -1747,7 +1999,7 @@ func (portal *Portal) updateAvatarWithInfo(ctx context.Context, source *User, gr
 		log.Err(err).Msg("Failed to upload new avatar for portal")
 	} else {
 		portal.AvatarURL = resp.ContentURI
-		portal.updateAvatarInRoom(ctx)
+		portal.updateAvatarInRoom(ctx, sender)
 	}
 	return true
 }
@@ -1760,11 +2012,11 @@ func (portal *Portal) updateAvatarWithMXC(ctx context.Context, newAvatarPath, ne
 	portal.AvatarHash = newAvatarHash
 	portal.AvatarURL = newAvatarURI
 	portal.AvatarSet = false
-	portal.updateAvatarInRoom(ctx)
+	portal.updateAvatarInRoom(ctx, nil)
 	return true
 }
 
-func (portal *Portal) updateAvatarInRoom(ctx context.Context) {
+func (portal *Portal) updateAvatarInRoom(ctx context.Context, sender *Puppet) {
 	if portal.MXID == "" || portal.AvatarSet {
 		return
 	}
@@ -1773,7 +2025,14 @@ func (portal *Portal) updateAvatarInRoom(ctx context.Context) {
 		Str("avatar_hash", portal.AvatarHash).
 		Stringer("avatar_mxc", portal.AvatarURL).
 		Msg("Updating avatar in Matrix room")
-	_, err := portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	intent := portal.MainIntent()
+	if sender != nil {
+		intent = sender.IntentFor(portal)
+	}
+	_, err := intent.SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	if errors.Is(err, mautrix.MForbidden) && intent != portal.MainIntent() {
+		_, err = portal.MainIntent().SetRoomAvatar(ctx, portal.MXID, portal.AvatarURL)
+	}
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to update room avatar")
 	} else {
