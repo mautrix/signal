@@ -1,12 +1,15 @@
 # v0.5.0 (unreleased)
 
 * Rewrote bridge in Go.
-  * The bridge doesn't use signald anymore.
-  * All users will have to re-link the bridge.
+  * To migrate the bridge, simply upgrade in-place. The database and config
+    will be migrated automatically, although some parts of the config aren't
+    migrated (e.g. log config). If you prevented the bridge from writing to
+    the config file, you'll have to temporarily allow it or update it yourself.
+  * The bridge doesn't use signald anymore, all users will have to re-link the
+    bridge. signald can be deleted after upgrading.
   * Primary device mode is no longer supported, signal-cli is recommended if
     you don't want to use the official Signal mobile apps.
-  * Some old features are not yet supported (e.g. membership action bridging,
-    join rules and getting group invite links).
+  * Some old features are not yet supported (e.g. group management features).
 * Renamed main branch from `master` to `main`.
 * Added support for edits and message formatting.
 
