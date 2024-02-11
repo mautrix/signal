@@ -1053,7 +1053,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 				if modifyRole.Role == signalmeow.GroupMember_ADMINISTRATOR {
 					powerLevel = 50
 				}
-				levels.EnsureUserLevel(puppet.MXID, powerLevel)
+				levels.EnsureUserLevel(puppet.IntentFor(portal).UserID, powerLevel)
 				if puppet.customIntent == nil {
 					user := portal.bridge.GetUserBySignalID(modifyRole.UserID)
 					if user != nil {
