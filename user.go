@@ -817,6 +817,9 @@ func (user *User) Logout(ctx context.Context) error {
 	if _, err := user.disconnectNoLock(); err != nil {
 		user.log.Debug().Err(err).Msg("Error on disconnect")
 	}
+	user.SignalUsername = ""
+	user.SignalID = uuid.Nil
+	user.Update(ctx)
 	if puppet := user.GetIDoublePuppet(); puppet != nil {
 		puppet.ClearCustomMXID()
 	}
