@@ -382,7 +382,7 @@ func (user *User) startupTryConnect(retryCount int) {
 		if errors.Is(err, ErrNotLoggedIn) {
 			user.log.Warn().Msg("Not logged in, clearing Signal device keys")
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
-			user.clearKeysAndDisconnect()
+			user.clearKeysAndDisconnect(ctx)
 		} else if retryCount < 6 {
 			user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 			retryInSeconds := 2 << retryCount
@@ -482,7 +482,7 @@ func (user *User) startupTryConnect(retryCount int) {
 				} else {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
-				user.clearKeysAndDisconnect()
+				user.clearKeysAndDisconnect(ctx)
 				if managementRoom := user.GetManagementRoomID(); managementRoom != "" {
 					_, _ = user.bridge.Bot.SendText(ctx, managementRoom, "You've been logged out of Signal")
 				}
@@ -503,10 +503,10 @@ func (user *User) startupTryConnect(retryCount int) {
 	}()
 }
 
-func (user *User) clearKeysAndDisconnect() {
+func (user *User) clearKeysAndDisconnect(ctx context.Context) {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
 	user.log.Debug().Msg("Clearing out Signal device keys")
-	err := user.Client.ClearKeysAndDisconnect(context.TODO())
+	err := user.Client.ClearKeysAndDisconnect(ctx)
 	if err != nil {
 		user.log.Err(err).Msg("Error clearing device keys")
 	}

@@ -137,7 +137,7 @@ func fnDeleteSession(ce *WrappedCommandEvent) {
 		ce.Reply("You're not logged in")
 		return
 	}
-	ce.User.Client.ClearKeysAndDisconnect(ce.Ctx)
+	ce.User.clearKeysAndDisconnect(ce.Ctx)
 	ce.Reply("Disconnected from Signal")
 }
 
