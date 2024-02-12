@@ -72,6 +72,7 @@ func (prov *ProvisioningAPI) Init() {
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/account", prov.LinkWaitForAccount).Methods(http.MethodPost)
+	r.HandleFunc("/v2/delete_session", prov.DeleteSession).Methods(http.MethodPost)
 	r.HandleFunc("/v2/logout", prov.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/v2/resolve_identifier/{phonenum}", prov.ResolveIdentifier).Methods(http.MethodGet)
 	r.HandleFunc("/v2/pm/{phonenum}", prov.StartPM).Methods(http.MethodPost)
@@ -663,6 +664,30 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 		})
 		return
 	}
+}
+
+func (prov *ProvisioningAPI) DeleteSession(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value(provisioningUserKey).(*User)
+	log := prov.log.With().
+		Str("action", "delete_session").
+		Stringer("user_id", user.MXID).
+		Logger()
+	ctx := log.WithContext(r.Context())
+	log.Debug().Msg("delete_session called")
+
+	if !user.IsLoggedIn() {
+		jsonResponse(w, http.StatusOK, Error{
+			Error:   "You're not logged in",
+			ErrCode: "not logged in",
+		})
+		return
+	}
+
+	user.clearKeysAndDisconnect(ctx)
+	jsonResponse(w, http.StatusOK, Response{
+		Success: true,
+		Status:  "disconnected",
+	})
 }
 
 func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
