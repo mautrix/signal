@@ -599,11 +599,9 @@ func (user *User) populateSignalDevice() *signalmeow.Client {
 
 	if user.SignalID == uuid.Nil {
 		return nil
-	}
-	// TODO clear client on logout properly so that populating can skip creating if it already exists
-	/*else if user.Client != nil {
+	} else if user.Client != nil {
 		return user.Client
-	}*/
+	}
 
 	device, err := user.bridge.MeowStore.DeviceByACI(context.TODO(), user.SignalID)
 	if err != nil {
