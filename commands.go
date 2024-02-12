@@ -443,7 +443,7 @@ var cmdLogout = &commands.FullHandler{
 	Name: "logout",
 	Help: commands.HelpMeta{
 		Section:     commands.HelpSectionAuth,
-		Description: "Unlink the bridge from your Signal account.",
+		Description: "Remove all local data about your Signal link",
 	},
 }
 
@@ -452,9 +452,11 @@ func fnLogout(ce *WrappedCommandEvent) {
 		ce.Reply("You're not logged in.")
 		return
 	}
-	err := ce.User.Logout()
+	err := ce.User.Logout(ce.Ctx)
 	if err != nil {
 		ce.User.log.Warn().Err(err).Msg("Error while logging out")
+		ce.Reply("Error while logging out: %v", err)
+		return
 	}
 	ce.Reply("Logged out successfully.")
 }

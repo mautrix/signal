@@ -807,16 +807,21 @@ func (user *User) Disconnect() error {
 	return err
 }
 
-func (user *User) Logout() error {
+func (user *User) Logout(ctx context.Context) error {
 	user.Lock()
 	defer user.Unlock()
 	user.log.Info().Msg("Logging out of session")
-	loggedOutDevice, err := user.disconnectNoLock()
-	user.bridge.MeowStore.DeleteDevice(context.TODO(), &loggedOutDevice.Store.DeviceData)
+	if err := user.Client.Store.DeleteDevice(ctx); err != nil {
+		return err
+	}
+	if _, err := user.disconnectNoLock(); err != nil {
+		user.log.Debug().Err(err).Msg("Error on disconnect")
+	}
 	if puppet := user.GetIDoublePuppet(); puppet != nil {
 		puppet.ClearCustomMXID()
 	}
-	return err
+	user.bridge.provisioning.clearSession(ctx, user)
+	return nil
 }
 
 func (user *User) UpdateDirectChats(ctx context.Context, chats map[id.UserID][]id.RoomID) {

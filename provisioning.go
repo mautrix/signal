@@ -682,10 +682,15 @@ func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prov.clearSession(ctx, user)
-	err := user.Logout()
+	err := user.Logout(ctx)
 	if err != nil {
 		user.log.Warn().Err(err).Msg("Error while logging out")
+		jsonResponse(w, http.StatusInternalServerError, Error{
+			Success: false,
+			Error:   err.Error(),
+			ErrCode: "M_INTERNAL",
+		})
+		return
 	}
 
 	jsonResponse(w, http.StatusOK, Response{

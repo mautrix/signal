@@ -92,3 +92,13 @@ func (d *Device) ClearPassword(ctx context.Context) error {
 	d.Password = ""
 	return d.DeviceStore.PutDevice(ctx, &d.DeviceData)
 }
+
+func (d *Device) DeleteDevice(ctx context.Context) error {
+	if err := d.DeviceStore.DeleteDevice(ctx, &d.DeviceData); err != nil {
+		return err
+	}
+	d.ACI = uuid.Nil
+	d.DeviceID = 0
+	d.Password = ""
+	return nil
+}
