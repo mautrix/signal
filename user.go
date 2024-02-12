@@ -569,7 +569,9 @@ func (user *User) saveSignalID(ctx context.Context, id uuid.UUID, number string)
 				Stringer("previous_user", existingUser.MXID).
 				Stringer("signal_uuid", id).
 				Msg("Another user is already logged in with same UUID, logging out previous user")
-			_ = existingUser.Disconnect()
+			if err := existingUser.Disconnect(); err != nil {
+				zerolog.Ctx(ctx).Debug().Err(err).Msg("Error on disconnect")
+			}
 			existingUser.SignalID = uuid.Nil
 			existingUser.SignalUsername = ""
 			err := existingUser.Update(ctx)
