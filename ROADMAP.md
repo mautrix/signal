@@ -52,12 +52,12 @@
     * [x] Name
     * [x] Avatar
     * [x] Topic
-  * [ ] Membership actions
-    * [ ] Join
-    * [ ] Invite
-    * [ ] Request join (via invite link, requires a client that supports knocks)
-    * [ ] Leave
-    * [ ] Kick/Ban/Unban
+  * [x] Membership actions
+    * [x] Join
+    * [x] Invite
+    * [x] Request join (via invite link, requires a client that supports knocks)
+    * [x] Leave
+    * [x] Kick/Ban/Unban
   * [ ] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
