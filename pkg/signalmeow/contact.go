@@ -116,7 +116,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 	} else {
 		log.Debug().Msg("updating existing contact")
 	}
-	profile, err := cli.RetrieveProfileByID(ctx, profileUUID)
+	profile, lastFetched, err := cli.RetrieveProfileByID(ctx, profileUUID)
 	if err != nil {
 		log.Err(err).Msg("error retrieving profile")
 		//return nil, nil, err
@@ -147,6 +147,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 	}
 
 	if contactChanged {
+		existingContact.ProfileFetchTs = lastFetched.UnixMilli()
 		err := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 		if err != nil {
 			log.Err(err).Msg("error storing contact")

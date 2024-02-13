@@ -38,6 +38,7 @@ type Contact struct {
 	ProfileAboutEmoji string
 	ProfileAvatarPath string
 	ProfileAvatarHash string
+	ProfileFetchTs    int64
 }
 
 type ContactAvatar struct {

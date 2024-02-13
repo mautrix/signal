@@ -50,7 +50,8 @@ const (
 			profile_about,
 			profile_about_emoji,
 			profile_avatar_path,
-			profile_avatar_hash
+			profile_avatar_hash,
+			profile_fetch_ts
 		FROM signalmeow_contacts
 	`
 	getAllContactsOfUserQuery = getAllContactsQuery + `WHERE our_aci_uuid = $1`
@@ -68,9 +69,10 @@ const (
 			profile_about,
 			profile_about_emoji,
 			profile_avatar_path,
-			profile_avatar_hash
+			profile_avatar_hash,
+			profile_fetch_ts
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		ON CONFLICT (our_aci_uuid, aci_uuid) DO UPDATE SET
 			e164_number = excluded.e164_number,
 			contact_name = excluded.contact_name,
@@ -80,7 +82,8 @@ const (
 			profile_about = excluded.profile_about,
 			profile_about_emoji = excluded.profile_about_emoji,
 			profile_avatar_path = excluded.profile_avatar_path,
-			profile_avatar_hash = excluded.profile_avatar_hash
+			profile_avatar_hash = excluded.profile_avatar_hash,
+			profile_fetch_ts = excluded.profile_fetch_ts
 	`
 	upsertContactPhoneQuery = `
 		INSERT INTO signalmeow_contacts (
@@ -94,9 +97,10 @@ const (
 			profile_about,
 			profile_about_emoji,
 			profile_avatar_path,
-			profile_avatar_hash
+			profile_avatar_hash,
+			profile_fetch_ts
 		)
-		VALUES ($1, $2, $3, '', '', NULL, '', '', '', '', '')
+		VALUES ($1, $2, $3, '', '', NULL, '', '', '', '', '', 0)
 		ON CONFLICT (our_aci_uuid, aci_uuid) DO UPDATE
 			SET e164_number = excluded.e164_number
 	`
@@ -116,6 +120,7 @@ func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 		&contact.ProfileAboutEmoji,
 		&contact.ProfileAvatarPath,
 		&contact.ProfileAvatarHash,
+		&contact.ProfileFetchTs,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -160,6 +165,7 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 		contact.ProfileAboutEmoji,
 		contact.ProfileAvatarPath,
 		contact.ProfileAvatarHash,
+		contact.ProfileFetchTs,
 	)
 	return err
 }

@@ -1,4 +1,4 @@
--- v0 -> v6: Latest revision
+-- v0 -> v7: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -88,6 +88,7 @@ CREATE TABLE signalmeow_contacts (
     profile_about_emoji TEXT,
     profile_avatar_path TEXT NOT NULL DEFAULT '',
     profile_avatar_hash TEXT,
+    profile_fetch_ts    BIGINT NOT NULL DEFAULT 0,
 
     PRIMARY KEY (our_aci_uuid, aci_uuid),
     FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE

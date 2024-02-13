@@ -118,7 +118,7 @@ func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUI
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
+func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, time.Time, error) {
 	if cli.ProfileCache == nil {
 		cli.ProfileCache = &ProfileCache{
 			profiles:    make(map[string]*Profile),
@@ -133,33 +133,34 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 	if ok && time.Since(lastFetched) < 1*time.Hour {
 		profile, ok := cli.ProfileCache.profiles[signalID.String()]
 		if ok {
-			return profile, nil
+			return profile, lastFetched, nil
 		}
 		err, ok := cli.ProfileCache.errors[signalID.String()]
 		if ok {
-			return nil, *err
+			return nil, lastFetched, *err
 		}
 	}
 
 	// If we get here, we don't have a cached profile, so fetch it
 	profile, err := cli.fetchProfileByID(ctx, signalID)
+	lastFetched = time.Now()
 	if err != nil {
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
 		if strings.HasPrefix(err.Error(), "401") || strings.HasPrefix(err.Error(), "5") {
 			cli.ProfileCache.errors[signalID.String()] = &err
-			cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
+			cli.ProfileCache.lastFetched[signalID.String()] = lastFetched
 		}
-		return nil, err
+		return nil, lastFetched, err
 	}
 	if profile == nil {
-		return nil, errProfileKeyNotFound
+		return nil, lastFetched, errProfileKeyNotFound
 	}
 
 	// If we get here, we have a valid profile, so cache it
 	cli.ProfileCache.profiles[signalID.String()] = profile
-	cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
+	cli.ProfileCache.lastFetched[signalID.String()] = lastFetched
 
-	return profile, nil
+	return profile, lastFetched, nil
 }
 
 func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
