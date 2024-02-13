@@ -831,7 +831,7 @@ func (portal *Portal) GetSignalReply(ctx context.Context, content *event.Message
 			// This is a hack to make Signal iOS and desktop render replies to file messages.
 			// Unfortunately it also makes Signal Desktop show a file icon on replies to text messages.
 			// TODO store file or text flag in database and fill this field only when replying to file messages.
-			Attachments: make([]*signalpb.DataMessage_Quote_QuotedAttachment, 0),
+			Attachments: make([]*signalpb.DataMessage_Quote_QuotedAttachment, 1),
 		}
 	}
 	return nil
