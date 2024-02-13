@@ -159,7 +159,10 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 		if err != nil {
 			log.Err(err).Msg("error retrieving contact with a newer profile from other users")
 		} else if otherContact != nil {
-			existingContact = otherContact
+			existingContact.ProfileName = otherContact.ProfileName
+			existingContact.ProfileAbout = otherContact.ProfileAbout
+			existingContact.ProfileAboutEmoji = otherContact.ProfileAboutEmoji
+			existingContact.ProfileAvatarPath = otherContact.ProfileAvatarPath
 		}
 	}
 	return existingContact, nil
