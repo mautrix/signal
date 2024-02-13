@@ -151,10 +151,8 @@ var cmdPing = &commands.FullHandler{
 }
 
 func fnPing(ce *WrappedCommandEvent) {
-	if ce.User.SignalID == uuid.Nil {
+	if ce.User.SignalID == uuid.Nil || !ce.User.IsLoggedIn() {
 		ce.Reply("You're not logged in")
-	} else if !ce.User.IsLoggedIn() {
-		ce.Reply("You were logged in at some point, but are not anymore")
 	} else if !ce.User.Client.IsConnected() {
 		ce.Reply("You're logged into Signal, but not connected to the server")
 	} else {
