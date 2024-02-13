@@ -31,6 +31,7 @@ import (
 type ContactStore interface {
 	LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error)
 	LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error)
+	LoadContactWithLatestOtherProfile(ctx context.Context, contact *types.Contact) (*types.Contact, error)
 	StoreContact(ctx context.Context, contact types.Contact) error
 	AllContacts(ctx context.Context) ([]*types.Contact, error)
 	UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error
@@ -57,7 +58,13 @@ const (
 	getAllContactsOfUserQuery = getAllContactsQuery + `WHERE our_aci_uuid = $1`
 	getContactByUUIDQuery     = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND aci_uuid = $2`
 	getContactByPhoneQuery    = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND e164_number = $2`
-	upsertContactQuery        = `
+
+	getContactWithLatestOtherProfileQuery = getAllContactsQuery + `
+		WHERE our_aci_uuid <> $1 AND aci_uuid = $2 AND LENGTH(COALESCE(profile_key, '')) > 0
+		ORDER BY profile_fetch_ts LIMIT 1
+	`
+
+	upsertContactQuery = `
 		INSERT INTO signalmeow_contacts (
 			our_aci_uuid,
 			aci_uuid,
@@ -140,6 +147,10 @@ func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types
 
 func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
 	return scanContact(s.db.QueryRow(ctx, getContactByPhoneQuery, s.ACI, e164))
+}
+
+func (s *SQLStore) LoadContactWithLatestOtherProfile(ctx context.Context, contact *types.Contact) (*types.Contact, error) {
+	return scanContact(s.db.QueryRow(ctx, getContactWithLatestOtherProfileQuery, s.ACI, contact.UUID))
 }
 
 func (s *SQLStore) AllContacts(ctx context.Context) ([]*types.Contact, error) {
