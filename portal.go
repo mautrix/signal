@@ -1857,7 +1857,9 @@ func (portal *Portal) updatePowerLevelsAndJoinRule(ctx context.Context, info *si
 	botLevel := levels.GetUserLevel(portal.MainIntent().UserID)
 	changed := false
 	for mxid, level := range members {
-		if levels.GetUserLevel(mxid) < botLevel {
+		oldLevel := levels.GetUserLevel(mxid)
+		difference := oldLevel - level
+		if oldLevel < botLevel && (difference < 0 || difference > 49) {
 			changed = levels.EnsureUserLevel(mxid, level) || changed
 		}
 	}
