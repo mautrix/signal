@@ -498,7 +498,9 @@ func (user *User) startupTryConnect(retryCount int) {
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 
 			case signalmeow.SignalConnectionCleanShutdown:
-				if user.Client.IsLoggedIn() {
+				if user.Client == nil {
+					user.log.Debug().Msg("Clean Shutdown, but no client - sending no BridgeState")
+				} else if user.Client.IsLoggedIn() {
 					user.log.Debug().Msg("Clean Shutdown - sending no BridgeState")
 				} else {
 					user.log.Debug().Msg("Clean Shutdown, but logged out - Sending BadCredentials BridgeState")
