@@ -51,7 +51,7 @@ INSERT INTO lost_portals SELECT mxid, chat_id, receiver FROM portal WHERE mxid<>
 UPDATE portal SET mxid=NULL WHERE mxid='';
 ALTER TABLE portal ADD CONSTRAINT portal_mxid_unique UNIQUE(mxid);
 -- Delete any portals that aren't associated with logged-in users.
-DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE uuid IS NOT NULL);
+DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE username IS NOT NULL AND uuid IS NOT NULL);
 -- Change receiver to uuid instead of phone number, also add nil uuid for groups.
 UPDATE portal SET receiver=(SELECT uuid FROM "user" WHERE username=receiver AND uuid IS NOT NULL LIMIT 1) WHERE receiver<>'';
 UPDATE portal SET receiver='00000000-0000-0000-0000-000000000000' WHERE receiver='';
