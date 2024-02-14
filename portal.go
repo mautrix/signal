@@ -2242,7 +2242,10 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			delete(currentMembers, mxid)
 		}
 	}
-	for mxid, _ := range currentMembers {
+	for mxid, membership := range currentMembers {
+		if membership == event.MembershipLeave {
+			continue
+		}
 		user := portal.bridge.GetUserByMXIDIfExists(mxid)
 		if user != nil {
 			if user.IsLoggedIn() {
