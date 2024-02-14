@@ -61,7 +61,7 @@ const (
 
 	getContactWithLatestOtherProfileQuery = getAllContactsQuery + `
 		WHERE our_aci_uuid <> $1 AND aci_uuid = $2 AND LENGTH(COALESCE(profile_key, '')) > 0
-		ORDER BY profile_fetch_ts LIMIT 1
+		ORDER BY profile_fetch_ts DESC LIMIT 1
 	`
 
 	upsertContactQuery = `
