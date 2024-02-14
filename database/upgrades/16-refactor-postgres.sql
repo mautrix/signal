@@ -18,6 +18,9 @@ ALTER TABLE message ALTER COLUMN part_index SET NOT NULL;
 ALTER TABLE reaction ADD COLUMN _part_index INTEGER NOT NULL DEFAULT 0;
 
 -- Re-add the dropped constraints (but with part index and no chat)
+DELETE FROM message
+    WHERE (sender, timestamp, part_index, signal_receiver)
+    IN (SELECT DISTINCT sender, timestamp, part_index, signal_receiver FROM message GROUP BY (sender, timestamp, part_index, signal_receiver) HAVING COUNT(*)>1);
 ALTER TABLE message ADD PRIMARY KEY (sender, timestamp, part_index, signal_receiver);
 ALTER TABLE message DROP CONSTRAINT IF EXISTS message_signal_chat_id_signal_receiver_fkey;
 ALTER TABLE message DROP CONSTRAINT IF EXISTS message_signal_chat_id_fkey;
