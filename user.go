@@ -861,7 +861,9 @@ func (user *User) handleLoggedOutNoLock(ctx context.Context) {
 	if puppet := user.GetIDoublePuppet(); puppet != nil {
 		puppet.ClearCustomMXID()
 	}
-	user.bridge.provisioning.clearSession(ctx, user)
+	if user.bridge.provisioning != nil {
+		user.bridge.provisioning.clearSession(ctx, user)
+	}
 }
 
 func (user *User) UpdateDirectChats(ctx context.Context, chats map[id.UserID][]id.RoomID) {
