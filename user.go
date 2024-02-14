@@ -579,6 +579,9 @@ func (user *User) saveSignalID(ctx context.Context, id uuid.UUID, number string)
 			existingUser.Client = nil
 			existingUser.handleLoggedOutNoLock(ctx)
 			existingUser.Unlock()
+			if managementRoom := existingUser.GetManagementRoomID(); managementRoom != "" {
+				_, _ = existingUser.bridge.Bot.SendText(ctx, managementRoom, "Another user of this bridge has logged into your Signal account")
+			}
 		}
 	}
 	user.SignalID = id
