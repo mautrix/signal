@@ -482,7 +482,13 @@ func (user *User) startupTryConnect(retryCount int) {
 				} else {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
-				user.clearKeysAndDisconnect(ctx)
+				err = user.Logout(ctx)
+				if err != nil {
+					user.log.Err(err).Msg("Error logging out user in response to remote logout")
+					user.clearKeysAndDisconnect(ctx)
+					user.Client = nil
+					user.handleLoggedOut(ctx)
+				}
 				if managementRoom := user.GetManagementRoomID(); managementRoom != "" {
 					_, _ = user.bridge.Bot.SendText(ctx, managementRoom, "You've been logged out of Signal")
 				}
@@ -563,21 +569,16 @@ func (user *User) saveSignalID(ctx context.Context, id uuid.UUID, number string)
 	if user.SignalID != id {
 		existingUser := user.bridge.unlockedGetUserBySignalID(id)
 		if existingUser != nil {
-			// TODO this doesn't clear the signal store properly
-			//      the store also only has the uuid as primary key, even though it should have uuid + device id
+			// TODO the store has only the uuid as primary key, even though it should have uuid + device id
 			zerolog.Ctx(ctx).Warn().
 				Stringer("previous_user", existingUser.MXID).
 				Stringer("signal_uuid", id).
 				Msg("Another user is already logged in with same UUID, logging out previous user")
-			if err := existingUser.Disconnect(); err != nil {
-				zerolog.Ctx(ctx).Debug().Err(err).Msg("Error on disconnect")
-			}
-			existingUser.SignalID = uuid.Nil
-			existingUser.SignalUsername = ""
-			err := existingUser.Update(ctx)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to clear previous user's signal UUID")
-			}
+			existingUser.Lock()
+			existingUser.clearKeysAndDisconnect(ctx)
+			existingUser.Client = nil
+			existingUser.handleLoggedOutNoLock(ctx)
+			existingUser.Unlock()
 		}
 	}
 	user.SignalID = id
@@ -809,20 +810,55 @@ func (user *User) Logout(ctx context.Context) error {
 	user.Lock()
 	defer user.Unlock()
 	user.log.Info().Msg("Logging out of session")
-	if err := user.Client.Store.DeleteDevice(ctx); err != nil {
+	err := user.deleteDevice(ctx)
+	if err != nil {
 		return err
 	}
-	if _, err := user.disconnectNoLock(); err != nil {
+	_, err = user.disconnectNoLock()
+	if err != nil {
 		user.log.Debug().Err(err).Msg("Error on disconnect")
 	}
-	user.SignalUsername = ""
+	user.bridge.usersLock.Lock()
+	defer user.bridge.usersLock.Unlock()
+	user.handleLoggedOutNoLock(ctx)
+	return nil
+}
+
+func (user *User) deleteDevice(ctx context.Context) error {
+	var err error
+	if user.Client != nil {
+		err = user.Client.Store.DeleteDevice(ctx)
+	} else if user.SignalID == uuid.Nil {
+		user.log.Debug().Msg("client and signal ID are nil")
+	} else if device, deviceErr := user.bridge.MeowStore.DeviceByACI(ctx, user.SignalID); deviceErr != nil {
+		user.log.Debug().Msg("client is nil and did not find device in store")
+	} else if device != nil {
+		user.log.Debug().Msg("client is nil but found device in store")
+		err = device.DeleteDevice(ctx)
+	}
+	return err
+}
+
+func (user *User) handleLoggedOut(ctx context.Context) {
+	user.Lock()
+	defer user.Unlock()
+	user.bridge.usersLock.Lock()
+	defer user.bridge.usersLock.Unlock()
+	user.handleLoggedOutNoLock(ctx)
+}
+
+func (user *User) handleLoggedOutNoLock(ctx context.Context) {
+	id := user.SignalID
 	user.SignalID = uuid.Nil
-	user.Update(ctx)
+	user.SignalUsername = ""
+	if err := user.Update(ctx); err != nil {
+		user.log.Err(err).Msg("Failed to clear user's signal UUID on logout")
+	}
+	delete(user.bridge.usersBySignalID, id)
 	if puppet := user.GetIDoublePuppet(); puppet != nil {
 		puppet.ClearCustomMXID()
 	}
 	user.bridge.provisioning.clearSession(ctx, user)
-	return nil
 }
 
 func (user *User) UpdateDirectChats(ctx context.Context, chats map[id.UserID][]id.RoomID) {
