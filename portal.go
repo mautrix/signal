@@ -2131,21 +2131,27 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		if member.UserID != source.SignalID && portal.MXID != "" {
 			userIDs[intent.UserID] = ((int)(member.Role) >> 1) * 50
 		}
+		delete(currentMembers, intent.UserID)
 		if portal.MXID != "" {
-			err := intent.EnsureJoined(ctx, portal.MXID)
-			if err != nil {
-				log.Err(err).Stringer("signal_user_id", member.UserID).Msg("Failed to ensure user is joined to portal")
+			if currentMembers[intent.UserID] != event.MembershipJoin {
+				err := intent.EnsureJoined(ctx, portal.MXID)
+				if err != nil {
+					log.Err(err).Stringer("signal_user_id", member.UserID).Msg("Failed to ensure user is joined to portal")
+				}
 			}
 			if puppet.customIntent == nil {
 				user := portal.bridge.GetUserBySignalID(member.UserID)
 				if user != nil {
-					user.ensureInvited(ctx, intent, portal.MXID, false)
-					userIDs[user.MXID] = ((int)(member.Role) >> 1) * 50
 					delete(currentMembers, user.MXID)
+					userIDs[user.MXID] = ((int)(member.Role) >> 1) * 50
+					currentMembership := currentMembers[user.MXID]
+					if currentMembership == event.MembershipJoin || currentMembership == event.MembershipInvite {
+						continue
+					}
+					user.ensureInvited(ctx, intent, portal.MXID, false)
 				}
 			}
 		}
-		delete(currentMembers, intent.UserID)
 	}
 	if portal.MXID == "" {
 		return userIDs
