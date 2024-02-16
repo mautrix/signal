@@ -895,14 +895,6 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	}
 }
 
-type groupChangeMemberAction struct {
-	userID             uuid.UUID
-	membership         event.Membership
-	ensureJoined       bool
-	joinFromInviteLink bool
-	action             string
-}
-
 func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal group change").
