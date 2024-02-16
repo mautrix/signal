@@ -51,8 +51,8 @@ CREATE TABLE reaction_new (
 
 
 DELETE FROM message
-    WHERE (sender, timestamp, part_index, signal_receiver)
-    IN (SELECT sender, timestamp, part_index, signal_receiver FROM message GROUP BY sender, timestamp, part_index, signal_receiver HAVING COUNT(*)>1);
+    WHERE (sender, timestamp, signal_receiver)
+    IN (SELECT sender, timestamp, signal_receiver FROM message GROUP BY sender, timestamp, signal_receiver HAVING COUNT(*)>1);
 
 INSERT INTO message_new
 SELECT sender,
