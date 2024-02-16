@@ -50,14 +50,27 @@ INSERT INTO lost_portals SELECT mxid, chat_id, receiver FROM portal WHERE mxid<>
 -- Make mxid column unique (requires using nulls for missing values)
 UPDATE portal SET mxid=NULL WHERE mxid='';
 ALTER TABLE portal ADD CONSTRAINT portal_mxid_unique UNIQUE(mxid);
+-- Drop foreign keys that make CASCADEs prohibitively slow.
+ALTER TABLE message DROP CONSTRAINT message_portal_fkey;
+ALTER TABLE reaction DROP CONSTRAINT reaction_message_fkey;
 -- Delete any portals that aren't associated with logged-in users.
 DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE username IS NOT NULL AND uuid IS NOT NULL);
+-- CASCADE manually
+DELETE FROM message
+    WHERE (signal_chat_id, signal_receiver)
+    NOT IN (SELECT DISTINCT signal_chat_id, signal_receiver FROM message WHERE (signal_chat_id, signal_receiver) IN (SELECT DISTINCT chat_id, receiver FROM portal));
+DELETE FROM reaction
+    WHERE (author, msg_author, msg_timestamp, signal_receiver)
+    NOT IN (SELECT DISTINCT author, msg_author, msg_timestamp, signal_receiver FROM reaction WHERE (msg_author, msg_timestamp, _part_index, signal_receiver) IN (SELECT DISTINCT sender, timestamp, part_index, signal_receiver FROM message));
 -- Change receiver to uuid instead of phone number, also add nil uuid for groups.
 UPDATE portal SET receiver=(SELECT uuid FROM "user" WHERE username=receiver AND uuid IS NOT NULL LIMIT 1) WHERE receiver<>'';
 UPDATE portal SET receiver='00000000-0000-0000-0000-000000000000' WHERE receiver='';
--- Drop the foreign keys again to allow changing types (the ON UPDATE CASCADEs are needed for the above step)
-ALTER TABLE message DROP CONSTRAINT message_portal_fkey;
-ALTER TABLE reaction DROP CONSTRAINT reaction_message_fkey;
+-- CASCADE manually
+UPDATE message SET signal_receiver=(SELECT uuid FROM "user" WHERE username=signal_receiver AND uuid IS NOT NULL LIMIT 1) WHERE signal_receiver<>'';
+UPDATE message SET signal_receiver='00000000-0000-0000-0000-000000000000' WHERE signal_receiver='';
+UPDATE reaction SET signal_receiver=(SELECT uuid FROM "user" WHERE username=signal_receiver AND uuid IS NOT NULL LIMIT 1) WHERE signal_receiver<>'';
+UPDATE reaction SET signal_receiver='00000000-0000-0000-0000-000000000000' WHERE signal_receiver='';
+-- Change column types
 ALTER TABLE portal ALTER COLUMN receiver TYPE uuid USING receiver::uuid;
 ALTER TABLE message ALTER COLUMN signal_receiver TYPE uuid USING signal_receiver::uuid;
 ALTER TABLE reaction ALTER COLUMN signal_receiver TYPE uuid USING signal_receiver::uuid;
