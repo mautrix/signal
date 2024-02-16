@@ -1846,14 +1846,19 @@ func (portal *Portal) updatePowerLevelsAndJoinRule(ctx context.Context, info *si
 		Str("function", "updatePowerLevelsAndJoinRule").
 		Logger()
 	log.Trace().Msg("Updating power levels and join rule")
-	state, err := portal.MainIntent().State(ctx, portal.MXID)
+	joinRuleContent := event.JoinRulesEventContent{}
+	err := portal.MainIntent().StateEvent(ctx, portal.MXID, event.StateJoinRules, "", &joinRuleContent)
 	if err != nil {
-		log.Err(err).Msg("Failed to get room state")
+		log.Err(err).Msg("Failed to get join rule")
 		return
 	}
-	joinRule := state[event.StateJoinRules][""].Content.AsJoinRules().JoinRule
+	joinRule := joinRuleContent.JoinRule
 	newJoinRule := event.JoinRuleInvite
-	levels := state[event.StatePowerLevels][""].Content.AsPowerLevels()
+	levels, err := portal.MainIntent().PowerLevels(ctx, portal.MXID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get power levels")
+		return
+	}
 	botLevel := levels.GetUserLevel(portal.MainIntent().UserID)
 	changed := false
 	for mxid, level := range members {
@@ -2113,8 +2118,13 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 	log := zerolog.Ctx(ctx)
 	userIDs := make(map[id.UserID]int)
 	currentMembers := make(map[id.UserID]event.Membership)
+	var err error
 	if portal.MXID != "" {
-		memberEventData, _ := portal.MainIntent().Members(ctx, portal.MXID, mautrix.ReqMembers{})
+		memberEventData, err := portal.MainIntent().Members(ctx, portal.MXID, mautrix.ReqMembers{})
+		if err != nil {
+			log.Err(err).Msg("couldn't get portal members")
+			return nil
+		}
 		for _, evt := range memberEventData.Chunk {
 			evt.Content.ParseRaw(event.StateMember)
 			currentMembers[id.UserID(*evt.StateKey)] = evt.Content.AsMember().Membership
@@ -2164,15 +2174,17 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		}
 		mxid := puppet.IntentFor(portal).UserID
 		membership := currentMembers[mxid]
-		var err error
 		if membership == event.MembershipJoin || membership == event.MembershipBan {
 			_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
+			if err != nil {
+				log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
+			}
 		}
 		if membership != event.MembershipInvite {
 			_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipInvite, "")
-		}
-		if err != nil {
-			log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to invite")
+			if err != nil {
+				log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to invite")
+			}
 		}
 		userIDs[mxid] = ((int)(pendingMember.Role) >> 1) * 50
 		delete(currentMembers, mxid)
@@ -2186,12 +2198,15 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			err = nil
 			if membership == event.MembershipJoin || membership == event.MembershipBan {
 				_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
+				if err != nil {
+					log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
+				}
 			}
 			if membership != event.MembershipInvite {
 				_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipInvite, "")
-			}
-			if err != nil {
-				log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to invite")
+				if err != nil {
+					log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to invite")
+				}
 			}
 			userIDs[mxid] = ((int)(pendingMember.Role) >> 1) * 50
 			delete(currentMembers, mxid)
@@ -2205,15 +2220,17 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		}
 		mxid := puppet.IntentFor(portal).UserID
 		membership := currentMembers[mxid]
-		var err error
 		if membership == event.MembershipJoin || membership == event.MembershipBan {
 			_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
+			if err != nil {
+				log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
+			}
 		}
 		if membership != event.MembershipKnock {
 			_, err = puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipKnock, "")
-		}
-		if err != nil {
-			log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to knock")
+			if err != nil {
+				log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to knock")
+			}
 		}
 		delete(currentMembers, mxid)
 	}
@@ -2224,12 +2241,11 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			continue
 		}
 		mxid := puppet.IntentFor(portal).UserID
-		var err error
 		if currentMembers[mxid] != event.MembershipBan {
-			_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipBan, "")
-		}
-		if err != nil {
-			log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to ban")
+			_, err := portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipBan, "")
+			if err != nil {
+				log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to ban")
+			}
 		}
 		delete(currentMembers, mxid)
 		if puppet.customIntent == nil {
@@ -2238,12 +2254,11 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 				continue
 			}
 			mxid = user.MXID
-			err = nil
 			if currentMembers[mxid] != event.MembershipBan {
 				_, err = portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipBan, "")
-			}
-			if err != nil {
-				log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to ban")
+				if err != nil {
+					log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to ban")
+				}
 			}
 			delete(currentMembers, mxid)
 		}
@@ -2252,20 +2267,20 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		if membership == event.MembershipLeave {
 			continue
 		}
-		user := portal.bridge.GetUserByMXIDIfExists(mxid)
-		if user != nil {
-			if user.IsLoggedIn() {
-				_, err := portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
-				if err != nil {
-					log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
-				}
+		puppet := portal.bridge.GetPuppetByMXID(mxid)
+		if puppet != nil {
+			_, err := portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
+			if err != nil {
+				log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
 			}
 		} else {
-			puppet := portal.bridge.GetPuppetByMXID(mxid)
-			if puppet != nil {
-				_, err := portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
-				if err != nil {
-					log.Warn().Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
+			user := portal.bridge.GetUserByMXIDIfExists(mxid)
+			if user != nil {
+				if user.IsLoggedIn() {
+					_, err := portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, mxid, event.MembershipLeave, "")
+					if err != nil {
+						log.Err(err).Stringer("mxid", mxid).Msg("Couldn't change membership to leave")
+					}
 				}
 			}
 		}
