@@ -1,4 +1,4 @@
-# v0.5.0 (unreleased)
+# v0.5.0 (2024-02-16)
 
 * Rewrote bridge in Go.
   * To migrate the bridge, simply upgrade in-place. The database and config
