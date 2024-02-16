@@ -50,6 +50,10 @@ CREATE TABLE reaction_new (
 );
 
 
+DELETE FROM message
+    WHERE (sender, timestamp, part_index, signal_receiver)
+    IN (SELECT sender, timestamp, part_index, signal_receiver FROM message GROUP BY sender, timestamp, part_index, signal_receiver HAVING COUNT(*)>1);
+
 INSERT INTO message_new
 SELECT sender,
        CASE WHEN timestamp > 1500000000000000 THEN timestamp / 1000 ELSE timestamp END,
@@ -90,7 +94,7 @@ CREATE TABLE lost_portals (
     receiver TEXT
 );
 INSERT INTO lost_portals SELECT mxid, chat_id, receiver FROM portal WHERE mxid<>'';
-DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE uuid<>'');
+DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE username IS NOT NULL AND uuid<>'');
 UPDATE portal SET receiver=(SELECT uuid FROM "user" WHERE username=receiver AND uuid<>'' LIMIT 1) WHERE receiver<>'';
 UPDATE portal SET receiver='00000000-0000-0000-0000-000000000000' WHERE receiver='';
 DELETE FROM portal WHERE chat_id NOT LIKE '________-____-____-____-____________' AND LENGTH(chat_id) <> 44;

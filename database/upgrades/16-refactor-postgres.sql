@@ -18,15 +18,12 @@ ALTER TABLE message ALTER COLUMN part_index SET NOT NULL;
 ALTER TABLE reaction ADD COLUMN _part_index INTEGER NOT NULL DEFAULT 0;
 
 -- Re-add the dropped constraints (but with part index and no chat)
+DELETE FROM message
+    WHERE (sender, timestamp, part_index, signal_receiver)
+    IN (SELECT DISTINCT sender, timestamp, part_index, signal_receiver FROM message GROUP BY (sender, timestamp, part_index, signal_receiver) HAVING COUNT(*)>1);
 ALTER TABLE message ADD PRIMARY KEY (sender, timestamp, part_index, signal_receiver);
 ALTER TABLE message DROP CONSTRAINT IF EXISTS message_signal_chat_id_signal_receiver_fkey;
 ALTER TABLE message DROP CONSTRAINT IF EXISTS message_signal_chat_id_fkey;
-ALTER TABLE message ADD CONSTRAINT message_portal_fkey
-    FOREIGN KEY (signal_chat_id, signal_receiver)
-        REFERENCES portal (chat_id, receiver)
-        ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE reaction ADD CONSTRAINT reaction_message_fkey FOREIGN KEY (msg_author, msg_timestamp, _part_index, signal_receiver)
-    REFERENCES message (sender, timestamp, part_index, signal_receiver) ON DELETE CASCADE ON UPDATE CASCADE;
 -- Also update the reaction primary key
 ALTER TABLE reaction DROP CONSTRAINT reaction_pkey;
 ALTER TABLE reaction ADD PRIMARY KEY (author, msg_author, msg_timestamp, signal_receiver);
@@ -48,13 +45,23 @@ INSERT INTO lost_portals SELECT mxid, chat_id, receiver FROM portal WHERE mxid<>
 UPDATE portal SET mxid=NULL WHERE mxid='';
 ALTER TABLE portal ADD CONSTRAINT portal_mxid_unique UNIQUE(mxid);
 -- Delete any portals that aren't associated with logged-in users.
-DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE uuid IS NOT NULL);
+DELETE FROM portal WHERE receiver<>'' AND receiver NOT IN (SELECT username FROM "user" WHERE username IS NOT NULL AND uuid IS NOT NULL);
+-- CASCADE manually
+DELETE FROM message
+    WHERE (signal_chat_id, signal_receiver)
+    NOT IN (SELECT DISTINCT signal_chat_id, signal_receiver FROM message WHERE (signal_chat_id, signal_receiver) IN (SELECT DISTINCT chat_id, receiver FROM portal));
+DELETE FROM reaction
+    WHERE (author, msg_author, msg_timestamp, signal_receiver)
+    NOT IN (SELECT DISTINCT author, msg_author, msg_timestamp, signal_receiver FROM reaction WHERE (msg_author, msg_timestamp, _part_index, signal_receiver) IN (SELECT DISTINCT sender, timestamp, part_index, signal_receiver FROM message));
 -- Change receiver to uuid instead of phone number, also add nil uuid for groups.
 UPDATE portal SET receiver=(SELECT uuid FROM "user" WHERE username=receiver AND uuid IS NOT NULL LIMIT 1) WHERE receiver<>'';
 UPDATE portal SET receiver='00000000-0000-0000-0000-000000000000' WHERE receiver='';
--- Drop the foreign keys again to allow changing types (the ON UPDATE CASCADEs are needed for the above step)
-ALTER TABLE message DROP CONSTRAINT message_portal_fkey;
-ALTER TABLE reaction DROP CONSTRAINT reaction_message_fkey;
+-- CASCADE manually
+UPDATE message SET signal_receiver=(SELECT uuid FROM "user" WHERE username=signal_receiver AND uuid IS NOT NULL LIMIT 1) WHERE signal_receiver<>'';
+UPDATE message SET signal_receiver='00000000-0000-0000-0000-000000000000' WHERE signal_receiver='';
+UPDATE reaction SET signal_receiver=(SELECT uuid FROM "user" WHERE username=signal_receiver AND uuid IS NOT NULL LIMIT 1) WHERE signal_receiver<>'';
+UPDATE reaction SET signal_receiver='00000000-0000-0000-0000-000000000000' WHERE signal_receiver='';
+-- Change column types
 ALTER TABLE portal ALTER COLUMN receiver TYPE uuid USING receiver::uuid;
 ALTER TABLE message ALTER COLUMN signal_receiver TYPE uuid USING signal_receiver::uuid;
 ALTER TABLE reaction ALTER COLUMN signal_receiver TYPE uuid USING signal_receiver::uuid;
