@@ -122,10 +122,10 @@ func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 		&contact.ContactName,
 		&contact.ContactAvatar.Hash,
 		&profileKey,
-		&contact.ProfileName,
-		&contact.ProfileAbout,
-		&contact.ProfileAboutEmoji,
-		&contact.ProfileAvatarPath,
+		&contact.Profile.Name,
+		&contact.Profile.About,
+		&contact.Profile.AboutEmoji,
+		&contact.Profile.AvatarPath,
 		&contact.ProfileAvatarHash,
 		&contact.ProfileFetchTs,
 	)
@@ -136,7 +136,7 @@ func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 	}
 	if len(profileKey) != 0 {
 		profileKeyConverted := libsignalgo.ProfileKey(profileKey)
-		contact.ProfileKey = &profileKeyConverted
+		contact.Profile.Key = &profileKeyConverted
 	}
 	return &contact, err
 }
@@ -170,11 +170,11 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 		contact.E164,
 		contact.ContactName,
 		contact.ContactAvatar.Hash,
-		contact.ProfileKey.Slice(),
-		contact.ProfileName,
-		contact.ProfileAbout,
-		contact.ProfileAboutEmoji,
-		contact.ProfileAvatarPath,
+		contact.Profile.Key.Slice(),
+		contact.Profile.Name,
+		contact.Profile.About,
+		contact.Profile.AboutEmoji,
+		contact.Profile.AvatarPath,
 		contact.ProfileAvatarHash,
 		contact.ProfileFetchTs,
 	)

@@ -32,13 +32,14 @@ type Contact struct {
 	E164              string
 	ContactName       string
 	ContactAvatar     ContactAvatar
-	ProfileKey        *libsignalgo.ProfileKey
-	ProfileName       string
-	ProfileAbout      string
-	ProfileAboutEmoji string
-	ProfileAvatarPath string
+	Profile           ContactProfile
 	ProfileAvatarHash string
 	ProfileFetchTs    int64
+}
+
+type ContactProfile struct {
+	ProfileFields
+	Key *libsignalgo.ProfileKey
 }
 
 type ContactAvatar struct {

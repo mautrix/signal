@@ -317,10 +317,10 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 		puppet.AvatarSet = false
 		puppet.AvatarPath = ""
 	} else {
-		if puppet.AvatarPath == info.ProfileAvatarPath && puppet.AvatarSet {
+		if puppet.AvatarPath == info.Profile.AvatarPath && puppet.AvatarSet {
 			return false
 		}
-		if info.ProfileAvatarPath == "" {
+		if info.Profile.AvatarPath == "" {
 			puppet.AvatarURL = id.ContentURI{}
 			puppet.AvatarPath = ""
 			puppet.AvatarHash = ""
@@ -335,10 +335,10 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 			return true
 		}
 		var err error
-		avatarData, err = source.Client.DownloadUserAvatar(ctx, info.ProfileAvatarPath, info.ProfileKey)
+		avatarData, err = source.Client.DownloadUserAvatar(ctx, info.Profile.AvatarPath, info.Profile.Key)
 		if err != nil {
 			log.Err(err).
-				Str("profile_avatar_path", info.ProfileAvatarPath).
+				Str("profile_avatar_path", info.Profile.AvatarPath).
 				Msg("Failed to download new user avatar")
 			return true
 		}
@@ -354,7 +354,7 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 		// Path changed, but actual avatar didn't
 		return true
 	}
-	puppet.AvatarPath = info.ProfileAvatarPath
+	puppet.AvatarPath = info.Profile.AvatarPath
 	puppet.AvatarHash = newHash
 	puppet.AvatarSet = false
 	puppet.AvatarURL = id.ContentURI{}

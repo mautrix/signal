@@ -35,6 +35,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -71,11 +72,8 @@ type ProfileResponse struct {
 }
 
 type Profile struct {
-	Name       string
-	About      string
-	AboutEmoji string
-	AvatarPath string
-	Key        libsignalgo.ProfileKey
+	types.ProfileFields
+	Key libsignalgo.ProfileKey
 }
 
 type ProfileCache struct {

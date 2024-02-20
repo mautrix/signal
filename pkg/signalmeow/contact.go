@@ -62,7 +62,7 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 	existingContact.ContactName = contactDetails.GetName()
 	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
 		profileKey := libsignalgo.ProfileKey(profileKeyString)
-		existingContact.ProfileKey = &profileKey
+		existingContact.Profile.Key = &profileKey
 		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
 		if err != nil {
 			log.Err(err).Msg("storing profile key")
@@ -122,24 +122,24 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 		//return nil, nil, err
 		// Don't return here, we still want to return what we have
 	} else if profile != nil {
-		if existingContact.ProfileName != profile.Name {
-			existingContact.ProfileName = profile.Name
+		if existingContact.Profile.Name != profile.Name {
+			existingContact.Profile.Name = profile.Name
 			contactChanged = true
 		}
-		if existingContact.ProfileAbout != profile.About {
-			existingContact.ProfileAbout = profile.About
+		if existingContact.Profile.About != profile.About {
+			existingContact.Profile.About = profile.About
 			contactChanged = true
 		}
-		if existingContact.ProfileAboutEmoji != profile.AboutEmoji {
-			existingContact.ProfileAboutEmoji = profile.AboutEmoji
+		if existingContact.Profile.AboutEmoji != profile.AboutEmoji {
+			existingContact.Profile.AboutEmoji = profile.AboutEmoji
 			contactChanged = true
 		}
-		if existingContact.ProfileAvatarPath != profile.AvatarPath {
-			existingContact.ProfileAvatarPath = profile.AvatarPath
+		if existingContact.Profile.AvatarPath != profile.AvatarPath {
+			existingContact.Profile.AvatarPath = profile.AvatarPath
 			contactChanged = true
 		}
-		if existingContact.ProfileKey == nil || *existingContact.ProfileKey != profile.Key {
-			existingContact.ProfileKey = &profile.Key
+		if existingContact.Profile.Key == nil || *existingContact.Profile.Key != profile.Key {
+			existingContact.Profile.Key = &profile.Key
 			contactChanged = true
 		}
 	}
@@ -159,10 +159,10 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 		if err != nil {
 			log.Err(err).Msg("error retrieving contact with a newer profile from other users")
 		} else if otherContact != nil {
-			existingContact.ProfileName = otherContact.ProfileName
-			existingContact.ProfileAbout = otherContact.ProfileAbout
-			existingContact.ProfileAboutEmoji = otherContact.ProfileAboutEmoji
-			existingContact.ProfileAvatarPath = otherContact.ProfileAvatarPath
+			existingContact.Profile.Name = otherContact.Profile.Name
+			existingContact.Profile.About = otherContact.Profile.About
+			existingContact.Profile.AboutEmoji = otherContact.Profile.AboutEmoji
+			existingContact.Profile.AvatarPath = otherContact.Profile.AvatarPath
 		}
 	}
 	return existingContact, nil

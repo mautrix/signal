@@ -169,12 +169,12 @@ type DisplaynameParams struct {
 func (bc BridgeConfig) FormatDisplayname(contact *types.Contact) string {
 	var buffer strings.Builder
 	_ = bc.displaynameTemplate.Execute(&buffer, DisplaynameParams{
-		ProfileName: contact.ProfileName,
+		ProfileName: contact.Profile.Name,
 		ContactName: contact.ContactName,
 		//Username:    contact.Username,
 		PhoneNumber: contact.E164,
 		UUID:        contact.UUID.String(),
-		AboutEmoji:  contact.ProfileAboutEmoji,
+		AboutEmoji:  contact.Profile.AboutEmoji,
 	})
 	return buffer.String()
 }
