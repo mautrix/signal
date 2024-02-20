@@ -31,7 +31,7 @@ import (
 type ContactStore interface {
 	LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error)
 	LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error)
-	LoadContactWithLatestOtherProfile(ctx context.Context, contact *types.Contact) (*types.Contact, error)
+	UpdateContactWithLatestProfile(ctx context.Context, contact *types.Contact) (sourceUUID uuid.UUID, err error)
 	StoreContact(ctx context.Context, contact types.Contact) error
 	AllContacts(ctx context.Context) ([]*types.Contact, error)
 	UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error
@@ -58,13 +58,7 @@ const (
 	getAllContactsOfUserQuery = getAllContactsQuery + `WHERE our_aci_uuid = $1`
 	getContactByUUIDQuery     = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND aci_uuid = $2`
 	getContactByPhoneQuery    = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND e164_number = $2`
-
-	getContactWithLatestOtherProfileQuery = getAllContactsQuery + `
-		WHERE our_aci_uuid <> $1 AND aci_uuid = $2 AND LENGTH(COALESCE(profile_key, '')) > 0
-		ORDER BY profile_fetch_ts DESC LIMIT 1
-	`
-
-	upsertContactQuery = `
+	upsertContactQuery        = `
 		INSERT INTO signalmeow_contacts (
 			our_aci_uuid,
 			aci_uuid,
@@ -149,8 +143,40 @@ func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.C
 	return scanContact(s.db.QueryRow(ctx, getContactByPhoneQuery, s.ACI, e164))
 }
 
-func (s *SQLStore) LoadContactWithLatestOtherProfile(ctx context.Context, contact *types.Contact) (*types.Contact, error) {
-	return scanContact(s.db.QueryRow(ctx, getContactWithLatestOtherProfileQuery, s.ACI, contact.UUID))
+func (s *SQLStore) UpdateContactWithLatestProfile(ctx context.Context, contact *types.Contact) (sourceUUID uuid.UUID, err error) {
+	var profileKey []byte
+	err = s.db.QueryRow(
+		ctx,
+		`SELECT
+			profile_key,
+			profile_name,
+			profile_about,
+			profile_about_emoji,
+			profile_avatar_path,
+			our_aci_uuid
+		FROM signalmeow_contacts
+		WHERE
+			our_aci_uuid <> $1 AND
+			aci_uuid = $2 AND
+			LENGTH(COALESCE(profile_key, '')) > 0
+		ORDER BY profile_fetch_ts DESC LIMIT 1`,
+		s.ACI,
+		contact.UUID,
+	).Scan(
+		&profileKey,
+		&contact.Profile.Name,
+		&contact.Profile.About,
+		&contact.Profile.AboutEmoji,
+		&contact.Profile.AvatarPath,
+		&sourceUUID,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	} else if err == nil {
+		profileKeyConverted := libsignalgo.ProfileKey(profileKey)
+		contact.Profile.Key = &profileKeyConverted
+	}
+	return
 }
 
 func (s *SQLStore) AllContacts(ctx context.Context) ([]*types.Contact, error) {

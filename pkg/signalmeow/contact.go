@@ -95,17 +95,17 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 	return existingContact, nil
 }
 
-func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, profileUUID uuid.UUID) (*types.Contact, error) {
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, profileUUID uuid.UUID) (existingContact *types.Contact, otherSourceUUID uuid.UUID, err error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "fetch contact then try and update with profile").
 		Stringer("profile_uuid", profileUUID).
 		Logger()
 	contactChanged := false
 
-	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUUID)
+	existingContact, err = cli.Store.ContactStore.LoadContact(ctx, profileUUID)
 	if err != nil {
 		log.Err(err).Msg("error loading contact")
-		return nil, err
+		return
 	}
 	if existingContact == nil {
 		log.Debug().Msg("creating new contact")
@@ -116,10 +116,9 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 	} else {
 		log.Debug().Msg("updating existing contact")
 	}
-	profile, lastFetched, err := cli.RetrieveProfileByID(ctx, profileUUID)
-	if err != nil {
-		log.Err(err).Msg("error retrieving profile")
-		//return nil, nil, err
+	profile, lastFetched, fetchErr := cli.RetrieveProfileByID(ctx, profileUUID)
+	if fetchErr != nil {
+		log.Err(fetchErr).Msg("error retrieving profile")
 		// Don't return here, we still want to return what we have
 	} else if profile != nil {
 		if existingContact.Profile.Name != profile.Name {
@@ -146,26 +145,20 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 
 	if contactChanged {
 		existingContact.ProfileFetchTs = lastFetched.UnixMilli()
-		err := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
+		err = cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 		if err != nil {
 			log.Err(err).Msg("error storing contact")
-			return nil, err
+			return
 		}
 	}
 
-	if err != nil {
-		var otherContact *types.Contact
-		otherContact, err = cli.Store.ContactStore.LoadContactWithLatestOtherProfile(ctx, existingContact)
-		if err != nil {
-			log.Err(err).Msg("error retrieving contact with a newer profile from other users")
-		} else if otherContact != nil {
-			existingContact.Profile.Name = otherContact.Profile.Name
-			existingContact.Profile.About = otherContact.Profile.About
-			existingContact.Profile.AboutEmoji = otherContact.Profile.AboutEmoji
-			existingContact.Profile.AvatarPath = otherContact.Profile.AvatarPath
+	if fetchErr != nil {
+		otherSourceUUID, fetchErr = cli.Store.ContactStore.UpdateContactWithLatestProfile(ctx, existingContact)
+		if fetchErr != nil {
+			log.Err(fetchErr).Msg("error retrieving latest profile for contact from other users")
 		}
 	}
-	return existingContact, nil
+	return
 }
 
 func (cli *Client) UpdateContactE164(ctx context.Context, uuid uuid.UUID, e164 string) error {
@@ -195,7 +188,7 @@ func (cli *Client) UpdateContactE164(ctx context.Context, uuid uuid.UUID, e164 s
 	return cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 }
 
-func (cli *Client) ContactByID(ctx context.Context, uuid uuid.UUID) (*types.Contact, error) {
+func (cli *Client) ContactByID(ctx context.Context, uuid uuid.UUID) (contact *types.Contact, otherSourceUUID uuid.UUID, err error) {
 	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, uuid)
 }
 
@@ -208,7 +201,7 @@ func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Conta
 	if contact == nil {
 		return nil, nil
 	}
-	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.UUID)
+	contact, _, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.UUID)
 	return contact, err
 }
 
