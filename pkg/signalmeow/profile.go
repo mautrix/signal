@@ -247,6 +247,9 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 }
 
 func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
+	if profileKey == nil {
+		return nil, fmt.Errorf("failed to prepare request: profileKey is nil")
+	}
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname,
