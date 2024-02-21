@@ -326,8 +326,8 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 			// TODO what to do? 🤔
 			return false
 		}
-		puppet.AvatarSet = false
 		puppet.AvatarPath = ""
+		puppet.AvatarHash = info.ContactAvatar.Hash
 	} else {
 		if puppet.AvatarPath == info.Profile.AvatarPath && puppet.AvatarSet {
 			return false
@@ -355,19 +355,25 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 			return true
 		}
 		avatarContentType = http.DetectContentType(avatarData)
+		puppet.AvatarPath = info.Profile.AvatarPath
+		hash := sha256.Sum256(avatarData)
+		newHash := hex.EncodeToString(hash[:])
+		if puppet.AvatarHash == newHash && puppet.AvatarSet {
+			log.Debug().
+				Str("avatar_hash", newHash).
+				Str("new_avatar_path", puppet.AvatarPath).
+				Msg("Avatar path changed, but hash didn't")
+			// Path changed, but actual avatar didn't
+			return true
+		}
+		puppet.AvatarHash = newHash
+		info.ProfileAvatarHash = newHash
+		source.Client.Store.ContactStore.StoreContact(ctx, *info)
+		err = source.Client.Store.ContactStore.StoreContact(ctx, *info)
+		if err != nil {
+			log.Warn().Err(err).Msg("error updating contact's profile avatar hash")
+		}
 	}
-	hash := sha256.Sum256(avatarData)
-	newHash := hex.EncodeToString(hash[:])
-	if puppet.AvatarHash == newHash && puppet.AvatarSet {
-		log.Debug().
-			Str("avatar_hash", newHash).
-			Str("new_avatar_path", puppet.AvatarPath).
-			Msg("Avatar path changed, but hash didn't")
-		// Path changed, but actual avatar didn't
-		return true
-	}
-	puppet.AvatarPath = info.Profile.AvatarPath
-	puppet.AvatarHash = newHash
 	puppet.AvatarSet = false
 	puppet.AvatarURL = id.ContentURI{}
 	resp, err := puppet.DefaultIntent().UploadBytes(ctx, avatarData, avatarContentType)
@@ -384,7 +390,7 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 		return true
 	}
 	log.Debug().
-		Str("avatar_hash", newHash).
+		Str("avatar_hash", puppet.AvatarHash).
 		Stringer("avatar_mxc", resp.ContentURI).
 		Msg("Avatar updated successfully")
 	puppet.AvatarSet = true
