@@ -245,12 +245,21 @@ func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User) {
 		log.Err(err).Msg("Failed to fetch contact info")
 		return
 	}
+	if sourceUUID != uuid.Nil {
+		source = puppet.bridge.GetUserBySignalID(sourceUUID)
+		if source == nil || source.Client == nil {
+			log.Warn().
+				Stringer("source_uuid", sourceUUID).
+				Msg("No fallback user for profile info update")
+			return
+		}
+		log.Debug().
+			Stringer("source_mxid", source.MXID).
+			Msg("Using fallback user for profile info update")
+	}
 
 	log.Trace().Msg("Updating puppet info")
 
-	if sourceUUID != uuid.Nil {
-		source = puppet.bridge.GetUserBySignalID(sourceUUID)
-	}
 	update := false
 	if info.E164 != "" && puppet.Number != info.E164 {
 		puppet.Number = info.E164
