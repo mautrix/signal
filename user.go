@@ -398,6 +398,8 @@ func (user *User) startupTryConnect(retryCount int) {
 		user.log.Error().Msg("statusChan is nil after Connect")
 		return
 	}
+	user.bridge.Metrics.TrackConnectionState(user.SignalID, true)
+	user.bridge.Metrics.TrackLoginState(user.SignalID, true)
 	// After Connect returns, all bridge states are triggered by events on the statusChan
 	go func() {
 		var peekedConnectionStatus signalmeow.SignalConnectionStatus
@@ -423,6 +425,7 @@ func (user *User) startupTryConnect(retryCount int) {
 			case signalmeow.SignalConnectionEventConnected:
 				user.log.Debug().Msg("Sending Connected BridgeState")
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+				user.bridge.Metrics.TrackConnectionState(user.SignalID, true)
 
 			case signalmeow.SignalConnectionEventDisconnected:
 				user.log.Debug().Msg("Received SignalConnectionEventDisconnected")
@@ -472,6 +475,7 @@ func (user *User) startupTryConnect(retryCount int) {
 						} else {
 							user.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 						}
+						user.bridge.Metrics.TrackConnectionState(user.SignalID, false)
 					}
 				}
 
@@ -482,6 +486,8 @@ func (user *User) startupTryConnect(retryCount int) {
 				} else {
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 				}
+				user.bridge.Metrics.TrackConnectionState(user.SignalID, false)
+				user.bridge.Metrics.TrackLoginState(user.SignalID, false)
 				user.clearKeysAndDisconnect()
 				if managementRoom := user.GetManagementRoomID(); managementRoom != "" {
 					_, _ = user.bridge.Bot.SendText(ctx, managementRoom, "You've been logged out of Signal")
@@ -490,6 +496,7 @@ func (user *User) startupTryConnect(retryCount int) {
 			case signalmeow.SignalConnectionEventError:
 				user.log.Debug().Msg("Sending UnknownError BridgeState")
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+				user.bridge.Metrics.TrackConnectionState(user.SignalID, false)
 
 			case signalmeow.SignalConnectionCleanShutdown:
 				if user.Client.IsLoggedIn() {
@@ -497,6 +504,7 @@ func (user *User) startupTryConnect(retryCount int) {
 				} else {
 					user.log.Debug().Msg("Clean Shutdown, but logged out - Sending BadCredentials BridgeState")
 					user.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
+					user.bridge.Metrics.TrackConnectionState(user.SignalID, false)
 				}
 			}
 		}
@@ -569,6 +577,7 @@ func (user *User) saveSignalID(ctx context.Context, id uuid.UUID, number string)
 				Stringer("previous_user", existingUser.MXID).
 				Stringer("signal_uuid", id).
 				Msg("Another user is already logged in with same UUID, logging out previous user")
+			existingUser.bridge.Metrics.TrackLoginState(user.SignalID, false)
 			_ = existingUser.Disconnect()
 			existingUser.SignalID = uuid.Nil
 			existingUser.SignalUsername = ""
@@ -812,6 +821,7 @@ func (user *User) Logout() error {
 	loggedOutDevice, err := user.disconnectNoLock()
 	user.bridge.MeowStore.DeleteDevice(context.TODO(), &loggedOutDevice.Store.DeviceData)
 	user.bridge.GetPuppetByCustomMXID(user.MXID).ClearCustomMXID()
+	user.bridge.Metrics.TrackLoginState(user.SignalID, false)
 	return err
 }
 

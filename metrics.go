@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -60,10 +61,10 @@ type MetricsHandler struct {
 	unencryptedPrivateCount prometheus.Gauge
 
 	connected          prometheus.Gauge
-	connectedState     map[string]bool
+	connectedState     map[uuid.UUID]bool
 	connectedStateLock sync.Mutex
 	loggedIn           prometheus.Gauge
-	loggedInState      map[string]bool
+	loggedInState      map[uuid.UUID]bool
 	loggedInStateLock  sync.Mutex
 }
 
@@ -129,12 +130,12 @@ func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database
 			Name: "bridge_logged_in",
 			Help: "Bridge users logged into Signal",
 		}),
-		loggedInState: make(map[string]bool),
+		loggedInState: make(map[uuid.UUID]bool),
 		connected: promauto.NewGauge(prometheus.GaugeOpts{
 			Name: "bridge_connected",
 			Help: "Bridge users connected to Signal",
 		}),
-		connectedState: make(map[string]bool),
+		connectedState: make(map[uuid.UUID]bool),
 	}
 }
 
@@ -192,7 +193,7 @@ func (mh *MetricsHandler) TrackRetryReceipt(count int, found bool) {
 	}).Inc()
 }
 
-func (mh *MetricsHandler) TrackLoginState(signalID string, loggedIn bool) {
+func (mh *MetricsHandler) TrackLoginState(signalID uuid.UUID, loggedIn bool) {
 	if !mh.running {
 		return
 	}
@@ -209,7 +210,7 @@ func (mh *MetricsHandler) TrackLoginState(signalID string, loggedIn bool) {
 	}
 }
 
-func (mh *MetricsHandler) TrackConnectionState(signalID string, connected bool) {
+func (mh *MetricsHandler) TrackConnectionState(signalID uuid.UUID, connected bool) {
 	if !mh.running {
 		return
 	}
