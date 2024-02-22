@@ -398,8 +398,6 @@ func (user *User) startupTryConnect(retryCount int) {
 		user.log.Error().Msg("statusChan is nil after Connect")
 		return
 	}
-	user.bridge.Metrics.TrackConnectionState(user.SignalID, true)
-	user.bridge.Metrics.TrackLoginState(user.SignalID, true)
 	// After Connect returns, all bridge states are triggered by events on the statusChan
 	go func() {
 		var peekedConnectionStatus signalmeow.SignalConnectionStatus
@@ -426,6 +424,7 @@ func (user *User) startupTryConnect(retryCount int) {
 				user.log.Debug().Msg("Sending Connected BridgeState")
 				user.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 				user.bridge.Metrics.TrackConnectionState(user.SignalID, true)
+				user.bridge.Metrics.TrackLoginState(user.SignalID, true)
 
 			case signalmeow.SignalConnectionEventDisconnected:
 				user.log.Debug().Msg("Received SignalConnectionEventDisconnected")
