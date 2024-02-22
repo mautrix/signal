@@ -204,7 +204,7 @@ func (mh *MetricsHandler) TrackLoginState(signalID uuid.UUID, loggedIn bool) {
 		mh.loggedInState[signalID] = loggedIn
 		if loggedIn {
 			mh.loggedIn.Inc()
-		} else {
+		} else if ok {
 			mh.loggedIn.Dec()
 		}
 	}
@@ -221,7 +221,7 @@ func (mh *MetricsHandler) TrackConnectionState(signalID uuid.UUID, connected boo
 		mh.connectedState[signalID] = connected
 		if connected {
 			mh.connected.Inc()
-		} else {
+		} else if ok {
 			mh.connected.Dec()
 		}
 	}
