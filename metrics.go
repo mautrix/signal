@@ -20,7 +20,6 @@ import (
 	"context"
 	"net/http"
 	"runtime/debug"
-	"strconv"
 	"sync"
 	"time"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
 )
@@ -48,9 +46,6 @@ type MetricsHandler struct {
 	signalMessageAge        prometheus.Histogram
 	signalMessageHandling   *prometheus.HistogramVec
 	countCollection         prometheus.Histogram
-	disconnections          *prometheus.CounterVec
-	incomingRetryReceipts   *prometheus.CounterVec
-	connectionFailures      *prometheus.CounterVec
 	puppetCount             prometheus.Gauge
 	userCount               prometheus.Gauge
 	messageCount            prometheus.Gauge
@@ -96,18 +91,6 @@ func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database
 			Name: "bridge_count_collection",
 			Help: "Time spent collecting the bridge_*_total metrics",
 		}),
-		disconnections: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "bridge_disconnections",
-			Help: "Number of times a Matrix user has been disconnected from Signal",
-		}, []string{"user_id"}),
-		connectionFailures: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "bridge_connection_failures",
-			Help: "Number of times a connection has failed to Signal",
-		}, []string{"reason"}),
-		incomingRetryReceipts: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "bridge_incoming_retry_receipts",
-			Help: "Number of times a remote Signal user has requested a retry from the bridge. retry_count = 5 is usually the last attempt (and very likely means a failed message)",
-		}, []string{"retry_count", "message_found"}),
 		puppetCount: promauto.NewGauge(prometheus.GaugeOpts{
 			Name: "bridge_puppets_total",
 			Help: "Number of Signal users bridged into Matrix",
@@ -167,30 +150,6 @@ func (mh *MetricsHandler) TrackSignalMessage(timestamp time.Time, messageType st
 			Observe(duration.Seconds())
 		mh.signalMessageAge.Observe(time.Since(timestamp).Seconds())
 	}
-}
-
-func (mh *MetricsHandler) TrackDisconnection(userID id.UserID) {
-	if !mh.running {
-		return
-	}
-	mh.disconnections.With(prometheus.Labels{"user_id": string(userID)}).Inc()
-}
-
-func (mh *MetricsHandler) TrackConnectionFailure(reason string) {
-	if !mh.running {
-		return
-	}
-	mh.connectionFailures.With(prometheus.Labels{"reason": reason}).Inc()
-}
-
-func (mh *MetricsHandler) TrackRetryReceipt(count int, found bool) {
-	if !mh.running {
-		return
-	}
-	mh.incomingRetryReceipts.With(prometheus.Labels{
-		"retry_count":   strconv.Itoa(count),
-		"message_found": strconv.FormatBool(found),
-	}).Inc()
 }
 
 func (mh *MetricsHandler) TrackLoginState(signalID uuid.UUID, loggedIn bool) {
