@@ -18,6 +18,7 @@ var _ DeviceStore = (*StoreContainer)(nil)
 
 type DeviceStore interface {
 	PutDevice(ctx context.Context, dd *DeviceData) error
+	DeleteDevice(ctx context.Context, dd *DeviceData) error
 	DeviceByACI(ctx context.Context, aci uuid.UUID) (*Device, error)
 }
 

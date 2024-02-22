@@ -198,7 +198,13 @@ func (br *SignalBridge) Stop() {
 	br.Metrics.Stop()
 	for _, user := range br.usersByMXID {
 		br.ZLog.Debug().Stringer("user_id", user.MXID).Msg("Disconnecting user")
-		user.Disconnect()
+		err := user.Disconnect()
+		if err != nil {
+			br.ZLog.Debug().Err(err).
+				Str("action", "stop").
+				Stringer("user_id", user.MXID).
+				Msg("Error on disconnect")
+		}
 	}
 }
 

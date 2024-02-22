@@ -52,6 +52,7 @@ func (br *SignalBridge) RegisterCommands() {
 	proc.AddHandlers(
 		cmdPing,
 		cmdLogin,
+		cmdLogout,
 		cmdSetDeviceName,
 		cmdPM,
 		cmdResolvePhone,
@@ -136,7 +137,7 @@ func fnDeleteSession(ce *WrappedCommandEvent) {
 		ce.Reply("You're not logged in")
 		return
 	}
-	ce.User.Client.ClearKeysAndDisconnect(ce.Ctx)
+	ce.User.clearKeysAndDisconnect(ce.Ctx)
 	ce.Reply("Disconnected from Signal")
 }
 
@@ -150,10 +151,8 @@ var cmdPing = &commands.FullHandler{
 }
 
 func fnPing(ce *WrappedCommandEvent) {
-	if ce.User.SignalID == uuid.Nil {
+	if ce.User.SignalID == uuid.Nil || !ce.User.IsLoggedIn() {
 		ce.Reply("You're not logged in")
-	} else if !ce.User.IsLoggedIn() {
-		ce.Reply("You were logged in at some point, but are not anymore")
 	} else if !ce.User.Client.IsConnected() {
 		ce.Reply("You're logged into Signal, but not connected to the server")
 	} else {
@@ -435,6 +434,29 @@ func fnLogin(ce *WrappedCommandEvent) {
 	// Connect to Signal
 	ce.User.Connect()
 	ce.Reply("Successfully logged in as %s (UUID: %s)", ce.User.SignalUsername, ce.User.SignalID)
+}
+
+var cmdLogout = &commands.FullHandler{
+	Func: wrapCommand(fnLogout),
+	Name: "logout",
+	Help: commands.HelpMeta{
+		Section:     commands.HelpSectionAuth,
+		Description: "Remove all local data about your Signal link",
+	},
+}
+
+func fnLogout(ce *WrappedCommandEvent) {
+	if !ce.User.IsLoggedIn() {
+		ce.Reply("You're not logged in.")
+		return
+	}
+	err := ce.User.Logout(ce.Ctx)
+	if err != nil {
+		ce.User.log.Warn().Err(err).Msg("Error while logging out")
+		ce.Reply("Error while logging out: %v", err)
+		return
+	}
+	ce.Reply("Logged out successfully.")
 }
 
 func (user *User) sendQR(ce *WrappedCommandEvent, code string, prevQR, prevMsg id.EventID) (qr, msg id.EventID) {

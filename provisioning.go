@@ -72,6 +72,7 @@ func (prov *ProvisioningAPI) Init() {
 	r.HandleFunc("/v2/link/new", prov.LinkNew).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/scan", prov.LinkWaitForScan).Methods(http.MethodPost)
 	r.HandleFunc("/v2/link/wait/account", prov.LinkWaitForAccount).Methods(http.MethodPost)
+	r.HandleFunc("/v2/delete_session", prov.DeleteSession).Methods(http.MethodPost)
 	r.HandleFunc("/v2/logout", prov.Logout).Methods(http.MethodPost)
 	r.HandleFunc("/v2/resolve_identifier/{phonenum}", prov.ResolveIdentifier).Methods(http.MethodGet)
 	r.HandleFunc("/v2/pm/{phonenum}", prov.StartPM).Methods(http.MethodPost)
@@ -665,6 +666,30 @@ func (prov *ProvisioningAPI) LinkWaitForAccount(w http.ResponseWriter, r *http.R
 	}
 }
 
+func (prov *ProvisioningAPI) DeleteSession(w http.ResponseWriter, r *http.Request) {
+	user := r.Context().Value(provisioningUserKey).(*User)
+	log := prov.log.With().
+		Str("action", "delete_session").
+		Stringer("user_id", user.MXID).
+		Logger()
+	ctx := log.WithContext(r.Context())
+	log.Debug().Msg("delete_session called")
+
+	if !user.IsLoggedIn() {
+		jsonResponse(w, http.StatusOK, Error{
+			Error:   "You're not logged in",
+			ErrCode: "not logged in",
+		})
+		return
+	}
+
+	user.clearKeysAndDisconnect(ctx)
+	jsonResponse(w, http.StatusOK, Response{
+		Success: true,
+		Status:  "disconnected",
+	})
+}
+
 func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 	user := r.Context().Value(provisioningUserKey).(*User)
 	log := prov.log.With().
@@ -672,13 +697,27 @@ func (prov *ProvisioningAPI) Logout(w http.ResponseWriter, r *http.Request) {
 		Stringer("user_id", user.MXID).
 		Logger()
 	ctx := log.WithContext(r.Context())
-	log.Debug().Msg("Logout called (but not logging out)")
+	log.Debug().Msg("Logout called")
 
-	prov.clearSession(ctx, user)
+	if !user.IsLoggedIn() {
+		jsonResponse(w, http.StatusOK, Error{
+			Error:   "You're not logged in",
+			ErrCode: "not logged in",
+		})
+		return
+	}
 
-	// For now do nothing - we need this API to return 200 to be compatible with
-	// the old Signal bridge, which needed a call to Logout before allowing LinkNew
-	// to be called, but we don't actually want to logout, we want to allow a reconnect.
+	err := user.Logout(ctx)
+	if err != nil {
+		user.log.Warn().Err(err).Msg("Error while logging out")
+		jsonResponse(w, http.StatusInternalServerError, Error{
+			Success: false,
+			Error:   err.Error(),
+			ErrCode: "M_INTERNAL",
+		})
+		return
+	}
+
 	jsonResponse(w, http.StatusOK, Response{
 		Success: true,
 		Status:  "logged_out",
