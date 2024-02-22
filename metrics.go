@@ -65,7 +65,7 @@ type MetricsHandler struct {
 
 func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database) *MetricsHandler {
 	portalCount := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "bridge_portals_total",
+		Name: "signal_portals_total",
 		Help: "Number of portal rooms on Matrix",
 	}, []string{"type", "encrypted"})
 	return &MetricsHandler{
@@ -88,19 +88,19 @@ func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database
 			Help: "Time spent processing Signal messages",
 		}, []string{"message_type"}),
 		countCollection: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name: "bridge_count_collection",
+			Name: "signal_count_collection",
 			Help: "Time spent collecting the bridge_*_total metrics",
 		}),
 		puppetCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name: "bridge_puppets_total",
+			Name: "signal_puppets_total",
 			Help: "Number of Signal users bridged into Matrix",
 		}),
 		userCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name: "bridge_users_total",
+			Name: "signal_users_total",
 			Help: "Number of Matrix users using the bridge",
 		}),
 		messageCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name: "bridge_messages_total",
+			Name: "signal_messages_total",
 			Help: "Number of messages bridged",
 		}),
 		portalCount:             portalCount,
