@@ -577,8 +577,10 @@ func (user *User) saveSignalID(ctx context.Context, id uuid.UUID, number string)
 				Stringer("signal_uuid", id).
 				Msg("Another user is already logged in with same UUID, logging out previous user")
 			existingUser.Lock()
-			existingUser.clearKeysAndDisconnect(ctx)
-			existingUser.Client = nil
+			if existingUser.Client != nil {
+				existingUser.clearKeysAndDisconnect(ctx)
+				existingUser.Client = nil
+			}
 			existingUser.handleLoggedOutNoLock(ctx)
 			existingUser.Unlock()
 			if managementRoom := existingUser.GetManagementRoomID(); managementRoom != "" {
