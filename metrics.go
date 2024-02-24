@@ -20,16 +20,15 @@ import (
 	"context"
 	"net/http"
 	"runtime/debug"
-	"strconv"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/event"
-	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
 )
@@ -47,9 +46,6 @@ type MetricsHandler struct {
 	signalMessageAge        prometheus.Histogram
 	signalMessageHandling   *prometheus.HistogramVec
 	countCollection         prometheus.Histogram
-	disconnections          *prometheus.CounterVec
-	incomingRetryReceipts   *prometheus.CounterVec
-	connectionFailures      *prometheus.CounterVec
 	puppetCount             prometheus.Gauge
 	userCount               prometheus.Gauge
 	messageCount            prometheus.Gauge
@@ -60,16 +56,16 @@ type MetricsHandler struct {
 	unencryptedPrivateCount prometheus.Gauge
 
 	connected          prometheus.Gauge
-	connectedState     map[string]bool
+	connectedState     map[uuid.UUID]bool
 	connectedStateLock sync.Mutex
 	loggedIn           prometheus.Gauge
-	loggedInState      map[string]bool
+	loggedInState      map[uuid.UUID]bool
 	loggedInStateLock  sync.Mutex
 }
 
 func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database) *MetricsHandler {
 	portalCount := promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "bridge_portals_total",
+		Name: "signal_portals_total",
 		Help: "Number of portal rooms on Matrix",
 	}, []string{"type", "encrypted"})
 	return &MetricsHandler{
@@ -92,31 +88,19 @@ func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database
 			Help: "Time spent processing Signal messages",
 		}, []string{"message_type"}),
 		countCollection: promauto.NewHistogram(prometheus.HistogramOpts{
-			Name: "bridge_count_collection",
+			Name: "signal_count_collection",
 			Help: "Time spent collecting the bridge_*_total metrics",
 		}),
-		disconnections: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "bridge_disconnections",
-			Help: "Number of times a Matrix user has been disconnected from Signal",
-		}, []string{"user_id"}),
-		connectionFailures: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "bridge_connection_failures",
-			Help: "Number of times a connection has failed to Signal",
-		}, []string{"reason"}),
-		incomingRetryReceipts: promauto.NewCounterVec(prometheus.CounterOpts{
-			Name: "bridge_incoming_retry_receipts",
-			Help: "Number of times a remote Signal user has requested a retry from the bridge. retry_count = 5 is usually the last attempt (and very likely means a failed message)",
-		}, []string{"retry_count", "message_found"}),
 		puppetCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name: "bridge_puppets_total",
+			Name: "signal_puppets_total",
 			Help: "Number of Signal users bridged into Matrix",
 		}),
 		userCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name: "bridge_users_total",
+			Name: "signal_users_total",
 			Help: "Number of Matrix users using the bridge",
 		}),
 		messageCount: promauto.NewGauge(prometheus.GaugeOpts{
-			Name: "bridge_messages_total",
+			Name: "signal_messages_total",
 			Help: "Number of messages bridged",
 		}),
 		portalCount:             portalCount,
@@ -129,12 +113,12 @@ func NewMetricsHandler(address string, log zerolog.Logger, db *database.Database
 			Name: "bridge_logged_in",
 			Help: "Bridge users logged into Signal",
 		}),
-		loggedInState: make(map[string]bool),
+		loggedInState: make(map[uuid.UUID]bool),
 		connected: promauto.NewGauge(prometheus.GaugeOpts{
 			Name: "bridge_connected",
 			Help: "Bridge users connected to Signal",
 		}),
-		connectedState: make(map[string]bool),
+		connectedState: make(map[uuid.UUID]bool),
 	}
 }
 
@@ -168,31 +152,7 @@ func (mh *MetricsHandler) TrackSignalMessage(timestamp time.Time, messageType st
 	}
 }
 
-func (mh *MetricsHandler) TrackDisconnection(userID id.UserID) {
-	if !mh.running {
-		return
-	}
-	mh.disconnections.With(prometheus.Labels{"user_id": string(userID)}).Inc()
-}
-
-func (mh *MetricsHandler) TrackConnectionFailure(reason string) {
-	if !mh.running {
-		return
-	}
-	mh.connectionFailures.With(prometheus.Labels{"reason": reason}).Inc()
-}
-
-func (mh *MetricsHandler) TrackRetryReceipt(count int, found bool) {
-	if !mh.running {
-		return
-	}
-	mh.incomingRetryReceipts.With(prometheus.Labels{
-		"retry_count":   strconv.Itoa(count),
-		"message_found": strconv.FormatBool(found),
-	}).Inc()
-}
-
-func (mh *MetricsHandler) TrackLoginState(signalID string, loggedIn bool) {
+func (mh *MetricsHandler) TrackLoginState(signalID uuid.UUID, loggedIn bool) {
 	if !mh.running {
 		return
 	}
@@ -203,13 +163,13 @@ func (mh *MetricsHandler) TrackLoginState(signalID string, loggedIn bool) {
 		mh.loggedInState[signalID] = loggedIn
 		if loggedIn {
 			mh.loggedIn.Inc()
-		} else {
+		} else if ok {
 			mh.loggedIn.Dec()
 		}
 	}
 }
 
-func (mh *MetricsHandler) TrackConnectionState(signalID string, connected bool) {
+func (mh *MetricsHandler) TrackConnectionState(signalID uuid.UUID, connected bool) {
 	if !mh.running {
 		return
 	}
@@ -220,7 +180,7 @@ func (mh *MetricsHandler) TrackConnectionState(signalID string, connected bool) 
 		mh.connectedState[signalID] = connected
 		if connected {
 			mh.connected.Inc()
-		} else {
+		} else if ok {
 			mh.connected.Dec()
 		}
 	}

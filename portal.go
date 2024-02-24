@@ -845,18 +845,27 @@ func (portal *Portal) handleSignalMessage(portalMessage portalSignalMessage) {
 			Msg("Couldn't get puppet for message")
 		return
 	}
+	var msgType string
+	var timestamp uint64
 	switch typedEvt := portalMessage.evt.Event.(type) {
 	case *signalpb.DataMessage:
+		msgType = "data"
+		timestamp = typedEvt.GetTimestamp()
 		portal.handleSignalDataMessage(portalMessage.user, sender, typedEvt)
 	case *signalpb.TypingMessage:
+		msgType = "typing"
+		timestamp = typedEvt.GetTimestamp()
 		portal.handleSignalTypingMessage(sender, typedEvt)
 	case *signalpb.EditMessage:
-		portal.handleSignalEditMessage(sender, typedEvt.GetTargetSentTimestamp(), typedEvt.GetDataMessage())
+		msgType = "edit"
+		timestamp = typedEvt.GetTargetSentTimestamp()
+		portal.handleSignalEditMessage(sender, timestamp, typedEvt.GetDataMessage())
 	default:
 		portal.log.Error().
 			Type("data_type", typedEvt).
 			Msg("Invalid inner event type inside ChatEvent")
 	}
+	portal.bridge.Metrics.TrackSignalMessage(time.UnixMilli(int64(timestamp)), msgType)
 }
 
 func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg *signalpb.DataMessage) {
