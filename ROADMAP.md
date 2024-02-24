@@ -52,13 +52,13 @@
     * [x] Name
     * [x] Avatar
     * [x] Topic
-  * [ ] Membership actions
-    * [ ] Join
-    * [ ] Invite
-    * [ ] Request join (via invite link, requires a client that supports knocks)
-    * [ ] Leave
-    * [ ] Kick/Ban/Unban
-  * [ ] Group permissions
+  * [x] Membership actions
+    * [x] Join
+    * [x] Invite
+    * [x] Request join (via invite link, requires a client that supports knocks)
+    * [x] Leave
+    * [x] Kick/Ban/Unban
+  * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
   * [ ] Delivery receipts (there's no good way to bridge these)

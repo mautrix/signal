@@ -81,12 +81,18 @@ type Group struct {
 	AnnouncementsOnly            bool
 	Revision                     uint32
 	DisappearingMessagesDuration uint32
+	AccessControl                *GroupAccessControl
+	PendingMembers               []*PendingMember
+	RequestingMembers            []*RequestingMember
+	BannedMembers                []*BannedMember
 	//PublicKey                  *libsignalgo.PublicKey
-	//AccessControl              *AccessControl
-	//PendingMembers             []*PendingMember
-	//RequestingMembers          []*RequestingMember
 	//InviteLinkPassword         []byte
-	//BannedMembers              []*BannedMember
+}
+
+type GroupAccessControl struct {
+	Members           AccessControl
+	AddFromInviteLink AccessControl
+	Attributes        AccessControl
 }
 
 func (group *Group) getGroupMasterKey() types.SerializedGroupMasterKey {
@@ -370,31 +376,62 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	decryptedGroup.Revision = encryptedGroup.Revision
 
 	// Decrypt members
-	decryptedGroup.Members = make([]*GroupMember, 0)
 	for _, member := range encryptedGroup.Members {
 		if member == nil {
 			continue
 		}
-		encryptedUserID := libsignalgo.UUIDCiphertext(member.UserId)
+		decryptedMember, err := decryptMember(ctx, member, groupSecretParams)
+		if err != nil {
+			return nil, err
+		}
+		decryptedGroup.Members = append(decryptedGroup.Members, decryptedMember)
+	}
+
+	for _, pendingMember := range encryptedGroup.PendingMembers {
+		if pendingMember == nil {
+			continue
+		}
+		decryptedPendingMember, err := decryptPendingMember(ctx, pendingMember, groupSecretParams)
+		if err != nil {
+			return nil, err
+		}
+		decryptedGroup.PendingMembers = append(decryptedGroup.PendingMembers, decryptedPendingMember)
+	}
+
+	for _, requestingMember := range encryptedGroup.RequestingMembers {
+		if requestingMember == nil {
+			continue
+		}
+		decryptedRequestingMember, err := decryptRequestingMember(ctx, requestingMember, groupSecretParams)
+		if err != nil {
+			return nil, err
+		}
+		decryptedGroup.RequestingMembers = append(decryptedGroup.RequestingMembers, decryptedRequestingMember)
+	}
+
+	for _, bannedMember := range encryptedGroup.BannedMembers {
+		if bannedMember == nil {
+			continue
+		}
+		encryptedUserID := libsignalgo.UUIDCiphertext(bannedMember.UserId)
 		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
 		if err != nil {
 			log.Err(err).Msg("DecryptUUID UserId error")
 			return nil, err
 		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(member.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
-			return nil, err
-		}
-		decryptedGroup.Members = append(decryptedGroup.Members, &GroupMember{
-			UserID:           userID,
-			ProfileKey:       *profileKey,
-			Role:             GroupMemberRole(member.Role),
-			JoinedAtRevision: member.JoinedAtRevision,
+		decryptedGroup.BannedMembers = append(decryptedGroup.BannedMembers, &BannedMember{
+			UserID:    userID,
+			Timestamp: bannedMember.Timestamp,
 		})
 	}
 
+	if encryptedGroup.AccessControl != nil {
+		decryptedGroup.AccessControl = &GroupAccessControl{
+			Members:           (AccessControl)(encryptedGroup.AccessControl.Members),
+			Attributes:        (AccessControl)(encryptedGroup.AccessControl.Attributes),
+			AddFromInviteLink: (AccessControl)(encryptedGroup.AccessControl.AddFromInviteLink),
+		}
+	}
 	return decryptedGroup, nil
 }
 
@@ -493,6 +530,18 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
 		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, member.UserID, member.ProfileKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to store profile key: %w", err)
+		}
+	}
+	for _, pendingMember := range group.PendingMembers {
+		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, pendingMember.UserID, pendingMember.ProfileKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to store profile key: %w", err)
+		}
+	}
+	for _, requestingMember := range group.RequestingMembers {
+		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, requestingMember.UserID, requestingMember.ProfileKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store profile key: %w", err)
 		}
@@ -659,28 +708,15 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		if addMember == nil {
 			continue
 		}
-		encryptedUserID := libsignalgo.UUIDCiphertext(addMember.Added.UserId)
-		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		decryptedMember, err := decryptMember(ctx, addMember.Added, groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("DecryptUUID UserId error")
-			return nil, err
-		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(addMember.Added.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
 			return nil, err
 		}
 		decryptedGroupChange.AddMembers = append(decryptedGroupChange.AddMembers, &AddMember{
-			GroupMember: GroupMember{
-				UserID:           userID,
-				ProfileKey:       *profileKey,
-				Role:             GroupMemberRole(addMember.Added.Role),
-				JoinedAtRevision: addMember.Added.JoinedAtRevision,
-			},
+			GroupMember:        *decryptedMember,
 			JoinFromInviteLink: addMember.JoinFromInviteLink,
 		})
-		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, decryptedMember.UserID, decryptedMember.ProfileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -745,35 +781,12 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 			continue
 		}
 		pendingMember := addPendingMember.Added
-		encryptedUserID := libsignalgo.UUIDCiphertext(pendingMember.Member.UserId)
-		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		decryptedPendingMember, err := decryptPendingMember(ctx, pendingMember, groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("DecryptUUID UserId error")
 			return nil, err
 		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(pendingMember.Member.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
-			return nil, err
-		}
-		encryptedAddedByUserID := pendingMember.AddedByUserId
-		addedByUserId, err := groupSecretParams.DecryptUUID(libsignalgo.UUIDCiphertext(encryptedAddedByUserID))
-		if err != nil {
-			log.Err(err).Msg("DecryptUUID addedByUserId error")
-			return nil, err
-		}
-		decryptedGroupChange.AddPendingMembers = append(decryptedGroupChange.AddPendingMembers, &PendingMember{
-			GroupMember: GroupMember{
-				UserID:           userID,
-				ProfileKey:       *profileKey,
-				Role:             GroupMemberRole(pendingMember.Member.Role),
-				JoinedAtRevision: pendingMember.Member.JoinedAtRevision,
-			},
-			AddedByUserID: addedByUserId,
-			Timestamp:     addPendingMember.Added.Timestamp,
-		})
-		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		decryptedGroupChange.AddPendingMembers = append(decryptedGroupChange.AddPendingMembers, decryptedPendingMember)
+		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, decryptedPendingMember.UserID, decryptedPendingMember.ProfileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -824,25 +837,12 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		if addRequestingMember == nil {
 			continue
 		}
-		requestingMember := addRequestingMember.Added
-		encryptedUserID := libsignalgo.UUIDCiphertext(requestingMember.UserId)
-		userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+		decryptedRequestingMember, err := decryptRequestingMember(ctx, addRequestingMember.Added, groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("DecryptUUID UserId error")
 			return nil, err
 		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(requestingMember.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error")
-			return nil, err
-		}
-		decryptedGroupChange.AddRequestingMembers = append(decryptedGroupChange.AddRequestingMembers, &RequestingMember{
-			UserID:     userID,
-			ProfileKey: *profileKey,
-			Timestamp:  addRequestingMember.Added.Timestamp,
-		})
-		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, userID, *profileKey)
+		decryptedGroupChange.AddRequestingMembers = append(decryptedGroupChange.AddRequestingMembers, decryptedRequestingMember)
+		cli.Store.ProfileKeyStore.StoreProfileKey(ctx, decryptedRequestingMember.UserID, decryptedRequestingMember.ProfileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -891,7 +891,7 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		}
 		decryptedGroupChange.AddBannedMembers = append(decryptedGroupChange.AddBannedMembers, &BannedMember{
 			UserID:    userID,
-			Timestamp: addBannedMember.Added.Timestamp,
+			Timestamp: bannedMember.Timestamp,
 		})
 	}
 
@@ -933,4 +933,79 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 	}
 
 	return decryptedGroupChange, nil
+}
+
+func decryptMember(ctx context.Context, member *signalpb.Member, groupSecretParams libsignalgo.GroupSecretParams) (*GroupMember, error) {
+	log := zerolog.Ctx(ctx)
+	encryptedUserID := libsignalgo.UUIDCiphertext(member.UserId)
+	userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+	if err != nil {
+		log.Err(err).Msg("DecryptUUID UserId error")
+		return nil, err
+	}
+	encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(member.ProfileKey)
+	profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+	if err != nil {
+		log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+		return nil, err
+	}
+	return &GroupMember{
+		UserID:           userID,
+		ProfileKey:       *profileKey,
+		Role:             GroupMemberRole(member.Role),
+		JoinedAtRevision: member.JoinedAtRevision,
+	}, err
+}
+
+func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMember, groupSecretParams libsignalgo.GroupSecretParams) (*PendingMember, error) {
+	log := zerolog.Ctx(ctx)
+	encryptedUserID := libsignalgo.UUIDCiphertext(pendingMember.Member.UserId)
+	userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+	if err != nil {
+		log.Err(err).Msg("DecryptUUID UserId error")
+		return nil, err
+	}
+	encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(pendingMember.Member.ProfileKey)
+	profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+	if err != nil {
+		log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+		return nil, err
+	}
+	encryptedAddedByUserID := pendingMember.AddedByUserId
+	addedByUserId, err := groupSecretParams.DecryptUUID(libsignalgo.UUIDCiphertext(encryptedAddedByUserID))
+	if err != nil {
+		log.Err(err).Msg("DecryptUUID addedByUserId error")
+		return nil, err
+	}
+	return &PendingMember{
+		GroupMember: GroupMember{
+			UserID:           userID,
+			ProfileKey:       *profileKey,
+			Role:             GroupMemberRole(pendingMember.Member.Role),
+			JoinedAtRevision: pendingMember.Member.JoinedAtRevision,
+		},
+		AddedByUserID: addedByUserId,
+		Timestamp:     pendingMember.Timestamp,
+	}, nil
+}
+
+func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.RequestingMember, groupSecretParams libsignalgo.GroupSecretParams) (*RequestingMember, error) {
+	log := zerolog.Ctx(ctx)
+	encryptedUserID := libsignalgo.UUIDCiphertext(requestingMember.UserId)
+	userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
+	if err != nil {
+		log.Err(err).Msg("DecryptUUID UserId error")
+		return nil, err
+	}
+	encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(requestingMember.ProfileKey)
+	profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
+	if err != nil {
+		log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+		return nil, err
+	}
+	return &RequestingMember{
+		UserID:     userID,
+		ProfileKey: *profileKey,
+		Timestamp:  requestingMember.Timestamp,
+	}, nil
 }
