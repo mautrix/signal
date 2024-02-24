@@ -1,4 +1,4 @@
--- v0 -> v19 (compatible with v17+): Latest revision
+-- v0 -> v20 (compatible with v17+): Latest revision
 
 CREATE TABLE portal (
     chat_id     TEXT    NOT NULL,
@@ -33,8 +33,9 @@ CREATE TABLE puppet (
     name_set     BOOLEAN NOT NULL DEFAULT false,
     avatar_set   BOOLEAN NOT NULL DEFAULT false,
 
-    is_registered    BOOLEAN NOT NULL DEFAULT false,
-    contact_info_set BOOLEAN NOT NULL DEFAULT false,
+    is_registered      BOOLEAN NOT NULL DEFAULT false,
+    contact_info_set   BOOLEAN NOT NULL DEFAULT false,
+    profile_fetched_at BIGINT,
 
     custom_mxid  TEXT,
     access_token TEXT NOT NULL,

@@ -35,6 +35,7 @@ type BridgeConfig struct {
 	DisplaynameTemplate   string `yaml:"displayname_template"`
 	PrivateChatPortalMeta string `yaml:"private_chat_portal_meta"`
 	UseContactAvatars     bool   `yaml:"use_contact_avatars"`
+	UseOutdatedProfiles   bool   `yaml:"use_outdated_profiles"`
 	NumberInTopic         bool   `yaml:"number_in_topic"`
 
 	NoteToSelfAvatar id.ContentURIString `yaml:"note_to_self_avatar"`
@@ -169,12 +170,12 @@ type DisplaynameParams struct {
 func (bc BridgeConfig) FormatDisplayname(contact *types.Contact) string {
 	var buffer strings.Builder
 	_ = bc.displaynameTemplate.Execute(&buffer, DisplaynameParams{
-		ProfileName: contact.ProfileName,
+		ProfileName: contact.Profile.Name,
 		ContactName: contact.ContactName,
 		//Username:    contact.Username,
 		PhoneNumber: contact.E164,
 		UUID:        contact.UUID.String(),
-		AboutEmoji:  contact.ProfileAboutEmoji,
+		AboutEmoji:  contact.Profile.AboutEmoji,
 	})
 	return buffer.String()
 }

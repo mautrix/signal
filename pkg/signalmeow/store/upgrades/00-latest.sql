@@ -1,4 +1,4 @@
--- v0 -> v6: Latest revision
+-- v0 -> v7: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -76,18 +76,17 @@ CREATE TABLE signalmeow_groups (
 );
 
 CREATE TABLE signalmeow_contacts (
-    our_aci_uuid        TEXT NOT NULL,
-    aci_uuid            TEXT NOT NULL,
-    -- TODO make all fields not null
-    e164_number         TEXT,
-    contact_name        TEXT,
-    contact_avatar_hash TEXT,
+    our_aci_uuid        TEXT   NOT NULL,
+    aci_uuid            TEXT   NOT NULL,
+    e164_number         TEXT   NOT NULL,
+    contact_name        TEXT   NOT NULL,
+    contact_avatar_hash TEXT   NOT NULL,
     profile_key         bytea,
-    profile_name        TEXT,
-    profile_about       TEXT,
-    profile_about_emoji TEXT,
-    profile_avatar_path TEXT NOT NULL DEFAULT '',
-    profile_avatar_hash TEXT,
+    profile_name        TEXT   NOT NULL,
+    profile_about       TEXT   NOT NULL,
+    profile_about_emoji TEXT   NOT NULL,
+    profile_avatar_path TEXT   NOT NULL,
+    profile_fetched_at  BIGINT,
 
     PRIMARY KEY (our_aci_uuid, aci_uuid),
     FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
