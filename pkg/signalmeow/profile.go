@@ -35,6 +35,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -70,16 +71,8 @@ type ProfileResponse struct {
 	//PaymentAddress     []byte `json:"paymentAddress"`
 }
 
-type Profile struct {
-	Name       string
-	About      string
-	AboutEmoji string
-	AvatarPath string
-	Key        libsignalgo.ProfileKey
-}
-
 type ProfileCache struct {
-	profiles    map[string]*Profile
+	profiles    map[string]*types.Profile
 	errors      map[string]*error
 	lastFetched map[string]time.Time
 }
@@ -118,10 +111,10 @@ func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUI
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
+func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*types.Profile, error) {
 	if cli.ProfileCache == nil {
 		cli.ProfileCache = &ProfileCache{
-			profiles:    make(map[string]*Profile),
+			profiles:    make(map[string]*types.Profile),
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
 		}
@@ -144,15 +137,13 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 	// If we get here, we don't have a cached profile, so fetch it
 	profile, err := cli.fetchProfileByID(ctx, signalID)
 	if err != nil {
+		// TODO this check is wrong and most likely doesn't work, errors shouldn't use string comparisons
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
 		if strings.HasPrefix(err.Error(), "401") || strings.HasPrefix(err.Error(), "5") {
 			cli.ProfileCache.errors[signalID.String()] = &err
 			cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 		}
 		return nil, err
-	}
-	if profile == nil {
-		return nil, errProfileKeyNotFound
 	}
 
 	// If we get here, we have a valid profile, so cache it
@@ -162,15 +153,13 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 	return profile, nil
 }
 
-func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*Profile, error) {
+func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*types.Profile, error) {
 	log := zerolog.Ctx(ctx)
 	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting profile key: %w", err)
-	}
-	if profileKey == nil {
-		log.Warn().Msg("profileKey is nil")
-		return nil, nil
+	} else if profileKey == nil {
+		return nil, errProfileKeyNotFound
 	}
 
 	profileKeyVersion, err := profileKey.GetProfileKeyVersion(signalID)
@@ -211,7 +200,17 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %w", err)
 	}
-	log.Trace().Msg("Got profile response")
+	var profile types.Profile
+	profile.FetchedAt = time.Now()
+	logEvt := log.Trace().Uint32("status_code", resp.GetStatus())
+	if logEvt.Enabled() {
+		if json.Valid(resp.Body) {
+			logEvt.RawJSON("response_data", resp.Body)
+		} else {
+			logEvt.Str("invalid_response_data", base64.StdEncoding.EncodeToString(resp.Body))
+		}
+	}
+	logEvt.Msg("Got profile response")
 	if *resp.Status < 200 || *resp.Status >= 300 {
 		return nil, fmt.Errorf("error getting profile (unsuccessful status code %d)", *resp.Status)
 	}
@@ -220,7 +219,6 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling profile response: %w", err)
 	}
-	var profile Profile
 	if len(profileResponse.Name) > 0 {
 		profile.Name, err = decryptString(profileKey, profileResponse.Name)
 		if err != nil {
@@ -241,13 +239,14 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*P
 			return nil, fmt.Errorf("error decrypting profile aboutEmoji: %w", err)
 		}
 	}
+	// TODO store other metadata fields?
 	profile.AvatarPath = profileResponse.Avatar
 	profile.Key = *profileKey
 
 	return &profile, nil
 }
 
-func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, profileKey *libsignalgo.ProfileKey) ([]byte, error) {
+func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, profileKey libsignalgo.ProfileKey) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname,

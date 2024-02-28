@@ -22,6 +22,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -46,27 +47,23 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 		Logger()
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, parsedUUID)
 	if err != nil {
-		log.Err(err).Msg("error loading contact")
+		log.Err(err).Msg("Failed to load contact from database")
 		return nil, err
 	}
 	if existingContact == nil {
-		log.Debug().Msg("creating new contact")
 		existingContact = &types.Contact{
 			UUID: parsedUUID,
 		}
-	} else {
-		log.Debug().Msg("updating existing contact")
 	}
 
 	existingContact.E164 = contactDetails.GetNumber()
 	existingContact.ContactName = contactDetails.GetName()
 	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
 		profileKey := libsignalgo.ProfileKey(profileKeyString)
-		existingContact.ProfileKey = &profileKey
+		existingContact.Profile.Key = profileKey
 		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
 		if err != nil {
-			log.Err(err).Msg("storing profile key")
-			//return *existingContact, nil, err
+			log.Err(err).Msg("Failed to store profile key from contact")
 		}
 	}
 
@@ -86,10 +83,9 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 		}
 	}
 
-	log.Debug().Msg("storing contact")
 	storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 	if storeErr != nil {
-		log.Err(storeErr).Msg("error storing contact")
+		log.Err(storeErr).Msg("Failed to save contact")
 		return existingContact, storeErr
 	}
 	return existingContact, nil
@@ -104,7 +100,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUUID)
 	if err != nil {
-		log.Err(err).Msg("error loading contact")
+		log.Err(err).Msg("Failed to load contact from database")
 		return nil, err
 	}
 	if existingContact == nil {
@@ -118,38 +114,26 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 	}
 	profile, err := cli.RetrieveProfileByID(ctx, profileUUID)
 	if err != nil {
-		log.Err(err).Msg("error retrieving profile")
-		//return nil, nil, err
-		// Don't return here, we still want to return what we have
+		logLevel := zerolog.ErrorLevel
+		if errors.Is(err, errProfileKeyNotFound) {
+			logLevel = zerolog.DebugLevel
+		}
+		log.WithLevel(logLevel).Err(err).Msg("Failed to fetch profile")
+		// Continue to return contact without profile
 	}
 
 	if profile != nil {
-		if existingContact.ProfileName != profile.Name {
-			existingContact.ProfileName = profile.Name
+		// Don't bother saving every fetched timestamp to the database, but save if anything else changed
+		if !existingContact.Profile.Equals(profile) || existingContact.Profile.FetchedAt.IsZero() {
 			contactChanged = true
 		}
-		if existingContact.ProfileAbout != profile.About {
-			existingContact.ProfileAbout = profile.About
-			contactChanged = true
-		}
-		if existingContact.ProfileAboutEmoji != profile.AboutEmoji {
-			existingContact.ProfileAboutEmoji = profile.AboutEmoji
-			contactChanged = true
-		}
-		if existingContact.ProfileAvatarPath != profile.AvatarPath {
-			existingContact.ProfileAvatarPath = profile.AvatarPath
-			contactChanged = true
-		}
-		if existingContact.ProfileKey == nil || *existingContact.ProfileKey != profile.Key {
-			existingContact.ProfileKey = &profile.Key
-			contactChanged = true
-		}
+		existingContact.Profile = *profile
 	}
 
 	if contactChanged {
-		err := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
+		err = cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 		if err != nil {
-			log.Err(err).Msg("error storing contact")
+			log.Err(err).Msg("Failed to save contact")
 			return nil, err
 		}
 	}
@@ -164,21 +148,18 @@ func (cli *Client) UpdateContactE164(ctx context.Context, uuid uuid.UUID, e164 s
 		Logger()
 	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, uuid)
 	if err != nil {
-		log.Err(err).Msg("error loading contact")
+		log.Err(err).Msg("Failed to load contact from database")
 		return err
 	}
 	if existingContact == nil {
-		log.Debug().Msg("creating new contact")
 		existingContact = &types.Contact{
 			UUID: uuid,
 		}
-	} else {
-		log.Debug().Msg("found existing contact")
 	}
 	if existingContact.E164 == e164 {
 		return nil
 	}
-	log.Debug().Msg("e164 changed for contact")
+	log.Debug().Msg("Contact phone number changed")
 	existingContact.E164 = e164
 	return cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 }

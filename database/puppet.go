@@ -19,6 +19,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
@@ -28,7 +29,7 @@ import (
 const (
 	puppetBaseSelect = `
         SELECT uuid, number, name, name_quality, avatar_path, avatar_hash, avatar_url, name_set, avatar_set,
-               contact_info_set, is_registered, custom_mxid, access_token
+               contact_info_set, is_registered, profile_fetched_at, custom_mxid, access_token
         FROM puppet
 	`
 	getPuppetBySignalIDQuery   = puppetBaseSelect + `WHERE uuid=$1`
@@ -38,18 +39,18 @@ const (
 	updatePuppetQuery          = `
 		UPDATE puppet SET
 			number=$2, name=$3, name_quality=$4, avatar_path=$5, avatar_hash=$6, avatar_url=$7,
-			name_set=$8, avatar_set=$9, contact_info_set=$10, is_registered=$11,
-			custom_mxid=$12, access_token=$13
+			name_set=$8, avatar_set=$9, contact_info_set=$10, is_registered=$11, profile_fetched_at=$12,
+			custom_mxid=$13, access_token=$14
 		WHERE uuid=$1
 	`
 	insertPuppetQuery = `
 		INSERT INTO puppet (
 			uuid, number, name, name_quality, avatar_path, avatar_hash, avatar_url,
-			name_set, avatar_set, contact_info_set, is_registered,
+			name_set, avatar_set, contact_info_set, is_registered, profile_fetched_at,
 			custom_mxid, access_token
 		)
 		VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 		)
 	`
 )
@@ -71,11 +72,12 @@ type Puppet struct {
 	NameSet     bool
 	AvatarSet   bool
 
-	IsRegistered bool
+	IsRegistered     bool
+	ContactInfoSet   bool
+	ProfileFetchedAt time.Time
 
-	CustomMXID     id.UserID
-	AccessToken    string
-	ContactInfoSet bool
+	CustomMXID  id.UserID
+	AccessToken string
 }
 
 func newPuppet(qh *dbutil.QueryHelper[*Puppet]) *Puppet {
@@ -100,6 +102,7 @@ func (pq *PuppetQuery) GetAllWithCustomMXID(ctx context.Context) ([]*Puppet, err
 
 func (p *Puppet) Scan(row dbutil.Scannable) (*Puppet, error) {
 	var number, customMXID sql.NullString
+	var profileFetchedAt sql.NullInt64
 	err := row.Scan(
 		&p.SignalID,
 		&number,
@@ -112,14 +115,18 @@ func (p *Puppet) Scan(row dbutil.Scannable) (*Puppet, error) {
 		&p.AvatarSet,
 		&p.ContactInfoSet,
 		&p.IsRegistered,
+		&profileFetchedAt,
 		&customMXID,
 		&p.AccessToken,
 	)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 	p.Number = number.String
 	p.CustomMXID = id.UserID(customMXID.String)
+	if profileFetchedAt.Valid {
+		p.ProfileFetchedAt = time.UnixMilli(profileFetchedAt.Int64)
+	}
 	return p, nil
 }
 
@@ -136,6 +143,7 @@ func (p *Puppet) sqlVariables() []any {
 		p.AvatarSet,
 		p.ContactInfoSet,
 		p.IsRegistered,
+		dbutil.UnixMilliPtr(p.ProfileFetchedAt),
 		dbutil.StrPtr(p.CustomMXID),
 		p.AccessToken,
 	}

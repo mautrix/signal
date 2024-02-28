@@ -17,10 +17,29 @@
 package types
 
 import (
+	"time"
+
 	"github.com/google/uuid"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
+
+type Profile struct {
+	Name       string
+	About      string
+	AboutEmoji string
+	AvatarPath string
+	Key        libsignalgo.ProfileKey
+	FetchedAt  time.Time
+}
+
+func (p *Profile) Equals(other *Profile) bool {
+	return p.Name == other.Name &&
+		p.About == other.About &&
+		p.AboutEmoji == other.AboutEmoji &&
+		p.AvatarPath == other.AvatarPath &&
+		p.Key == other.Key
+}
 
 // The Contact struct combines information from two sources:
 // - A Signal "contact": contact info harvested from our user's phone's contact list
@@ -28,16 +47,11 @@ import (
 // Users of this Contact struct should prioritize "contact" information, but fall back
 // to "profile" information if the contact information is not available.
 type Contact struct {
-	UUID              uuid.UUID
-	E164              string
-	ContactName       string
-	ContactAvatar     ContactAvatar
-	ProfileKey        *libsignalgo.ProfileKey
-	ProfileName       string
-	ProfileAbout      string
-	ProfileAboutEmoji string
-	ProfileAvatarPath string
-	ProfileAvatarHash string
+	UUID          uuid.UUID
+	E164          string
+	ContactName   string
+	ContactAvatar ContactAvatar
+	Profile       Profile
 }
 
 type ContactAvatar struct {

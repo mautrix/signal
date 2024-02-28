@@ -83,6 +83,7 @@ func DoUpgrade(helper *up.Helper) {
 	}
 	helper.Copy(up.Str, "bridge", "private_chat_portal_meta")
 	helper.Copy(up.Bool, "bridge", "use_contact_avatars")
+	helper.Copy(up.Bool, "bridge", "use_outdated_profiles")
 	helper.Copy(up.Bool, "bridge", "number_in_topic")
 	helper.Copy(up.Str, "bridge", "note_to_self_avatar")
 	helper.Copy(up.Int, "bridge", "portal_message_buffer")

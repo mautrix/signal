@@ -35,19 +35,25 @@ type ProfileKeyCommitment [C.SignalPROFILE_KEY_COMMITMENT_LEN]byte
 type ProfileKeyVersion [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]byte
 type AccessKey [C.SignalACCESS_KEY_LEN]byte
 
+var blankProfileKey ProfileKey
+
+func (pk *ProfileKey) IsEmpty() bool {
+	return pk == nil || *pk == blankProfileKey
+}
+
 func (ak *AccessKey) String() string {
-	return string((*ak)[:])
+	return string(ak[:])
 }
 
 func (pv *ProfileKeyVersion) String() string {
-	return string((*pv)[:])
+	return string(pv[:])
 }
 
 func (pk *ProfileKey) Slice() []byte {
 	if pk == nil {
 		return nil
 	}
-	return (*pk)[:]
+	return pk[:]
 }
 
 func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {
