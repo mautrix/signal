@@ -963,14 +963,9 @@ func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMe
 	userID, err := groupSecretParams.DecryptUUID(encryptedUserID)
 	if err != nil {
 		log.Err(err).Msg("DecryptUUID UserId error")
-		return nil, err
+		userID = uuid.UUID{}
 	}
-	encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(pendingMember.Member.ProfileKey)
-	profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, userID)
-	if err != nil {
-		log.Err(err).Msg("DecryptProfileKey ProfileKey error")
-		return nil, err
-	}
+	// pendingMembers don't have profile keys
 	encryptedAddedByUserID := pendingMember.AddedByUserId
 	addedByUserId, err := groupSecretParams.DecryptUUID(libsignalgo.UUIDCiphertext(encryptedAddedByUserID))
 	if err != nil {
@@ -980,7 +975,6 @@ func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMe
 	return &PendingMember{
 		GroupMember: GroupMember{
 			UserID:           userID,
-			ProfileKey:       *profileKey,
 			Role:             GroupMemberRole(pendingMember.Member.Role),
 			JoinedAtRevision: pendingMember.Member.JoinedAtRevision,
 		},

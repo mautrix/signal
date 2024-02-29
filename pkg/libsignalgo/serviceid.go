@@ -66,6 +66,13 @@ func SignalServiceIDToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (u
 		return uuid.UUID{}, wrapError(signalFfiError)
 	}
 	uuidBytes := CopySignalOwnedBufferToBytes(result)
+	if len(uuidBytes) == 17 {
+		if uuidBytes[0] == 0x00 {
+			return uuid.UUID(uuidBytes[1:]), nil
+		} else {
+			return uuid.UUID{}, errors.New("Service ID is not ACI type")
+		}
+	}
 	if len(uuidBytes) != 16 {
 		return uuid.UUID{}, errors.New("invalid UUID length")
 	}
