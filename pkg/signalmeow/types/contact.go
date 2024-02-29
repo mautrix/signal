@@ -31,6 +31,7 @@ type Profile struct {
 	AvatarPath string
 	Key        libsignalgo.ProfileKey
 	FetchedAt  time.Time
+	Credential []byte
 }
 
 func (p *Profile) Equals(other *Profile) bool {

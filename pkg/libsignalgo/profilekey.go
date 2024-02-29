@@ -130,6 +130,8 @@ type ProfileKeyCredentialRequest [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN]byt
 type ProfileKeyCredentialResponse []byte
 type ProfileKeyCredentialPresentation []byte
 type ServerPublicParams [C.SignalSERVER_PUBLIC_PARAMS_LEN]byte
+type ExpiringProfileKeyCredential [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]byte
+type ExpiringProfileKeyCredentialResponse [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]byte
 
 func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
 	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
@@ -176,14 +178,36 @@ func (p *ProfileKeyCredentialRequestContext) ProfileKeyCredentialRequestContextG
 	return &result, nil
 }
 
-func NewProfileKeyCredentialResponse(b []byte) (ProfileKeyCredentialResponse, error) {
+func NewExpiringProfileKeyCredentialResponse(b []byte) (*ExpiringProfileKeyCredentialResponse, error) {
 	borrowedBuffer := BytesToBuffer(b)
 	signalFfiError := C.signal_expiring_profile_key_credential_response_check_valid_contents(borrowedBuffer)
 	runtime.KeepAlive(b)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return ProfileKeyCredentialResponse(b), nil
+	response := ExpiringProfileKeyCredentialResponse(b)
+	return &response, nil
+}
+
+func ReceiveExpiringProfileKeyCredential(spp ServerPublicParams, requestContext *ProfileKeyCredentialRequestContext, response *ExpiringProfileKeyCredentialResponse, currentTimeInSeconds uint64) (*ExpiringProfileKeyCredential, error) {
+	c_credential := [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar{}
+	signalFfiError := C.signal_server_public_params_receive_expiring_profile_key_credential(
+		&c_credential,
+		(*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&spp[0])),
+		(*[C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar)(unsafe.Pointer(requestContext)),
+		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]C.uchar)(unsafe.Pointer(response)),
+		(C.uint64_t)(currentTimeInSeconds),
+	)
+	runtime.KeepAlive(spp)
+	runtime.KeepAlive(requestContext)
+	runtime.KeepAlive(response)
+	runtime.KeepAlive(currentTimeInSeconds)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	credential := ExpiringProfileKeyCredential{}
+	copy(credential[:], C.GoBytes(unsafe.Pointer(&c_credential), C.int(C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN)))
+	return &credential, nil
 }
 
 //func NewProfileKeyCredentialPresentation(b []byte) (ProfileKeyCredentialPresentation, error) {

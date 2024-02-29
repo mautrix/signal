@@ -27,12 +27,17 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"mime/multipart"
 	"net/http"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/random"
+	"google.golang.org/protobuf/proto"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -198,6 +203,80 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 
 	return attachmentPointer, nil
+}
+
+func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier) (*string, error) {
+	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
+	if err != nil {
+		log.Err(err).Msg("Could not get master key from group id")
+		return nil, err
+	}
+	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyToBytes(groupMasterKey))
+	if err != nil {
+		log.Err(err).Msg("Failed to get Authorization for today")
+		return nil, err
+	}
+	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(groupMasterKey))
+	if err != nil {
+		log.Err(err).Msg("Could not get groupSecretParams from master key")
+		return nil, err
+	}
+	attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Avatar{Avatar: avatarBytes}}
+	encryptedAvatar, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
+	if err != nil {
+		log.Err(err).Msg("Could not encrypt avatar into Group Property")
+		return nil, err
+	}
+
+	// Get upload form from Signal server
+	formPath := "/v1/groups/avatar/form"
+	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, ContentType: web.ContentTypeProtobuf, Host: web.StorageHostname}
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, formPath, opts)
+	if err != nil {
+		log.Err(err).Msg("Error sending request fetching avatar upload form")
+		return nil, err
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Err(err).Msg("Error decoding response body fetching upload attributes")
+		return nil, err
+	}
+	uploadForm := signalpb.AvatarUploadAttributes{}
+	err = proto.Unmarshal(body, &uploadForm)
+	if err != nil {
+		log.Err(err).Msg("failed to unmarshal group avatar upload form")
+		return nil, err
+	}
+	requestBody := &bytes.Buffer{}
+	w := multipart.NewWriter(requestBody)
+	w.WriteField("key", uploadForm.Key)
+	w.WriteField("x-amz-credential", uploadForm.Credential)
+	w.WriteField("acl", uploadForm.Acl)
+	w.WriteField("x-amz-algorithm", uploadForm.Algorithm)
+	w.WriteField("x-amz-date", uploadForm.Date)
+	w.WriteField("policy", uploadForm.Policy)
+	w.WriteField("x-amz-signature", uploadForm.Signature)
+	w.WriteField("Content-Type", "application/octet-stream")
+	filewriter, _ := w.CreateFormFile("file", "file")
+	filewriter.Write(*encryptedAvatar)
+	w.Close()
+
+	// Upload avatar to CDN
+	resp, err = web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
+		Body:        requestBody.Bytes(),
+		ContentType: web.ContentType(w.FormDataContentType()),
+		Host:        web.CDN1Hostname,
+	})
+	if err != nil {
+		log.Err(err).Msg("Error sending request uploading attachment")
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Error().Int("status_code", resp.StatusCode).Msg("Error uploading attachment")
+		return nil, fmt.Errorf("error uploading attachment: %s", resp.Status)
+	}
+
+	return &uploadForm.Key, nil
 }
 
 func verifyMAC(key, body, mac []byte) bool {

@@ -52,6 +52,7 @@ type BridgeConfig struct {
 	PublicPortals           bool `yaml:"public_portals"`
 	CaptionInMessage        bool `yaml:"caption_in_message"`
 	FederateRooms           bool `yaml:"federate_rooms"`
+	BridgeMatrixLeave       bool `yaml:"bridge_matrix_leave"`
 
 	DoublePuppetConfig bridgeconfig.DoublePuppetConfig `yaml:",inline"`
 

@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2023 Scott Weber, Malte Eggers
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -169,6 +170,108 @@ type GroupChange struct {
 	DeleteBannedMembers                []*uuid.UUID
 	PromotePendingPniAciMembers        []*ProfileKeyMember
 	// ModifyInviteLinkPassword        []byte
+}
+
+func (groupChange *GroupChange) isEmptpy() bool {
+	return len(groupChange.AddMembers) == 0 &&
+		len(groupChange.DeleteMembers) == 0 &&
+		len(groupChange.ModifyMemberRoles) == 0 &&
+		len(groupChange.ModifyMemberProfileKeys) == 0 &&
+		len(groupChange.AddPendingMembers) == 0 &&
+		len(groupChange.PromotePendingMembers) == 0 &&
+		groupChange.ModifyTitle == nil &&
+		groupChange.ModifyAvatar == nil &&
+		groupChange.ModifyDisappearingMessagesDuration == nil &&
+		groupChange.ModifyAttributesAccess == nil &&
+		groupChange.ModifyMemberAccess == nil &&
+		groupChange.ModifyAddFromInviteLinkAccess == nil &&
+		len(groupChange.AddRequestingMembers) == 0 &&
+		len(groupChange.DeleteRequestingMembers) == 0 &&
+		len(groupChange.PromoteRequestingMembers) == 0 &&
+		groupChange.ModifyDescription == nil &&
+		groupChange.ModifyAnnouncementsOnly == nil &&
+		len(groupChange.AddBannedMembers) == 0 &&
+		len(groupChange.DeleteMembers) == 0
+}
+
+func (groupChange *GroupChange) resolveConflict(group *Group) {
+	if *groupChange.ModifyTitle == group.Title {
+		groupChange.ModifyTitle = nil
+	}
+	if *groupChange.ModifyDescription == group.Description {
+		groupChange.ModifyDescription = nil
+	}
+	if *groupChange.ModifyAvatar == group.AvatarPath {
+		groupChange.ModifyAvatar = nil
+	}
+	if *groupChange.ModifyDisappearingMessagesDuration == group.DisappearingMessagesDuration {
+		groupChange.ModifyDisappearingMessagesDuration = nil
+	}
+	if *groupChange.ModifyAttributesAccess == group.AccessControl.Attributes {
+		groupChange.ModifyAttributesAccess = nil
+	}
+	if *groupChange.ModifyMemberAccess == group.AccessControl.Members {
+		groupChange.ModifyAttributesAccess = nil
+	}
+	if *groupChange.ModifyAddFromInviteLinkAccess == group.AccessControl.AddFromInviteLink {
+		groupChange.ModifyAddFromInviteLinkAccess = nil
+	}
+	if *groupChange.ModifyAnnouncementsOnly == group.AnnouncementsOnly {
+		groupChange.ModifyAnnouncementsOnly = nil
+	}
+	members := make(map[uuid.UUID]bool)
+	for _, member := range group.Members {
+		members[member.UserID] = true
+	}
+	pendingMembers := make(map[uuid.UUID]bool)
+	for _, pendingMember := range group.PendingMembers {
+		pendingMembers[pendingMember.UserID] = true
+	}
+	requestingMembers := make(map[uuid.UUID]bool)
+	for _, requestingMember := range group.RequestingMembers {
+		requestingMembers[requestingMember.UserID] = true
+	}
+	for i, member := range groupChange.AddMembers {
+		if members[member.GroupMember.UserID] {
+			groupChange.AddMembers = append(groupChange.AddMembers[:i], groupChange.AddMembers[i+1:]...)
+		}
+	}
+	for i, promotePendingMember := range groupChange.PromotePendingMembers {
+		if members[promotePendingMember.UserID] {
+			groupChange.PromotePendingMembers = append(groupChange.PromotePendingMembers[:i], groupChange.PromotePendingMembers[i+1:]...)
+		}
+	}
+	for i, promoteRequestingMember := range groupChange.PromotePendingMembers {
+		if members[promoteRequestingMember.UserID] {
+			groupChange.PromoteRequestingMembers = append(groupChange.PromoteRequestingMembers[:i], groupChange.PromoteRequestingMembers[i+1:]...)
+		}
+	}
+	for i, pendingMember := range groupChange.AddPendingMembers {
+		if pendingMembers[pendingMember.GroupMember.UserID] {
+			groupChange.AddPendingMembers = append(groupChange.AddPendingMembers[:i], groupChange.AddPendingMembers[i+1:]...)
+		}
+	}
+	for i, requestingMember := range groupChange.AddRequestingMembers {
+		if pendingMembers[requestingMember.UserID] {
+			groupChange.AddRequestingMembers = append(groupChange.AddRequestingMembers[:i], groupChange.AddRequestingMembers[i+1:]...)
+		}
+	}
+	for i, deletePendingMember := range groupChange.DeletePendingMembers {
+		if !pendingMembers[*deletePendingMember] {
+			groupChange.DeletePendingMembers = append(groupChange.DeletePendingMembers[:i], groupChange.DeletePendingMembers[i+1:]...)
+		}
+	}
+	for i, deleteRequestingMember := range groupChange.DeleteRequestingMembers {
+		if !pendingMembers[*deleteRequestingMember] {
+			groupChange.DeleteRequestingMembers = append(groupChange.DeleteRequestingMembers[:i], groupChange.DeleteRequestingMembers[i+1:]...)
+		}
+	}
+	for i, deleteMember := range groupChange.DeleteMembers {
+		if !members[*deleteMember] {
+			groupChange.DeleteMembers = append(groupChange.DeleteMembers[:i], groupChange.DeleteMembers[i+1:]...)
+		}
+	}
+	// TODO: Membership/role actions
 }
 
 func (groupChange *GroupChange) getGroupMasterKey() types.SerializedGroupMasterKey {
@@ -447,6 +550,18 @@ func decryptGroupPropertyIntoBlob(groupSecretParams libsignalgo.GroupSecretParam
 		return nil, fmt.Errorf("error unmarshalling blob: %w", err)
 	}
 	return &propertyBlob, nil
+}
+
+func encryptBlobIntoGroupProperty(groupSecretParams libsignalgo.GroupSecretParams, attributeBlob *signalpb.GroupAttributeBlob) (*[]byte, error) {
+	decryptedProperty, err := proto.Marshal(attributeBlob)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling groupProperty: %w", err)
+	}
+	encryptedProperty, err := groupSecretParams.EncryptBlobWithPaddingDeterministic(libsignalgo.GenerateRandomness(), decryptedProperty, 0)
+	if err != nil {
+		return nil, fmt.Errorf("error encrypting blob with padding: %w", err)
+	}
+	return &encryptedProperty, nil
 }
 
 func cleanupStringProperty(property string) string {
@@ -979,7 +1094,7 @@ func decryptMember(ctx context.Context, member *signalpb.Member, groupSecretPara
 		ProfileKey:       *profileKey,
 		Role:             GroupMemberRole(member.Role),
 		JoinedAtRevision: member.JoinedAtRevision,
-	}, err
+	}, nil
 }
 
 func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMember, groupSecretParams libsignalgo.GroupSecretParams) (*PendingMember, error) {
@@ -1027,4 +1142,349 @@ func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.Req
 		ProfileKey: *profileKey,
 		Timestamp:  requestingMember.Timestamp,
 	}, nil
+}
+
+func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroupChange *GroupChange, gid types.GroupIdentifier) (*signalpb.GroupChange, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "EncryptGroupChange").Logger()
+	groupMasterKey := decryptedGroupChange.groupMasterKey
+	masterKeyBytes := masterKeyToBytes(groupMasterKey)
+	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyBytes)
+	if err != nil {
+		log.Err(err).Msg("Could not get groupSecretParams from master key")
+		return nil, err
+	}
+	groupChangeActions := &signalpb.GroupChange_Actions{Revision: decryptedGroupChange.Revision}
+	if decryptedGroupChange.ModifyTitle != nil {
+		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Title{Title: *decryptedGroupChange.ModifyTitle}}
+		encryptedTitle, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
+		if err != nil {
+			log.Err(err).Msg("Could not get encrypt Title")
+			return nil, err
+		}
+		groupChangeActions.ModifyTitle = &signalpb.GroupChange_Actions_ModifyTitleAction{Title: *encryptedTitle}
+	}
+	if decryptedGroupChange.ModifyDescription != nil {
+		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Description{Description: *decryptedGroupChange.ModifyDescription}}
+		encryptedDescription, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
+		if err != nil {
+			log.Err(err).Msg("Could not get encrypt Title")
+			return nil, err
+		}
+		groupChangeActions.ModifyDescription = &signalpb.GroupChange_Actions_ModifyDescriptionAction{Description: *encryptedDescription}
+	}
+	if decryptedGroupChange.ModifyAvatar != nil {
+		groupChangeActions.ModifyAvatar = &signalpb.GroupChange_Actions_ModifyAvatarAction{Avatar: *decryptedGroupChange.ModifyAvatar}
+	}
+	for _, addMember := range decryptedGroupChange.AddMembers {
+		expiringProfileKeyCredential, err := cli.FetchExpiringProfileKeyCredentialById(ctx, addMember.UserID)
+		if err != nil {
+			log.Err(err).Msg("failed getting expiring profile key credential for addMember")
+			return nil, err
+		}
+		presentation, err := groupSecretParams.CreateExpiringProfileKeyCredentialPresentation(
+			prodServerPublicParams,
+			*expiringProfileKeyCredential,
+		)
+		if err != nil {
+			log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
+			return nil, err
+		}
+		groupChangeActions.AddMembers = append(groupChangeActions.AddMembers, &signalpb.GroupChange_Actions_AddMemberAction{
+			Added: &signalpb.Member{
+				Presentation: *presentation,
+				Role:         signalpb.Member_Role(addMember.Role),
+			},
+			JoinFromInviteLink: addMember.JoinFromInviteLink,
+		})
+	}
+	for _, deleteMember := range decryptedGroupChange.DeleteMembers {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(*deleteMember)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for deleteMember")
+			return nil, err
+		}
+		groupChangeActions.DeleteMembers = append(groupChangeActions.DeleteMembers, &signalpb.GroupChange_Actions_DeleteMemberAction{
+			DeletedUserId: encryptedUserID[:],
+		})
+	}
+	for _, modifyMemberRoles := range decryptedGroupChange.ModifyMemberRoles {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(modifyMemberRoles.UserID)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for modifyMemberRoles")
+			return nil, err
+		}
+		groupChangeActions.ModifyMemberRoles = append(groupChangeActions.ModifyMemberRoles, &signalpb.GroupChange_Actions_ModifyMemberRoleAction{
+			UserId: encryptedUserID[:],
+			Role:   signalpb.Member_Role(modifyMemberRoles.Role),
+		})
+	}
+	// for _, addPendingMember := range decryptedGroupChange.AddPendingMembers {
+	// }
+	for _, deletePendingMember := range decryptedGroupChange.DeletePendingMembers {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(*deletePendingMember)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for deletePendingMember")
+			return nil, err
+		}
+		groupChangeActions.DeletePendingMembers = append(groupChangeActions.DeletePendingMembers, &signalpb.GroupChange_Actions_DeletePendingMemberAction{
+			DeletedUserId: encryptedUserID[:],
+		})
+	}
+	for _, promotePendingMember := range decryptedGroupChange.PromotePendingMembers {
+		expiringProfileKeyCredential, err := cli.FetchExpiringProfileKeyCredentialById(ctx, promotePendingMember.UserID)
+		if err != nil {
+			log.Err(err).Msg("failed getting expiring profile key credential for addMember")
+			return nil, err
+		}
+		presentation, err := groupSecretParams.CreateExpiringProfileKeyCredentialPresentation(
+			prodServerPublicParams,
+			*expiringProfileKeyCredential,
+		)
+		if err != nil {
+			log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
+			return nil, err
+		}
+		groupChangeActions.PromotePendingMembers = append(groupChangeActions.PromotePendingMembers, &signalpb.GroupChange_Actions_PromotePendingMemberAction{
+			Presentation: *presentation,
+		})
+	}
+	for _, addRequestingMember := range decryptedGroupChange.AddRequestingMembers {
+		expiringProfileKeyCredential, err := cli.FetchExpiringProfileKeyCredentialById(ctx, addRequestingMember.UserID)
+		if err != nil {
+			log.Err(err).Msg("failed getting expiring profile key credential for addMember")
+			return nil, err
+		}
+		presentation, err := groupSecretParams.CreateExpiringProfileKeyCredentialPresentation(
+			prodServerPublicParams,
+			*expiringProfileKeyCredential,
+		)
+		if err != nil {
+			log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
+			return nil, err
+		}
+		groupChangeActions.AddRequestingMembers = append(groupChangeActions.AddRequestingMembers, &signalpb.GroupChange_Actions_AddRequestingMemberAction{
+			Added: &signalpb.RequestingMember{
+				Presentation: *presentation,
+			},
+		})
+	}
+	for _, deleteRequestingMember := range decryptedGroupChange.DeleteRequestingMembers {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(*deleteRequestingMember)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for promotePendingMember")
+			return nil, err
+		}
+		groupChangeActions.DeleteRequestingMembers = append(groupChangeActions.DeleteRequestingMembers, &signalpb.GroupChange_Actions_DeleteRequestingMemberAction{
+			DeletedUserId: encryptedUserID[:],
+		})
+	}
+	for _, promoteRequestingMember := range decryptedGroupChange.PromoteRequestingMembers {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(promoteRequestingMember.UserID)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for promoteRequestingMember")
+			return nil, err
+		}
+
+		groupChangeActions.PromoteRequestingMembers = append(groupChangeActions.PromoteRequestingMembers, &signalpb.GroupChange_Actions_PromoteRequestingMemberAction{
+			UserId: encryptedUserID[:],
+			Role:   signalpb.Member_Role(promoteRequestingMember.Role),
+		})
+	}
+	for _, addBannedMember := range decryptedGroupChange.AddBannedMembers {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(addBannedMember.UserID)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for promoteRequestingMember")
+			return nil, err
+		}
+		groupChangeActions.AddBannedMembers = append(groupChangeActions.AddBannedMembers, &signalpb.GroupChange_Actions_AddBannedMemberAction{
+			Added: &signalpb.BannedMember{
+				UserId:    encryptedUserID[:],
+				Timestamp: addBannedMember.Timestamp,
+			},
+		})
+	}
+	for _, deleteBannedMember := range decryptedGroupChange.DeleteBannedMembers {
+		encryptedUserID, err := groupSecretParams.EncryptUUID(*deleteBannedMember)
+		if err != nil {
+			log.Err(err).Msg("Encrypt UserId error for promoteRequestingMember")
+			return nil, err
+		}
+		groupChangeActions.DeleteBannedMembers = append(groupChangeActions.DeleteBannedMembers, &signalpb.GroupChange_Actions_DeleteBannedMemberAction{
+			DeletedUserId: encryptedUserID[:],
+		})
+	}
+	if decryptedGroupChange.ModifyAnnouncementsOnly != nil {
+		groupChangeActions.ModifyAnnouncementsOnly = &signalpb.GroupChange_Actions_ModifyAnnouncementsOnlyAction{
+			AnnouncementsOnly: *decryptedGroupChange.ModifyAnnouncementsOnly,
+		}
+	}
+	if decryptedGroupChange.ModifyAttributesAccess != nil {
+		groupChangeActions.ModifyAttributesAccess = &signalpb.GroupChange_Actions_ModifyAttributesAccessControlAction{
+			AttributesAccess: signalpb.AccessControl_AccessRequired(*decryptedGroupChange.ModifyAttributesAccess),
+		}
+	}
+	if decryptedGroupChange.ModifyMemberAccess != nil {
+		groupChangeActions.ModifyMemberAccess = &signalpb.GroupChange_Actions_ModifyMembersAccessControlAction{
+			MembersAccess: signalpb.AccessControl_AccessRequired(*decryptedGroupChange.ModifyMemberAccess),
+		}
+	}
+	if decryptedGroupChange.ModifyAddFromInviteLinkAccess != nil {
+		groupChangeActions.ModifyAddFromInviteLinkAccess = &signalpb.GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction{
+			AddFromInviteLinkAccess: signalpb.AccessControl_AccessRequired(*decryptedGroupChange.ModifyAddFromInviteLinkAccess),
+		}
+	}
+	if decryptedGroupChange.ModifyDisappearingMessagesDuration != nil {
+		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_DisappearingMessagesDuration{DisappearingMessagesDuration: *decryptedGroupChange.ModifyDisappearingMessagesDuration}}
+		encryptedTimer, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
+		if err != nil {
+			log.Err(err).Msg("Could not get encrypt Title")
+			return nil, err
+		}
+		groupChangeActions.ModifyDisappearingMessagesTimer = &signalpb.GroupChange_Actions_ModifyDisappearingMessagesTimerAction{Timer: *encryptedTimer}
+	}
+
+	return cli.patchGroup(ctx, groupChangeActions, groupMasterKey, nil)
+}
+
+var (
+	NoContentError               = RespError{Err: "NoContentError"}
+	GroupPatchNotAcceptedError   = RespError{Err: "GroupPatchNotAcceptedError"}
+	ConflictError                = RespError{Err: "ConflictError"}
+	AuthorizationFailedError     = RespError{Err: "AuthorizationFailedError"}
+	NotFoundError                = RespError{Err: "NotFoundError"}
+	ContactManifestMismatchError = RespError{Err: "ContactManifestMismatchError"}
+	RateLimitError               = RespError{Err: "RateLimitError"}
+	DeprecatedVersionError       = RespError{Err: "DeprecatedVersionError"}
+)
+
+type RespError struct {
+	Err string
+}
+
+func (e RespError) Error() string {
+	return e.Err
+}
+
+func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupChange_Actions, groupMasterKey types.SerializedGroupMasterKey, groupLinkPassword []byte) (*signalpb.GroupChange, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "patchGroup").Logger()
+	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyToBytes(groupMasterKey))
+	if err != nil {
+		log.Err(err).Msg("Failed to get Authorization for today")
+		return nil, err
+	}
+	var path string
+	if groupLinkPassword == nil {
+		path = "/v1/groups/"
+	} else {
+		path = fmt.Sprintf("/v1/groups/?inviteLinkPassword=%s", base64.StdEncoding.EncodeToString(groupLinkPassword))
+	}
+	requestBody, err := proto.Marshal(groupChange)
+	if err != nil {
+		log.Err(err).Msg("Failed to marshal request")
+		return nil, err
+	}
+	opts := &web.HTTPReqOpt{
+		Username:    &groupAuth.Username,
+		Password:    &groupAuth.Password,
+		ContentType: web.ContentTypeProtobuf,
+		Body:        requestBody,
+		Host:        web.StorageHostname,
+	}
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPatch, path, opts)
+	if err != nil {
+		return nil, fmt.Errorf("SendRequest error: %w", err)
+	}
+	switch resp.StatusCode {
+	case http.StatusNoContent:
+		return nil, NoContentError
+	case http.StatusBadRequest:
+		return nil, GroupPatchNotAcceptedError
+	case http.StatusForbidden:
+		return nil, AuthorizationFailedError
+	case http.StatusNotFound:
+		return nil, NotFoundError
+	case http.StatusConflict:
+		if resp.Body != nil {
+			return nil, ContactManifestMismatchError
+		} else {
+			return nil, ConflictError
+		}
+	case http.StatusTooManyRequests:
+		return nil, RateLimitError
+	case 499:
+		return nil, DeprecatedVersionError
+	}
+	if resp.Body == nil {
+		return nil, errors.New("no response body")
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read storage manifest response: %w", err)
+	}
+	signedGroupChange := signalpb.GroupChange{}
+	err = proto.Unmarshal(body, &signedGroupChange)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal signed groupChange: %w", err)
+	}
+	return &signedGroupChange, nil
+}
+
+func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) error {
+	log := zerolog.Ctx(ctx).With().Str("action", "commitChangeWithConflictResolution").Logger()
+	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
+	if err != nil {
+		log.Err(err).Msg("Could not get master key from group id")
+		return err
+	}
+	groupChange.groupMasterKey = groupMasterKey
+	masterKeyBytes := masterKeyToBytes(groupMasterKey)
+	var refetchedAddMemberCredentials bool
+	var signedGroupChange *signalpb.GroupChange
+	group, err := cli.RetrieveGroupByID(ctx, gid, 0)
+	if err != nil {
+		log.Err(err).Msg("Failed to retrieve Group")
+	}
+	groupChange.Revision = group.Revision + 1
+	for attempt := 0; attempt < 5; attempt++ {
+		signedGroupChange, err = cli.EncryptAndSignGroupChange(ctx, groupChange, gid)
+		if errors.Is(err, GroupPatchNotAcceptedError) {
+			log.Warn().Str("Error applying GroupChange, retrying...", err.Error())
+			if len(groupChange.AddMembers) > 0 && !refetchedAddMemberCredentials {
+				refetchedAddMemberCredentials = true
+				// change = refetchAddMemberCredentials(change); TODO
+			} else {
+				return fmt.Errorf("Group Change Failed: %w", err)
+			}
+		} else if errors.Is(err, ConflictError) {
+			delete(cli.GroupCache.groups, gid)
+			delete(cli.GroupCache.lastFetched, gid)
+			delete(cli.GroupCache.activeCalls, gid)
+			group, err = cli.RetrieveGroupByID(ctx, gid, 0)
+			groupChange.resolveConflict(group)
+			if groupChange.isEmptpy() {
+				log.Debug().Msg("Change is empty after conflict resolution")
+			}
+			groupChange.Revision = group.Revision + 1
+		} else {
+			break
+		}
+	}
+	if err != nil {
+		log.Err(err).Msg("couldn't patch group on server")
+		return err
+	}
+	delete(cli.GroupCache.groups, gid)
+	delete(cli.GroupCache.lastFetched, gid)
+	delete(cli.GroupCache.activeCalls, gid)
+	groupChangeBytes, err := proto.Marshal(signedGroupChange)
+	if err != nil {
+		log.Err(err).Msg("Error marshalling signed GroupChange")
+		return err
+	}
+	groupContext := &signalpb.GroupContextV2{Revision: &groupChange.Revision, GroupChange: groupChangeBytes, MasterKey: masterKeyBytes[:]}
+	_, err = cli.SendGroupChange(ctx, group, groupContext, groupChange)
+	if err != nil {
+		log.Err(err).Msg("Error sending GroupChange to group members")
+	}
+	return nil
 }

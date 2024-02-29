@@ -116,6 +116,26 @@ func (gsp *GroupSecretParams) DecryptBlobWithPadding(blob []byte) ([]byte, error
 	return CopySignalOwnedBufferToBytes(plaintext), nil
 }
 
+func (gsp *GroupSecretParams) EncryptBlobWithPaddingDeterministic(randomness Randomness, plaintext []byte, padding_len uint32) ([]byte, error) {
+	var ciphertext C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	borrowedPlaintext := BytesToBuffer(plaintext)
+	signalFfiError := C.signal_group_secret_params_encrypt_blob_with_padding_deterministic(
+		&ciphertext,
+		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
+		(*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)),
+		borrowedPlaintext,
+		(C.uint32_t)(padding_len),
+	)
+	runtime.KeepAlive(randomness)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(plaintext)
+	runtime.KeepAlive(padding_len)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	return CopySignalOwnedBufferToBytes(ciphertext), nil
+}
+
 func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (uuid.UUID, error) {
 	u := C.SignalServiceIdFixedWidthBinaryBytes{}
 	signalFfiError := C.signal_group_secret_params_decrypt_service_id(
@@ -134,6 +154,27 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (uuid.U
 		return uuid.Nil, err
 	}
 	return result, nil
+}
+
+func (gsp *GroupSecretParams) EncryptUUID(uuid uuid.UUID) (*UUIDCiphertext, error) {
+	var cipherTextUUID [C.SignalUUID_CIPHERTEXT_LEN]C.uchar
+	serviceId, err := SignalServiceIDFromUUID(uuid)
+	if err != nil {
+		return nil, err
+	}
+	signalFfiError := C.signal_group_secret_params_encrypt_service_id(
+		&cipherTextUUID,
+		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
+		serviceId,
+	)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(serviceId)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	var result UUIDCiphertext
+	copy(result[:], C.GoBytes(unsafe.Pointer(&cipherTextUUID), C.int(C.SignalUUID_CIPHERTEXT_LEN)))
+	return &result, nil
 }
 
 func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, u uuid.UUID) (*ProfileKey, error) {
@@ -156,4 +197,48 @@ func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyC
 	var result ProfileKey
 	copy(result[:], C.GoBytes(unsafe.Pointer(&profileKey), C.int(C.SignalPROFILE_KEY_LEN)))
 	return &result, nil
+}
+
+func (gsp *GroupSecretParams) EncryptProfileKey(profileKey ProfileKey, u uuid.UUID) (*ProfileKeyCiphertext, error) {
+	ciphertextProfileKey := [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uchar{}
+	serviceId, err := SignalServiceIDFromUUID(u)
+	if err != nil {
+		return nil, err
+	}
+	signalFfiError := C.signal_group_secret_params_encrypt_profile_key(
+		&ciphertextProfileKey,
+		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
+		(*[C.SignalPROFILE_KEY_LEN]C.uint8_t)(unsafe.Pointer(&profileKey)),
+		serviceId,
+	)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(profileKey)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	var result ProfileKeyCiphertext
+	copy(result[:], C.GoBytes(unsafe.Pointer(&ciphertextProfileKey), C.int(C.SignalPROFILE_KEY_CIPHERTEXT_LEN)))
+	return &result, nil
+}
+
+func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp ServerPublicParams, credential ExpiringProfileKeyCredential) (*ProfileKeyCredentialPresentation, error) {
+	var out C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	randomness := GenerateRandomness()
+	signalFfiError := C.signal_server_public_params_create_expiring_profile_key_credential_presentation_deterministic(
+		&out,
+		(*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&spp)),
+		(*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)),
+		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(gsp)),
+		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar)(unsafe.Pointer(&credential)),
+	)
+	runtime.KeepAlive(gsp)
+	runtime.KeepAlive(spp)
+	runtime.KeepAlive(credential)
+	runtime.KeepAlive(randomness)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	presentationBytes := CopySignalOwnedBufferToBytes(out)
+	presentation := ProfileKeyCredentialPresentation(presentationBytes)
+	return &presentation, nil
 }
