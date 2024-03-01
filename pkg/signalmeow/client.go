@@ -42,9 +42,10 @@ type Client struct {
 
 	encryptionLock sync.Mutex
 
-	AuthedWS   *web.SignalWebsocket
-	UnauthedWS *web.SignalWebsocket
-	WSCancel   context.CancelFunc
+	AuthedWS             *web.SignalWebsocket
+	UnauthedWS           *web.SignalWebsocket
+	WSCancel             context.CancelFunc
+	lastConnectionStatus SignalConnectionStatus
 
 	EventHandler func(events.SignalEvent)
 
