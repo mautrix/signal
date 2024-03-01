@@ -48,8 +48,6 @@ type GroupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]byte
 type UUIDCiphertext [C.SignalUUID_CIPHERTEXT_LEN]byte
 type ProfileKeyCiphertext [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]byte
 
-var ProfileKeyCiphertextLen = C.SignalPROFILE_KEY_CIPHERTEXT_LEN
-
 func GenerateGroupSecretParams() (GroupSecretParams, error) {
 	return GenerateGroupSecretParamsWithRandomness(GenerateRandomness())
 }

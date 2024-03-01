@@ -1013,10 +1013,6 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, addPendingMember := range groupChange.AddPendingMembers {
-		emptyID := uuid.UUID{}
-		if addPendingMember.UserID == emptyID {
-			continue
-		}
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addPendingMember.UserID, event.MembershipInvite, "invited")
 		if err != nil {
 			log.Warn().Stringer("signal_user_id", addPendingMember.UserID).Msg("Couldn't get puppet for invite")
