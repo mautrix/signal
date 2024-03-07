@@ -20,8 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
-	"os"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -132,24 +130,9 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	if content.File != nil {
 		mxc = content.File.URL
 	}
-
-	uri, err := url.Parse(string(mxc))
+	data, err := mc.DownloadMatrixMedia(ctx, mxc)
 	if err != nil {
-		return nil, fmt.Errorf("invalid mxc URI: %w", err)
-	}
-
-	var data []byte
-	// If it's a file:// URI, read the file from disk. Otherwise, download it from the homeserver.
-	if uri.Scheme == "file" {
-		data, err = os.ReadFile(uri.Path)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read file: %w", err)
-		}
-	} else {
-		data, err = mc.DownloadMatrixMedia(ctx, mxc)
-		if err != nil {
-			return nil, exerrors.NewDualError(ErrMediaDownloadFailed, err)
-		}
+		return nil, exerrors.NewDualError(ErrMediaDownloadFailed, err)
 	}
 	if content.File != nil {
 		err = content.File.DecryptInPlace(data)
