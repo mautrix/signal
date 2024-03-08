@@ -23,7 +23,7 @@ package libsignalgo
 */
 import "C"
 import (
-	"errors"
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -67,7 +67,7 @@ func SignalServiceIDToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (u
 	}
 	uuidBytes := CopySignalOwnedBufferToBytes(result)
 	if len(uuidBytes) != 16 {
-		return uuid.UUID{}, errors.New("invalid UUID length")
+		return uuid.UUID{}, fmt.Errorf("invalid UUID length: %d. UUID: %x", len(uuidBytes), uuidBytes)
 	}
 	return uuid.UUID(uuidBytes), nil
 }
