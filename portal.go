@@ -961,12 +961,15 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 				}
 			}
 		} else {
-			puppet, _ = portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
+			puppet, err = portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
 		}
-		if puppet != nil {
-			puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
-		} else {
-			log.Warn().Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for invite")
+		if err != nil {
+			log.Err(err).Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for invite")
+			return
+		}
+		_, err = puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
+		if err != nil {
+			log.Err(err).Stringer("mxid", puppet.MXID).Msg("Failed to join user")
 		}
 	}
 	bannedMembers := make(map[uuid.UUID]bool)
