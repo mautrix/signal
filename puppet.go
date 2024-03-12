@@ -366,11 +366,6 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 			return true
 		}
 		puppet.AvatarHash = newHash
-		source.Client.Store.ContactStore.StoreContact(ctx, *info)
-		err = source.Client.Store.ContactStore.StoreContact(ctx, *info)
-		if err != nil {
-			log.Warn().Err(err).Msg("error updating contact's profile avatar hash")
-		}
 	}
 	puppet.AvatarSet = false
 	puppet.AvatarURL = id.ContentURI{}
