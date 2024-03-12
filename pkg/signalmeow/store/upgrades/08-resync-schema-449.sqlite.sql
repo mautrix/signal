@@ -1,13 +1,4 @@
--- v9: Migration from https://github.com/mautrix/signal/pull/449 to match the new v8 upgrade (SQLite)
--- transaction: off
--- only: sqlite
-
--- This is separate from v8 so that postgres can run with transaction: on
--- (split upgrades by dialect don't currently allow disabling transaction in only one dialect)
-
-PRAGMA foreign_keys = OFF;
-BEGIN;
-
+-- v7 -> v8: Migration from https://github.com/mautrix/signal/pull/449 to match the new v8 upgrade
 ALTER TABLE signalmeow_contacts DROP COLUMN profile_avatar_hash;
 
 CREATE TABLE signalmeow_contacts_new (
@@ -43,7 +34,3 @@ FROM signalmeow_contacts;
 
 DROP TABLE signalmeow_contacts;
 ALTER TABLE signalmeow_contacts_new RENAME TO signalmeow_contacts;
-
-PRAGMA foreign_key_check;
-COMMIT;
-PRAGMA foreign_keys = ON;

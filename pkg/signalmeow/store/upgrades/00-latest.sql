@@ -1,4 +1,4 @@
--- v0 -> v9: Latest revision
+-- v0 -> v8: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 

@@ -1,6 +1,4 @@
--- v7 -> v8: Migration from https://github.com/mautrix/signal/pull/449 to match the new v8 upgrade (Postgres)
--- only: postgres
-
+-- v7 -> v8: Migration from https://github.com/mautrix/signal/pull/449 to match the new v8 upgrade
 ALTER TABLE signalmeow_contacts DROP COLUMN profile_avatar_hash;
 ALTER TABLE signalmeow_contacts RENAME COLUMN profile_fetch_ts TO profile_fetched_at;
 ALTER TABLE signalmeow_contacts ALTER COLUMN profile_fetched_at DROP DEFAULT;
