@@ -17,6 +17,7 @@
 package signalfmt_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -33,7 +34,7 @@ var realUser = uuid.New()
 
 func TestParse(t *testing.T) {
 	formatParams := &signalfmt.FormatParams{
-		GetUserInfo: func(uuid uuid.UUID) signalfmt.UserInfo {
+		GetUserInfo: func(ctx context.Context, uuid uuid.UUID) signalfmt.UserInfo {
 			if uuid == realUser {
 				return signalfmt.UserInfo{
 					MXID: "@test:example.com",
@@ -168,7 +169,7 @@ func TestParse(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			parsed := signalfmt.Parse(test.ins, test.ine, formatParams)
+			parsed := signalfmt.Parse(context.TODO(), test.ins, test.ine, formatParams)
 			assert.Equal(t, test.body, parsed.Body)
 			assert.Equal(t, test.html, parsed.FormattedBody)
 		})

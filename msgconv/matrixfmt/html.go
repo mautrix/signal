@@ -1,6 +1,7 @@
 package matrixfmt
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"strconv"
@@ -201,13 +202,15 @@ func (ts TagStack) Has(tag string) bool {
 }
 
 type Context struct {
+	Ctx                context.Context
 	AllowedMentions    *event.Mentions
 	TagStack           TagStack
 	PreserveWhitespace bool
 }
 
-func NewContext() Context {
+func NewContext(ctx context.Context) Context {
 	return Context{
+		Ctx:      ctx,
 		TagStack: make(TagStack, 0, 4),
 	}
 }
@@ -224,7 +227,7 @@ func (ctx Context) WithWhitespace() Context {
 
 // HTMLParser is a somewhat customizable Matrix HTML parser.
 type HTMLParser struct {
-	GetUUIDFromMXID func(id.UserID) uuid.UUID
+	GetUUIDFromMXID func(context.Context, id.UserID) uuid.UUID
 }
 
 // TaggedString is a string that also contains a HTML tag.
@@ -355,7 +358,7 @@ func (parser *HTMLParser) linkToString(node *html.Node, ctx Context) *EntityStri
 			// Mention not allowed, use name as-is
 			return str
 		}
-		u := parser.GetUUIDFromMXID(mxid)
+		u := parser.GetUUIDFromMXID(ctx.Ctx, mxid)
 		if u == uuid.Nil {
 			// Don't include the link for mentions of non-Signal users, the name is enough
 			return str

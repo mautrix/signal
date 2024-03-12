@@ -69,7 +69,7 @@ func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, cont
 			content.FormattedBody = "/me " + content.FormattedBody
 		}
 	}
-	body, bodyRanges := matrixfmt.Parse(mc.MatrixFmtParams, content)
+	body, bodyRanges := matrixfmt.Parse(ctx, mc.MatrixFmtParams, content)
 	switch content.MsgType {
 	case event.MsgText, event.MsgNotice, event.MsgEmote:
 		dm.Body = proto.String(body)

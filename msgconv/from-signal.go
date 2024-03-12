@@ -176,7 +176,7 @@ func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.C
 }
 
 func (mc *MessageConverter) convertTextToMatrix(ctx context.Context, dm *signalpb.DataMessage) *ConvertedMessagePart {
-	content := signalfmt.Parse(dm.GetBody(), dm.GetBodyRanges(), mc.SignalFmtParams)
+	content := signalfmt.Parse(ctx, dm.GetBody(), dm.GetBodyRanges(), mc.SignalFmtParams)
 	extra := map[string]any{}
 	if len(dm.Preview) > 0 {
 		extra["com.beeper.linkpreviews"] = mc.convertURLPreviewsToBeeper(ctx, dm.Preview)
@@ -188,7 +188,7 @@ func (mc *MessageConverter) convertTextToMatrix(ctx context.Context, dm *signalp
 	}
 }
 
-func (mc *MessageConverter) convertPaymentToMatrix(ctx context.Context, payment *signalpb.DataMessage_Payment) *ConvertedMessagePart {
+func (mc *MessageConverter) convertPaymentToMatrix(_ context.Context, payment *signalpb.DataMessage_Payment) *ConvertedMessagePart {
 	return &ConvertedMessagePart{
 		Type: event.EventMessage,
 		Content: &event.MessageEventContent{
@@ -201,7 +201,7 @@ func (mc *MessageConverter) convertPaymentToMatrix(ctx context.Context, payment 
 	}
 }
 
-func (mc *MessageConverter) convertGiftBadgeToMatrix(ctx context.Context, giftBadge *signalpb.DataMessage_GiftBadge) *ConvertedMessagePart {
+func (mc *MessageConverter) convertGiftBadgeToMatrix(_ context.Context, giftBadge *signalpb.DataMessage_GiftBadge) *ConvertedMessagePart {
 	return &ConvertedMessagePart{
 		Type: event.EventMessage,
 		Content: &event.MessageEventContent{

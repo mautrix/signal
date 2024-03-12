@@ -17,18 +17,20 @@
 package matrixfmt
 
 import (
+	"context"
+
 	"maunium.net/go/mautrix/event"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
-func Parse(parser *HTMLParser, content *event.MessageEventContent) (string, []*signalpb.BodyRange) {
+func Parse(ctx context.Context, parser *HTMLParser, content *event.MessageEventContent) (string, []*signalpb.BodyRange) {
 	if content.Format != event.FormatHTML {
 		return content.Body, nil
 	}
-	ctx := NewContext()
-	ctx.AllowedMentions = content.Mentions
-	parsed := parser.Parse(content.FormattedBody, ctx)
+	parseCtx := NewContext(ctx)
+	parseCtx.AllowedMentions = content.Mentions
+	parsed := parser.Parse(content.FormattedBody, parseCtx)
 	if parsed == nil {
 		return "", nil
 	}

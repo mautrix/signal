@@ -17,6 +17,7 @@
 package signalfmt
 
 import (
+	"context"
 	"html"
 	"strings"
 
@@ -35,7 +36,7 @@ type UserInfo struct {
 }
 
 type FormatParams struct {
-	GetUserInfo func(uuid uuid.UUID) UserInfo
+	GetUserInfo func(ctx context.Context, uuid uuid.UUID) UserInfo
 }
 
 type formatContext struct {
@@ -49,7 +50,7 @@ func (ctx formatContext) TextToHTML(text string) string {
 	return event.TextToHTML(text)
 }
 
-func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *event.MessageEventContent {
+func Parse(ctx context.Context, message string, ranges []*signalpb.BodyRange, params *FormatParams) *event.MessageEventContent {
 	content := &event.MessageEventContent{
 		MsgType:  event.MsgText,
 		Body:     message,
@@ -92,7 +93,7 @@ func Parse(message string, ranges []*signalpb.BodyRange, params *FormatParams) *
 			if err != nil {
 				continue
 			}
-			userInfo := params.GetUserInfo(parsed)
+			userInfo := params.GetUserInfo(ctx, parsed)
 			if userInfo.MXID == "" {
 				continue
 			}

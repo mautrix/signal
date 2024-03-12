@@ -1,6 +1,7 @@
 package matrixfmt_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -14,7 +15,7 @@ import (
 )
 
 var formatParams = &matrixfmt.HTMLParser{
-	GetUUIDFromMXID: func(id id.UserID) uuid.UUID {
+	GetUUIDFromMXID: func(_ context.Context, id id.UserID) uuid.UUID {
 		if id.Homeserver() == "signal" {
 			return uuid.MustParse(id.Localpart())
 		}
@@ -23,7 +24,7 @@ var formatParams = &matrixfmt.HTMLParser{
 }
 
 func TestParse_Empty(t *testing.T) {
-	text, entities := matrixfmt.Parse(formatParams, &event.MessageEventContent{
+	text, entities := matrixfmt.Parse(context.TODO(), formatParams, &event.MessageEventContent{
 		MsgType: event.MsgText,
 		Body:    "",
 	})
@@ -32,7 +33,7 @@ func TestParse_Empty(t *testing.T) {
 }
 
 func TestParse_EmptyHTML(t *testing.T) {
-	text, entities := matrixfmt.Parse(formatParams, &event.MessageEventContent{
+	text, entities := matrixfmt.Parse(context.TODO(), formatParams, &event.MessageEventContent{
 		MsgType:       event.MsgText,
 		Body:          "",
 		Format:        event.FormatHTML,
@@ -43,7 +44,7 @@ func TestParse_EmptyHTML(t *testing.T) {
 }
 
 func TestParse_Plaintext(t *testing.T) {
-	text, entities := matrixfmt.Parse(formatParams, &event.MessageEventContent{
+	text, entities := matrixfmt.Parse(context.TODO(), formatParams, &event.MessageEventContent{
 		MsgType: event.MsgText,
 		Body:    "Hello world!",
 	})
@@ -152,7 +153,7 @@ func TestParse_HTML(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fmt.Println("--------------------------------------------------------------------------------")
-			parsed := formatParams.Parse(test.in, matrixfmt.NewContext())
+			parsed := formatParams.Parse(test.in, matrixfmt.NewContext(context.TODO()))
 			assert.Equal(t, test.out, parsed.String.String())
 			assert.Equal(t, test.ent, parsed.Entities)
 		})
