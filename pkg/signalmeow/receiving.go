@@ -654,6 +654,18 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 					Messages: content.SyncMessage.GetRead(),
 				})
 			}
+			if content.SyncMessage.FetchLatest != nil {
+				switch fetchType := content.SyncMessage.FetchLatest.GetType(); fetchType {
+				case signalpb.SyncMessage_FetchLatest_LOCAL_PROFILE:
+					cli.handleEvent(&events.Profile{
+						Sender: theirUUID,
+					})
+				default:
+					log.Warn().
+						Stringer("type", fetchType).
+						Msg("Received unhandled FetchLatest type")
+				}
+			}
 
 		}
 
