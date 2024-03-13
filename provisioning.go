@@ -170,7 +170,7 @@ func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, 
 	}
 	e164String := fmt.Sprintf("+%d", e164Number)
 	var targetUUID uuid.UUID
-	if contact, err := user.Client.ContactByE164(ctx, e164String); err != nil {
+	if contact, err := user.Client.ContactByE164(ctx, e164String, prov.bridge.Config.Bridge.ProfileExpirySeconds); err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number in local contact list: %w", err)
 	} else if contact != nil {
 		targetUUID = contact.UUID

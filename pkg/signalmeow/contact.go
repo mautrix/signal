@@ -91,7 +91,7 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 	return existingContact, nil
 }
 
-func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, profileUUID uuid.UUID) (*types.Contact, error) {
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, profileUUID uuid.UUID, profileExpirySeconds uint) (*types.Contact, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "fetch contact then try and update with profile").
 		Stringer("profile_uuid", profileUUID).
@@ -112,7 +112,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 	} else {
 		log.Debug().Msg("updating existing contact")
 	}
-	profile, err := cli.RetrieveProfileByID(ctx, profileUUID)
+	profile, err := cli.RetrieveProfileByID(ctx, profileUUID, profileExpirySeconds)
 	if err != nil {
 		logLevel := zerolog.ErrorLevel
 		if errors.Is(err, errProfileKeyNotFound) {
@@ -164,11 +164,11 @@ func (cli *Client) UpdateContactE164(ctx context.Context, uuid uuid.UUID, e164 s
 	return cli.Store.ContactStore.StoreContact(ctx, *existingContact)
 }
 
-func (cli *Client) ContactByID(ctx context.Context, uuid uuid.UUID) (*types.Contact, error) {
-	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, uuid)
+func (cli *Client) ContactByID(ctx context.Context, uuid uuid.UUID, profileExpirySeconds uint) (*types.Contact, error) {
+	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, uuid, profileExpirySeconds)
 }
 
-func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
+func (cli *Client) ContactByE164(ctx context.Context, e164 string, profileExpirySeconds uint) (*types.Contact, error) {
 	contact, err := cli.Store.ContactStore.LoadContactByE164(ctx, e164)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("ContactByE164 error loading contact")
@@ -177,7 +177,7 @@ func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Conta
 	if contact == nil {
 		return nil, nil
 	}
-	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.UUID)
+	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.UUID, profileExpirySeconds)
 	return contact, err
 }
 

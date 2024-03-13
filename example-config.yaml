@@ -108,6 +108,9 @@ bridge:
     use_contact_avatars: false
     # Should the bridge sync ghost user info even if profile fetching fails? This is not safe on multi-user instances.
     use_outdated_profiles: false
+    # How old a profile must be for changes to it to be fetched.
+    # Set to 0 to always fetch profile changes.
+    profile_expiry_seconds: 3600
     # Should the Signal user's phone number be included in the room topic in private chat portal rooms?
     number_in_topic: true
     # Avatar image for the Note to Self room.

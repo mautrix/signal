@@ -240,7 +240,7 @@ func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User) {
 	ctx = log.WithContext(ctx)
 	var err error
 	log.Debug().Msg("Fetching contact info to update puppet")
-	info, err := source.Client.ContactByID(ctx, puppet.SignalID)
+	info, err := source.Client.ContactByID(ctx, puppet.SignalID, puppet.bridge.Config.Bridge.ProfileExpirySeconds)
 	if err != nil {
 		log.Err(err).Msg("Failed to fetch contact info")
 		return

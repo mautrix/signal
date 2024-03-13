@@ -214,7 +214,7 @@ func fnPM(ce *WrappedCommandEvent) {
 	user := ce.User
 	var targetUUID uuid.UUID
 
-	if contact, err := user.Client.ContactByE164(ce.Ctx, fmt.Sprintf("+%d", number)); err != nil {
+	if contact, err := user.Client.ContactByE164(ce.Ctx, fmt.Sprintf("+%d", number), ce.Bridge.Config.Bridge.ProfileExpirySeconds); err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return
 	} else if contact != nil {

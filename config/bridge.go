@@ -36,6 +36,7 @@ type BridgeConfig struct {
 	PrivateChatPortalMeta string `yaml:"private_chat_portal_meta"`
 	UseContactAvatars     bool   `yaml:"use_contact_avatars"`
 	UseOutdatedProfiles   bool   `yaml:"use_outdated_profiles"`
+	ProfileExpirySeconds  uint   `yaml:"profile_expiry_seconds"`
 	NumberInTopic         bool   `yaml:"number_in_topic"`
 
 	NoteToSelfAvatar id.ContentURIString `yaml:"note_to_self_avatar"`

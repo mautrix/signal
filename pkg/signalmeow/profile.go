@@ -111,7 +111,7 @@ func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUI
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*types.Profile, error) {
+func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID, expirySeconds uint) (*types.Profile, error) {
 	if cli.ProfileCache == nil {
 		cli.ProfileCache = &ProfileCache{
 			profiles:    make(map[string]*types.Profile),
@@ -120,10 +120,9 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 		}
 	}
 
-	// Check if we have a cached profile that is less than a minute old
-	// or if we have a cached error that is less than a minute old
+	// Check if we have a cached profile or error that is newer than a given number of seconds
 	lastFetched, ok := cli.ProfileCache.lastFetched[signalID.String()]
-	if ok && time.Since(lastFetched) < 1*time.Minute {
+	if ok && time.Since(lastFetched) < time.Duration(expirySeconds)*time.Second {
 		profile, ok := cli.ProfileCache.profiles[signalID.String()]
 		if ok {
 			return profile, nil
