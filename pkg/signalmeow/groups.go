@@ -189,7 +189,7 @@ func (cli *Client) fetchNewGroupCreds(ctx context.Context, today time.Time) (*Gr
 		Str("action", "fetch new group creds").
 		Logger()
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
-	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d", today.Unix(), sevenDaysOut.Unix())
+	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d&pniAsServiceId=true", today.Unix(), sevenDaysOut.Unix())
 	authRequest := web.CreateWSRequest(http.MethodGet, path, nil, nil, nil)
 	resp, err := cli.AuthedWS.SendRequest(ctx, authRequest)
 	if err != nil {
