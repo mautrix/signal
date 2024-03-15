@@ -36,6 +36,10 @@ type DeviceData struct {
 	Password           string
 }
 
+func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {
+	return libsignalgo.NewACIServiceID(d.ACI)
+}
+
 func (d *DeviceData) BasicAuthCreds() (string, string) {
 	username := fmt.Sprintf("%s.%d", d.ACI, d.DeviceID)
 	password := d.Password

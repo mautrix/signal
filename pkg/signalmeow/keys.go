@@ -341,13 +341,13 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(data)
 }
 
-func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUID, specificDeviceID int) error {
+func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, specificDeviceID int) error {
 	// Fetch prekey
 	deviceIDPath := "/*"
 	if specificDeviceID >= 0 {
 		deviceIDPath = "/" + fmt.Sprint(specificDeviceID)
 	}
-	path := "/v2/keys/" + theirUUID.String() + deviceIDPath + "?pq=true"
+	path := "/v2/keys/" + theirServiceID.String() + deviceIDPath + "?pq=true"
 	username, password := cli.Store.BasicAuthCreds()
 	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
 	if err != nil {
@@ -436,7 +436,7 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirUUID uuid.UUI
 		if err != nil {
 			return fmt.Errorf("error creating prekey bundle: %w", err)
 		}
-		address, err := libsignalgo.NewUUIDAddress(theirUUID, uint(d.DeviceID))
+		address, err := theirServiceID.Address(uint(d.DeviceID))
 		if err != nil {
 			return fmt.Errorf("error creating address: %w", err)
 		}

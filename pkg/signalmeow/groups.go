@@ -70,6 +70,10 @@ type GroupMember struct {
 	//Presentation     []byte
 }
 
+func (gm *GroupMember) UserServiceID() libsignalgo.ServiceID {
+	return libsignalgo.NewACIServiceID(gm.UserID)
+}
+
 type Group struct {
 	groupMasterKey  types.SerializedGroupMasterKey // We should keep this relatively private
 	GroupIdentifier types.GroupIdentifier          // This is what we should use to identify a group outside this file

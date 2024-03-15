@@ -23,8 +23,6 @@ package libsignalgo
 import "C"
 import (
 	"runtime"
-
-	"github.com/google/uuid"
 )
 
 type Address struct {
@@ -38,16 +36,12 @@ func wrapAddress(ptr *C.SignalProtocolAddress) *Address {
 	return address
 }
 
-func NewUUIDAddress(u uuid.UUID, deviceID uint) (*Address, error) {
-	return newAddress(u.String(), deviceID)
-}
-
 func NewUUIDAddressFromString(uuidStr string, deviceID uint) (*Address, error) {
-	parsed, err := uuid.Parse(uuidStr)
+	serviceID, err := ServiceIDFromString(uuidStr)
 	if err != nil {
 		return nil, err
 	}
-	return NewUUIDAddress(parsed, deviceID)
+	return serviceID.Address(deviceID)
 }
 
 // Deprecated: phone addresses are not used anymore
@@ -93,12 +87,12 @@ func (pa *Address) Name() (string, error) {
 	return CopyCStringToString(name), nil
 }
 
-func (pa *Address) NameUUID() (uuid.UUID, error) {
+func (pa *Address) NameServiceID() (ServiceID, error) {
 	name, err := pa.Name()
 	if err != nil {
-		return uuid.Nil, err
+		return ServiceID{}, err
 	}
-	return uuid.Parse(name)
+	return ServiceIDFromString(name)
 }
 
 func (pa *Address) DeviceID() (uint, error) {

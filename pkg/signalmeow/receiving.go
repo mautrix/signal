@@ -322,7 +322,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		if err != nil {
 			log.Err(err).Msg("GetDeviceID error")
 		}
-		senderAddress, err := libsignalgo.NewUUIDAddress(senderUUID, uint(senderDeviceID))
+		senderAddress, err := libsignalgo.NewACIServiceID(senderUUID).Address(uint(senderDeviceID))
 		if err != nil {
 			log.Err(err).Msg("NewAddress error")
 		}
@@ -587,11 +587,17 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}
 		}
 
-		theirUUID, err := result.SenderAddress.NameUUID()
+		theirServiceID, err := result.SenderAddress.NameServiceID()
 		if err != nil {
 			log.Err(err).Msg("Name error")
 			return nil, err
+		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
+			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
+			return &web.SimpleResponse{
+				Status: responseCode,
+			}, nil
 		}
+		theirUUID := theirServiceID.UUID
 
 		// TODO: handle more sync messages
 		if content.SyncMessage != nil {
@@ -855,7 +861,7 @@ func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps
 	// Send delivery receipts
 	if len(deliveredTimestamps) > 0 {
 		receipt := DeliveredReceiptMessageForTimestamps(deliveredTimestamps)
-		result := cli.SendMessage(ctx, senderUUID, receipt)
+		result := cli.SendMessage(ctx, libsignalgo.NewACIServiceID(senderUUID), receipt)
 		if !result.WasSuccessful {
 			return fmt.Errorf("failed to send delivery receipts: %v", result)
 		}
@@ -906,10 +912,7 @@ func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.E
 	if err != nil {
 		return nil, fmt.Errorf("stripPadding error: %w", err)
 	}
-	address, err := libsignalgo.NewUUIDAddress(
-		result.Sender.UUID,
-		uint(result.Sender.DeviceID),
-	)
+	address, err := libsignalgo.NewACIServiceID(result.Sender.UUID).Address(uint(result.Sender.DeviceID))
 	if err != nil {
 		return nil, fmt.Errorf("NewAddress error: %w", err)
 	}

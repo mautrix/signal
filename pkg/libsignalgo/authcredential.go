@@ -47,21 +47,13 @@ func ReceiveAuthCredentialWithPni(
 ) (*AuthCredentialWithPni, error) {
 	c_result := [C.SignalAUTH_CREDENTIAL_WITH_PNI_LEN]C.uchar{}
 	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
-	c_aci, err := SignalServiceIDFromUUID(aci)
-	if err != nil {
-		return nil, err
-	}
-	c_pni, err := SignalPNIServiceIDFromUUID(pni)
-	if err != nil {
-		return nil, err
-	}
 	c_authCredResponse := (*[C.SignalAUTH_CREDENTIAL_WITH_PNI_RESPONSE_LEN]C.uchar)(unsafe.Pointer(&authCredResponse[0]))
 
 	signalFfiError := C.signal_server_public_params_receive_auth_credential_with_pni_as_service_id(
 		&c_result,
 		c_serverPublicParams,
-		c_aci,
-		c_pni,
+		NewACIServiceID(aci).CFixedBytes(),
+		NewPNIServiceID(pni).CFixedBytes(),
 		C.uint64_t(redemptionTime),
 		c_authCredResponse,
 	)

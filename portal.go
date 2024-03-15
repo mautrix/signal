@@ -45,6 +45,7 @@ import (
 	"go.mau.fi/mautrix-signal/msgconv"
 	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -680,7 +681,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 	// Check to see if portal.ChatID is a standard UUID (with dashes)
 	if portal.IsPrivateChat() {
 		// this is a 1:1 chat
-		result := sender.Client.SendMessage(ctx, portal.UserID(), msg)
+		result := sender.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(portal.UserID()), msg)
 		if !result.WasSuccessful {
 			return result.Error
 		}
@@ -1493,7 +1494,7 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 			portal.log.Debug().Msg("Sending Typing event to Signal")
 			ctx := context.TODO()
 			typingMessage := signalmeow.TypingMessage(isTyping)
-			result := user.Client.SendMessage(ctx, portal.UserID(), typingMessage)
+			result := user.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(portal.UserID()), typingMessage)
 			if !result.WasSuccessful {
 				portal.log.Err(result.FailedSendResult.Error).Msg("Error sending event to Signal")
 			}
@@ -1584,7 +1585,7 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		// Don't use portal.sendSignalMessage because we're sending this straight to
 		// who sent the original message, not the portal's ChatID
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		result := sender.Client.SendMessage(ctx, destination, signalmeow.ReadReceptMessageForTimestamps(messages))
+		result := sender.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(destination), signalmeow.ReadReceptMessageForTimestamps(messages))
 		cancel()
 		if !result.WasSuccessful {
 			log.Err(result.FailedSendResult.Error).

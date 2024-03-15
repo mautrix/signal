@@ -187,7 +187,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		device.ClearDeviceKeys(ctx)
 
 		// Store identity keys?
-		address, err := libsignalgo.NewUUIDAddress(device.ACI, uint(device.DeviceID))
+		address, err := libsignalgo.NewACIServiceID(device.ACI).Address(uint(device.DeviceID))
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,

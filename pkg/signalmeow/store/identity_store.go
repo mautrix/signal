@@ -33,18 +33,18 @@ const (
 	getIdentityKeyPairQuery     = `SELECT aci_identity_key_pair FROM signalmeow_device WHERE aci_uuid=$1`
 	getRegistrationLocalIDQuery = `SELECT registration_id FROM signalmeow_device WHERE aci_uuid=$1`
 	insertIdentityKeyQuery      = `
-		INSERT INTO signalmeow_identity_keys (our_aci_uuid, their_aci_uuid, their_device_id, key, trust_level)
+		INSERT INTO signalmeow_identity_keys (our_aci_uuid, their_service_id, their_device_id, key, trust_level)
 		VALUES ($1, $2, $3, $4, $5)
-		ON CONFLICT (our_aci_uuid, their_aci_uuid, their_device_id) DO UPDATE
+		ON CONFLICT (our_aci_uuid, their_service_id, their_device_id) DO UPDATE
 			SET key=excluded.key, trust_level=excluded.trust_level
 	`
 	getIdentityKeyTrustLevelQuery = `
 		SELECT trust_level FROM signalmeow_identity_keys
-		WHERE our_aci_uuid=$1 AND their_aci_uuid=$2 AND their_device_id=$3
+		WHERE our_aci_uuid=$1 AND their_service_id=$2 AND their_device_id=$3
 	`
 	getIdentityKeyQuery = `
 		SELECT key FROM signalmeow_identity_keys
-		WHERE our_aci_uuid=$1 AND their_aci_uuid=$2 AND their_device_id=$3
+		WHERE our_aci_uuid=$1 AND their_service_id=$2 AND their_device_id=$3
 	`
 )
 
@@ -89,15 +89,15 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 	if err != nil {
 		return false, fmt.Errorf("failed to serialize identity key: %w", err)
 	}
-	theirUUID, err := address.Name()
+	theirServiceID, err := address.Name()
 	if err != nil {
-		return false, fmt.Errorf("failed to get their uuid: %w", err)
+		return false, fmt.Errorf("failed to get their service ID: %w", err)
 	}
 	deviceID, err := address.DeviceID()
 	if err != nil {
 		return false, fmt.Errorf("failed to get device ID: %w", err)
 	}
-	oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirUUID, deviceID))
+	oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirServiceID, deviceID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get old identity key: %w", err)
 	}
@@ -110,7 +110,7 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 		// We are replacing the old key if the old key exists, and it is not equal to the new key
 		replacing = !equal
 	}
-	_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.ACI, theirUUID, deviceID, serialized, trustLevel)
+	_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.ACI, theirServiceID, deviceID, serialized, trustLevel)
 	if err != nil {
 		return replacing, fmt.Errorf("failed to insert new identity key: %w", err)
 	}
@@ -119,16 +119,16 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 
 func (s *SQLStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error) {
 	// TODO: this should check direction, and probably some other stuff (though whisperfish is pretty basic)
-	theirUUID, err := address.Name()
+	theirServiceID, err := address.Name()
 	if err != nil {
-		return false, fmt.Errorf("failed to get their uuid: %w", err)
+		return false, fmt.Errorf("failed to get their service ID: %w", err)
 	}
 	deviceID, err := address.DeviceID()
 	if err != nil {
 		return false, fmt.Errorf("failed to get device ID: %w", err)
 	}
 	var trustLevel string
-	err = s.db.QueryRow(ctx, getIdentityKeyTrustLevelQuery, s.ACI, theirUUID, deviceID).Scan(&trustLevel)
+	err = s.db.QueryRow(ctx, getIdentityKeyTrustLevelQuery, s.ACI, theirServiceID, deviceID).Scan(&trustLevel)
 	if errors.Is(err, sql.ErrNoRows) {
 		// If no rows, they are a new identity, so trust by default
 		return true, nil
@@ -140,15 +140,15 @@ func (s *SQLStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.A
 }
 
 func (s *SQLStore) GetIdentityKey(ctx context.Context, address *libsignalgo.Address) (*libsignalgo.IdentityKey, error) {
-	theirUUID, err := address.Name()
+	theirServiceID, err := address.Name()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get their uuid: %w", err)
+		return nil, fmt.Errorf("failed to get their service ID: %w", err)
 	}
 	deviceID, err := address.DeviceID()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device ID: %w", err)
 	}
-	key, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirUUID, deviceID))
+	key, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirServiceID, deviceID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity key from database: %w", err)
 	}

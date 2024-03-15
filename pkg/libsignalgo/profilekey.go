@@ -59,10 +59,7 @@ func (pk *ProfileKey) Slice() []byte {
 func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {
 	c_result := [C.SignalPROFILE_KEY_COMMITMENT_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
+	c_uuid := NewACIServiceID(u).CFixedBytes()
 
 	signalFfiError := C.signal_profile_key_get_commitment(
 		&c_result,
@@ -84,10 +81,7 @@ func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) 
 func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, error) {
 	c_result := [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
+	c_uuid := NewACIServiceID(u).CFixedBytes()
 
 	signalFfiError := C.signal_profile_key_get_profile_key_version(
 		&c_result,
@@ -137,10 +131,7 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicPar
 	randBytes := [32]byte(random.Bytes(32))
 	c_random := (*[32]C.uchar)(unsafe.Pointer(&randBytes[0]))
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
-	c_uuid, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
+	c_uuid := NewACIServiceID(u).CFixedBytes()
 
 	signalFfiError := C.signal_server_public_params_create_profile_key_credential_request_context_deterministic(
 		&c_result,

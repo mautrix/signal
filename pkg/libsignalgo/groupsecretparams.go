@@ -23,6 +23,7 @@ package libsignalgo
 import "C"
 import (
 	"crypto/rand"
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -129,27 +130,24 @@ func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (uuid.U
 		return uuid.Nil, wrapError(signalFfiError)
 	}
 
-	result, err := SignalServiceIDToUUID(&u)
-	if err != nil {
-		return uuid.Nil, err
+	serviceID := ServiceIDFromCFixedBytes(&u)
+	if serviceID.Type != ServiceIDTypeACI {
+		return uuid.Nil, fmt.Errorf("unexpected service ID type %d", serviceID.Type)
 	}
-	return result, nil
+	return serviceID.UUID, nil
 }
 
 func (gsp *GroupSecretParams) DecryptProfileKey(ciphertextProfileKey ProfileKeyCiphertext, u uuid.UUID) (*ProfileKey, error) {
 	profileKey := [C.SignalPROFILE_KEY_LEN]C.uchar{}
-	serviceId, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
 	signalFfiError := C.signal_group_secret_params_decrypt_profile_key(
 		&profileKey,
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
 		(*[C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextProfileKey)),
-		serviceId,
+		NewACIServiceID(u).CFixedBytes(),
 	)
 	runtime.KeepAlive(gsp)
 	runtime.KeepAlive(ciphertextProfileKey)
+	runtime.KeepAlive(u)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

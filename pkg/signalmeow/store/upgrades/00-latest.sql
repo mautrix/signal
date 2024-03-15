@@ -1,4 +1,4 @@
--- v0 -> v8: Latest revision
+-- v0 -> v9: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -27,23 +27,23 @@ CREATE TABLE signalmeow_pre_keys (
 );
 
 CREATE TABLE signalmeow_identity_keys (
-    our_aci_uuid    TEXT    NOT NULL,
-    their_aci_uuid  TEXT    NOT NULL,
-    their_device_id INTEGER NOT NULL,
-    key             bytea   NOT NULL,
-    trust_level     TEXT    NOT NULL,
+    our_aci_uuid     TEXT    NOT NULL,
+    their_service_id TEXT    NOT NULL,
+    their_device_id  INTEGER NOT NULL,
+    key              bytea   NOT NULL,
+    trust_level      TEXT    NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, their_aci_uuid, their_device_id),
+    PRIMARY KEY (our_aci_uuid, their_service_id, their_device_id),
     FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_sessions (
-    our_aci_uuid    TEXT    NOT NULL,
-    their_aci_uuid  TEXT    NOT NULL,
-    their_device_id INTEGER NOT NULL,
-    record          bytea   NOT NULL,
+    our_aci_uuid     TEXT    NOT NULL,
+    their_service_id TEXT    NOT NULL,
+    their_device_id  INTEGER NOT NULL,
+    record           bytea   NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, their_aci_uuid, their_device_id),
+    PRIMARY KEY (our_aci_uuid, their_service_id, their_device_id),
     FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
