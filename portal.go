@@ -1112,6 +1112,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		log.Err(err).Msg("Failed to save portal in database after processing group change")
 	}
 	portal.UpdateBridgeInfo(ctx)
+	portal.CleanupIfEmpty(ctx)
 }
 
 func (portal *Portal) sendMembershipForPuppetAndUser(ctx context.Context, sender *Puppet, target uuid.UUID, membership event.Membership, action string) (puppet *Puppet, err error) {
@@ -2309,6 +2310,7 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			}
 		}
 	}
+	portal.CleanupIfEmpty(ctx)
 	return userIDs
 }
 
@@ -2455,12 +2457,12 @@ func (portal *Portal) HandleMatrixLeave(brSender bridge.User, evt *event.Event) 
 	} else if portal.bridge.Config.Bridge.BridgeMatrixLeave {
 		portal.deleteMember(sender, sender.SignalID, evt)
 	}
-	// TODO: delete portal if empty
+	portal.CleanupIfEmpty(ctx)
 }
 func (portal *Portal) HandleMatrixKick(brSender bridge.User, ghost bridge.Ghost, evt *event.Event) {
 	portal.deleteMember(brSender.(*User), ghost.(*Puppet).SignalID, evt)
 }
-func (portal *Portal) deleteMember(sender *User, target uuid.UUID, evt *event.Event) error {
+func (portal *Portal) deleteMember(sender *User, target uuid.UUID, evt *event.Event) {
 	log := portal.log.With().
 		Str("action", "handle matrix kick/leave").
 		Stringer("event_id", evt.ID).
@@ -2468,12 +2470,13 @@ func (portal *Portal) deleteMember(sender *User, target uuid.UUID, evt *event.Ev
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	groupChange := &signalmeow.GroupChange{DeleteMembers: []*uuid.UUID{&target}}
-	err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error deleting Member from Signal")
-		return err
+		return
 	}
-	return nil
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 func (portal *Portal) HandleMatrixInvite(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
 	log := portal.log.With().
@@ -2498,11 +2501,13 @@ func (portal *Portal) HandleMatrixInvite(brSender bridge.User, brGhost bridge.Gh
 			Role:   role,
 		},
 	}}}
-	err = sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error inviting user on Signal")
 	}
 	puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixAcceptKnock(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
@@ -2526,10 +2531,12 @@ func (portal *Portal) HandleMatrixAcceptKnock(brSender bridge.User, brGhost brid
 		UserID: puppet.SignalID,
 		Role:   role,
 	}}}
-	err = sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error accepting join request on Signal")
 	}
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixRejectKnock(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
@@ -2548,10 +2555,12 @@ func (portal *Portal) removeRequestingMember(sender *User, target uuid.UUID, evt
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	groupChange := &signalmeow.GroupChange{DeleteRequestingMembers: []*uuid.UUID{&target}}
-	err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error removing requesting member")
 	}
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixKnock(brSender bridge.User, evt *event.Event) {
@@ -2584,10 +2593,12 @@ func (portal *Portal) HandleMatrixBan(brSender bridge.User, brGhost bridge.Ghost
 	case event.MembershipInvite:
 		groupChange.DeletePendingMembers = []*uuid.UUID{&puppet.SignalID}
 	}
-	err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error banning on Signal")
 	}
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixUnban(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
@@ -2600,10 +2611,12 @@ func (portal *Portal) HandleMatrixUnban(brSender bridge.User, brGhost bridge.Gho
 	sender := brSender.(*User)
 	puppet := brGhost.(*Puppet)
 	groupChange := &signalmeow.GroupChange{DeleteBannedMembers: []*uuid.UUID{&puppet.SignalID}}
-	err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error unbanning on Signal")
 	}
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixPowerLevels(brSender bridge.User, evt *event.Event) {
@@ -2638,7 +2651,7 @@ func (portal *Portal) HandleMatrixPowerLevels(brSender bridge.User, evt *event.E
 				continue
 			}
 			role = signalmeow.GroupMember_DEFAULT
-			if level > 50 {
+			if level >= 50 {
 				role = signalmeow.GroupMember_ADMINISTRATOR
 			}
 			groupChange.ModifyMemberRoles = append(groupChange.ModifyMemberRoles, &signalmeow.RoleMember{
@@ -2668,11 +2681,13 @@ func (portal *Portal) HandleMatrixPowerLevels(brSender bridge.User, evt *event.E
 		memberAccess := signalmeow.AccessControl_MEMBER
 		groupChange.ModifyMemberAccess = &memberAccess
 	}
-	err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error changing group access control")
 		return
 	}
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixJoinRule(brSender bridge.User, evt *event.Event) {
@@ -2697,11 +2712,13 @@ func (portal *Portal) HandleMatrixJoinRule(brSender bridge.User, evt *event.Even
 		addFromInviteLinkAccess = signalmeow.AccessControl_ANY
 	}
 	groupChange.ModifyAddFromInviteLinkAccess = &addFromInviteLinkAccess
-	err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error updating group access control")
 		return
 	}
+	portal.Revision = revision
+	portal.Update(ctx)
 }
 
 func (portal *Portal) HandleMatrixMeta(brSender bridge.User, evt *event.Event) {
@@ -2762,7 +2779,7 @@ func (portal *Portal) HandleMatrixMeta(brSender bridge.User, evt *event.Event) {
 		avatarChanged = true
 		avatarURL = content.URL
 	}
-	err = sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
 		log.Err(err).Msg("Error updating group attributes")
 		return
@@ -2774,8 +2791,40 @@ func (portal *Portal) HandleMatrixMeta(brSender bridge.User, evt *event.Event) {
 		portal.AvatarHash = avatarHash
 		portal.AvatarURL = avatarURL
 		portal.UpdateBridgeInfo(ctx)
-		portal.Update(ctx)
 	}
-	portal.Revision = portal.Revision + 1
+	portal.Revision = revision
+	portal.Update(ctx)
 	log.Info().Msg("finished updating group")
+}
+
+func (portal *Portal) CleanupIfEmpty(ctx context.Context) {
+	log := portal.log.With().
+		Str("action", "Clean up if empty").
+		Logger()
+	users, err := portal.GetMatrixUsers(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to get Matrix user list to determine if portal needs to be cleaned up")
+		return
+	}
+
+	if len(users) == 0 {
+		log.Info().Msg("Room seems to be empty, cleaning up...")
+		portal.Delete()
+		portal.Cleanup(ctx, false)
+	}
+}
+
+func (portal *Portal) GetMatrixUsers(ctx context.Context) ([]id.UserID, error) {
+	members, err := portal.MainIntent().JoinedMembers(ctx, portal.MXID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get member list: %w", err)
+	}
+	var users []id.UserID
+	for userID := range members.Joined {
+		_, isPuppet := portal.bridge.ParsePuppetMXID(userID)
+		if !isPuppet && userID != portal.bridge.Bot.UserID {
+			users = append(users, userID)
+		}
+	}
+	return users, nil
 }

@@ -18,6 +18,7 @@ package signalmeow
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -86,8 +87,8 @@ type Group struct {
 	PendingMembers               []*PendingMember
 	RequestingMembers            []*RequestingMember
 	BannedMembers                []*BannedMember
+	InviteLinkPassword           *types.SerializedInviteLinkPassword
 	//PublicKey                  *libsignalgo.PublicKey
-	//InviteLinkPassword         []byte
 }
 
 type GroupAccessControl struct {
@@ -169,7 +170,7 @@ type GroupChange struct {
 	AddBannedMembers                   []*BannedMember
 	DeleteBannedMembers                []*uuid.UUID
 	PromotePendingPniAciMembers        []*ProfileKeyMember
-	// ModifyInviteLinkPassword        []byte
+	ModifyInviteLinkPassword           *types.SerializedInviteLinkPassword
 }
 
 func (groupChange *GroupChange) isEmptpy() bool {
@@ -219,9 +220,9 @@ func (groupChange *GroupChange) resolveConflict(group *Group) {
 	if *groupChange.ModifyAnnouncementsOnly == group.AnnouncementsOnly {
 		groupChange.ModifyAnnouncementsOnly = nil
 	}
-	members := make(map[uuid.UUID]bool)
+	members := make(map[uuid.UUID]GroupMemberRole)
 	for _, member := range group.Members {
-		members[member.UserID] = true
+		members[member.UserID] = member.Role
 	}
 	pendingMembers := make(map[uuid.UUID]bool)
 	for _, pendingMember := range group.PendingMembers {
@@ -232,17 +233,17 @@ func (groupChange *GroupChange) resolveConflict(group *Group) {
 		requestingMembers[requestingMember.UserID] = true
 	}
 	for i, member := range groupChange.AddMembers {
-		if members[member.GroupMember.UserID] {
+		if _, ok := members[member.GroupMember.UserID]; ok {
 			groupChange.AddMembers = append(groupChange.AddMembers[:i], groupChange.AddMembers[i+1:]...)
 		}
 	}
 	for i, promotePendingMember := range groupChange.PromotePendingMembers {
-		if members[promotePendingMember.UserID] {
+		if _, ok := members[promotePendingMember.UserID]; ok {
 			groupChange.PromotePendingMembers = append(groupChange.PromotePendingMembers[:i], groupChange.PromotePendingMembers[i+1:]...)
 		}
 	}
 	for i, promoteRequestingMember := range groupChange.PromotePendingMembers {
-		if members[promoteRequestingMember.UserID] {
+		if _, ok := members[promoteRequestingMember.UserID]; ok {
 			groupChange.PromoteRequestingMembers = append(groupChange.PromoteRequestingMembers[:i], groupChange.PromoteRequestingMembers[i+1:]...)
 		}
 	}
@@ -267,11 +268,15 @@ func (groupChange *GroupChange) resolveConflict(group *Group) {
 		}
 	}
 	for i, deleteMember := range groupChange.DeleteMembers {
-		if !members[*deleteMember] {
+		if _, ok := members[*deleteMember]; !ok {
 			groupChange.DeleteMembers = append(groupChange.DeleteMembers[:i], groupChange.DeleteMembers[i+1:]...)
 		}
 	}
-	// TODO: Membership/role actions
+	for i, modifyMemberRole := range groupChange.ModifyMemberRoles {
+		if members[modifyMemberRole.UserID] == modifyMemberRole.Role {
+			groupChange.ModifyMemberRoles = append(groupChange.ModifyMemberRoles[:i], groupChange.ModifyMemberRoles[i+1:]...)
+		}
+	}
 }
 
 func (groupChange *GroupChange) getGroupMasterKey() types.SerializedGroupMasterKey {
@@ -415,6 +420,18 @@ func masterKeyFromBytes(masterKey libsignalgo.GroupMasterKey) types.SerializedGr
 	return types.SerializedGroupMasterKey(base64.StdEncoding.EncodeToString(masterKey[:]))
 }
 
+func inviteLinkPasswordToBytes(inviteLinkPassword types.SerializedInviteLinkPassword) ([]byte, error) {
+	inviteLinkPasswordBytes, err := base64.StdEncoding.DecodeString((string(inviteLinkPassword)))
+	if err != nil {
+		return nil, err
+	}
+	return inviteLinkPasswordBytes, nil
+}
+
+func inviteLinkPasswordFromBytes(inviteLinkPassword []byte) types.SerializedInviteLinkPassword {
+	return types.SerializedInviteLinkPassword(base64.StdEncoding.EncodeToString(inviteLinkPassword))
+}
+
 func groupIdentifierFromMasterKey(masterKey types.SerializedGroupMasterKey) (types.GroupIdentifier, error) {
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(masterKey))
 	if err != nil {
@@ -535,6 +552,10 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 			Attributes:        (AccessControl)(encryptedGroup.AccessControl.Attributes),
 			AddFromInviteLink: (AccessControl)(encryptedGroup.AccessControl.AddFromInviteLink),
 		}
+	}
+	if len(encryptedGroup.InviteLinkPassword) > 0 {
+		inviteLinkPassword := inviteLinkPasswordFromBytes(encryptedGroup.InviteLinkPassword)
+		decryptedGroup.InviteLinkPassword = &inviteLinkPassword
 	}
 	return decryptedGroup, nil
 }
@@ -1071,6 +1092,10 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		newDisappaeringMessagesDuration := timerBlob.GetDisappearingMessagesDuration()
 		decryptedGroupChange.ModifyDisappearingMessagesDuration = &newDisappaeringMessagesDuration
 	}
+	if encryptedActions.ModifyInviteLinkPassword != nil {
+		inviteLinkPassword := inviteLinkPasswordFromBytes(encryptedActions.ModifyInviteLinkPassword.InviteLinkPassword)
+		decryptedGroupChange.ModifyInviteLinkPassword = &inviteLinkPassword
+	}
 
 	return decryptedGroupChange, nil
 }
@@ -1342,6 +1367,15 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 		}
 		groupChangeActions.ModifyDisappearingMessagesTimer = &signalpb.GroupChange_Actions_ModifyDisappearingMessagesTimerAction{Timer: *encryptedTimer}
 	}
+	if decryptedGroupChange.ModifyInviteLinkPassword != nil {
+		inviteLinkPasswordBytes, err := inviteLinkPasswordToBytes(*decryptedGroupChange.ModifyInviteLinkPassword)
+		if err != nil {
+			log.Err(err).Msg("Failed to decode invite link password")
+		}
+		groupChangeActions.ModifyInviteLinkPassword = &signalpb.GroupChange_Actions_ModifyInviteLinkPasswordAction{
+			InviteLinkPassword: inviteLinkPasswordBytes,
+		}
+	}
 
 	return cli.patchGroup(ctx, groupChangeActions, groupMasterKey, nil)
 }
@@ -1429,12 +1463,12 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 	return &signedGroupChange, nil
 }
 
-func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) error {
+func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) (uint32, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "commitChangeWithConflictResolution").Logger()
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		log.Err(err).Msg("Could not get master key from group id")
-		return err
+		return 0, err
 	}
 	groupChange.groupMasterKey = groupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
@@ -1443,6 +1477,12 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 	group, err := cli.RetrieveGroupByID(ctx, gid, 0)
 	if err != nil {
 		log.Err(err).Msg("Failed to retrieve Group")
+	}
+	if group.InviteLinkPassword == nil && groupChange.ModifyAddFromInviteLinkAccess != nil && groupChange.ModifyInviteLinkPassword != nil {
+		inviteLinkPasswordBytes := make([]byte, 16)
+		rand.Read(inviteLinkPasswordBytes)
+		inviteLinkPassword := inviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
+		groupChange.ModifyInviteLinkPassword = &inviteLinkPassword
 	}
 	groupChange.Revision = group.Revision + 1
 	for attempt := 0; attempt < 5; attempt++ {
@@ -1453,7 +1493,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 				refetchedAddMemberCredentials = true
 				// change = refetchAddMemberCredentials(change); TODO
 			} else {
-				return fmt.Errorf("Group Change Failed: %w", err)
+				return 0, fmt.Errorf("Group Change Failed: %w", err)
 			}
 		} else if errors.Is(err, ConflictError) {
 			delete(cli.GroupCache.groups, gid)
@@ -1469,22 +1509,22 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 			break
 		}
 	}
-	if err != nil {
-		log.Err(err).Msg("couldn't patch group on server")
-		return err
-	}
 	delete(cli.GroupCache.groups, gid)
 	delete(cli.GroupCache.lastFetched, gid)
 	delete(cli.GroupCache.activeCalls, gid)
+	if err != nil {
+		log.Err(err).Msg("couldn't patch group on server")
+		return 0, err
+	}
 	groupChangeBytes, err := proto.Marshal(signedGroupChange)
 	if err != nil {
 		log.Err(err).Msg("Error marshalling signed GroupChange")
-		return err
+		return 0, err
 	}
 	groupContext := &signalpb.GroupContextV2{Revision: &groupChange.Revision, GroupChange: groupChangeBytes, MasterKey: masterKeyBytes[:]}
 	_, err = cli.SendGroupChange(ctx, group, groupContext, groupChange)
 	if err != nil {
 		log.Err(err).Msg("Error sending GroupChange to group members")
 	}
-	return nil
+	return groupChange.Revision, nil
 }
