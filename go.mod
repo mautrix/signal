@@ -15,12 +15,12 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.1
-	go.mau.fi/util v0.4.1-0.20240311141448-53cb04950f7e
+	go.mau.fi/util v0.4.1
 	golang.org/x/crypto v0.21.0
-	golang.org/x/exp v0.0.0-20240222234643-814bf88cf225
+	golang.org/x/exp v0.0.0-20240314144324-c7f7c6466f7f
 	golang.org/x/net v0.22.0
 	google.golang.org/protobuf v1.33.0
-	maunium.net/go/mautrix v0.18.0-beta.1.0.20240311183606-94246ffc85aa
+	maunium.net/go/mautrix v0.18.0
 	nhooyr.io/websocket v1.8.10
 )
 

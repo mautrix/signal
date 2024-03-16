@@ -1,3 +1,11 @@
+# v0.5.1 (2024-03-16)
+
+* Updated to libsignal v0.41.0.
+* Fixed sending messages to groups.
+* Fixed some cases of ghost user info changing repeatedly on multi-user
+  instances.
+* Fixed migrating SQLite databases from Python version.
+
 # v0.5.0 (2024-02-16)
 
 * Rewrote bridge in Go.
