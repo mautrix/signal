@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -30,7 +31,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+<<<<<<< HEAD
 	"go.mau.fi/util/exfmt"
+=======
+	"github.com/rs/zerolog/log"
+>>>>>>> c756473 (add commands for getting and setting invite link password)
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
@@ -2827,4 +2832,35 @@ func (portal *Portal) GetMatrixUsers(ctx context.Context) ([]id.UserID, error) {
 		}
 	}
 	return users, nil
+}
+
+func (portal *Portal) GetInviteLink(ctx context.Context, source *User) (string, error) {
+	info, err := source.Client.RetrieveGroupByID(ctx, portal.GroupID(), portal.Revision)
+	if err != nil {
+		log.Err(err).
+			Stringer("source_user_id", source.MXID).
+			Msg("Failed to fetch group info")
+		return "", err
+	}
+	inviteLinkPassword, err := info.GetInviteLink()
+	if err != nil {
+		log.Err(err).Msg("Failed to get invite link")
+	}
+	return inviteLinkPassword, nil
+}
+
+func (portal *Portal) ResetInviteLink(ctx context.Context, source *User) error {
+	var inviteLinkPassword types.SerializedInviteLinkPassword
+	inviteLinkPasswordBytes := make([]byte, 16)
+	rand.Read(inviteLinkPasswordBytes)
+	inviteLinkPassword = signalmeow.InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
+	groupChange := &signalmeow.GroupChange{ModifyInviteLinkPassword: &inviteLinkPassword}
+	revision, err := source.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error setting invite link password")
+		return err
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+	return nil
 }

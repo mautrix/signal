@@ -62,6 +62,8 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdDeletePortal,
 		cmdDeleteAllPortals,
 		cmdCleanupLostPortals,
+		cmdInviteLink,
+		cmdResetInviteLink,
 	)
 }
 
@@ -641,4 +643,62 @@ func fnCleanupLostPortals(ce *WrappedCommandEvent) {
 		}
 	}
 	ce.Reply("Finished cleaning up portals")
+}
+
+var cmdInviteLink = &commands.FullHandler{
+	Func: wrapCommand(fnInviteLink),
+	Name: "invite-link",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Get the invite link for the corresponding Signal Group",
+	},
+	RequiresLogin: true,
+}
+
+func fnInviteLink(ce *WrappedCommandEvent) {
+	if ce.Portal == nil {
+		ce.Reply("This is not a portal room")
+		return
+	}
+	if ce.Portal.IsPrivateChat() {
+		ce.Reply("Invite Links are not available for private chats")
+		return
+	}
+	inviteLinkPassword, err := ce.Portal.GetInviteLink(ce.Ctx, ce.User)
+	if err != nil {
+		ce.Reply("Error getting invite link %w", err)
+		return
+	}
+	ce.Reply(inviteLinkPassword)
+}
+
+var cmdResetInviteLink = &commands.FullHandler{
+	Func: wrapCommand(fnResetInviteLink),
+	Name: "reset-invite-link",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Generate a new invite link password",
+	},
+	RequiresLogin: true,
+}
+
+func fnResetInviteLink(ce *WrappedCommandEvent) {
+	if ce.Portal == nil {
+		ce.Reply("This is not a portal room")
+		return
+	}
+	if ce.Portal.IsPrivateChat() {
+		ce.Reply("Invite Links are not available for private chats")
+		return
+	}
+	err := ce.Portal.ResetInviteLink(ce.Ctx, ce.User)
+	if err != nil {
+		ce.Reply("Error setting new invite link %w", err)
+	}
+	inviteLink, err := ce.Portal.GetInviteLink(ce.Ctx, ce.User)
+	if err != nil {
+		ce.Reply("Error getting new invite link %w", err)
+		return
+	}
+	ce.Reply(inviteLink)
 }

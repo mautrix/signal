@@ -91,6 +91,30 @@ type Group struct {
 	//PublicKey                  *libsignalgo.PublicKey
 }
 
+func (group *Group) GetInviteLink() (string, error) {
+	if group.InviteLinkPassword == nil {
+		return "", fmt.Errorf("no invite link password set")
+	}
+	masterKeyBytes := masterKeyToBytes(group.groupMasterKey)
+	inviteLinkPasswordBytes, err := inviteLinkPasswordToBytes(*group.InviteLinkPassword)
+	if err != nil {
+		return "", fmt.Errorf("couldn't decode invite link password")
+	}
+	inviteLinkContents := signalpb.GroupInviteLink_V1Contents{
+		V1Contents: &signalpb.GroupInviteLink_GroupInviteLinkContentsV1{
+			GroupMasterKey:     masterKeyBytes[:],
+			InviteLinkPassword: inviteLinkPasswordBytes,
+		},
+	}
+	inviteLink := signalpb.GroupInviteLink{Contents: &inviteLinkContents}
+	inviteLinkEncoded, err := proto.Marshal(&inviteLink)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal invite link")
+	}
+	inviteLinkPath := base64.URLEncoding.EncodeToString(inviteLinkEncoded)
+	return "https://signal.group/#" + inviteLinkPath, nil
+}
+
 type GroupAccessControl struct {
 	Members           AccessControl
 	AddFromInviteLink AccessControl
@@ -428,7 +452,7 @@ func inviteLinkPasswordToBytes(inviteLinkPassword types.SerializedInviteLinkPass
 	return inviteLinkPasswordBytes, nil
 }
 
-func inviteLinkPasswordFromBytes(inviteLinkPassword []byte) types.SerializedInviteLinkPassword {
+func InviteLinkPasswordFromBytes(inviteLinkPassword []byte) types.SerializedInviteLinkPassword {
 	return types.SerializedInviteLinkPassword(base64.StdEncoding.EncodeToString(inviteLinkPassword))
 }
 
@@ -554,7 +578,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 		}
 	}
 	if len(encryptedGroup.InviteLinkPassword) > 0 {
-		inviteLinkPassword := inviteLinkPasswordFromBytes(encryptedGroup.InviteLinkPassword)
+		inviteLinkPassword := InviteLinkPasswordFromBytes(encryptedGroup.InviteLinkPassword)
 		decryptedGroup.InviteLinkPassword = &inviteLinkPassword
 	}
 	return decryptedGroup, nil
@@ -1093,7 +1117,7 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		decryptedGroupChange.ModifyDisappearingMessagesDuration = &newDisappaeringMessagesDuration
 	}
 	if encryptedActions.ModifyInviteLinkPassword != nil {
-		inviteLinkPassword := inviteLinkPasswordFromBytes(encryptedActions.ModifyInviteLinkPassword.InviteLinkPassword)
+		inviteLinkPassword := InviteLinkPasswordFromBytes(encryptedActions.ModifyInviteLinkPassword.InviteLinkPassword)
 		decryptedGroupChange.ModifyInviteLinkPassword = &inviteLinkPassword
 	}
 
@@ -1481,7 +1505,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 	if group.InviteLinkPassword == nil && groupChange.ModifyAddFromInviteLinkAccess != nil && groupChange.ModifyInviteLinkPassword != nil {
 		inviteLinkPasswordBytes := make([]byte, 16)
 		rand.Read(inviteLinkPasswordBytes)
-		inviteLinkPassword := inviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
+		inviteLinkPassword := InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
 		groupChange.ModifyInviteLinkPassword = &inviteLinkPassword
 	}
 	groupChange.Revision = group.Revision + 1
