@@ -38,8 +38,8 @@ type ProfileKeyStore interface {
 }
 
 const (
-	loadProfileKeyQuery  = `SELECT key FROM signalmeow_profile_keys WHERE our_aci_uuid=$1 AND their_aci_uuid=$2`
-	storeProfileKeyQuery = `INSERT INTO signalmeow_profile_keys (our_aci_uuid, their_aci_uuid, key) VALUES ($1, $2, $3) ON CONFLICT (our_aci_uuid, their_aci_uuid) DO UPDATE SET key=excluded.key`
+	loadProfileKeyQuery  = `SELECT key FROM signalmeow_profile_keys WHERE account_id=$1 AND their_aci_uuid=$2`
+	storeProfileKeyQuery = `INSERT INTO signalmeow_profile_keys (account_id, their_aci_uuid, key) VALUES ($1, $2, $3) ON CONFLICT (account_id, their_aci_uuid) DO UPDATE SET key=excluded.key`
 )
 
 func scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {

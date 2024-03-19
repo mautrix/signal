@@ -40,11 +40,11 @@ type GroupStore interface {
 }
 
 const (
-	getGroupByIDQuery         = `SELECT our_aci_uuid, group_identifier, master_key FROM signalmeow_groups WHERE our_aci_uuid=$1 AND group_identifier=$2`
+	getGroupByIDQuery         = `SELECT account_id, group_identifier, master_key FROM signalmeow_groups WHERE account_id=$1 AND group_identifier=$2`
 	upsertGroupMasterKeyQuery = `
-		INSERT INTO signalmeow_groups (our_aci_uuid, group_identifier, master_key)
+		INSERT INTO signalmeow_groups (account_id, group_identifier, master_key)
 		VALUES ($1, $2, $3)
-		ON CONFLICT (our_aci_uuid, group_identifier) DO UPDATE
+		ON CONFLICT (account_id, group_identifier) DO UPDATE
 			SET master_key = excluded.master_key;
 	`
 )

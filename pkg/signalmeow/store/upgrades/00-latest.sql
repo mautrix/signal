@@ -1,4 +1,4 @@
--- v0 -> v10: Latest revision
+-- v0 -> v11: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -36,17 +36,15 @@ CREATE TABLE signalmeow_kyber_pre_keys (
     FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
--- TODO rename our_aci_uuid to account_id in all tables for consistency
-
 CREATE TABLE signalmeow_identity_keys (
-    our_aci_uuid     TEXT    NOT NULL,
+    account_id       TEXT    NOT NULL,
     their_service_id TEXT    NOT NULL,
     their_device_id  INTEGER NOT NULL,
     key              bytea   NOT NULL,
     trust_level      TEXT    NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, their_service_id, their_device_id),
-    FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    PRIMARY KEY (account_id, their_service_id, their_device_id),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_sessions (
@@ -61,35 +59,35 @@ CREATE TABLE signalmeow_sessions (
 );
 
 CREATE TABLE signalmeow_profile_keys (
-    our_aci_uuid   TEXT  NOT NULL,
+    account_id     TEXT  NOT NULL,
     their_aci_uuid TEXT  NOT NULL,
     key            bytea NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, their_aci_uuid),
-    FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    PRIMARY KEY (account_id, their_aci_uuid),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_sender_keys (
-    our_aci_uuid     TEXT    NOT NULL,
+    account_id       TEXT    NOT NULL,
     sender_uuid      TEXT    NOT NULL, -- note: this may actually be a service id
     sender_device_id INTEGER NOT NULL,
     distribution_id  TEXT    NOT NULL,
     key_record       bytea   NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, sender_uuid, sender_device_id, distribution_id),
-    FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    PRIMARY KEY (account_id, sender_uuid, sender_device_id, distribution_id),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_groups (
-    our_aci_uuid     TEXT NOT NULL,
+    account_id     TEXT NOT NULL,
     group_identifier TEXT NOT NULL,
     master_key       TEXT NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, group_identifier)
+    PRIMARY KEY (account_id, group_identifier)
 );
 
 CREATE TABLE signalmeow_contacts (
-    our_aci_uuid        TEXT   NOT NULL,
+    account_id          TEXT   NOT NULL,
     aci_uuid            TEXT   NOT NULL,
     e164_number         TEXT   NOT NULL,
     contact_name        TEXT   NOT NULL,
@@ -101,6 +99,6 @@ CREATE TABLE signalmeow_contacts (
     profile_avatar_path TEXT   NOT NULL,
     profile_fetched_at  BIGINT,
 
-    PRIMARY KEY (our_aci_uuid, aci_uuid),
-    FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    PRIMARY KEY (account_id, aci_uuid),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );

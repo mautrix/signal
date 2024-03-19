@@ -54,12 +54,12 @@ const (
 			profile_fetched_at
 		FROM signalmeow_contacts
 	`
-	getAllContactsOfUserQuery = getAllContactsQuery + `WHERE our_aci_uuid = $1`
-	getContactByUUIDQuery     = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND aci_uuid = $2`
-	getContactByPhoneQuery    = getAllContactsQuery + `WHERE our_aci_uuid = $1 AND e164_number = $2`
+	getAllContactsOfUserQuery = getAllContactsQuery + `WHERE account_id = $1`
+	getContactByUUIDQuery     = getAllContactsQuery + `WHERE account_id = $1 AND aci_uuid = $2`
+	getContactByPhoneQuery    = getAllContactsQuery + `WHERE account_id = $1 AND e164_number = $2`
 	upsertContactQuery        = `
 		INSERT INTO signalmeow_contacts (
-			our_aci_uuid,
+			account_id,
 			aci_uuid,
 			e164_number,
 			contact_name,
@@ -72,7 +72,7 @@ const (
 			profile_fetched_at
 		)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		ON CONFLICT (our_aci_uuid, aci_uuid) DO UPDATE SET
+		ON CONFLICT (account_id, aci_uuid) DO UPDATE SET
 			e164_number = excluded.e164_number,
 			contact_name = excluded.contact_name,
 			contact_avatar_hash = excluded.contact_avatar_hash,
@@ -85,7 +85,7 @@ const (
 	`
 	upsertContactPhoneQuery = `
 		INSERT INTO signalmeow_contacts (
-			our_aci_uuid,
+			account_id,
 			aci_uuid,
 			e164_number,
 			contact_name,
@@ -98,7 +98,7 @@ const (
 			profile_fetched_at
 		)
 		VALUES ($1, $2, $3, '', '', NULL, '', '', '', '', NULL)
-		ON CONFLICT (our_aci_uuid, aci_uuid) DO UPDATE
+		ON CONFLICT (account_id, aci_uuid) DO UPDATE
 			SET e164_number = excluded.e164_number
 	`
 )
