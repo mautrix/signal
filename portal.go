@@ -1311,6 +1311,8 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 		portal.storeMessageInDB(ctx, resp.EventID, sender.SignalID, converted.Timestamp, i)
 		if converted.DisappearIn != 0 {
 			portal.addDisappearingMessage(ctx, resp.EventID, converted.DisappearIn, sender.SignalID == source.SignalID)
+			// Ensure portal expiration timer is correct in DMs
+			portal.updateExpirationTimer(ctx, converted.DisappearIn)
 		}
 	}
 }
