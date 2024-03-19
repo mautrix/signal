@@ -27,7 +27,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-var _ ProfileKeyStore = (*SQLStore)(nil)
+var _ ProfileKeyStore = (*sqlStore)(nil)
 
 type ProfileKeyStore interface {
 	// LoadProfileKey loads the profile key for the given address.
@@ -54,15 +54,15 @@ func scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {
 	return &profileKey, err
 }
 
-func (s *SQLStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.ACI, theirACI))
+func (s *sqlStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
+	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, theirACI))
 }
 
-func (s *SQLStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.ACI, s.ACI))
+func (s *sqlStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
+	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, s.AccountID))
 }
 
-func (s *SQLStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
-	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.ACI, theirACI, key.Slice())
+func (s *sqlStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
+	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.AccountID, theirACI, key.Slice())
 	return err
 }

@@ -1,4 +1,4 @@
--- v0 -> v9: Latest revision
+-- v0 -> v10: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -15,16 +15,28 @@ CREATE TABLE signalmeow_device (
 );
 
 CREATE TABLE signalmeow_pre_keys (
-    aci_uuid  TEXT    NOT NULL,
-    key_id    INTEGER NOT NULL,
-    uuid_kind TEXT    NOT NULL,
-    is_signed BOOLEAN NOT NULL,
-    key_pair  bytea   NOT NULL,
-    uploaded  BOOLEAN NOT NULL,
+    account_id TEXT    NOT NULL,
+    service_id TEXT    NOT NULL,
+    key_id     INTEGER NOT NULL,
+    is_signed  BOOLEAN NOT NULL,
+    key_pair   bytea   NOT NULL,
 
-    PRIMARY KEY (aci_uuid, uuid_kind, is_signed, key_id),
-    FOREIGN KEY (aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    PRIMARY KEY (account_id, service_id, key_id, is_signed),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
+
+CREATE TABLE signalmeow_kyber_pre_keys (
+    account_id     TEXT    NOT NULL,
+    service_id     TEXT    NOT NULL,
+    key_id         INTEGER NOT NULL,
+    key_pair       bytea   NOT NULL,
+    is_last_resort BOOLEAN NOT NULL,
+
+    PRIMARY KEY (account_id, service_id, key_id),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- TODO rename our_aci_uuid to account_id in all tables for consistency
 
 CREATE TABLE signalmeow_identity_keys (
     our_aci_uuid     TEXT    NOT NULL,
@@ -38,13 +50,14 @@ CREATE TABLE signalmeow_identity_keys (
 );
 
 CREATE TABLE signalmeow_sessions (
-    our_aci_uuid     TEXT    NOT NULL,
+    account_id       TEXT    NOT NULL,
+    service_id       TEXT    NOT NULL,
     their_service_id TEXT    NOT NULL,
     their_device_id  INTEGER NOT NULL,
     record           bytea   NOT NULL,
 
-    PRIMARY KEY (our_aci_uuid, their_service_id, their_device_id),
-    FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    PRIMARY KEY (account_id, service_id, their_service_id, their_device_id),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE signalmeow_profile_keys (
@@ -58,7 +71,7 @@ CREATE TABLE signalmeow_profile_keys (
 
 CREATE TABLE signalmeow_sender_keys (
     our_aci_uuid     TEXT    NOT NULL,
-    sender_uuid      TEXT    NOT NULL,
+    sender_uuid      TEXT    NOT NULL, -- note: this may actually be a service id
     sender_device_id INTEGER NOT NULL,
     distribution_id  TEXT    NOT NULL,
     key_record       bytea   NOT NULL,
@@ -90,15 +103,4 @@ CREATE TABLE signalmeow_contacts (
 
     PRIMARY KEY (our_aci_uuid, aci_uuid),
     FOREIGN KEY (our_aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE TABLE signalmeow_kyber_pre_keys (
-    aci_uuid       TEXT    NOT NULL,
-    key_id         INTEGER NOT NULL,
-    uuid_kind      TEXT    NOT NULL,
-    key_pair       bytea   NOT NULL,
-    is_last_resort BOOLEAN NOT NULL,
-
-    PRIMARY KEY (aci_uuid, uuid_kind, key_id),
-    FOREIGN KEY (aci_uuid) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );

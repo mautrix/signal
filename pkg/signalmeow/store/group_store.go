@@ -26,7 +26,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-var _ GroupStore = (*SQLStore)(nil)
+var _ GroupStore = (*sqlStore)(nil)
 
 type dbGroup struct {
 	OurAciUuid      string
@@ -60,8 +60,8 @@ func scanGroup(row dbutil.Scannable) (*dbGroup, error) {
 	return &g, nil
 }
 
-func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error) {
-	g, err := scanGroup(s.db.QueryRow(ctx, getGroupByIDQuery, s.ACI, groupID))
+func (s *sqlStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID types.GroupIdentifier) (types.SerializedGroupMasterKey, error) {
+	g, err := scanGroup(s.db.QueryRow(ctx, getGroupByIDQuery, s.AccountID, groupID))
 	if g == nil {
 		return "", err
 	} else {
@@ -69,7 +69,7 @@ func (s *SQLStore) MasterKeyFromGroupIdentifier(ctx context.Context, groupID typ
 	}
 }
 
-func (s *SQLStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error {
-	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.ACI, groupID, key)
+func (s *sqlStore) StoreMasterKey(ctx context.Context, groupID types.GroupIdentifier, key types.SerializedGroupMasterKey) error {
+	_, err := s.db.Exec(ctx, upsertGroupMasterKeyQuery, s.AccountID, groupID, key)
 	return err
 }

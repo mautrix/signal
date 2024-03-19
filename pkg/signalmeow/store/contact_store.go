@@ -37,7 +37,7 @@ type ContactStore interface {
 	UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error
 }
 
-var _ ContactStore = (*SQLStore)(nil)
+var _ ContactStore = (*sqlStore)(nil)
 
 const (
 	getAllContactsQuery = `
@@ -133,23 +133,23 @@ func scanContact(row dbutil.Scannable) (*types.Contact, error) {
 	return &contact, err
 }
 
-func (s *SQLStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
-	return scanContact(s.db.QueryRow(ctx, getContactByUUIDQuery, s.ACI, theirUUID))
+func (s *sqlStore) LoadContact(ctx context.Context, theirUUID uuid.UUID) (*types.Contact, error) {
+	return scanContact(s.db.QueryRow(ctx, getContactByUUIDQuery, s.AccountID, theirUUID))
 }
 
-func (s *SQLStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
-	return scanContact(s.db.QueryRow(ctx, getContactByPhoneQuery, s.ACI, e164))
+func (s *sqlStore) LoadContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
+	return scanContact(s.db.QueryRow(ctx, getContactByPhoneQuery, s.AccountID, e164))
 }
 
-func (s *SQLStore) AllContacts(ctx context.Context) ([]*types.Contact, error) {
-	rows, err := s.db.Query(ctx, getAllContactsOfUserQuery, s.ACI)
+func (s *sqlStore) AllContacts(ctx context.Context) ([]*types.Contact, error) {
+	rows, err := s.db.Query(ctx, getAllContactsOfUserQuery, s.AccountID)
 	if err != nil {
 		return nil, err
 	}
 	return dbutil.NewRowIter(rows, scanContact).AsList()
 }
 
-func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) error {
+func (s *sqlStore) StoreContact(ctx context.Context, contact types.Contact) error {
 	var profileKey []byte
 	if contact.Profile.Key.IsEmpty() {
 		profileKey = contact.Profile.Key[:]
@@ -157,7 +157,7 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 	_, err := s.db.Exec(
 		ctx,
 		upsertContactQuery,
-		s.ACI,
+		s.AccountID,
 		contact.UUID,
 		contact.E164,
 		contact.ContactName,
@@ -172,9 +172,9 @@ func (s *SQLStore) StoreContact(ctx context.Context, contact types.Contact) erro
 	return err
 }
 
-func (s *SQLStore) UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error {
+func (s *sqlStore) UpdatePhone(ctx context.Context, theirUUID uuid.UUID, newE164 string) error {
 	_, err := s.db.Exec(
-		ctx, upsertContactPhoneQuery, s.ACI, theirUUID, newE164,
+		ctx, upsertContactPhoneQuery, s.AccountID, theirUUID, newE164,
 	)
 	return err
 }

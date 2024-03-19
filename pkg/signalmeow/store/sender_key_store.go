@@ -28,7 +28,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-var _ libsignalgo.SenderKeyStore = (*SQLStore)(nil)
+var _ libsignalgo.SenderKeyStore = (*sqlStore)(nil)
 
 const (
 	loadSenderKeyQuery  = `SELECT key_record FROM signalmeow_sender_keys WHERE our_aci_uuid=$1 AND sender_uuid=$2 AND sender_device_id=$3 AND distribution_id=$4`
@@ -46,7 +46,7 @@ func scanSenderKey(row dbutil.Scannable) (*libsignalgo.SenderKeyRecord, error) {
 	return libsignalgo.DeserializeSenderKeyRecord(key)
 }
 
-func (s *SQLStore) LoadSenderKey(ctx context.Context, sender *libsignalgo.Address, distributionID uuid.UUID) (*libsignalgo.SenderKeyRecord, error) {
+func (s *sqlStore) LoadSenderKey(ctx context.Context, sender *libsignalgo.Address, distributionID uuid.UUID) (*libsignalgo.SenderKeyRecord, error) {
 	senderUUID, err := sender.Name()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender UUID: %w", err)
@@ -55,10 +55,10 @@ func (s *SQLStore) LoadSenderKey(ctx context.Context, sender *libsignalgo.Addres
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender device ID: %w", err)
 	}
-	return scanSenderKey(s.db.QueryRow(ctx, loadSenderKeyQuery, s.ACI, senderUUID, deviceID, distributionID))
+	return scanSenderKey(s.db.QueryRow(ctx, loadSenderKeyQuery, s.AccountID, senderUUID, deviceID, distributionID))
 }
 
-func (s *SQLStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord) error {
+func (s *sqlStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Address, distributionID uuid.UUID, record *libsignalgo.SenderKeyRecord) error {
 	senderUUID, err := sender.Name()
 	if err != nil {
 		return fmt.Errorf("failed to get sender UUID: %w", err)
@@ -71,6 +71,6 @@ func (s *SQLStore) StoreSenderKey(ctx context.Context, sender *libsignalgo.Addre
 	if err != nil {
 		return fmt.Errorf("failed to serialize sender key: %w", err)
 	}
-	_, err = s.db.Exec(ctx, storeSenderKeyQuery, s.ACI, senderUUID, deviceID, distributionID, serialized)
+	_, err = s.db.Exec(ctx, storeSenderKeyQuery, s.AccountID, senderUUID, deviceID, distributionID, serialized)
 	return err
 }

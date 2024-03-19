@@ -23,6 +23,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"database/sql/driver"
 	"fmt"
 	"strings"
 	"unsafe"
@@ -86,6 +87,10 @@ func (s ServiceID) Bytes() []byte {
 		return s.UUID[:]
 	}
 	return append([]byte{byte(s.Type)}, s.UUID[:]...)
+}
+
+func (s ServiceID) Value() (driver.Value, error) {
+	return s.String(), nil
 }
 
 func (s ServiceID) String() string {

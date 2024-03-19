@@ -27,7 +27,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-var _ libsignalgo.IdentityKeyStore = (*SQLStore)(nil)
+var _ libsignalgo.IdentityKeyStore = (*sqlStore)(nil)
 
 const (
 	getIdentityKeyPairQuery     = `SELECT aci_identity_key_pair FROM signalmeow_device WHERE aci_uuid=$1`
@@ -70,20 +70,20 @@ func scanIdentityKey(row dbutil.Scannable) (*libsignalgo.IdentityKey, error) {
 	return libsignalgo.DeserializeIdentityKey(key)
 }
 
-func (s *SQLStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
-	return scanIdentityKeyPair(s.db.QueryRow(ctx, getIdentityKeyPairQuery, s.ACI))
+func (s *sqlStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
+	return scanIdentityKeyPair(s.db.QueryRow(ctx, getIdentityKeyPairQuery, s.AccountID))
 }
 
-func (s *SQLStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
+func (s *sqlStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
 	var regID sql.NullInt64
-	err := s.db.QueryRow(ctx, getRegistrationLocalIDQuery, s.ACI).Scan(&regID)
+	err := s.db.QueryRow(ctx, getRegistrationLocalIDQuery, s.AccountID).Scan(&regID)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get local registration ID: %w", err)
 	}
 	return uint32(regID.Int64), nil
 }
 
-func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey) (bool, error) {
+func (s *sqlStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey) (bool, error) {
 	trustLevel := "TRUSTED_UNVERIFIED" // TODO: this should be hard coded here
 	serialized, err := identityKey.Serialize()
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 	if err != nil {
 		return false, fmt.Errorf("failed to get device ID: %w", err)
 	}
-	oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirServiceID, deviceID))
+	oldKey, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.AccountID, theirServiceID, deviceID))
 	if err != nil {
 		return false, fmt.Errorf("failed to get old identity key: %w", err)
 	}
@@ -110,14 +110,14 @@ func (s *SQLStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Add
 		// We are replacing the old key if the old key exists, and it is not equal to the new key
 		replacing = !equal
 	}
-	_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.ACI, theirServiceID, deviceID, serialized, trustLevel)
+	_, err = s.db.Exec(ctx, insertIdentityKeyQuery, s.AccountID, theirServiceID, deviceID, serialized, trustLevel)
 	if err != nil {
 		return replacing, fmt.Errorf("failed to insert new identity key: %w", err)
 	}
 	return replacing, err
 }
 
-func (s *SQLStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error) {
+func (s *sqlStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error) {
 	// TODO: this should check direction, and probably some other stuff (though whisperfish is pretty basic)
 	theirServiceID, err := address.Name()
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *SQLStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.A
 		return false, fmt.Errorf("failed to get device ID: %w", err)
 	}
 	var trustLevel string
-	err = s.db.QueryRow(ctx, getIdentityKeyTrustLevelQuery, s.ACI, theirServiceID, deviceID).Scan(&trustLevel)
+	err = s.db.QueryRow(ctx, getIdentityKeyTrustLevelQuery, s.AccountID, theirServiceID, deviceID).Scan(&trustLevel)
 	if errors.Is(err, sql.ErrNoRows) {
 		// If no rows, they are a new identity, so trust by default
 		return true, nil
@@ -139,7 +139,7 @@ func (s *SQLStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.A
 	return trusted, nil
 }
 
-func (s *SQLStore) GetIdentityKey(ctx context.Context, address *libsignalgo.Address) (*libsignalgo.IdentityKey, error) {
+func (s *sqlStore) GetIdentityKey(ctx context.Context, address *libsignalgo.Address) (*libsignalgo.IdentityKey, error) {
 	theirServiceID, err := address.Name()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get their service ID: %w", err)
@@ -148,7 +148,7 @@ func (s *SQLStore) GetIdentityKey(ctx context.Context, address *libsignalgo.Addr
 	if err != nil {
 		return nil, fmt.Errorf("failed to get device ID: %w", err)
 	}
-	key, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.ACI, theirServiceID, deviceID))
+	key, err := scanIdentityKey(s.db.QueryRow(ctx, getIdentityKeyQuery, s.AccountID, theirServiceID, deviceID))
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity key from database: %w", err)
 	}

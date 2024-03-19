@@ -144,7 +144,7 @@ func checkForErrorWithSessions(err error, addresses []*libsignalgo.Address, sess
 }
 
 func (cli *Client) howManyOtherDevicesDoWeHave(ctx context.Context) int {
-	addresses, _, err := cli.Store.SessionStoreExtras.AllSessionsForServiceID(ctx, cli.Store.ACIServiceID())
+	addresses, _, err := cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, cli.Store.ACIServiceID())
 	if err != nil {
 		return 0
 	}
@@ -170,14 +170,14 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalg
 
 	messages := []MyMessage{}
 
-	addresses, sessionRecords, err := cli.Store.SessionStoreExtras.AllSessionsForServiceID(ctx, recipient)
+	addresses, sessionRecords, err := cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
 	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
 		// No sessions, make one with prekey
 		err = cli.FetchAndProcessPreKey(ctx, recipient, -1)
 		if err != nil {
 			return nil, err
 		}
-		addresses, sessionRecords, err = cli.Store.SessionStoreExtras.AllSessionsForServiceID(ctx, recipient)
+		addresses, sessionRecords, err = cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
 	}
 	err = checkForErrorWithSessions(err, addresses, sessionRecords)
 	if err != nil {
@@ -239,9 +239,9 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalg
 func (cli *Client) buildAuthedMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
 	cipherTextMessage, err := libsignalgo.Encrypt(
 		ctx,
-		[]byte(paddedMessage),
+		paddedMessage,
 		recipientAddress,
-		cli.Store.SessionStore,
+		cli.Store.ACISessionStore,
 		cli.Store.IdentityStore,
 	)
 	if err != nil {
@@ -271,10 +271,10 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 	}
 	encryptedPayload, err = libsignalgo.SealedSenderEncryptPlaintext(
 		ctx,
-		[]byte(paddedMessage),
+		paddedMessage,
 		recipientAddress,
 		cert,
-		cli.Store.SessionStore,
+		cli.Store.ACISessionStore,
 		cli.Store.IdentityStore,
 	)
 	if err != nil {
@@ -841,7 +841,7 @@ func (cli *Client) handle409(ctx context.Context, recipient libsignalgo.ServiceI
 				log.Err(err).Msg("NewAddress error")
 				return err
 			}
-			err = cli.Store.SessionStoreExtras.RemoveSession(ctx, recipientAddr)
+			err = cli.Store.ACISessionStore.RemoveSession(ctx, recipientAddr)
 			if err != nil {
 				log.Err(err).Msg("RemoveSession error")
 				return err
@@ -872,7 +872,7 @@ func (cli *Client) handle410(ctx context.Context, recipient libsignalgo.ServiceI
 				log.Err(err).Msg("error creating new UUID Address")
 				return err
 			}
-			err = cli.Store.SessionStoreExtras.RemoveSession(ctx, recipientAddr)
+			err = cli.Store.ACISessionStore.RemoveSession(ctx, recipientAddr)
 			if err != nil {
 				log.Err(err).Msg("RemoveSession error")
 				return err

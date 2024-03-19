@@ -195,7 +195,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	}()
 
 	// Start loop to check for and upload more prekeys
-	cli.StartKeyCheckLoop(ctx, types.UUIDKindACI)
+	cli.StartKeyCheckLoop(ctx)
 
 	return statusChan, nil
 }
@@ -280,7 +280,7 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 
 // TODO: we should split this up into multiple functions
 func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
-	log := zerolog.Ctx(ctx).With().Str("handler_type", "incoming API message handler").Logger()
+	log := *zerolog.Ctx(ctx)
 	responseCode := 200
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
@@ -288,10 +288,20 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		log.Err(err).Msg("Unmarshal error")
 		return nil, err
 	}
+	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
+	if err != nil {
+		log.Err(err).Str("destination_service_id", envelope.GetDestinationServiceId()).Msg("Failed to parse destination service ID")
+		return nil, err
+	}
 	var result *DecryptionResult
 
 	switch *envelope.Type {
 	case signalpb.Envelope_UNIDENTIFIED_SENDER:
+		if destinationServiceID != cli.Store.ACIServiceID() {
+			log.Warn().Stringer("destination_service_id", destinationServiceID).
+				Msg("Received envelope type UNIDENTIFIED_SENDER for non-ACI destination")
+			break
+		}
 		log.Trace().Msg("Received envelope type UNIDENTIFIED_SENDER")
 		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
 			ctx,
@@ -381,7 +391,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 
 		case libsignalgo.CiphertextMessageTypePreKey:
 			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
-			result, err = cli.prekeyDecrypt(ctx, senderAddress, usmcContents)
+			result, err = cli.prekeyDecrypt(ctx, destinationServiceID, senderAddress, usmcContents)
 			if err != nil {
 				log.Err(err).Msg("prekeyDecrypt error")
 			}
@@ -396,7 +406,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				ctx,
 				message,
 				senderAddress,
-				cli.Store.SessionStore,
+				cli.Store.ACISessionStore,
 				cli.Store.IdentityStore,
 			)
 			if err != nil {
@@ -479,7 +489,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		if err != nil {
 			return nil, fmt.Errorf("NewAddress error: %v", err)
 		}
-		result, err = cli.prekeyDecrypt(ctx, sender, envelope.Content)
+		result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content)
 		if err != nil {
 			log.Err(err).Msg("prekeyDecrypt error")
 			cli.checkDecryptionErrorAndDisconnect(ctx, err)
@@ -506,11 +516,15 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		if err != nil {
 			return nil, fmt.Errorf("NewAddress error: %w", err)
 		}
+		sessionStore := cli.Store.SessionStore(destinationServiceID)
+		if sessionStore == nil {
+			return nil, fmt.Errorf("no session store for destination service ID %s", destinationServiceID)
+		}
 		decryptedText, err := libsignalgo.Decrypt(
 			ctx,
 			message,
 			senderAddress,
-			cli.Store.SessionStore,
+			sessionStore,
 			cli.Store.IdentityStore,
 		)
 		if err != nil {
@@ -898,10 +912,10 @@ func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.E
 		localAddress,
 		prodServerTrustRootKey,
 		timestamp,
-		cli.Store.SessionStore,
+		cli.Store.ACISessionStore,
 		cli.Store.IdentityStore,
-		cli.Store.PreKeyStore,
-		cli.Store.SignedPreKeyStore,
+		cli.Store.ACIPreKeyStore,
+		cli.Store.ACIPreKeyStore,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("SealedSenderDecrypt error: %w", err)
@@ -921,33 +935,37 @@ func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.E
 	if err != nil {
 		return nil, fmt.Errorf("Unmarshal error: %w", err)
 	}
-	DecryptionResult := &DecryptionResult{
+	return &DecryptionResult{
 		SenderAddress: address,
 		Content:       content,
-	}
-	return DecryptionResult, nil
+	}, nil
 }
 
-func (cli *Client) prekeyDecrypt(ctx context.Context, sender *libsignalgo.Address, encryptedContent []byte) (*DecryptionResult, error) {
+func (cli *Client) prekeyDecrypt(ctx context.Context, destination libsignalgo.ServiceID, sender *libsignalgo.Address, encryptedContent []byte) (*DecryptionResult, error) {
 	preKeyMessage, err := libsignalgo.DeserializePreKeyMessage(encryptedContent)
 	if err != nil {
-		err = fmt.Errorf("DeserializePreKeyMessage error: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to deserialize prekey message: %w", err)
+	} else if preKeyMessage == nil {
+		return nil, fmt.Errorf("deserializing prekey message returned nil")
 	}
-	if preKeyMessage == nil {
-		err = fmt.Errorf("preKeyMessage is nil")
-		return nil, err
+	pks := cli.Store.PreKeyStore(destination)
+	if pks == nil {
+		return nil, fmt.Errorf("no prekey store found for %s", destination)
+	}
+	ss := cli.Store.SessionStore(destination)
+	if ss == nil {
+		return nil, fmt.Errorf("no session store found for %s", destination)
 	}
 
 	data, err := libsignalgo.DecryptPreKey(
 		ctx,
 		preKeyMessage,
 		sender,
-		cli.Store.SessionStore,
+		ss,
 		cli.Store.IdentityStore,
-		cli.Store.PreKeyStore,
-		cli.Store.SignedPreKeyStore,
-		cli.Store.KyberPreKeyStore,
+		pks,
+		pks,
+		pks,
 	)
 	if err != nil {
 		err = fmt.Errorf("DecryptPreKey error: %v", err)

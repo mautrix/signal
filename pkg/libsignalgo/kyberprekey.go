@@ -187,14 +187,14 @@ func (kpkr *KyberPreKeyRecord) GetSignature() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(signature), nil
 }
 
-func (kpkr *KyberPreKeyRecord) GetID() (uint, error) {
+func (kpkr *KyberPreKeyRecord) GetID() (uint32, error) {
 	var id C.uint32_t
 	signalFfiError := C.signal_kyber_pre_key_record_get_id(&id, kpkr.ptr)
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
-	return uint(id), nil
+	return uint32(id), nil
 }
 
 func (kpkr *KyberPreKeyRecord) GetTimestamp() (time.Time, error) {
