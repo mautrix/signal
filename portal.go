@@ -1315,6 +1315,10 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 			// Ensure portal expiration timer is correct in DMs
 			if portal.implicitlyUpdateExpirationTimer(ctx, converted.DisappearIn) {
 				log.Info().Uint32("new_time", converted.DisappearIn).Msg("Implicitly updated expiration timer")
+				err := portal.Update(ctx)
+				if err != nil {
+					log.Err(err).Msg("Failed to save portal in database after implicitly updating group info")
+				}
 			}
 		}
 	}
@@ -1996,7 +2000,7 @@ func (portal *Portal) implicitlyUpdateExpirationTimer(ctx context.Context, newEx
 		msg.Content.Body = fmt.Sprintf("Automatically enabled disappearing message timer (%s) because incoming message is disappearing", exfmt.Duration(time.Duration(newExpirationTimer)*time.Second))
 		_, err := portal.sendMainIntentMessage(ctx, msg.Content)
 		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing")
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing implicitly")
 		}
 	}
 	return true
