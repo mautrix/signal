@@ -43,6 +43,8 @@ const (
 
 type SessionStore interface {
 	libsignalgo.SessionStore
+	ServiceScopedStore
+
 	// AllSessionsForServiceID returns all sessions for the given service ID.
 	AllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error)
 	// RemoveSession removes the session for the given address.

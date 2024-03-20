@@ -29,12 +29,15 @@ import (
 
 var _ PreKeyStore = (*scopedSQLStore)(nil)
 
+type ServiceScopedStore interface {
+	GetServiceID() libsignalgo.ServiceID
+}
+
 type PreKeyStore interface {
 	libsignalgo.PreKeyStore
 	libsignalgo.SignedPreKeyStore
 	libsignalgo.KyberPreKeyStore
-
-	GetServiceID() libsignalgo.ServiceID
+	ServiceScopedStore
 
 	StoreLastResortKyberPreKey(ctx context.Context, preKeyID uint32, record *libsignalgo.KyberPreKeyRecord) error
 	RemoveSignedPreKey(ctx context.Context, preKeyID uint32) error

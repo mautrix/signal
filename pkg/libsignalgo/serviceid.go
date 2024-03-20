@@ -29,6 +29,7 @@ import (
 	"unsafe"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 func init() {
@@ -102,6 +103,11 @@ func (s ServiceID) String() string {
 
 func (s ServiceID) GoString() string {
 	return fmt.Sprintf(`libsignalgo.ServiceID{Type: %#v, UUID: uuid.MustParse("%s")}`, s.Type, s.UUID)
+}
+
+func (s ServiceID) MarshalZerologObject(e *zerolog.Event) {
+	e.Stringer("type", s.Type)
+	e.Stringer("uuid", s.UUID)
 }
 
 type ServiceIDFixedBytes [17]byte

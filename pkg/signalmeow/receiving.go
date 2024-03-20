@@ -294,15 +294,23 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		return nil, err
 	}
 	var result *DecryptionResult
+	log.Trace().
+		Uint64("timestamp", envelope.GetTimestamp()).
+		Str("destination_service_id", envelope.GetDestinationServiceId()).
+		Str("source_service_id", envelope.GetSourceServiceId()).
+		Uint32("source_device_id", envelope.GetSourceDevice()).
+		Object("parsed_destination_service_id", destinationServiceID).
+		Int32("envelope_type_id", int32(envelope.GetType())).
+		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
+		Msg("Received envelope")
 
 	switch *envelope.Type {
 	case signalpb.Envelope_UNIDENTIFIED_SENDER:
 		if destinationServiceID != cli.Store.ACIServiceID() {
 			log.Warn().Stringer("destination_service_id", destinationServiceID).
-				Msg("Received envelope type UNIDENTIFIED_SENDER for non-ACI destination")
+				Msg("Received UNIDENTIFIED_SENDER envelope for non-ACI destination")
 			break
 		}
-		log.Trace().Msg("Received envelope type UNIDENTIFIED_SENDER")
 		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
 			ctx,
 			envelope.GetContent(),
@@ -481,7 +489,6 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 
 	case signalpb.Envelope_PREKEY_BUNDLE:
-		log.Debug().Msg("Received envelope type PREKEY_BUNDLE")
 		sender, err := libsignalgo.NewUUIDAddressFromString(
 			*envelope.SourceServiceId,
 			uint(*envelope.SourceDevice),
@@ -501,10 +508,8 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 
 	case signalpb.Envelope_PLAINTEXT_CONTENT:
-		log.Debug().Msg("Received envelope type PLAINTEXT_CONTENT")
 
 	case signalpb.Envelope_CIPHERTEXT:
-		log.Debug().Msg("Received envelope type CIPHERTEXT")
 		message, err := libsignalgo.DeserializeMessage(envelope.Content)
 		if err != nil {
 			log.Err(err).Msg("DeserializeMessage error")
@@ -550,15 +555,12 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 
 	case signalpb.Envelope_RECEIPT:
-		log.Debug().Msg("Received envelope type RECEIPT")
 		// TODO: handle receipt
 
 	case signalpb.Envelope_KEY_EXCHANGE:
-		log.Debug().Msg("Received envelope type KEY_EXCHANGE")
 		responseCode = 400
 
 	case signalpb.Envelope_UNKNOWN:
-		log.Warn().Msg("Received envelope type UNKNOWN")
 		responseCode = 400
 
 	default:
@@ -576,6 +578,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		log = log.With().
 			Str("sender_name", name).
 			Uint("sender_device_id", deviceId).
+			Str("destination_service_id", destinationServiceID.String()).
 			Logger()
 		ctx = log.WithContext(ctx)
 		log.Debug().Msg("Decrypted message")
@@ -611,16 +614,15 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				Status: responseCode,
 			}, nil
 		}
-		theirUUID := theirServiceID.UUID
 
 		// TODO: handle more sync messages
 		if content.SyncMessage != nil {
 			syncSent := content.SyncMessage.GetSent()
 			if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
 				destination := syncSent.DestinationServiceId
-				var destinationUUID uuid.UUID
+				var syncDestinationServiceID libsignalgo.ServiceID
 				if destination != nil {
-					destinationUUID, err = uuid.Parse(*destination)
+					syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
 					if err != nil {
 						log.Err(err).Msg("Sync message destination parse error")
 						return nil, err
@@ -630,9 +632,9 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 					log.Warn().Msg("sync message sent destination is nil")
 				} else if content.SyncMessage.Sent.Message != nil {
 					// TODO handle expiration start ts, and maybe the sync message ts?
-					cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, destinationUUID)
+					cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, syncDestinationServiceID)
 				} else if content.SyncMessage.Sent.EditMessage != nil {
-					cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, destinationUUID)
+					cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID)
 				}
 			}
 			if content.SyncMessage.Contacts != nil {
@@ -679,13 +681,13 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 
 		var sendDeliveryReceipt bool
 		if content.DataMessage != nil {
-			sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirUUID, theirUUID)
+			sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID)
 		} else if content.EditMessage != nil {
-			sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirUUID, theirUUID)
+			sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID)
 		}
 		if sendDeliveryReceipt {
 			// TODO send delivery receipts after actually bridging instead of here
-			err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirUUID)
+			err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirServiceID.UUID)
 			if err != nil {
 				log.Err(err).Msg("sendDeliveryReceipts error")
 			}
@@ -699,8 +701,8 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}
 			cli.handleEvent(&events.ChatEvent{
 				Info: events.MessageInfo{
-					Sender: theirUUID,
-					ChatID: groupOrUserID(groupID, theirUUID),
+					Sender: theirServiceID.UUID,
+					ChatID: groupOrUserID(groupID, theirServiceID),
 				},
 				Event: content.TypingMessage,
 			})
@@ -710,8 +712,8 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
 			cli.handleEvent(&events.Call{
 				Info: events.MessageInfo{
-					Sender: theirUUID,
-					ChatID: theirUUID.String(),
+					Sender: theirServiceID.UUID,
+					ChatID: theirServiceID.String(),
 				},
 				IsRinging: content.CallMessage.Offer != nil,
 			})
@@ -719,14 +721,14 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 
 		// Read and delivery receipts
 		if content.ReceiptMessage != nil {
-			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirUUID == cli.Store.ACI {
+			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirServiceID == cli.Store.ACIServiceID() {
 				// Ignore delivery receipts from other own devices
 				return &web.SimpleResponse{
 					Status: responseCode,
 				}, nil
 			}
 			cli.handleEvent(&events.Receipt{
-				Sender:  theirUUID,
+				Sender:  theirServiceID.UUID,
 				Content: content.ReceiptMessage,
 			})
 		}
@@ -787,14 +789,14 @@ func contentFieldsString(c *signalpb.Content) string {
 	return builder.String()
 }
 
-func groupOrUserID(groupID types.GroupIdentifier, userID uuid.UUID) string {
+func groupOrUserID(groupID types.GroupIdentifier, userID libsignalgo.ServiceID) string {
 	if groupID == "" {
 		return userID.String()
 	}
 	return string(groupID)
 }
 
-func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSender, chatRecipient uuid.UUID) bool {
+func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID) bool {
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var groupID types.GroupIdentifier
 	var groupRevision uint32
@@ -812,7 +814,7 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 	}
 	cli.handleEvent(&events.ChatEvent{
 		Info: events.MessageInfo{
-			Sender:        messageSender,
+			Sender:        messageSenderACI,
 			ChatID:        groupOrUserID(groupID, chatRecipient),
 			GroupRevision: groupRevision,
 		},
@@ -821,11 +823,11 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 	return true
 }
 
-func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSender, chatRecipient uuid.UUID) bool {
+func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID) bool {
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := cli.Store.ProfileKeyStore.StoreProfileKey(ctx, messageSender, profileKey)
+		err := cli.Store.ProfileKeyStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
 			return false
@@ -849,7 +851,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 	}
 
 	evtInfo := events.MessageInfo{
-		Sender:        messageSender,
+		Sender:        messageSenderACI,
 		ChatID:        groupOrUserID(groupID, chatRecipient),
 		GroupRevision: groupRevision,
 	}
