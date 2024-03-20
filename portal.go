@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
@@ -1311,6 +1312,14 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 		portal.storeMessageInDB(ctx, resp.EventID, sender.SignalID, converted.Timestamp, i)
 		if converted.DisappearIn != 0 {
 			portal.addDisappearingMessage(ctx, resp.EventID, converted.DisappearIn, sender.SignalID == source.SignalID)
+			// Ensure portal expiration timer is correct in DMs
+			if portal.implicitlyUpdateExpirationTimer(ctx, converted.DisappearIn) {
+				log.Info().Uint32("new_time", converted.DisappearIn).Msg("Implicitly updated expiration timer")
+				err := portal.Update(ctx)
+				if err != nil {
+					log.Err(err).Msg("Failed to save portal in database after implicitly updating group info")
+				}
+			}
 		}
 	}
 }
@@ -1976,6 +1985,22 @@ func (portal *Portal) updateExpirationTimer(ctx context.Context, newExpirationTi
 		_, err := portal.sendMainIntentMessage(ctx, msg.Content)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing")
+		}
+	}
+	return true
+}
+
+func (portal *Portal) implicitlyUpdateExpirationTimer(ctx context.Context, newExpirationTimer uint32) bool {
+	if portal.ExpirationTime == newExpirationTimer {
+		return false
+	}
+	portal.ExpirationTime = newExpirationTimer
+	if portal.MXID != "" {
+		msg := portal.MsgConv.ConvertDisappearingTimerChangeToMatrix(ctx, newExpirationTimer, false)
+		msg.Content.Body = fmt.Sprintf("Automatically enabled disappearing message timer (%s) because incoming message is disappearing", exfmt.Duration(time.Duration(newExpirationTimer)*time.Second))
+		_, err := portal.sendMainIntentMessage(ctx, msg.Content)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing implicitly")
 		}
 	}
 	return true
