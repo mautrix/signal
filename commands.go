@@ -18,11 +18,16 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/skip2/go-qrcode"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/commands"
@@ -30,6 +35,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var (
@@ -64,6 +70,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdCleanupLostPortals,
 		cmdInviteLink,
 		cmdResetInviteLink,
+		cmdCreate,
 	)
 }
 
@@ -701,4 +708,207 @@ func fnResetInviteLink(ce *WrappedCommandEvent) {
 		return
 	}
 	ce.Reply(inviteLink)
+}
+
+var cmdCreate = &commands.FullHandler{
+	Func: wrapCommand(fnCreate),
+	Name: "create",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionCreatingPortals,
+		Description: "Create a Signal group chat for the current Matrix room.",
+	},
+	RequiresLogin: true,
+}
+
+func fnCreate(ce *WrappedCommandEvent) {
+	if ce.Portal != nil {
+		ce.Reply("This is already a portal room")
+		return
+	}
+
+	roomState, err := ce.Bot.State(ce.Ctx, ce.RoomID)
+	if err != nil {
+		ce.Reply("Failed to get room state: %w", err)
+		return
+	}
+	members := roomState[event.StateMember]
+	powerLevelsRaw, ok := roomState[event.StatePowerLevels][""]
+	if !ok {
+		ce.Reply("Failed to get room power levels")
+		return
+	}
+	powerLevelsRaw.Content.ParseRaw(event.StatePowerLevels)
+	powerLevels := powerLevelsRaw.Content.AsPowerLevels()
+	joinRulesRaw, ok := roomState[event.StateJoinRules][""]
+	if !ok {
+		ce.Reply("Failed to get join rules")
+		return
+	}
+	joinRulesRaw.Content.ParseRaw(event.StateJoinRules)
+	joinRule := joinRulesRaw.Content.AsJoinRules().JoinRule
+	roomNameEventRaw, ok := roomState[event.StateRoomName][""]
+	if !ok {
+		ce.Reply("Failed to get room name")
+		return
+	}
+	roomNameEventRaw.Content.ParseRaw(event.StateRoomName)
+	roomName := roomNameEventRaw.Content.AsRoomName().Name
+	if len(roomName) == 0 {
+		ce.Reply("Please set a name for the room first")
+		return
+	}
+	roomTopic := ""
+	roomTopicEvent, ok := roomState[event.StateTopic][""]
+	if ok {
+		roomTopicEvent.Content.ParseRaw(event.StateTopic)
+		roomTopic = roomTopicEvent.Content.AsTopic().Topic
+	}
+	roomAvatarEvent, ok := roomState[event.StateRoomAvatar][""]
+	var avatarHash string
+	var avatarURL id.ContentURI
+	var avatarBytes []byte
+	if ok {
+		roomAvatarEvent.Content.ParseRaw(event.StateRoomAvatar)
+		avatarURL = roomAvatarEvent.Content.AsRoomAvatar().URL
+		if !avatarURL.IsEmpty() {
+			avatarBytes, err = ce.Bot.DownloadBytes(ce.Ctx, avatarURL)
+			if err != nil {
+				ce.ZLog.Err(err).Stringer("Failed to download updated avatar %s", avatarURL)
+				return
+			}
+			hash := sha256.Sum256(avatarBytes)
+			avatarHash = hex.EncodeToString(hash[:])
+			log.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{ce.User.MXID, avatarURL})
+		}
+	}
+	var encryptionEvent *event.EncryptionEventContent
+	encryptionEventContent, ok := roomState[event.StateEncryption][""]
+	if ok {
+		encryptionEventContent.Content.ParseRaw(event.StateEncryption)
+		encryptionEvent = encryptionEventContent.Content.AsEncryption()
+	}
+	var participants []*signalmeow.GroupMember
+	var bannedMembers []*signalmeow.BannedMember
+	participantDedup := make(map[uuid.UUID]bool)
+	participantDedup[uuid.Nil] = true
+	for key, member := range members {
+		mxid := id.UserID(key)
+		member.Content.ParseRaw(event.StateMember)
+		content := member.Content.AsMember()
+		membership := content.Membership
+		var uuid uuid.UUID
+		puppet := ce.Bridge.GetPuppetByMXID(mxid)
+		if puppet != nil {
+			uuid = puppet.SignalID
+		} else {
+			user := ce.Bridge.GetUserByMXID(mxid)
+			if user != nil && user.IsLoggedIn() {
+				uuid = user.SignalID
+			}
+		}
+		role := signalmeow.GroupMember_DEFAULT
+		if powerLevels.GetUserLevel(mxid) >= 50 {
+			role = signalmeow.GroupMember_ADMINISTRATOR
+		}
+		if !participantDedup[uuid] {
+			participantDedup[uuid] = true
+			// invites should be added on signal and then auto-joined
+			// joined members that need to be pending-Members should have their signal invite auto-accepted
+			if membership == event.MembershipJoin || membership == event.MembershipInvite {
+				participants = append(participants, &signalmeow.GroupMember{
+					UserID: uuid,
+					Role:   role,
+				})
+			} else if membership == event.MembershipBan {
+				bannedMembers = append(bannedMembers, &signalmeow.BannedMember{
+					UserID: uuid,
+				})
+			}
+		}
+	}
+	addFromInviteLinkAccess := signalmeow.AccessControl_UNSATISFIABLE
+	if joinRule == event.JoinRulePublic {
+		addFromInviteLinkAccess = signalmeow.AccessControl_ANY
+	} else if joinRule == event.JoinRuleKnock {
+		addFromInviteLinkAccess = signalmeow.AccessControl_ADMINISTRATOR
+	}
+	var inviteLinkPassword types.SerializedInviteLinkPassword
+	if addFromInviteLinkAccess != signalmeow.AccessControl_UNSATISFIABLE {
+		inviteLinkPassword = signalmeow.GenerateInviteLinkPassword()
+	}
+	membersAccess := signalmeow.AccessControl_MEMBER
+	if powerLevels.Invite() >= 50 {
+		membersAccess = signalmeow.AccessControl_ADMINISTRATOR
+	}
+	attributesAccess := signalmeow.AccessControl_MEMBER
+	if powerLevels.StateDefault() >= 50 {
+		attributesAccess = signalmeow.AccessControl_ADMINISTRATOR
+	}
+	announcementsOnly := false
+	if powerLevels.EventsDefault >= 50 {
+		announcementsOnly = true
+	}
+	ce.ZLog.Info().
+		Str("room_name", roomName).
+		Any("participants", participants).
+		Msg("Creating Signal group for Matrix room")
+	group, err := ce.User.Client.CreateGroupOnServer(ce.Ctx, &signalmeow.Group{
+		Title:       roomName,
+		Description: roomTopic,
+		Members:     participants,
+		AccessControl: &signalmeow.GroupAccessControl{
+			Members:           membersAccess,
+			Attributes:        attributesAccess,
+			AddFromInviteLink: addFromInviteLinkAccess,
+		},
+		InviteLinkPassword: &inviteLinkPassword,
+		BannedMembers:      bannedMembers,
+		AnnouncementsOnly:  announcementsOnly,
+	}, avatarBytes)
+	if err != nil {
+		ce.Reply("Failed to create group: %v", err)
+		return
+	}
+	gid := group.GroupIdentifier
+	ce.ZLog.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Stringer("group_id", gid)
+	})
+	portal := ce.User.GetPortalByChatID(gid.String())
+	portal.roomCreateLock.Lock()
+	defer portal.roomCreateLock.Unlock()
+	if len(portal.MXID) != 0 {
+		ce.ZLog.Warn().Msg("Detected race condition in room creation")
+		// TODO race condition, clean up the old room
+	}
+	portal.MXID = ce.RoomID
+	portal.Name = roomName
+	portal.Encrypted = encryptionEvent.Algorithm == id.AlgorithmMegolmV1
+	if !portal.Encrypted && ce.Bridge.Config.Bridge.Encryption.Default {
+		_, err = portal.MainIntent().SendStateEvent(ce.Ctx, portal.MXID, event.StateEncryption, "", portal.GetEncryptionEventContent())
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to enable encryption in room")
+			if errors.Is(err, mautrix.MForbidden) {
+				ce.Reply("I don't seem to have permission to enable encryption in this room.")
+			} else {
+				ce.Reply("Failed to enable encryption in room: %v", err)
+			}
+		}
+		portal.Encrypted = true
+	}
+	revision, err := ce.User.Client.UpdateGroup(ce.Ctx, &signalmeow.GroupChange{}, gid)
+	if err != nil {
+		ce.Reply("Failed to update Group")
+		return
+	}
+	portal.Revision = revision
+	portal.AvatarHash = avatarHash
+	portal.AvatarURL = avatarURL
+	portal.AvatarPath = group.AvatarPath
+	portal.AvatarSet = true
+	err = portal.Update(ce.Ctx)
+	if err != nil {
+		ce.ZLog.Err(err).Msg("Failed to save portal after creating group")
+	}
+	portal.UpdateBridgeInfo(ce.Ctx)
+	ce.Reply("Successfully created Signal group %s", gid.String())
 }

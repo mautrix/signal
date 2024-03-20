@@ -32,6 +32,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -655,6 +656,9 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 	if groupMasterKey == "" {
 		return nil, fmt.Errorf("No group master key found for group identifier %s", gid)
 	}
+	return cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
+}
+func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey types.SerializedGroupMasterKey) (*Group, error) {
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
 	if err != nil {
@@ -1216,7 +1220,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Description{Description: *decryptedGroupChange.ModifyDescription}}
 		encryptedDescription, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
 		if err != nil {
-			log.Err(err).Msg("Could not get encrypt Title")
+			log.Err(err).Msg("Could not get encrypt description")
 			return nil, err
 		}
 		groupChangeActions.ModifyDescription = &signalpb.GroupChange_Actions_ModifyDescriptionAction{Description: *encryptedDescription}
@@ -1225,24 +1229,12 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 		groupChangeActions.ModifyAvatar = &signalpb.GroupChange_Actions_ModifyAvatarAction{Avatar: *decryptedGroupChange.ModifyAvatar}
 	}
 	for _, addMember := range decryptedGroupChange.AddMembers {
-		expiringProfileKeyCredential, err := cli.FetchExpiringProfileKeyCredentialById(ctx, addMember.UserID)
+		encryptedMember, err := cli.encryptMember(ctx, &addMember.GroupMember, &groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("failed getting expiring profile key credential for addMember")
-			return nil, err
-		}
-		presentation, err := groupSecretParams.CreateExpiringProfileKeyCredentialPresentation(
-			prodServerPublicParams,
-			*expiringProfileKeyCredential,
-		)
-		if err != nil {
-			log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
-			return nil, err
+			log.Err(err).Msg("Failed to encrypt GroupMember")
 		}
 		groupChangeActions.AddMembers = append(groupChangeActions.AddMembers, &signalpb.GroupChange_Actions_AddMemberAction{
-			Added: &signalpb.Member{
-				Presentation: *presentation,
-				Role:         signalpb.Member_Role(addMember.Role),
-			},
+			Added:              encryptedMember,
 			JoinFromInviteLink: addMember.JoinFromInviteLink,
 		})
 	}
@@ -1404,6 +1396,28 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 	return cli.patchGroup(ctx, groupChangeActions, groupMasterKey, nil)
 }
 
+func (cli *Client) encryptMember(ctx context.Context, member *GroupMember, groupSecretParams *libsignalgo.GroupSecretParams) (*signalpb.Member, error) {
+	log := zerolog.Ctx(ctx)
+	expiringProfileKeyCredential, err := cli.FetchExpiringProfileKeyCredentialById(ctx, member.UserID)
+	if err != nil {
+		log.Err(err).Msg("failed getting expiring profile key credential for addMember")
+		return nil, err
+	}
+	presentation, err := groupSecretParams.CreateExpiringProfileKeyCredentialPresentation(
+		prodServerPublicParams,
+		*expiringProfileKeyCredential,
+	)
+	if err != nil {
+		log.Err(err).Msg("failed creating expiring profile key credential presentation for addMember")
+		return nil, err
+	}
+	encryptedMember := signalpb.Member{
+		Presentation: *presentation,
+		Role:         signalpb.Member_Role(member.Role),
+	}
+	return &encryptedMember, nil
+}
+
 var (
 	NoContentError               = RespError{Err: "NoContentError"}
 	GroupPatchNotAcceptedError   = RespError{Err: "GroupPatchNotAcceptedError"}
@@ -1413,6 +1427,7 @@ var (
 	ContactManifestMismatchError = RespError{Err: "ContactManifestMismatchError"}
 	RateLimitError               = RespError{Err: "RateLimitError"}
 	DeprecatedVersionError       = RespError{Err: "DeprecatedVersionError"}
+	GroupExistsError             = RespError{Err: "GroupExistsError"}
 )
 
 type RespError struct {
@@ -1488,7 +1503,7 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 }
 
 func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) (uint32, error) {
-	log := zerolog.Ctx(ctx).With().Str("action", "commitChangeWithConflictResolution").Logger()
+	log := zerolog.Ctx(ctx).With().Str("action", "UpdateGroup").Logger()
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		log.Err(err).Msg("Could not get master key from group id")
@@ -1551,4 +1566,141 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 		log.Err(err).Msg("Error sending GroupChange to group members")
 	}
 	return groupChange.Revision, nil
+}
+
+func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, groupSecretParams libsignalgo.GroupSecretParams) (*signalpb.Group, error) {
+	attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Title{Title: decryptedGroup.Title}}
+	encryptedTitle, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
+	if err != nil {
+		log.Err(err).Msg("Could not get encrypt Title")
+		return nil, err
+	}
+	groupPublicParams, err := groupSecretParams.GetPublicParams()
+	if err != nil {
+		log.Err(err).Msg("Couldn't get public params from GroupSecretParams")
+		return nil, err
+	}
+	encryptedGroup := &signalpb.Group{
+		PublicKey:         groupPublicParams[:],
+		Title:             *encryptedTitle,
+		Avatar:            decryptedGroup.AvatarPath,
+		AnnouncementsOnly: decryptedGroup.AnnouncementsOnly,
+		Revision:          0,
+	}
+	if decryptedGroup.Description != "" {
+		attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Description{Description: decryptedGroup.Description}}
+		encryptedDescription, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
+		if err != nil {
+			log.Err(err).Msg("Could not get encrypt Description")
+			return nil, err
+		}
+		encryptedGroup.Description = *encryptedDescription
+	}
+	if decryptedGroup.AccessControl != nil {
+		encryptedGroup.AccessControl = &signalpb.AccessControl{
+			Members:           signalpb.AccessControl_AccessRequired(decryptedGroup.AccessControl.Members),
+			Attributes:        signalpb.AccessControl_AccessRequired(decryptedGroup.AccessControl.Attributes),
+			AddFromInviteLink: signalpb.AccessControl_AccessRequired(decryptedGroup.AccessControl.AddFromInviteLink),
+		}
+		if decryptedGroup.AccessControl.AddFromInviteLink != AccessControl_UNSATISFIABLE {
+			inviteLinkPasswordBytes := make([]byte, 16)
+			rand.Read(inviteLinkPasswordBytes)
+			encryptedGroup.InviteLinkPassword = inviteLinkPasswordBytes
+		}
+	}
+	for _, member := range decryptedGroup.Members {
+		encryptedMember, err := cli.encryptMember(ctx, member, &groupSecretParams)
+		if err != nil {
+			log.Err(err).Msg("Failed to encrypt GroupMember")
+		}
+		encryptedGroup.Members = append(encryptedGroup.Members, encryptedMember)
+	}
+	return encryptedGroup, nil
+}
+
+func (cli *Client) CreateGroupOnServer(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "CreateGroupOnServer").Logger()
+	masterKeyByteArray := make([]byte, 32)
+	rand.Read(masterKeyByteArray)
+	masterKeyBytes := libsignalgo.GroupMasterKey(masterKeyByteArray)
+	groupMasterKey := masterKeyFromBytes(masterKeyBytes)
+	groupId, err := groupIdentifierFromMasterKey(groupMasterKey)
+	if err != nil {
+		log.Err(err).Msg("Couldn't get gid from masterkey")
+		return nil, err
+	}
+	err = cli.Store.GroupStore.StoreMasterKey(ctx, groupId, groupMasterKey)
+	if err != nil {
+		return nil, fmt.Errorf("StoreMasterKey error: %w", err)
+	}
+	log.Debug().Msg(string(groupMasterKey))
+	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyBytes)
+	if err != nil {
+		log.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
+		return nil, err
+	}
+	if len(avatarBytes) > 0 {
+		avatarPath, err := cli.UploadGroupAvatar(ctx, avatarBytes, groupId)
+		if err != nil {
+			log.Err(err).Msg("Failed to upload group avatar")
+			return nil, err
+		}
+		decryptedGroup.AvatarPath = *avatarPath
+	}
+	encryptedGroup, err := cli.EncryptGroup(ctx, decryptedGroup, groupSecretParams)
+	if err != nil {
+		log.Err(err).Msg("Failed to encrypt group")
+		return nil, err
+	}
+	log.Debug().Stringer("groupID", groupId)
+	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
+	if err != nil {
+		log.Err(err).Msg("Failed to get Authorization for today")
+		return nil, err
+	}
+	path := "/v1/groups/"
+	requestBody, err := proto.Marshal(encryptedGroup)
+	if err != nil {
+		log.Err(err).Msg("Failed to marshal request")
+		return nil, err
+	}
+	opts := &web.HTTPReqOpt{
+		Username:    &groupAuth.Username,
+		Password:    &groupAuth.Password,
+		ContentType: web.ContentTypeProtobuf,
+		Body:        requestBody,
+		Host:        web.StorageHostname,
+	}
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, path, opts)
+	if err != nil {
+		return nil, fmt.Errorf("SendRequest error: %w", err)
+	}
+	switch resp.StatusCode {
+	case http.StatusNoContent:
+		return nil, NoContentError
+	case http.StatusForbidden:
+		return nil, AuthorizationFailedError
+	case http.StatusNotFound:
+		return nil, NotFoundError
+	case http.StatusConflict:
+		return nil, GroupExistsError
+	case http.StatusTooManyRequests:
+		return nil, RateLimitError
+	case 499:
+		return nil, DeprecatedVersionError
+	case http.StatusBadRequest:
+		return nil, fmt.Errorf("failed to put new group: bad request")
+	}
+	group, err := cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get new group: %w", err)
+	}
+	log.Debug().Stringer("group id", group.GroupIdentifier).Msg("new group created")
+	return group, nil
+}
+
+func GenerateInviteLinkPassword() types.SerializedInviteLinkPassword {
+	inviteLinkPasswordBytes := make([]byte, 16)
+	rand.Read(inviteLinkPasswordBytes)
+	return InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
 }

@@ -242,3 +242,18 @@ func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp
 	presentation := ProfileKeyCredentialPresentation(presentationBytes)
 	return &presentation, nil
 }
+
+func (gsp *GroupSecretParams) GetMasterKey() (*GroupMasterKey, error) {
+	masterKeyBytes := [C.SignalGROUP_MASTER_KEY_LEN]C.uchar{}
+	signalFfiError := C.signal_group_secret_params_get_master_key(
+		&masterKeyBytes,
+		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(gsp)),
+	)
+	runtime.KeepAlive(gsp)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	var groupMasterKey GroupMasterKey
+	copy(groupMasterKey[:], C.GoBytes(unsafe.Pointer(&masterKeyBytes), C.int(C.SignalGROUP_MASTER_KEY_LEN)))
+	return &groupMasterKey, nil
+}
