@@ -45,9 +45,9 @@ const (
 type IdentityKeyStore interface {
 	GetIdentityKeyPair(ctx context.Context) (*IdentityKeyPair, error)
 	GetLocalRegistrationID(ctx context.Context) (uint32, error)
-	SaveIdentityKey(ctx context.Context, address *Address, identityKey *IdentityKey) (bool, error)
-	GetIdentityKey(ctx context.Context, address *Address) (*IdentityKey, error)
-	IsTrustedIdentity(ctx context.Context, address *Address, identityKey *IdentityKey, direction SignalDirection) (bool, error)
+	SaveIdentityKey(ctx context.Context, theirServiceID ServiceID, identityKey *IdentityKey) (bool, error)
+	GetIdentityKey(ctx context.Context, theirServiceID ServiceID) (*IdentityKey, error)
+	IsTrustedIdentity(ctx context.Context, theirServiceID ServiceID, identityKey *IdentityKey, direction SignalDirection) (bool, error)
 }
 
 //export signal_get_identity_key_pair_callback
@@ -90,9 +90,14 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const
 		if err != nil {
 			return -1, err
 		}
+		addr := &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}
+		theirServiceID, err := addr.NameServiceID()
+		if err != nil {
+			return -1, err
+		}
 		replaced, err := store.SaveIdentityKey(
 			ctx,
-			&Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))},
+			theirServiceID,
 			&IdentityKey{cloned},
 		)
 		if err != nil {
@@ -109,7 +114,12 @@ func signal_save_identity_key_callback(storeCtx unsafe.Pointer, address *C.const
 //export signal_get_identity_key_callback
 func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.SignalPublicKey, address *C.const_address) C.int {
 	return wrapStoreCallback(storeCtx, func(store IdentityKeyStore, ctx context.Context) error {
-		key, err := store.GetIdentityKey(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))})
+		addr := &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}
+		theirServiceID, err := addr.NameServiceID()
+		if err != nil {
+			return err
+		}
+		key, err := store.GetIdentityKey(ctx, theirServiceID)
 		if err == nil && key != nil {
 			key.publicKey.CancelFinalizer()
 			*public_keyp = key.publicKey.ptr
@@ -121,7 +131,12 @@ func signal_get_identity_key_callback(storeCtx unsafe.Pointer, public_keyp **C.S
 //export signal_is_trusted_identity_callback
 func signal_is_trusted_identity_callback(storeCtx unsafe.Pointer, address *C.const_address, public_key *C.const_public_key, direction C.uint) C.int {
 	return wrapStoreCallbackCustomReturn(storeCtx, func(store IdentityKeyStore, ctx context.Context) (int, error) {
-		trusted, err := store.IsTrustedIdentity(ctx, &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}, &IdentityKey{&PublicKey{ptr: (*C.SignalPublicKey)(unsafe.Pointer(public_key))}}, SignalDirection(direction))
+		addr := &Address{ptr: (*C.SignalProtocolAddress)(unsafe.Pointer(address))}
+		theirServiceID, err := addr.NameServiceID()
+		if err != nil {
+			return -1, err
+		}
+		trusted, err := store.IsTrustedIdentity(ctx, theirServiceID, &IdentityKey{&PublicKey{ptr: (*C.SignalPublicKey)(unsafe.Pointer(public_key))}}, SignalDirection(direction))
 		if err != nil {
 			return -1, err
 		}

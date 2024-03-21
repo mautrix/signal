@@ -44,11 +44,6 @@ func NewUUIDAddressFromString(uuidStr string, deviceID uint) (*Address, error) {
 	return serviceID.Address(deviceID)
 }
 
-// Deprecated: phone addresses are not used anymore
-func NewPhoneAddress(phone string, deviceID uint) (*Address, error) {
-	return newAddress(phone, deviceID)
-}
-
 func newAddress(name string, deviceID uint) (*Address, error) {
 	var pa *C.SignalProtocolAddress
 	signalFfiError := C.signal_address_new(&pa, C.CString(name), C.uint(deviceID))

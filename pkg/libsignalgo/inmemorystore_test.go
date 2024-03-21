@@ -44,7 +44,7 @@ type InMemorySignalProtocolStore struct {
 	identityKeyPair *libsignalgo.IdentityKeyPair
 	registrationID  uint32
 
-	identityKeyMap  map[AddressKey][]byte
+	identityKeyMap  map[libsignalgo.ServiceID][]byte
 	preKeyMap       map[uint32]*libsignalgo.PreKeyRecord
 	senderKeyMap    map[SenderKeyName]*libsignalgo.SenderKeyRecord
 	sessionMap      map[AddressKey]*libsignalgo.SessionRecord
@@ -67,7 +67,7 @@ func NewInMemorySignalProtocolStore() *InMemorySignalProtocolStore {
 		identityKeyPair: identityKeyPair,
 		registrationID:  uint32(registrationID.Uint64()),
 
-		identityKeyMap:  make(map[AddressKey][]byte),
+		identityKeyMap:  make(map[libsignalgo.ServiceID][]byte),
 		preKeyMap:       make(map[uint32]*libsignalgo.PreKeyRecord),
 		senderKeyMap:    make(map[SenderKeyName]*libsignalgo.SenderKeyRecord),
 		sessionMap:      make(map[AddressKey]*libsignalgo.SessionRecord),
@@ -147,18 +147,10 @@ func (ps *InMemorySignalProtocolStore) GetLocalRegistrationID(ctx context.Contex
 	return ps.registrationID, nil
 }
 
-func (ps *InMemorySignalProtocolStore) SaveIdentityKey(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey) (bool, error) {
+func (ps *InMemorySignalProtocolStore) SaveIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey) (bool, error) {
 	log.Debug().Msg("SaveIdentityKey called")
-	name, err := address.Name()
-	if err != nil {
-		return false, err
-	}
-	deviceID, err := address.DeviceID()
-	if err != nil {
-		return false, err
-	}
 	replacing := false
-	oldKeySerialized, ok := ps.identityKeyMap[AddressKey{name, deviceID}]
+	oldKeySerialized, ok := ps.identityKeyMap[theirServiceID]
 	if ok {
 		oldKey, err := libsignalgo.DeserializeIdentityKey(oldKeySerialized)
 		if err != nil {
@@ -180,40 +172,22 @@ func (ps *InMemorySignalProtocolStore) SaveIdentityKey(ctx context.Context, addr
 	hexIdentityKey := hex.EncodeToString(serializedIdentityKey)
 	log.Debug().Str("hexIdentityKey", hexIdentityKey).Msg("SaveIdentityKey")
 
-	ps.identityKeyMap[AddressKey{name, deviceID}] = serializedIdentityKey
+	ps.identityKeyMap[theirServiceID] = serializedIdentityKey
 	return replacing, nil
 }
 
-func (ps *InMemorySignalProtocolStore) GetIdentityKey(ctx context.Context, address *libsignalgo.Address) (*libsignalgo.IdentityKey, error) {
+func (ps *InMemorySignalProtocolStore) GetIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID) (*libsignalgo.IdentityKey, error) {
 	log.Debug().Msg("GetIdentityKey called")
-	name, err := address.Name()
-	if err != nil {
-		return nil, err
-	}
-	deviceID, err := address.DeviceID()
-	if err != nil {
-		return nil, err
-	}
-	serializedIdentityKey, ok := ps.identityKeyMap[AddressKey{name, deviceID}]
+	serializedIdentityKey, ok := ps.identityKeyMap[theirServiceID]
 	if !ok {
 		return nil, nil
 	}
 	return libsignalgo.DeserializeIdentityKey(serializedIdentityKey)
 }
 
-func (ps *InMemorySignalProtocolStore) IsTrustedIdentity(ctx context.Context, address *libsignalgo.Address, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error) {
+func (ps *InMemorySignalProtocolStore) IsTrustedIdentity(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error) {
 	log.Debug().Msg("IsTrustedIdentity called")
-	name, err := address.Name()
-	if err != nil {
-		log.Error().Err(err).Msg("Error getting name")
-		return false, err
-	}
-	deviceID, err := address.DeviceID()
-	if err != nil {
-		log.Error().Err(err).Msg("Error getting deviceID")
-		return false, err
-	}
-	if existingSerialized, ok := ps.identityKeyMap[AddressKey{name, deviceID}]; ok {
+	if existingSerialized, ok := ps.identityKeyMap[theirServiceID]; ok {
 		existingKey, err := libsignalgo.DeserializeIdentityKey(existingSerialized)
 		if err != nil {
 			log.Error().Err(err).Interface("existingKey", existingKey).Msg("Error deserializing existing identity key")

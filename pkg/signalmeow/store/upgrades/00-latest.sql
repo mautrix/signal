@@ -1,4 +1,4 @@
--- v0 -> v11: Latest revision
+-- v0 -> v12: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -39,11 +39,10 @@ CREATE TABLE signalmeow_kyber_pre_keys (
 CREATE TABLE signalmeow_identity_keys (
     account_id       TEXT    NOT NULL,
     their_service_id TEXT    NOT NULL,
-    their_device_id  INTEGER NOT NULL,
     key              bytea   NOT NULL,
     trust_level      TEXT    NOT NULL,
 
-    PRIMARY KEY (account_id, their_service_id, their_device_id),
+    PRIMARY KEY (account_id, their_service_id),
     FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 

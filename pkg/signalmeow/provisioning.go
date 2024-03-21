@@ -184,15 +184,15 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		device.ClearDeviceKeys(ctx)
 
 		// Store identity keys?
-		address, err := libsignalgo.NewACIServiceID(device.ACI).Address(uint(device.DeviceID))
+		_, err = device.IdentityStore.SaveIdentityKey(ctx, device.ACIServiceID(), device.ACIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
-				Err:   fmt.Errorf("error creating new address: %w", err),
+				Err:   fmt.Errorf("error saving identity key: %w", err),
 			}
 			return
 		}
-		_, err = device.IdentityStore.SaveIdentityKey(ctx, address, device.ACIIdentityKeyPair.GetIdentityKey())
+		_, err = device.IdentityStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
