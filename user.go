@@ -765,6 +765,7 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 		Stringer("aci", evt.ACI.UUID).
 		Stringer("pni", evt.PNI.UUID).
 		Logger()
+	log.Debug().Msg("Handling ACI found event")
 	ctx := log.WithContext(context.TODO())
 	user.bridge.portalsLock.Lock()
 	defer user.bridge.portalsLock.Unlock()
@@ -772,13 +773,14 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 		ChatID:   evt.PNI.String(),
 		Receiver: user.SignalID,
 	}, false)
-	pniPortal.roomCreateLock.Lock()
-	defer pniPortal.roomCreateLock.Unlock()
 	if pniPortal == nil {
 		log.Debug().Msg("PNI portal doesn't exist, ignoring event")
 		return
-	} else if pniPortal.MXID == "" {
-		log.Debug().Msg("PNI portal doesn't have Matrix room, deleting row")
+	}
+	pniPortal.roomCreateLock.Lock()
+	defer pniPortal.roomCreateLock.Unlock()
+	if pniPortal.MXID == "" {
+		log.Info().Msg("PNI portal doesn't have Matrix room, deleting row")
 		pniPortal.Delete()
 		return
 	}
@@ -789,26 +791,32 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 		ChatID:   evt.ACI.String(),
 		Receiver: user.SignalID,
 	}, false)
-	aciPortal.roomCreateLock.Lock()
-	defer aciPortal.roomCreateLock.Unlock()
 	if aciPortal == nil {
-		log.Debug().Msg("ACI portal doesn't exist, re-ID'ing PNI portal")
+		log.Info().Msg("ACI portal doesn't exist, re-ID'ing PNI portal")
 		err := pniPortal.unlockedReID(ctx, evt.ACI.String())
 		if err != nil {
 			log.Err(err).Msg("Failed to re-ID PNI portal")
+		} else {
+			pniPortal.UpdateDMInfo(ctx, true)
 		}
-	} else if aciPortal.MXID == "" {
-		log.Debug().Msg("ACI portal row exists, but doesn't have a Matrix room. Deleting ACI portal row and re-ID'ing PNI portal")
+		return
+	}
+	aciPortal.roomCreateLock.Lock()
+	defer aciPortal.roomCreateLock.Unlock()
+	if aciPortal.MXID == "" {
+		log.Info().Msg("ACI portal row exists, but doesn't have a Matrix room. Deleting ACI portal row and re-ID'ing PNI portal")
 		aciPortal.Delete()
 		err := pniPortal.unlockedReID(ctx, evt.ACI.String())
 		if err != nil {
 			log.Err(err).Msg("Failed to re-ID PNI portal")
+		} else {
+			pniPortal.UpdateDMInfo(ctx, true)
 		}
 	} else {
 		log.UpdateContext(func(c zerolog.Context) zerolog.Context {
 			return c.Stringer("aci_portal_mxid", aciPortal.MXID)
 		})
-		log.Debug().Msg("Both ACI and PNI portal have Matrix room, tombstoning PNI portal")
+		log.Info().Msg("Both ACI and PNI portal have Matrix room, tombstoning PNI portal")
 		_, err := pniPortal.MainIntent().SendStateEvent(ctx, pniPortal.MXID, event.StateTombstone, "", &event.TombstoneEventContent{
 			Body:            fmt.Sprintf("This room has been merged"),
 			ReplacementRoom: aciPortal.MXID,
