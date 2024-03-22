@@ -41,7 +41,9 @@ func GenerateRandomness() Randomness {
 	return randomness
 }
 
-type GroupMasterKey [C.SignalGROUP_MASTER_KEY_LEN]byte
+const GroupMasterKeyLength = C.SignalGROUP_MASTER_KEY_LEN
+
+type GroupMasterKey [GroupMasterKeyLength]byte
 type GroupSecretParams [C.SignalGROUP_SECRET_PARAMS_LEN]byte
 type GroupPublicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]byte
 type GroupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]byte

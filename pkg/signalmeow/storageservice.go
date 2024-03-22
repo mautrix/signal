@@ -24,19 +24,91 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/exerrors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 func (cli *Client) SyncStorage(ctx context.Context) {
-	//log := zerolog.Ctx(ctx).With().Str("action", "sync storage").Logger()
-	// TODO implement
+	log := zerolog.Ctx(ctx).With().Str("action", "sync storage").Logger()
+	// TODO only fetch changed entries
+	update, err := cli.FetchStorage(ctx, cli.Store.MasterKey, 0, nil)
+	if err != nil {
+		log.Err(err).Msg("Failed to fetch storage")
+		return
+	}
+	for _, record := range update.NewRecords {
+		switch data := record.StorageRecord.GetRecord().(type) {
+		case *signalpb.StorageRecord_Contact:
+			log.Trace().Any("contact_record", data.Contact).Msg("Handling contact record")
+			aci, _ := uuid.Parse(data.Contact.Aci)
+			pni, _ := uuid.Parse(data.Contact.Pni)
+			if aci == uuid.Nil && pni == uuid.Nil {
+				log.Warn().
+					Str("raw_aci", data.Contact.Aci).
+					Str("raw_pni", data.Contact.Pni).
+					Str("raw_e164", data.Contact.E164).
+					Msg("Storage service has contact record with no ACI or PNI")
+				continue
+			}
+			contact := data.Contact
+			_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (changed bool, err error) {
+				if len(contact.ProfileKey) == libsignalgo.ProfileKeyLength {
+					newProfileKey := libsignalgo.ProfileKey(contact.ProfileKey)
+					changed = changed || recipient.Profile.Key != newProfileKey
+					recipient.Profile.Key = newProfileKey
+				}
+				if recipient.Profile.Name == "" && (contact.GivenName != "" || contact.FamilyName != "") {
+					changed = true
+					recipient.Profile.Name = strings.TrimSpace(fmt.Sprintf("%s %s", contact.GivenName, contact.FamilyName))
+				}
+				if contact.SystemGivenName != "" || contact.SystemFamilyName != "" {
+					changed = true
+					recipient.ContactName = strings.TrimSpace(fmt.Sprintf("%s %s", contact.SystemGivenName, contact.SystemFamilyName))
+				}
+				if contact.E164 != "" {
+					changed = changed || recipient.E164 != contact.E164
+					recipient.E164 = contact.E164
+				}
+				return
+			})
+			if err != nil {
+				log.Err(err).
+					Stringer("aci", aci).
+					Stringer("pni", pni).
+					Msg("Failed to update contact")
+			}
+		case *signalpb.StorageRecord_GroupV2:
+			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
+				log.Warn().Msg("Invalid group master key length")
+				continue
+			}
+			masterKey := libsignalgo.GroupMasterKey(data.GroupV2.MasterKey)
+			groupID, err := cli.StoreMasterKey(ctx, masterKeyFromBytes(masterKey))
+			if err != nil {
+				log.Err(err).Msg("Failed to store group master key from storage service")
+			} else {
+				log.Debug().Stringer("group_id", groupID).Msg("Stored group master key from storage service")
+			}
+		case *signalpb.StorageRecord_Account:
+			log.Trace().Any("account_record", data.Account).Msg("Found account record")
+			// There's probably some useful data here
+		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
+			// irrelevant data
+		default:
+			log.Warn().Str("type", fmt.Sprintf("%T", data)).Msg("Unknown storage record type")
+		}
+	}
 }
 
 type StorageUpdate struct {
