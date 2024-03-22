@@ -32,7 +32,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -1573,6 +1572,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 }
 
 func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, groupSecretParams libsignalgo.GroupSecretParams) (*signalpb.Group, error) {
+	log := zerolog.Ctx(ctx)
 	attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Title{Title: decryptedGroup.Title}}
 	encryptedTitle, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
 	if err != nil {

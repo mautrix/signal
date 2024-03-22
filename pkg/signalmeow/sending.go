@@ -29,7 +29,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/exfmt"
 	"google.golang.org/protobuf/proto"
 
@@ -575,7 +574,7 @@ func (cli *Client) sendToGroup(ctx context.Context, recipients []*GroupMember, c
 			// Don't send normal DataMessages to ourselves
 			continue
 		}
-		log := log.With().Stringer("member", member.UserID).Logger()
+		log := zerolog.Ctx(ctx).With().Stringer("member", member.UserID).Logger()
 		ctx := log.WithContext(ctx)
 		sentUnidentified, err := cli.sendContent(ctx, member.UserServiceID(), messageTimestamp, content, 0, true)
 		if err != nil {
@@ -603,7 +602,7 @@ func (cli *Client) sendToGroup(ctx context.Context, recipients []*GroupMember, c
 		}
 		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true)
 		if selfSendErr != nil {
-			log.Err(selfSendErr).Msg("Failed to send sync message to myself")
+			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 		}
 	}
 

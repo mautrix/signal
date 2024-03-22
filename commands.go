@@ -27,7 +27,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"github.com/skip2/go-qrcode"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/commands"
@@ -786,7 +785,7 @@ func fnCreate(ce *WrappedCommandEvent) {
 			}
 			hash := sha256.Sum256(avatarBytes)
 			avatarHash = hex.EncodeToString(hash[:])
-			log.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{ce.User.MXID, avatarURL})
+			ce.ZLog.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{ce.User.MXID, avatarURL})
 		}
 	}
 	var encryptionEvent *event.EncryptionEventContent

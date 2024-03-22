@@ -31,7 +31,6 @@ import (
 	"net/http"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 
@@ -206,6 +205,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 }
 
 func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier) (*string, error) {
+	log := zerolog.Ctx(ctx)
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		log.Err(err).Msg("Could not get master key from group id")

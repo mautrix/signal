@@ -30,7 +30,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
@@ -2876,7 +2875,7 @@ func (portal *Portal) GetInviteLink(ctx context.Context, source *User) (string, 
 	}
 	inviteLinkPassword, err := info.GetInviteLink()
 	if err != nil {
-		log.Err(err).Msg("Failed to get invite link")
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get invite link")
 	}
 	return inviteLinkPassword, nil
 }
