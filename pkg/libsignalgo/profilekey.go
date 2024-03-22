@@ -23,6 +23,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"errors"
 	"runtime"
 	"unsafe"
 
@@ -30,10 +31,22 @@ import (
 	"go.mau.fi/util/random"
 )
 
-type ProfileKey [C.SignalPROFILE_KEY_LEN]byte
+const ProfileKeyLength = C.SignalPROFILE_KEY_LEN
+
+type ProfileKey [ProfileKeyLength]byte
 type ProfileKeyCommitment [C.SignalPROFILE_KEY_COMMITMENT_LEN]byte
 type ProfileKeyVersion [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]byte
 type AccessKey [C.SignalACCESS_KEY_LEN]byte
+
+func DeserializeProfileKey(bytes []byte) (*ProfileKey, error) {
+	if len(bytes) == 0 {
+		return nil, nil
+	} else if len(bytes) != ProfileKeyLength {
+		return nil, errors.New("invalid profile key length")
+	}
+	key := ProfileKey(bytes)
+	return &key, nil
+}
 
 var blankProfileKey ProfileKey
 
@@ -50,7 +63,7 @@ func (pv *ProfileKeyVersion) String() string {
 }
 
 func (pk *ProfileKey) Slice() []byte {
-	if pk == nil {
+	if pk.IsEmpty() {
 		return nil
 	}
 	return pk[:]

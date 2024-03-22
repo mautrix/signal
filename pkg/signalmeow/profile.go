@@ -102,7 +102,7 @@ func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uu
 }
 
 func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	profileKey, err := cli.Store.ProfileKeyStore.LoadProfileKey(ctx, signalACI)
+	profileKey, err := cli.Store.RecipientStore.LoadProfileKey(ctx, signalACI)
 	if err != nil {
 		return nil, fmt.Errorf("error getting profile key: %w", err)
 	}

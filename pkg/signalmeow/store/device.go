@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -13,6 +14,8 @@ import (
 type sqlStore struct {
 	*Container
 	AccountID uuid.UUID
+
+	contactLock sync.Mutex
 }
 
 type scopedSQLStore struct {
@@ -63,10 +66,9 @@ type Device struct {
 	IdentityStore   libsignalgo.IdentityKeyStore
 	SenderKeyStore  libsignalgo.SenderKeyStore
 
-	ProfileKeyStore ProfileKeyStore
-	GroupStore      GroupStore
-	ContactStore    ContactStore
-	DeviceStore     DeviceStore
+	GroupStore     GroupStore
+	RecipientStore RecipientStore
+	DeviceStore    DeviceStore
 }
 
 func (d *Device) ClearDeviceKeys(ctx context.Context) error {

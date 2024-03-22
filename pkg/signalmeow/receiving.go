@@ -360,10 +360,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		ctx = log.WithContext(ctx)
 		log.Trace().Msg("Received SealedSender message")
 
-		err = cli.UpdateContactE164(ctx, senderUUID, senderE164)
-		if err != nil {
-			log.Err(err).Msg("UpdateContactE164 error")
-		}
+		cli.Store.RecipientStore.UpdateRecipientE164(ctx, senderUUID, uuid.Nil, senderE164)
 
 		switch messageType {
 		case libsignalgo.CiphertextMessageTypeSenderKey:
@@ -662,9 +659,10 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 						log.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
 					}
 					log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
-					convertedContacts := make([]*types.Contact, 0, len(contacts))
+					convertedContacts := make([]*types.Recipient, 0, len(contacts))
 					for i, signalContact := range contacts {
 						if signalContact.Aci == nil || *signalContact.Aci == "" {
+							// TODO lookup PNI via CDSI and store that when ACI is missing?
 							log.Info().
 								Any("contact", signalContact).
 								Msg("Signal Contact UUID is nil, skipping")
@@ -838,7 +836,10 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 		Stringer("aci", sender.UUID).
 		Stringer("pni", pni).
 		Msg("Verified ACI-PNI mapping")
-	// TODO save mapping somewhere
+	_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, sender.UUID, pni, nil)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to update aci/pni mapping in store")
+	}
 	cli.handleEvent(&events.ACIFound{ACI: sender, PNI: pniServiceID})
 	return nil
 }
@@ -874,7 +875,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := cli.Store.ProfileKeyStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
+		err := cli.Store.RecipientStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
 			return false

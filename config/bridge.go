@@ -165,17 +165,21 @@ type DisplaynameParams struct {
 	Username    string
 	PhoneNumber string
 	UUID        string
+	ACI         string
+	PNI         string
 	AboutEmoji  string
 }
 
-func (bc BridgeConfig) FormatDisplayname(contact *types.Contact) string {
+func (bc BridgeConfig) FormatDisplayname(contact *types.Recipient) string {
 	var buffer strings.Builder
 	_ = bc.displaynameTemplate.Execute(&buffer, DisplaynameParams{
 		ProfileName: contact.Profile.Name,
 		ContactName: contact.ContactName,
 		//Username:    contact.Username,
 		PhoneNumber: contact.E164,
-		UUID:        contact.UUID.String(),
+		UUID:        contact.ACI.String(),
+		ACI:         contact.ACI.String(),
+		PNI:         contact.PNI.String(),
 		AboutEmoji:  contact.Profile.AboutEmoji,
 	})
 	return buffer.String()

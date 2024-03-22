@@ -222,12 +222,16 @@ func fnPM(ce *WrappedCommandEvent) {
 
 	user := ce.User
 	var aci, pni uuid.UUID
+	e164 := fmt.Sprintf("+%d", number)
+	var recipient *types.Recipient
 
-	if contact, err := user.Client.ContactByE164(ce.Ctx, fmt.Sprintf("+%d", number)); err != nil {
+	if recipient, err = user.Client.ContactByE164(ce.Ctx, e164); err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return
-	} else if contact != nil {
-		aci = contact.UUID
+	} else if recipient != nil && (recipient.ACI != uuid.Nil || recipient.PNI != uuid.Nil) {
+		// TODO maybe lookup PNI if there's only ACI and E164 stored?
+		aci = recipient.ACI
+		pni = recipient.PNI
 	} else if resp, err := user.Client.LookupPhone(ce.Ctx, number); err != nil {
 		ce.ZLog.Err(err).Uint64("e164", number).Msg("Failed to lookup number on server")
 		ce.Reply("Error looking up number on server: %v", err)
@@ -235,16 +239,15 @@ func fnPM(ce *WrappedCommandEvent) {
 	} else {
 		aci = resp[number].ACI
 		pni = resp[number].PNI
-	}
-	if aci == uuid.Nil && pni == uuid.Nil {
-		ce.Reply("+%d doesn't seem to be on Signal", number)
-		return
-	}
-	if aci != uuid.Nil {
-		err = user.Client.Store.ContactStore.UpdatePhone(ce.Ctx, aci, fmt.Sprintf("+%d", number))
-		if err != nil {
-			ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
+		if aci == uuid.Nil && pni == uuid.Nil {
+			ce.Reply("+%d doesn't seem to be on Signal", number)
+			return
 		}
+		recipient, err = user.Client.Store.RecipientStore.UpdateRecipientE164(ce.Ctx, aci, pni, e164)
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
 	}
 	ce.ZLog.Debug().
 		Uint64("e164", number).
@@ -311,12 +314,6 @@ func fnResolvePhone(ce *WrappedCommandEvent) {
 			result, found := resp[phone]
 			if found {
 				_, _ = fmt.Fprintf(&out, "+%d: %s / %s\n", phone, result.ACI, result.PNI)
-				if result.ACI != uuid.Nil {
-					err = ce.User.Client.Store.ContactStore.UpdatePhone(ce.Ctx, result.ACI, fmt.Sprintf("+%d", phone))
-					if err != nil {
-						ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
-					}
-				}
 			} else {
 				_, _ = fmt.Fprintf(&out, "+%d: not found\n", phone)
 			}

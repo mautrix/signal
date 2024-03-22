@@ -138,6 +138,8 @@ func (gsp *GroupSecretParams) EncryptBlobWithPaddingDeterministic(randomness Ran
 }
 
 func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (uuid.UUID, error) {
+	// TODO this should probably be DecryptServiceID
+
 	u := C.SignalServiceIdFixedWidthBinaryBytes{}
 	signalFfiError := C.signal_group_secret_params_decrypt_service_id(
 		&u,

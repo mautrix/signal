@@ -36,83 +36,49 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDetails *signalpb.ContactDetails, avatar *[]byte) (*types.Contact, error) {
+func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDetails *signalpb.ContactDetails, avatar *[]byte) (*types.Recipient, error) {
 	parsedUUID, err := uuid.Parse(contactDetails.GetAci())
 	if err != nil {
 		return nil, err
 	}
-	log := zerolog.Ctx(ctx).With().
+	ctx = zerolog.Ctx(ctx).With().
 		Str("action", "store contact details as contact").
 		Stringer("uuid", parsedUUID).
-		Logger()
-	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, parsedUUID)
-	if err != nil {
-		log.Err(err).Msg("Failed to load contact from database")
-		return nil, err
-	}
-	if existingContact == nil {
-		existingContact = &types.Contact{
-			UUID: parsedUUID,
+		Logger().WithContext(ctx)
+	return cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, parsedUUID, uuid.Nil, func(recipient *types.Recipient) (bool, error) {
+		recipient.E164 = contactDetails.GetNumber()
+		recipient.ContactName = contactDetails.GetName()
+		if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
+			profileKey := libsignalgo.ProfileKey(profileKeyString)
+			recipient.Profile.Key = profileKey
 		}
-	}
-
-	existingContact.E164 = contactDetails.GetNumber()
-	existingContact.ContactName = contactDetails.GetName()
-	if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
-		profileKey := libsignalgo.ProfileKey(profileKeyString)
-		existingContact.Profile.Key = profileKey
-		err = cli.Store.ProfileKeyStore.StoreProfileKey(ctx, existingContact.UUID, profileKey)
-		if err != nil {
-			log.Err(err).Msg("Failed to store profile key from contact")
+		if avatar != nil && *avatar != nil && len(*avatar) > 0 {
+			rawHash := sha256.Sum256(*avatar)
+			avatarHash := hex.EncodeToString(rawHash[:])
+			var contentType string
+			if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil && !strings.HasSuffix(avatarDetails.GetContentType(), "/*") {
+				contentType = *avatarDetails.ContentType
+			} else {
+				contentType = http.DetectContentType(*avatar)
+			}
+			recipient.ContactAvatar = types.ContactAvatar{
+				Image:       *avatar,
+				ContentType: contentType,
+				Hash:        avatarHash,
+			}
 		}
-	}
-
-	if avatar != nil && *avatar != nil && len(*avatar) > 0 {
-		rawHash := sha256.Sum256(*avatar)
-		avatarHash := hex.EncodeToString(rawHash[:])
-		var contentType string
-		if avatarDetails := contactDetails.GetAvatar(); avatarDetails != nil && !strings.HasSuffix(avatarDetails.GetContentType(), "/*") {
-			contentType = *avatarDetails.ContentType
-		} else {
-			contentType = http.DetectContentType(*avatar)
-		}
-		existingContact.ContactAvatar = types.ContactAvatar{
-			Image:       *avatar,
-			ContentType: contentType,
-			Hash:        avatarHash,
-		}
-	}
-
-	storeErr := cli.Store.ContactStore.StoreContact(ctx, *existingContact)
-	if storeErr != nil {
-		log.Err(storeErr).Msg("Failed to save contact")
-		return existingContact, storeErr
-	}
-	return existingContact, nil
+		return true, nil
+	})
 }
 
-func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, profileUUID uuid.UUID) (*types.Contact, error) {
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, aci uuid.UUID) (*types.Recipient, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "fetch contact then try and update with profile").
-		Stringer("profile_uuid", profileUUID).
+		Stringer("profile_aci", aci).
 		Logger()
-	contactChanged := false
+	ctx = log.WithContext(ctx)
 
-	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, profileUUID)
-	if err != nil {
-		log.Err(err).Msg("Failed to load contact from database")
-		return nil, err
-	}
-	if existingContact == nil {
-		log.Debug().Msg("creating new contact")
-		existingContact = &types.Contact{
-			UUID: profileUUID,
-		}
-		contactChanged = true
-	} else {
-		log.Debug().Msg("updating existing contact")
-	}
-	profile, err := cli.RetrieveProfileByID(ctx, profileUUID)
+	profile, err := cli.RetrieveProfileByID(ctx, aci)
 	if err != nil {
 		logLevel := zerolog.ErrorLevel
 		if errors.Is(err, errProfileKeyNotFound) {
@@ -121,55 +87,24 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 		log.WithLevel(logLevel).Err(err).Msg("Failed to fetch profile")
 		// Continue to return contact without profile
 	}
-
-	if profile != nil {
-		// Don't bother saving every fetched timestamp to the database, but save if anything else changed
-		if !existingContact.Profile.Equals(profile) || existingContact.Profile.FetchedAt.IsZero() {
-			contactChanged = true
+	return cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
+		if profile != nil {
+			// Don't bother saving every fetched timestamp to the database, but save if anything else changed
+			if !recipient.Profile.Equals(profile) || recipient.Profile.FetchedAt.IsZero() {
+				changed = true
+			}
+			recipient.Profile = *profile
 		}
-		existingContact.Profile = *profile
-	}
-
-	if contactChanged {
-		err = cli.Store.ContactStore.StoreContact(ctx, *existingContact)
-		if err != nil {
-			log.Err(err).Msg("Failed to save contact")
-			return nil, err
-		}
-	}
-	return existingContact, nil
+		return
+	})
 }
 
-func (cli *Client) UpdateContactE164(ctx context.Context, uuid uuid.UUID, e164 string) error {
-	log := zerolog.Ctx(ctx).With().
-		Str("action", "update contact e164").
-		Stringer("uuid", uuid).
-		Str("e164", e164).
-		Logger()
-	existingContact, err := cli.Store.ContactStore.LoadContact(ctx, uuid)
-	if err != nil {
-		log.Err(err).Msg("Failed to load contact from database")
-		return err
-	}
-	if existingContact == nil {
-		existingContact = &types.Contact{
-			UUID: uuid,
-		}
-	}
-	if existingContact.E164 == e164 {
-		return nil
-	}
-	log.Debug().Msg("Contact phone number changed")
-	existingContact.E164 = e164
-	return cli.Store.ContactStore.StoreContact(ctx, *existingContact)
+func (cli *Client) ContactByACI(ctx context.Context, aci uuid.UUID) (*types.Recipient, error) {
+	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, aci)
 }
 
-func (cli *Client) ContactByID(ctx context.Context, uuid uuid.UUID) (*types.Contact, error) {
-	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, uuid)
-}
-
-func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Contact, error) {
-	contact, err := cli.Store.ContactStore.LoadContactByE164(ctx, e164)
+func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Recipient, error) {
+	contact, err := cli.Store.RecipientStore.LoadRecipientByE164(ctx, e164)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("ContactByE164 error loading contact")
 		return nil, err
@@ -177,7 +112,9 @@ func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Conta
 	if contact == nil {
 		return nil, nil
 	}
-	contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.UUID)
+	if contact.ACI != uuid.Nil {
+		contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.ACI)
+	}
 	return contact, err
 }
 

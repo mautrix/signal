@@ -748,9 +748,12 @@ func (user *User) handleReadSelf(evt *events.ReadSelf) {
 func (user *User) handleContactList(evt *events.ContactList) {
 	ctx := user.log.With().Str("action", "handle contact list").Logger().WithContext(context.TODO())
 	for _, contact := range evt.Contacts {
-		puppet := user.bridge.GetPuppetBySignalID(contact.UUID)
+		if contact.ACI == uuid.Nil {
+			continue
+		}
+		puppet := user.bridge.GetPuppetBySignalID(contact.ACI)
 		if puppet == nil {
-			return
+			continue
 		}
 		puppet.UpdateInfo(ctx, user)
 	}

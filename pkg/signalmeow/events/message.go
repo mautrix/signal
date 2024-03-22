@@ -63,7 +63,7 @@ type Call struct {
 }
 
 type ContactList struct {
-	Contacts []*types.Contact
+	Contacts []*types.Recipient
 }
 
 type ACIFound struct {

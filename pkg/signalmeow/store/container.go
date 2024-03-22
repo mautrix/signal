@@ -73,10 +73,9 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.ACISessionStore = aciStore
 	device.PNISessionStore = pniStore
 	device.IdentityStore = baseStore
-	device.ProfileKeyStore = baseStore
 	device.SenderKeyStore = baseStore
 	device.GroupStore = baseStore
-	device.ContactStore = baseStore
+	device.RecipientStore = baseStore
 	device.DeviceStore = baseStore
 
 	return &device, nil

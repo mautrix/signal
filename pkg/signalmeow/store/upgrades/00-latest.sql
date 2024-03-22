@@ -1,4 +1,4 @@
--- v0 -> v12: Latest revision
+-- v0 -> v13: Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -85,19 +85,22 @@ CREATE TABLE signalmeow_groups (
     PRIMARY KEY (account_id, group_identifier)
 );
 
-CREATE TABLE signalmeow_contacts (
-    account_id          TEXT   NOT NULL,
-    aci_uuid            TEXT   NOT NULL,
-    e164_number         TEXT   NOT NULL,
-    contact_name        TEXT   NOT NULL,
-    contact_avatar_hash TEXT   NOT NULL,
+CREATE TABLE signalmeow_recipients (
+    account_id          TEXT NOT NULL,
+    aci_uuid            TEXT,
+    pni_uuid            TEXT,
+    e164_number         TEXT NOT NULL DEFAULT '',
+    contact_name        TEXT NOT NULL DEFAULT '',
+    contact_avatar_hash TEXT NOT NULL DEFAULT '',
     profile_key         bytea,
-    profile_name        TEXT   NOT NULL,
-    profile_about       TEXT   NOT NULL,
-    profile_about_emoji TEXT   NOT NULL,
-    profile_avatar_path TEXT   NOT NULL,
+    profile_name        TEXT NOT NULL DEFAULT '',
+    profile_about       TEXT NOT NULL DEFAULT '',
+    profile_about_emoji TEXT NOT NULL DEFAULT '',
+    profile_avatar_path TEXT NOT NULL DEFAULT '',
     profile_fetched_at  BIGINT,
 
-    PRIMARY KEY (account_id, aci_uuid),
-    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT signalmeow_contacts_account_id_fkey FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT signalmeow_contacts_aci_unique UNIQUE (account_id, aci_uuid),
+    CONSTRAINT signalmeow_contacts_pni_unique UNIQUE (account_id, pni_uuid)
 );

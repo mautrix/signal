@@ -36,6 +36,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 )
@@ -208,7 +209,14 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
 
 		// Store our profile key
-		err = device.ProfileKeyStore.StoreProfileKey(ctx, data.ACI, profileKey)
+		err = device.RecipientStore.StoreRecipient(ctx, &types.Recipient{
+			ACI:  data.ACI,
+			PNI:  data.PNI,
+			E164: data.Number,
+			Profile: types.Profile{
+				Key: profileKey,
+			},
+		})
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,

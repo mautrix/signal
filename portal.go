@@ -1734,7 +1734,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 		})
 		portal.Encrypted = true
 
-		if portal.IsPrivateChat() {
+		if portal.IsPrivateChat() && portal.MainIntent() != portal.bridge.Bot {
 			invite = append(invite, portal.bridge.Bot.UserID)
 		}
 	}
@@ -1857,6 +1857,19 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	} else if portal.shouldSetDMRoomMetadata() {
 		update = portal.updateName(ctx, puppet.Name, nil) || update
 		update = portal.updateAvatarWithMXC(ctx, puppet.AvatarPath, puppet.AvatarHash, puppet.AvatarURL) || update
+	} else {
+		// Clear name/avatar if they're set in a DM that shouldn't have them set
+		if portal.Name != "" && portal.NameSet {
+			update = portal.updateName(ctx, "", nil) || update
+		}
+		// Avatar is currently never set in PNI portals
+		//if !portal.AvatarURL.IsEmpty() && portal.AvatarSet {
+		//	update = true
+		//	portal.AvatarURL = id.ContentURI{}
+		//	portal.AvatarHash = ""
+		//	portal.AvatarPath = ""
+		//	portal.updateAvatarInRoom(ctx, nil)
+		//}
 	}
 	topic := PrivateChatTopic
 	if portal.bridge.Config.Bridge.NumberInTopic && puppet.Number != "" {
@@ -1873,12 +1886,32 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 }
 
 func (portal *Portal) UpdatePNIDMInfo(ctx context.Context, user *User) {
-	// TODO find phone number and set room name/topic accurately
+	portalUserID := portal.UserID()
+	if portalUserID.Type != libsignalgo.ServiceIDTypePNI {
+		return
+	}
+	log := zerolog.Ctx(ctx)
 	update := false
-	topic := fmt.Sprintf("%s with %s", PrivateChatTopic, portal.ChatID)
+	recipient, err := user.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, uuid.Nil, portalUserID.UUID, nil)
+	if err != nil {
+		log.Err(err).Msg("Failed to get PNI DM recipient entry")
+	}
+	if recipient == nil {
+		recipient = &types.Recipient{PNI: portalUserID.UUID}
+	}
+	topic := PrivateChatTopic
+	name := portalUserID.UUID.String()
+	if recipient.E164 != "" {
+		topic = fmt.Sprintf("%s with %s", topic, recipient.E164)
+		name = recipient.E164
+	}
+	if recipient.ContactName != "" {
+		name = recipient.ContactName
+	}
 	update = portal.updateTopic(ctx, topic, nil) || update
+	update = portal.updateName(ctx, name, nil) || update
 	if update {
-		err := portal.Update(ctx)
+		err = portal.Update(ctx)
 		if err != nil {
 			log.Err(err).Msg("Failed to save portal in database after updating group info")
 		}
@@ -2868,7 +2901,7 @@ func (portal *Portal) GetMatrixUsers(ctx context.Context) ([]id.UserID, error) {
 func (portal *Portal) GetInviteLink(ctx context.Context, source *User) (string, error) {
 	info, err := source.Client.RetrieveGroupByID(ctx, portal.GroupID(), portal.Revision)
 	if err != nil {
-		log.Err(err).
+		zerolog.Ctx(ctx).Err(err).
 			Stringer("source_user_id", source.MXID).
 			Msg("Failed to fetch group info")
 		return "", err
@@ -2885,12 +2918,11 @@ func (portal *Portal) ResetInviteLink(ctx context.Context, source *User) error {
 	groupChange := &signalmeow.GroupChange{ModifyInviteLinkPassword: &inviteLinkPassword}
 	revision, err := source.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
-		log.Err(err).Msg("Error setting invite link password")
+		zerolog.Ctx(ctx).Err(err).Msg("Error setting invite link password")
 		return err
 	}
 	portal.Revision = revision
-	portal.Update(ctx)
-	return nil
+	return portal.Update(ctx)
 }
 
 func (portal *Portal) GetEncryptionEventContent() (evt *event.EncryptionEventContent) {
