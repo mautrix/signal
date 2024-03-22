@@ -615,6 +615,17 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}, nil
 		}
 
+		if content.GetPniSignatureMessage() != nil {
+			log.Debug().Msg("Content includes PNI signature message")
+			err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.GetPniSignatureMessage())
+			if err != nil {
+				log.Err(err).
+					Hex("pni_raw", content.GetPniSignatureMessage().GetPni()).
+					Stringer("aci", theirServiceID.UUID).
+					Msg("Failed to verify ACI-PNI mapping")
+			}
+		}
+
 		// TODO: handle more sync messages
 		if content.SyncMessage != nil {
 			syncSent := content.SyncMessage.GetSent()
@@ -794,6 +805,42 @@ func groupOrUserID(groupID types.GroupIdentifier, userID libsignalgo.ServiceID) 
 		return userID.String()
 	}
 	return string(groupID)
+}
+
+func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsignalgo.ServiceID, msg *signalpb.PniSignatureMessage) error {
+	if sender.Type != libsignalgo.ServiceIDTypeACI {
+		return fmt.Errorf("PNI signature message sender is not an ACI")
+	}
+	pniBytes := msg.GetPni()
+	if len(pniBytes) != 16 {
+		return fmt.Errorf("unexpected PNI length %d (expected 16)", len(pniBytes))
+	}
+	pni := uuid.UUID(pniBytes)
+	pniServiceID := libsignalgo.NewPNIServiceID(pni)
+	pniIdentity, err := cli.Store.IdentityStore.GetIdentityKey(ctx, pniServiceID)
+	if err != nil {
+		return fmt.Errorf("failed to get identity for PNI %s: %w", pni, err)
+	} else if pniIdentity == nil {
+		return fmt.Errorf("identity not found for PNI %s", pni)
+	}
+	aciIdentity, err := cli.Store.IdentityStore.GetIdentityKey(ctx, sender)
+	if err != nil {
+		return fmt.Errorf("failed to get identity for ACI %s: %w", sender, err)
+	} else if aciIdentity == nil {
+		return fmt.Errorf("identity not found for ACI %s", sender)
+	}
+	if ok, err := pniIdentity.VerifyAlternateIdentity(aciIdentity, msg.GetSignature()); err != nil {
+		return fmt.Errorf("signature validation failed: %w", err)
+	} else if !ok {
+		return fmt.Errorf("signature is invalid")
+	}
+	zerolog.Ctx(ctx).Debug().
+		Stringer("aci", sender.UUID).
+		Stringer("pni", pni).
+		Msg("Verified ACI-PNI mapping")
+	// TODO save mapping somewhere
+	cli.handleEvent(&events.ACIFound{ACI: sender, PNI: pniServiceID})
+	return nil
 }
 
 func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID) bool {

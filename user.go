@@ -19,6 +19,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
@@ -36,6 +37,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/database"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -754,6 +756,79 @@ func (user *User) handleContactList(evt *events.ContactList) {
 	}
 }
 
+func (user *User) handleACIFound(evt *events.ACIFound) {
+	log := user.log.With().
+		Str("action", "handle aci found").
+		Stringer("aci", evt.ACI.UUID).
+		Stringer("pni", evt.PNI.UUID).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	user.bridge.portalsLock.Lock()
+	defer user.bridge.portalsLock.Unlock()
+	pniPortal := user.bridge.unlockedGetPortalByChatID(database.PortalKey{
+		ChatID:   evt.PNI.String(),
+		Receiver: user.SignalID,
+	}, false)
+	pniPortal.roomCreateLock.Lock()
+	defer pniPortal.roomCreateLock.Unlock()
+	if pniPortal == nil {
+		log.Debug().Msg("PNI portal doesn't exist, ignoring event")
+		return
+	} else if pniPortal.MXID == "" {
+		log.Debug().Msg("PNI portal doesn't have Matrix room, deleting row")
+		pniPortal.Delete()
+		return
+	}
+	log.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Stringer("pni_portal_mxid", pniPortal.MXID)
+	})
+	aciPortal := user.bridge.unlockedGetPortalByChatID(database.PortalKey{
+		ChatID:   evt.ACI.String(),
+		Receiver: user.SignalID,
+	}, false)
+	aciPortal.roomCreateLock.Lock()
+	defer aciPortal.roomCreateLock.Unlock()
+	if aciPortal == nil {
+		log.Debug().Msg("ACI portal doesn't exist, re-ID'ing PNI portal")
+		err := pniPortal.unlockedReID(ctx, evt.ACI.String())
+		if err != nil {
+			log.Err(err).Msg("Failed to re-ID PNI portal")
+		}
+	} else if aciPortal.MXID == "" {
+		log.Debug().Msg("ACI portal row exists, but doesn't have a Matrix room. Deleting ACI portal row and re-ID'ing PNI portal")
+		aciPortal.Delete()
+		err := pniPortal.unlockedReID(ctx, evt.ACI.String())
+		if err != nil {
+			log.Err(err).Msg("Failed to re-ID PNI portal")
+		}
+	} else {
+		log.UpdateContext(func(c zerolog.Context) zerolog.Context {
+			return c.Stringer("aci_portal_mxid", aciPortal.MXID)
+		})
+		log.Debug().Msg("Both ACI and PNI portal have Matrix room, tombstoning PNI portal")
+		_, err := pniPortal.MainIntent().SendStateEvent(ctx, pniPortal.MXID, event.StateTombstone, "", &event.TombstoneEventContent{
+			Body:            fmt.Sprintf("This room has been merged"),
+			ReplacementRoom: aciPortal.MXID,
+		})
+		if err != nil {
+			log.Err(err).Msg("Failed to send tombstone to PNI portal")
+		}
+		pniPortal.Delete()
+		pniPortal.Cleanup(ctx, err == nil)
+	}
+}
+
+func (portal *Portal) unlockedReID(ctx context.Context, newID string) error {
+	err := portal.Portal.ReID(ctx, newID)
+	if err != nil {
+		return err
+	}
+	delete(portal.bridge.portalsByID, portal.PortalKey)
+	portal.PortalKey.ChatID = newID
+	portal.bridge.portalsByID[portal.PortalKey] = portal
+	return nil
+}
+
 func (user *User) eventHandler(rawEvt events.SignalEvent) {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
@@ -781,17 +856,25 @@ func (user *User) eventHandler(rawEvt events.SignalEvent) {
 		portal.sendMainIntentMessage(context.TODO(), content)
 	case *events.ContactList:
 		user.handleContactList(evt)
+	case *events.ACIFound:
+		user.handleACIFound(evt)
 	default:
 		user.log.Warn().Type("event_type", evt).Msg("Unrecognized event type from signalmeow")
 	}
 }
 
 func (user *User) GetPortalByChatID(signalID string) *Portal {
-	pk := database.PortalKey{
+	return user.bridge.GetPortalByChatID(database.PortalKey{
 		ChatID:   signalID,
 		Receiver: user.SignalID,
-	}
-	return user.bridge.GetPortalByChatID(pk)
+	})
+}
+
+func (user *User) GetPortalByChatIDIfExists(signalID string) *Portal {
+	return user.bridge.GetPortalByChatIDIfExists(database.PortalKey{
+		ChatID:   signalID,
+		Receiver: user.SignalID,
+	})
 }
 
 func (user *User) disconnectNoLock() (*signalmeow.Client, error) {
@@ -892,8 +975,9 @@ func (user *User) getDirectChats() map[id.UserID][]id.RoomID {
 		return chats
 	}
 	for _, portal := range privateChats {
-		if portal.MXID != "" {
-			puppetMXID := user.bridge.FormatPuppetMXID(portal.UserID())
+		portalUserID := portal.UserID()
+		if portal.MXID != "" && portalUserID.Type == libsignalgo.ServiceIDTypeACI {
+			puppetMXID := user.bridge.FormatPuppetMXID(portalUserID.UUID)
 
 			chats[puppetMXID] = []id.RoomID{portal.MXID}
 		}

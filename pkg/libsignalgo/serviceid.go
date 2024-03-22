@@ -65,6 +65,8 @@ type ServiceID struct {
 	UUID uuid.UUID
 }
 
+var EmptyServiceID ServiceID
+
 func NewPNIServiceID(uuid uuid.UUID) ServiceID {
 	return ServiceID{
 		Type: ServiceIDTypePNI,
@@ -77,6 +79,10 @@ func NewACIServiceID(uuid uuid.UUID) ServiceID {
 		Type: ServiceIDTypeACI,
 		UUID: uuid,
 	}
+}
+
+func (s ServiceID) IsEmpty() bool {
+	return s.UUID == uuid.Nil
 }
 
 func (s ServiceID) Address(deviceID uint) (*Address, error) {
@@ -121,18 +127,18 @@ func (s ServiceID) FixedBytes() *ServiceIDFixedBytes {
 
 func ServiceIDFromString(val string) (ServiceID, error) {
 	if len(val) < 36 {
-		return ServiceID{}, fmt.Errorf("invalid UUID string: %s", val)
+		return EmptyServiceID, fmt.Errorf("invalid UUID string: %s", val)
 	}
 	if strings.ToUpper(val[:4]) == "PNI:" {
 		parsed, err := uuid.Parse(val[4:])
 		if err != nil {
-			return ServiceID{}, err
+			return EmptyServiceID, err
 		}
 		return NewPNIServiceID(parsed), nil
 	} else {
 		parsed, err := uuid.Parse(val)
 		if err != nil {
-			return ServiceID{}, err
+			return EmptyServiceID, err
 		}
 		return NewACIServiceID(parsed), nil
 	}

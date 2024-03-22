@@ -216,7 +216,7 @@ func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
 
 func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
 	if puppet != nil {
-		if puppet.customIntent == nil || portal.UserID() == puppet.SignalID {
+		if puppet.customIntent == nil || portal.UserID().UUID == puppet.SignalID {
 			return puppet.DefaultIntent()
 		}
 		return puppet.customIntent

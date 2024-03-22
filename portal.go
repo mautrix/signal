@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
@@ -72,8 +73,18 @@ func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
 func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 	br.portalsLock.Lock()
 	defer br.portalsLock.Unlock()
+	return br.unlockedGetPortalByChatID(key, true)
+}
+
+func (br *SignalBridge) GetPortalByChatIDIfExists(key database.PortalKey) *Portal {
+	br.portalsLock.Lock()
+	defer br.portalsLock.Unlock()
+	return br.unlockedGetPortalByChatID(key, false)
+}
+
+func (br *SignalBridge) unlockedGetPortalByChatID(key database.PortalKey, createIfNotExists bool) *Portal {
 	// If this PortalKey is for a group, Receiver should be empty
-	if key.UserID() == uuid.Nil {
+	if key.UserID().IsEmpty() {
 		key.Receiver = uuid.Nil
 	}
 	portal, ok := br.portalsByID[key]
@@ -83,7 +94,11 @@ func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 			br.ZLog.Err(err).Msg("Failed to get portal from database")
 			return nil
 		}
-		return br.loadPortal(context.TODO(), dbPortal, &key)
+		keyIfNotExists := &key
+		if !createIfNotExists {
+			keyIfNotExists = nil
+		}
+		return br.loadPortal(context.TODO(), dbPortal, keyIfNotExists)
 	}
 	return portal
 }
@@ -269,17 +284,18 @@ func (portal *Portal) GetRelayUser() *User {
 }
 
 func (portal *Portal) IsPrivateChat() bool {
-	return portal.UserID() != uuid.Nil
+	return !portal.UserID().IsEmpty()
 }
 
 func (portal *Portal) IsNoteToSelf() bool {
 	userID := portal.UserID()
-	return userID != uuid.Nil && userID == portal.Receiver
+	return !userID.IsEmpty() && userID.UUID == portal.Receiver
 }
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
-	if portal.IsPrivateChat() {
-		return portal.bridge.GetPuppetBySignalID(portal.UserID()).DefaultIntent()
+	dmPuppet := portal.GetDMPuppet()
+	if dmPuppet != nil {
+		return dmPuppet.DefaultIntent()
 	}
 
 	return portal.bridge.Bot
@@ -681,7 +697,7 @@ func (portal *Portal) sendSignalMessage(ctx context.Context, msg *signalpb.Conte
 	// Check to see if portal.ChatID is a standard UUID (with dashes)
 	if portal.IsPrivateChat() {
 		// this is a 1:1 chat
-		result := sender.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(portal.UserID()), msg)
+		result := sender.Client.SendMessage(ctx, portal.UserID(), msg)
 		if !result.WasSuccessful {
 			return result.Error
 		}
@@ -880,7 +896,7 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	// If this message is a group change, don't handle it here, it's handled below.
 	if msg.GetGroupV2().GetGroupChange() == nil && portal.Revision < msg.GetGroupV2().GetRevision() {
 		portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
-	} else if portal.IsPrivateChat() && portal.UserID() == portal.Receiver && portal.Name != NoteToSelfName {
+	} else if portal.IsPrivateChat() && portal.UserID().UUID == portal.Receiver && portal.Name != NoteToSelfName {
 		// Slightly hacky way to make note to self names backfill
 		portal.UpdateDMInfo(genericCtx, false)
 	}
@@ -1489,12 +1505,13 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 		// Check to see if portal.ChatID is a standard UUID (with dashes)
 		// Note: not handling sending to a group right now, since that will
 		// require SenderKey sending to not be terrible
-		if portal.IsPrivateChat() {
+		dmUserID := portal.UserID()
+		if !dmUserID.IsEmpty() && dmUserID.Type == libsignalgo.ServiceIDTypeACI {
 			// this is a 1:1 chat
 			portal.log.Debug().Msg("Sending Typing event to Signal")
 			ctx := context.TODO()
 			typingMessage := signalmeow.TypingMessage(isTyping)
-			result := user.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(portal.UserID()), typingMessage)
+			result := user.Client.SendMessage(ctx, portal.UserID(), typingMessage)
 			if !result.WasSuccessful {
 				portal.log.Err(result.FailedSendResult.Error).Msg("Error sending event to Signal")
 			}
@@ -1719,8 +1736,12 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	var groupInfo *signalmeow.Group
 	if portal.IsPrivateChat() {
 		dmPuppet = portal.GetDMPuppet()
-		dmPuppet.UpdateInfo(ctx, user)
-		portal.UpdateDMInfo(ctx, false)
+		if dmPuppet != nil {
+			dmPuppet.UpdateInfo(ctx, user)
+			portal.UpdateDMInfo(ctx, false)
+		} else {
+			portal.UpdatePNIDMInfo(ctx, user)
+		}
 	} else {
 		groupInfo = portal.UpdateGroupInfo(ctx, user, nil, groupRevision, true)
 		if groupInfo == nil {
@@ -1779,7 +1800,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	user.syncChatDoublePuppetDetails(portal, true)
 	go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 
-	if portal.IsPrivateChat() {
+	if dmPuppet != nil {
 		user.UpdateDirectChats(ctx, map[id.UserID][]id.RoomID{
 			dmPuppet.MXID: {portal.MXID},
 		})
@@ -1789,10 +1810,11 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 }
 
 func (portal *Portal) GetDMPuppet() *Puppet {
-	if !portal.IsPrivateChat() {
+	userID := portal.UserID()
+	if userID.IsEmpty() || userID.Type != libsignalgo.ServiceIDTypeACI {
 		return nil
 	}
-	return portal.bridge.GetPuppetBySignalID(portal.UserID())
+	return portal.bridge.GetPuppetBySignalID(userID.UUID)
 }
 
 func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *signalmeow.Group, revision uint32) {
@@ -1819,7 +1841,7 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	puppet := portal.GetDMPuppet()
 
 	update := forceSave
-	if portal.UserID() == portal.Receiver {
+	if portal.UserID().UUID == portal.Receiver {
 		noteToSelfAvatar := portal.bridge.Config.Bridge.NoteToSelfAvatar.ParseOrIgnore()
 		avatarHash := sha256.Sum256([]byte(noteToSelfAvatar.String()))
 
@@ -1833,6 +1855,20 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	if portal.bridge.Config.Bridge.NumberInTopic && puppet.Number != "" {
 		topic = fmt.Sprintf("%s with %s", topic, puppet.Number)
 	}
+	update = portal.updateTopic(ctx, topic, nil) || update
+	if update {
+		err := portal.Update(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to save portal in database after updating group info")
+		}
+		portal.UpdateBridgeInfo(ctx)
+	}
+}
+
+func (portal *Portal) UpdatePNIDMInfo(ctx context.Context, user *User) {
+	// TODO find phone number and set room name/topic accurately
+	update := false
+	topic := fmt.Sprintf("%s with %s", PrivateChatTopic, portal.ChatID)
 	update = portal.updateTopic(ctx, topic, nil) || update
 	if update {
 		err := portal.Update(ctx)
