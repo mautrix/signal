@@ -34,6 +34,11 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
+func (cli *Client) SyncStorage(ctx context.Context) {
+	//log := zerolog.Ctx(ctx).With().Str("action", "sync storage").Logger()
+	// TODO implement
+}
+
 type StorageUpdate struct {
 	Version        uint64
 	NewRecords     []*DecryptedStorageRecord

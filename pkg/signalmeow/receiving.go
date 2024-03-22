@@ -189,6 +189,9 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				log.Info().Msg("Both websockets connected, sending contacts sync request")
 				// TODO hacky
 				cli.SendContactSyncRequest(ctx)
+				if cli.Store.MasterKey == nil {
+					cli.SendStorageMasterKeyRequest(ctx)
+				}
 				return
 			}
 		}
@@ -625,6 +628,19 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 
 		// TODO: handle more sync messages
 		if content.SyncMessage != nil {
+			if content.SyncMessage.Keys != nil {
+				cli.Store.MasterKey = content.SyncMessage.Keys.GetMaster()
+				err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
+				if err != nil {
+					log.Err(err).Msg("Failed to save device after receiving master key")
+				} else {
+					log.Info().Msg("Received master key")
+					go cli.SyncStorage(ctx)
+				}
+			} else if content.SyncMessage.GetFetchLatest().GetType() == signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST {
+				log.Debug().Msg("Received storage manifest fetch latest notice")
+				go cli.SyncStorage(ctx)
+			}
 			syncSent := content.SyncMessage.GetSent()
 			if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
 				destination := syncSent.DestinationServiceId

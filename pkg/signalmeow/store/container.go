@@ -34,7 +34,7 @@ const getAllDevicesQuery = `
 SELECT
 	aci_uuid, aci_identity_key_pair, registration_id,
 	pni_uuid, pni_identity_key_pair, pni_registration_id,
-	device_id, number, password
+	device_id, number, password, master_key
 FROM signalmeow_device
 `
 
@@ -51,7 +51,7 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	err := row.Scan(
 		&device.ACI, &aciIdentityKeyPair, &device.RegistrationID,
 		&device.PNI, &pniIdentityKeyPair, &device.PNIRegistrationID,
-		&device.DeviceID, &device.Number, &device.Password,
+		&device.DeviceID, &device.Number, &device.Password, &device.MasterKey,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
@@ -114,9 +114,9 @@ const (
 		INSERT INTO signalmeow_device (
 			aci_uuid, aci_identity_key_pair, registration_id,
 			pni_uuid, pni_identity_key_pair, pni_registration_id,
-			device_id, number, password
+			device_id, number, password, master_key
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		ON CONFLICT (aci_uuid) DO UPDATE SET
 			aci_identity_key_pair=excluded.aci_identity_key_pair,
 			registration_id=excluded.registration_id,
@@ -125,7 +125,8 @@ const (
 			pni_registration_id=excluded.pni_registration_id,
 			device_id=excluded.device_id,
 			number=excluded.number,
-			password=excluded.password
+			password=excluded.password,
+			master_key=excluded.master_key
 	`
 	deleteDeviceQuery = `DELETE FROM signalmeow_device WHERE aci_uuid=$1`
 )
@@ -151,7 +152,7 @@ func (c *Container) PutDevice(ctx context.Context, device *DeviceData) error {
 	_, err = c.db.Exec(ctx, insertDeviceQuery,
 		device.ACI, aciIdentityKeyPair, device.RegistrationID,
 		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
-		device.DeviceID, device.Number, device.Password,
+		device.DeviceID, device.Number, device.Password, device.MasterKey,
 	)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("failed to insert device")

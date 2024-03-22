@@ -381,16 +381,6 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 	}
 }
 
-func syncMessageForContactRequest() *signalpb.Content {
-	return &signalpb.Content{
-		SyncMessage: &signalpb.SyncMessage{
-			Request: &signalpb.SyncMessage_Request{
-				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
-			},
-		},
-	}
-}
-
 func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender libsignalgo.ServiceID) *signalpb.Content {
 	if *receiptMessage.Type != signalpb.ReceiptMessage_READ {
 		zerolog.Ctx(ctx).Warn().
@@ -435,13 +425,40 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 		return nil
 	}
 
-	groupRequest := syncMessageForContactRequest()
-	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(currentUnixTime), groupRequest, 0, true)
+	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(currentUnixTime), &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Request: &signalpb.SyncMessage_Request{
+				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
+			},
+		},
+	}, 0, false)
 	if err != nil {
 		log.Err(err).Msg("Failed to send contact sync request message to myself")
 		return err
 	}
 	cli.LastContactRequestTime = &currentUnixTime
+	return nil
+}
+
+func (cli *Client) SendStorageMasterKeyRequest(ctx context.Context) error {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "send key sync request").
+		Logger()
+	ctx = log.WithContext(ctx)
+
+	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(time.Now().UnixMilli()), &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Request: &signalpb.SyncMessage_Request{
+				Type: signalpb.SyncMessage_Request_KEYS.Enum(),
+			},
+		},
+	}, 0, false)
+	if err != nil {
+		log.Err(err).Msg("Failed to send key sync request message to myself")
+		return err
+	} else {
+		log.Info().Msg("Sent key sync request to self")
+	}
 	return nil
 }
 

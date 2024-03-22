@@ -34,6 +34,7 @@ type DeviceData struct {
 	DeviceID           int
 	Number             string
 	Password           string
+	MasterKey          []byte
 }
 
 func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {
