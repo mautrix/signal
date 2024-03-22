@@ -44,3 +44,4 @@ func (gid GroupIdentifier) Bytes() (raw libsignalgo.GroupIdentifier, err error) 
 
 // This is just base64 encoded group master key
 type SerializedGroupMasterKey string
+type SerializedInviteLinkPassword string

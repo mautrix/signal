@@ -125,6 +125,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Int, "bridge", "encryption", "rotation", "milliseconds")
 	helper.Copy(up.Int, "bridge", "encryption", "rotation", "messages")
 	helper.Copy(up.Bool, "bridge", "encryption", "rotation", "disable_device_change_key_rotation")
+	helper.Copy(up.Bool, "bridge", "bridge_matrix_leave")
 
 	helper.Copy(up.Str, "bridge", "provisioning", "prefix")
 	if secret, ok := helper.Get(up.Str, "bridge", "provisioning", "shared_secret"); !ok || secret == "generate" {

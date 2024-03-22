@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/exfmt"
 	"google.golang.org/protobuf/proto"
 
@@ -516,6 +517,31 @@ func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
 	}
 }
 
+func (cli *Client) SendGroupChange(ctx context.Context, group *Group, groupContext *signalpb.GroupContextV2, groupChange *GroupChange) (*GroupMessageSendResult, error) {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "send group change message").
+		Stringer("group_id", group.GroupIdentifier).
+		Logger()
+	ctx = log.WithContext(ctx)
+	timestamp := currentMessageTimestamp()
+	dm := &signalpb.DataMessage{
+		Timestamp: &timestamp,
+		GroupV2:   groupContext,
+	}
+	content := wrapDataMessageInContent(dm)
+	recipients := group.Members
+	for _, member := range group.PendingMembers {
+		recipients = append(recipients, &member.GroupMember)
+	}
+	for _, member := range groupChange.AddPendingMembers {
+		recipients = append(recipients, &member.GroupMember)
+	}
+	for _, member := range groupChange.AddMembers {
+		recipients = append(recipients, &member.GroupMember)
+	}
+	return cli.sendToGroup(ctx, recipients, content, timestamp)
+}
+
 func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifier, content *signalpb.Content) (*GroupMessageSendResult, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send group message").
@@ -535,13 +561,16 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		messageTimestamp = content.EditMessage.DataMessage.GetTimestamp()
 		content.EditMessage.DataMessage.GroupV2 = groupMetadataForDataMessage(*group)
 	}
+	return cli.sendToGroup(ctx, group.Members, content, messageTimestamp)
+}
 
+func (cli *Client) sendToGroup(ctx context.Context, recipients []*GroupMember, content *signalpb.Content, messageTimestamp uint64) (*GroupMessageSendResult, error) {
 	// Send to each member of the group
 	result := &GroupMessageSendResult{
 		SuccessfullySentTo: []SuccessfulSendResult{},
 		FailedToSendTo:     []FailedSendResult{},
 	}
-	for _, member := range group.Members {
+	for _, member := range recipients {
 		if member.UserID == cli.Store.ACI {
 			// Don't send normal DataMessages to ourselves
 			continue
