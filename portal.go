@@ -1839,6 +1839,18 @@ func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *s
 const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
+func (portal *Portal) PostReIDUpdate(ctx context.Context, user *User) {
+	_, err := portal.bridge.Bot.SetPowerLevel(ctx, portal.MXID, portal.MainIntent().UserID, 100)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to update ghost power level after portal re-ID")
+	}
+	portal.GetDMPuppet().UpdateInfo(ctx, user)
+	portal.UpdateDMInfo(ctx, true)
+	if !portal.Encrypted {
+		_, _ = portal.bridge.Bot.LeaveRoom(ctx, portal.MXID)
+	}
+}
+
 func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	log := zerolog.Ctx(ctx).With().
 		Str("function", "UpdateDMInfo").

@@ -797,7 +797,7 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 		if err != nil {
 			log.Err(err).Msg("Failed to re-ID PNI portal")
 		} else {
-			pniPortal.UpdateDMInfo(ctx, true)
+			go pniPortal.PostReIDUpdate(ctx, user)
 		}
 		return
 	}
@@ -810,7 +810,7 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 		if err != nil {
 			log.Err(err).Msg("Failed to re-ID PNI portal")
 		} else {
-			pniPortal.UpdateDMInfo(ctx, true)
+			go pniPortal.PostReIDUpdate(ctx, user)
 		}
 	} else {
 		log.UpdateContext(func(c zerolog.Context) zerolog.Context {
@@ -837,6 +837,10 @@ func (portal *Portal) unlockedReID(ctx context.Context, newID string) error {
 	delete(portal.bridge.portalsByID, portal.PortalKey)
 	portal.PortalKey.ChatID = newID
 	portal.bridge.portalsByID[portal.PortalKey] = portal
+	err = portal.MainIntent().EnsureJoined(ctx, portal.MXID, appservice.EnsureJoinedParams{IgnoreCache: true})
+	if err != nil {
+		return fmt.Errorf("failed to ensure ghost is joined to portal: %w", err)
+	}
 	return nil
 }
 

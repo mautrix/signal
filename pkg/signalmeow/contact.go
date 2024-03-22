@@ -46,7 +46,9 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 		Stringer("uuid", parsedUUID).
 		Logger().WithContext(ctx)
 	return cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, parsedUUID, uuid.Nil, func(recipient *types.Recipient) (bool, error) {
-		recipient.E164 = contactDetails.GetNumber()
+		if contactDetails.GetNumber() != "" {
+			recipient.E164 = contactDetails.GetNumber()
+		}
 		recipient.ContactName = contactDetails.GetName()
 		if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
 			profileKey := libsignalgo.ProfileKey(profileKeyString)
