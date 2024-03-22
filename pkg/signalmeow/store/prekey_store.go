@@ -58,7 +58,7 @@ const (
 	getLastPreKeyIDQuery = `SELECT MAX(key_id) FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_signed=$3`
 
 	getAllKyberPreKeysQuery   = `SELECT key_pair FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_last_resort=false`
-	getKyberPreKeyQuery       = `SELECT key_pair FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$2`
+	getKyberPreKeyQuery       = `SELECT key_pair FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3`
 	insertKyberPreKeyQuery    = `INSERT INTO signalmeow_kyber_pre_keys (account_id, service_id, key_id, key_pair, is_last_resort) VALUES ($1, $2, $3, $4, $5)`
 	deleteKyberPreKeyQuery    = `DELETE FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3`
 	getLastKyberPreKeyIDQuery = `SELECT MAX(key_id) FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2`
