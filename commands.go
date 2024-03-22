@@ -29,6 +29,7 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
@@ -212,39 +213,46 @@ func fnPM(ce *WrappedCommandEvent) {
 	}
 
 	user := ce.User
-	var targetUUID uuid.UUID
+	var aci, pni uuid.UUID
 
 	if contact, err := user.Client.ContactByE164(ce.Ctx, fmt.Sprintf("+%d", number)); err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return
 	} else if contact != nil {
-		targetUUID = contact.UUID
+		aci = contact.UUID
 	} else if resp, err := user.Client.LookupPhone(ce.Ctx, number); err != nil {
 		ce.ZLog.Err(err).Uint64("e164", number).Msg("Failed to lookup number on server")
 		ce.Reply("Error looking up number on server: %v", err)
 		return
-	} else if resp[number].ACI == uuid.Nil {
-		if resp[number].PNI == uuid.Nil {
-			ce.Reply("+%d doesn't seem to be on Signal", number)
-		} else {
-			ce.Reply("Server only returned PNI (%s) for +%d, but the bridge doesn't know what to do with it", resp[number].PNI, number)
-		}
-		return
 	} else {
-		targetUUID = resp[number].ACI
-		err = user.Client.Store.ContactStore.UpdatePhone(ce.Ctx, targetUUID, fmt.Sprintf("+%d", number))
+		aci = resp[number].ACI
+		pni = resp[number].PNI
+	}
+	if aci == uuid.Nil && pni == uuid.Nil {
+		ce.Reply("+%d doesn't seem to be on Signal", number)
+		return
+	}
+	if aci != uuid.Nil {
+		err = user.Client.Store.ContactStore.UpdatePhone(ce.Ctx, aci, fmt.Sprintf("+%d", number))
 		if err != nil {
 			ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
 		}
 	}
 	ce.ZLog.Debug().
 		Uint64("e164", number).
-		Stringer("uuid", targetUUID).
+		Stringer("aci", aci).
+		Stringer("pni", pni).
 		Msg("Found DM target user")
 
-	portal := user.GetPortalByChatID(targetUUID.String())
+	var targetServiceID libsignalgo.ServiceID
+	if aci != uuid.Nil {
+		targetServiceID = libsignalgo.NewACIServiceID(aci)
+	} else {
+		targetServiceID = libsignalgo.NewPNIServiceID(pni)
+	}
+	portal := user.GetPortalByChatID(targetServiceID.String())
 	if portal == nil {
-		ce.Reply("Couldn't get portal with %s/+%d", targetUUID, number)
+		ce.Reply("Couldn't get portal with %s/+%d", targetServiceID, number)
 		return
 	} else if portal.MXID != "" {
 		ok := portal.ensureUserInvited(ce.Ctx, ce.User)
