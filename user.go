@@ -750,7 +750,19 @@ func (user *User) handleContactList(evt *events.ContactList) {
 		if puppet == nil {
 			return
 		}
-		puppet.UpdateInfo(ctx, user)
+		puppet.UpdateInfo(ctx, user, false)
+	}
+}
+
+func (user *User) handleProfile(evt *events.Profile) {
+	ctx := user.log.With().Str("action", "handle profile").Logger().WithContext(context.TODO())
+	puppet := user.bridge.GetPuppetBySignalID(evt.Sender)
+	if puppet != nil {
+		puppet.UpdateInfo(ctx, user, true)
+	} else {
+		zerolog.Ctx(ctx).Warn().
+			Stringer("signal_user_id", evt.Sender).
+			Msg("No puppet found for sender")
 	}
 }
 
@@ -781,6 +793,8 @@ func (user *User) eventHandler(rawEvt events.SignalEvent) {
 		portal.sendMainIntentMessage(context.TODO(), content)
 	case *events.ContactList:
 		user.handleContactList(evt)
+	case *events.Profile:
+		user.handleProfile(evt)
 	default:
 		user.log.Warn().Type("event_type", evt).Msg("Unrecognized event type from signalmeow")
 	}

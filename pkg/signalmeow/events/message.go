@@ -32,6 +32,7 @@ func (*Receipt) isSignalEvent()     {}
 func (*ReadSelf) isSignalEvent()    {}
 func (*Call) isSignalEvent()        {}
 func (*ContactList) isSignalEvent() {}
+func (*Profile) isSignalEvent()     {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -62,4 +63,8 @@ type Call struct {
 
 type ContactList struct {
 	Contacts []*types.Contact
+}
+
+type Profile struct {
+	Sender uuid.UUID
 }
