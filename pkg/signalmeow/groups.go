@@ -176,6 +176,7 @@ type BannedMember struct {
 type GroupChange struct {
 	groupMasterKey types.SerializedGroupMasterKey
 
+	SourceServiceId                    uuid.UUID
 	Revision                           uint32
 	AddMembers                         []*AddMember
 	DeleteMembers                      []*uuid.UUID
@@ -313,6 +314,11 @@ func (groupChange *GroupChange) getGroupMasterKey() types.SerializedGroupMasterK
 
 func (groupChange *GroupChange) GetAvatarPath() *string {
 	return groupChange.ModifyAvatar
+}
+
+type GroupChangeState struct {
+	GroupState  *Group
+	GroupChange *GroupChange
 }
 
 type GroupAuth struct {
@@ -816,21 +822,26 @@ type GroupCache struct {
 func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2) (*GroupChange, error) {
 	masterKeyBytes := libsignalgo.GroupMasterKey(groupContext.MasterKey)
 	groupMasterKey := masterKeyFromBytes(masterKeyBytes)
-	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group change").Logger()
-
-	encryptedGroupChange := &signalpb.GroupChange{}
 
 	groupChangeBytes := groupContext.GroupChange
+	encryptedGroupChange := &signalpb.GroupChange{}
 	err := proto.Unmarshal(groupChangeBytes, encryptedGroupChange)
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshalling group change: %w", err)
 	}
+	return cli.decryptGroupChange(ctx, encryptedGroupChange, groupMasterKey, true)
+}
+func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange *signalpb.GroupChange, groupMasterKey types.SerializedGroupMasterKey, verifySignature bool) (*GroupChange, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group change").Logger()
 	serverSignature := encryptedGroupChange.ServerSignature
 	encryptedActionsBytes := encryptedGroupChange.Actions
 
-	err = libsignalgo.ServerPublicParamsVerifySignature(prodServerPublicParams, encryptedActionsBytes, libsignalgo.NotarySignature(serverSignature))
-	if err != nil {
-		return nil, fmt.Errorf("Failed to verify Server Signature: %w", err)
+	var err error
+	if verifySignature {
+		err = libsignalgo.ServerPublicParamsVerifySignature(prodServerPublicParams, encryptedActionsBytes, libsignalgo.NotarySignature(serverSignature))
+		if err != nil {
+			return nil, fmt.Errorf("Failed to verify Server Signature: %w", err)
+		}
 	}
 
 	encryptedActions := signalpb.GroupChange_Actions{}
@@ -846,9 +857,16 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 		return nil, err
 	}
 
+	sourceServiceId, err := groupSecretParams.DecryptUUID(libsignalgo.UUIDCiphertext(encryptedActions.SourceServiceId))
+	if err != nil {
+		log.Err(err).Msg("Couldn't decrypt source serviceID")
+		return nil, err
+	}
+
 	decryptedGroupChange := &GroupChange{
-		groupMasterKey: groupMasterKey,
-		Revision:       encryptedActions.Revision,
+		groupMasterKey:  groupMasterKey,
+		Revision:        encryptedActions.Revision,
+		SourceServiceId: sourceServiceId,
 	}
 
 	if encryptedActions.ModifyTitle != nil {
@@ -1707,4 +1725,80 @@ func GenerateInviteLinkPassword() types.SerializedInviteLinkPassword {
 	inviteLinkPasswordBytes := make([]byte, 16)
 	rand.Read(inviteLinkPasswordBytes)
 	return InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
+}
+
+func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdentifier, fromRevision uint32, includeFirstState bool) ([]*GroupChangeState, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "GetGroupHistoryPage").Logger()
+	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
+	if err != nil {
+		log.Err(err).Msg("Failed to get group master key")
+		return nil, err
+	}
+	if groupMasterKey == "" {
+		return nil, fmt.Errorf("No group master key found for group identifier %s", gid)
+	}
+	masterKeyBytes := masterKeyToBytes(groupMasterKey)
+	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+	opts := &web.HTTPReqOpt{
+		Username:    &groupAuth.Username,
+		Password:    &groupAuth.Password,
+		ContentType: web.ContentTypeProtobuf,
+		Host:        web.StorageHostname,
+	}
+	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
+	path := fmt.Sprintf("/v1/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
+	response, err := web.SendHTTPRequest(ctx, http.MethodGet, path, opts)
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode != 200 {
+		return nil, fmt.Errorf("fetchGroupByID SendHTTPRequest bad status: %d", response.StatusCode)
+	}
+	var encryptedGroupChanges signalpb.GroupChanges
+	groupChangesBytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	err = proto.Unmarshal(groupChangesBytes, &encryptedGroupChanges)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal group: %w", err)
+	}
+
+	groupChanges, err := cli.decryptGroupChanges(ctx, &encryptedGroupChanges, groupMasterKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt group: %w", err)
+	}
+	return groupChanges, nil
+}
+
+func (cli *Client) decryptGroupChanges(ctx context.Context, encryptedGroupChanges *signalpb.GroupChanges, groupMasterKey types.SerializedGroupMasterKey) ([]*GroupChangeState, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "decryptGroupChanges").Logger()
+	var groupChanges []*GroupChangeState
+	for _, groupChangeState := range encryptedGroupChanges.GroupChanges {
+		var group *Group
+		var err error
+		if groupChangeState.GroupState != nil {
+			group, err = decryptGroup(ctx, groupChangeState.GroupState, groupMasterKey)
+			if err != nil {
+				log.Err(err).Msg("Failed to decrypt Group")
+				return nil, err
+			}
+		}
+		var groupChange *GroupChange
+		if groupChangeState.GroupChange != nil {
+			groupChange, err = cli.decryptGroupChange(ctx, groupChangeState.GroupChange, groupMasterKey, false)
+			if err != nil {
+				log.Err(err).Msg("Failed to decrypt GroupChange")
+				return nil, err
+			}
+		}
+		groupChanges = append(groupChanges, &GroupChangeState{
+			GroupState:  group,
+			GroupChange: groupChange,
+		})
+	}
+	return groupChanges, nil
 }
