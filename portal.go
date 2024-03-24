@@ -1772,11 +1772,10 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 		return err
 	}
 	portal.log.Info().Msg("Created matrix room for portal")
-
+	members := portal.SyncParticipants(ctx, user, groupInfo)
+	portal.updatePowerLevelsAndJoinRule(ctx, groupInfo, members)
 	if !autoJoinInvites {
-		if !portal.IsPrivateChat() {
-			portal.SyncParticipants(ctx, user, groupInfo)
-		} else if portal.Encrypted {
+		if portal.IsPrivateChat() && portal.Encrypted {
 			err = portal.bridge.Bot.EnsureJoined(ctx, portal.MXID, appservice.EnsureJoinedParams{BotOverride: portal.MainIntent().Client})
 			if err != nil {
 				portal.log.Error().Err(err).Msg("Failed to ensure bridge bot is joined to private chat portal")
