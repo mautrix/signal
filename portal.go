@@ -893,9 +893,14 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	// Always update sender info when we receive a message from them, there's caching inside the function
 	sender.UpdateInfo(genericCtx, source)
 	// Handle earlier missed group changes here.
-	// If this message is a group change, don't handle it here, it's handled below.
-	if msg.GetGroupV2().GetGroupChange() == nil && portal.Revision < msg.GetGroupV2().GetRevision() {
-		portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
+	if msg.GetGroupV2() != nil {
+		requiredRevision := msg.GetGroupV2().GetRevision()
+		if msg.GetGroupV2().GetGroupChange() != nil {
+			requiredRevision = requiredRevision - 1
+		}
+		if portal.Revision < requiredRevision {
+			portal.catchUpHistory(source, portal.Revision+1, requiredRevision, msg.GetTimestamp())
+		}
 	} else if portal.IsPrivateChat() && portal.UserID().UUID == portal.Receiver && portal.Name != NoteToSelfName {
 		// Slightly hacky way to make note to self names backfill
 		portal.UpdateDMInfo(genericCtx, false)
@@ -921,6 +926,28 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	}
 }
 
+func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevision uint32, ts uint64) {
+	log := portal.log.With().
+		Str("action", "catchUpHistory").
+		Stringer("source", source.MXID).
+		Uint32("from revision", fromRevision).
+		Uint32("to revision", toRevision).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	groupChanges, err := source.Client.GetGroupHistoryPage(ctx, portal.GroupID(), fromRevision, false)
+	if err != nil {
+		log.Err(err).Msg("Failed to get GroupChanges")
+	}
+	for _, groupChangeState := range groupChanges {
+		sender := portal.bridge.GetPuppetBySignalID(groupChangeState.GroupChange.SourceACI)
+		portal.applySignalGroupChange(ctx, source, sender, groupChangeState.GroupChange, ts)
+		// for revision > toRevision, we should have received a group change already
+		if groupChangeState.GroupChange.Revision == toRevision {
+			break
+		}
+	}
+}
+
 func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal group change").
@@ -934,6 +961,11 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		log.Err(err).Msg("Handling GroupChange failed")
 		return
 	}
+	portal.applySignalGroupChange(ctx, source, sender, groupChange, ts)
+}
+
+func (portal *Portal) applySignalGroupChange(ctx context.Context, source *User, sender *Puppet, groupChange *signalmeow.GroupChange, ts uint64) {
+	log := zerolog.Ctx(ctx)
 	if groupChange.Revision <= portal.Revision {
 		return
 	}
@@ -952,6 +984,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 	}
 	intent := sender.IntentFor(portal)
 	modifyRoles := groupChange.ModifyMemberRoles
+	var err error
 	for _, deleteBannedMember := range groupChange.DeleteBannedMembers {
 		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *&deleteBannedMember.UUID, event.MembershipLeave, "unbanned")
 		if err != nil {
