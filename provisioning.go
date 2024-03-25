@@ -38,6 +38,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 type provisioningContextKey int
@@ -171,20 +172,25 @@ func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, 
 	}
 	e164String := fmt.Sprintf("+%d", e164Number)
 	var aci, pni uuid.UUID
-	if contact, err := user.Client.ContactByE164(ctx, e164String); err != nil {
+	var recipient *types.Recipient
+	if recipient, err = user.Client.ContactByE164(ctx, e164String); err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number in local contact list: %w", err)
-	} else if contact != nil {
-		aci = contact.ACI
-		pni = contact.PNI
+	} else if recipient != nil {
+		aci = recipient.ACI
+		pni = recipient.PNI
 	} else if resp, err := user.Client.LookupPhone(ctx, e164Number); err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number on server: %w", err)
 	} else {
 		aci = resp[e164Number].ACI
 		pni = resp[e164Number].PNI
-		user.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
-	}
-	if aci == uuid.Nil && pni == uuid.Nil {
-		return http.StatusNotFound, nil, errors.New("user not found on Signal")
+		if aci == uuid.Nil && pni == uuid.Nil {
+			return http.StatusNotFound, nil, errors.New("user not found on Signal")
+		}
+		recipient, err = user.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
 	}
 	zerolog.Ctx(ctx).Debug().
 		Uint64("e164", e164Number).
