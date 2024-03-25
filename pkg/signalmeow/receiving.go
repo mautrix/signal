@@ -244,24 +244,6 @@ func (cli *Client) ClearKeysAndDisconnect(ctx context.Context) error {
 	return stopLoopErr
 }
 
-// If a bridge can't decrypt prekeys, it's probably because the prekeys are broken so force re-registration
-func (cli *Client) checkDecryptionErrorAndDisconnect(ctx context.Context, err error) {
-	if err == nil {
-		return
-	}
-	log := zerolog.Ctx(ctx).With().Str("action", "check decryption error and disconnect").Logger()
-	if strings.Contains(err.Error(), "70: invalid signed prekey identifier") {
-		log.Warn().Msg("Failed decrypting a SignedPreKey message, invalid signed prekey identifier")
-	}
-	if strings.Contains(err.Error(), "30: invalid PreKey message: decryption failed") {
-		log.Warn().Msg("Failed decrypting a PreKey message, probably our prekeys are broken, force re-registration")
-		disconnectErr := cli.ClearKeysAndDisconnect(ctx)
-		if disconnectErr != nil {
-			log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
-		}
-	}
-}
-
 func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("handler", "incoming request handler").
@@ -478,7 +460,6 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 					log.Debug().Msg("Message sent by us, ignoring")
 				} else {
 					log.Err(err).Msg("sealedSenderDecrypt error")
-					cli.checkDecryptionErrorAndDisconnect(ctx, err)
 				}
 			} else {
 				log.Trace().
@@ -499,7 +480,6 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content)
 		if err != nil {
 			log.Err(err).Msg("prekeyDecrypt error")
-			cli.checkDecryptionErrorAndDisconnect(ctx, err)
 		} else {
 			log.Trace().
 				Any("sender_address", result.SenderAddress).
