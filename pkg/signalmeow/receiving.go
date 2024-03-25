@@ -383,14 +383,14 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
 			result, err = cli.prekeyDecrypt(ctx, destinationServiceID, senderAddress, usmcContents)
 			if err != nil {
-				log.Err(err).Msg("prekeyDecrypt error")
+				log.Err(err).Msg("Sealed sender prekey ciphertext decryption error")
 			}
 
 		case libsignalgo.CiphertextMessageTypeWhisper:
 			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeWhisper")
 			message, err := libsignalgo.DeserializeMessage(usmcContents)
 			if err != nil {
-				log.Err(err).Msg("DeserializeMessage error")
+				log.Err(err).Msg("Sealed sender whisper deserialize error")
 			}
 			decryptedText, err := libsignalgo.Decrypt(
 				ctx,
@@ -400,7 +400,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				cli.Store.IdentityStore,
 			)
 			if err != nil {
-				log.Err(err).Msg("Sealed sender Whisper Decryption error")
+				log.Err(err).Msg("Sealed sender whisper decryption error")
 			} else {
 				err = stripPadding(&decryptedText)
 				if err != nil {
@@ -479,12 +479,12 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 		result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content)
 		if err != nil {
-			log.Err(err).Msg("prekeyDecrypt error")
+			log.Err(err).Msg("Prekey bundle decryption error")
 		} else {
 			log.Trace().
 				Any("sender_address", result.SenderAddress).
 				Any("content", result.Content).
-				Msg("prekey decrypt result")
+				Msg("Prekey bundle decryption result")
 		}
 
 	case signalpb.Envelope_PLAINTEXT_CONTENT:
