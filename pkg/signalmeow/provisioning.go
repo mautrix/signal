@@ -123,8 +123,8 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		username := *provisioningMessage.Number
 		password := random.String(22)
 		code := provisioningMessage.ProvisioningCode
-		registrationId := mrand.Intn(16383) + 1
-		pniRegistrationId := mrand.Intn(16383) + 1
+		aciRegistrationID := mrand.Intn(16383) + 1
+		pniRegistrationID := mrand.Intn(16383) + 1
 		aciSignedPreKey := GenerateSignedPreKey(1, aciIdentityKeyPair)
 		pniSignedPreKey := GenerateSignedPreKey(1, pniIdentityKeyPair)
 		aciPQLastResortPreKey := GenerateKyberPreKeys(1, 1, aciIdentityKeyPair)[0]
@@ -134,8 +134,8 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			username,
 			password,
 			*code,
-			registrationId,
-			pniRegistrationId,
+			aciRegistrationID,
+			pniRegistrationID,
 			aciSignedPreKey,
 			pniSignedPreKey,
 			aciPQLastResortPreKey,
@@ -157,8 +157,8 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		data := &store.DeviceData{
 			ACIIdentityKeyPair: aciIdentityKeyPair,
 			PNIIdentityKeyPair: pniIdentityKeyPair,
-			RegistrationID:     registrationId,
-			PNIRegistrationID:  pniRegistrationId,
+			ACIRegistrationID:  aciRegistrationID,
+			PNIRegistrationID:  pniRegistrationID,
 			ACI:                deviceResponse.ACI,
 			PNI:                deviceResponse.PNI,
 			DeviceID:           deviceId,
@@ -185,7 +185,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		device.ClearDeviceKeys(ctx)
 
 		// Store identity keys?
-		_, err = device.IdentityStore.SaveIdentityKey(ctx, device.ACIServiceID(), device.ACIIdentityKeyPair.GetIdentityKey())
+		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.ACIServiceID(), device.ACIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -193,7 +193,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			}
 			return
 		}
-		_, err = device.IdentityStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
+		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -335,8 +335,8 @@ func confirmDevice(
 	username string,
 	password string,
 	code string,
-	registrationId int,
-	pniRegistrationId int,
+	aciRegistrationID int,
+	pniRegistrationID int,
 	aciSignedPreKey *libsignalgo.SignedPreKeyRecord,
 	pniSignedPreKey *libsignalgo.SignedPreKeyRecord,
 	aciPQLastResortPreKey *libsignalgo.KyberPreKeyRecord,
@@ -369,8 +369,8 @@ func confirmDevice(
 		"accountAttributes": map[string]any{
 			"fetchesMessages":   true,
 			"name":              encryptedDeviceName,
-			"registrationId":    registrationId,
-			"pniRegistrationId": pniRegistrationId,
+			"registrationId":    aciRegistrationID,
+			"pniRegistrationId": pniRegistrationID,
 			"capabilities": map[string]any{
 				"pni": true,
 			},

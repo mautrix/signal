@@ -27,7 +27,7 @@ type scopedSQLStore struct {
 type DeviceData struct {
 	ACIIdentityKeyPair *libsignalgo.IdentityKeyPair
 	PNIIdentityKeyPair *libsignalgo.IdentityKeyPair
-	RegistrationID     int
+	ACIRegistrationID  int
 	PNIRegistrationID  int
 	ACI                uuid.UUID
 	PNI                uuid.UUID
@@ -60,12 +60,14 @@ type Device struct {
 	// (search for "innerStore" further down in this file)
 
 	// libsignalgo store interfaces
-	ACIPreKeyStore  PreKeyStore
-	PNIPreKeyStore  PreKeyStore
-	ACISessionStore SessionStore
-	PNISessionStore SessionStore
-	IdentityStore   libsignalgo.IdentityKeyStore
-	SenderKeyStore  libsignalgo.SenderKeyStore
+	ACIPreKeyStore   PreKeyStore
+	PNIPreKeyStore   PreKeyStore
+	ACISessionStore  SessionStore
+	PNISessionStore  SessionStore
+	ACIIdentityStore libsignalgo.IdentityKeyStore
+	PNIIdentityStore libsignalgo.IdentityKeyStore
+	IdentityKeyStore IdentityKeyStore
+	SenderKeyStore   libsignalgo.SenderKeyStore
 
 	GroupStore     GroupStore
 	RecipientStore RecipientStore
@@ -112,6 +114,15 @@ func (d *Device) SessionStore(serviceID libsignalgo.ServiceID) SessionStore {
 		return d.ACISessionStore
 	} else if serviceID == d.PNIServiceID() {
 		return d.PNISessionStore
+	}
+	return nil
+}
+
+func (d *Device) IdentityStore(serviceID libsignalgo.ServiceID) libsignalgo.IdentityKeyStore {
+	if serviceID == d.ACIServiceID() {
+		return d.ACIIdentityStore
+	} else if serviceID == d.PNIServiceID() {
+		return d.PNIIdentityStore
 	}
 	return nil
 }

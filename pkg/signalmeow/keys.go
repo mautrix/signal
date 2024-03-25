@@ -428,7 +428,7 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID lib
 			preKeyBundle,
 			address,
 			cli.Store.ACISessionStore,
-			cli.Store.IdentityStore,
+			cli.Store.ACIIdentityStore,
 		)
 		if err != nil {
 			return fmt.Errorf("error processing prekey bundle: %w", err)

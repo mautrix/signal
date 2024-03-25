@@ -241,7 +241,7 @@ func (cli *Client) buildAuthedMessageToSend(ctx context.Context, recipientAddres
 		paddedMessage,
 		recipientAddress,
 		cli.Store.ACISessionStore,
-		cli.Store.IdentityStore,
+		cli.Store.ACIIdentityStore,
 	)
 	if err != nil {
 		return 0, nil, err
@@ -274,7 +274,7 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 		recipientAddress,
 		cert,
 		cli.Store.ACISessionStore,
-		cli.Store.IdentityStore,
+		cli.Store.ACIIdentityStore,
 	)
 	if err != nil {
 		return 0, nil, err

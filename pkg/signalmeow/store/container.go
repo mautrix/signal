@@ -49,7 +49,7 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	var aciIdentityKeyPair, pniIdentityKeyPair []byte
 
 	err := row.Scan(
-		&device.ACI, &aciIdentityKeyPair, &device.RegistrationID,
+		&device.ACI, &aciIdentityKeyPair, &device.ACIRegistrationID,
 		&device.PNI, &pniIdentityKeyPair, &device.PNIRegistrationID,
 		&device.DeviceID, &device.Number, &device.Password, &device.MasterKey,
 	)
@@ -72,7 +72,17 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.PNIPreKeyStore = pniStore
 	device.ACISessionStore = aciStore
 	device.PNISessionStore = pniStore
-	device.IdentityStore = baseStore
+	device.ACIIdentityStore = &sqlIdentityStore{
+		sqlStore:            baseStore,
+		OwnKeyPair:          device.ACIIdentityKeyPair,
+		LocalRegistrationID: uint32(device.ACIRegistrationID),
+	}
+	device.PNIIdentityStore = &sqlIdentityStore{
+		sqlStore:            baseStore,
+		OwnKeyPair:          device.PNIIdentityKeyPair,
+		LocalRegistrationID: uint32(device.PNIRegistrationID),
+	}
+	device.IdentityKeyStore = baseStore
 	device.SenderKeyStore = baseStore
 	device.GroupStore = baseStore
 	device.RecipientStore = baseStore
@@ -150,7 +160,7 @@ func (c *Container) PutDevice(ctx context.Context, device *DeviceData) error {
 		return err
 	}
 	_, err = c.db.Exec(ctx, insertDeviceQuery,
-		device.ACI, aciIdentityKeyPair, device.RegistrationID,
+		device.ACI, aciIdentityKeyPair, device.ACIRegistrationID,
 		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
 		device.DeviceID, device.Number, device.Password, device.MasterKey,
 	)

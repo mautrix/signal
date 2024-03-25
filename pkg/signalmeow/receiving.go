@@ -299,7 +299,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
 			ctx,
 			envelope.GetContent(),
-			cli.Store.IdentityStore,
+			cli.Store.ACIIdentityStore,
 		)
 		if err != nil || usmc == nil {
 			if err == nil {
@@ -397,7 +397,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 				message,
 				senderAddress,
 				cli.Store.ACISessionStore,
-				cli.Store.IdentityStore,
+				cli.Store.ACIIdentityStore,
 			)
 			if err != nil {
 				log.Err(err).Msg("Sealed sender whisper decryption error")
@@ -505,12 +505,16 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		if sessionStore == nil {
 			return nil, fmt.Errorf("no session store for destination service ID %s", destinationServiceID)
 		}
+		identityStore := cli.Store.IdentityStore(destinationServiceID)
+		if identityStore == nil {
+			return nil, fmt.Errorf("no identity store for destination service ID %s", destinationServiceID)
+		}
 		decryptedText, err := libsignalgo.Decrypt(
 			ctx,
 			message,
 			senderAddress,
 			sessionStore,
-			cli.Store.IdentityStore,
+			identityStore,
 		)
 		if err != nil {
 			if strings.Contains(err.Error(), "message with old counter") {
@@ -825,13 +829,13 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 	}
 	pni := uuid.UUID(pniBytes)
 	pniServiceID := libsignalgo.NewPNIServiceID(pni)
-	pniIdentity, err := cli.Store.IdentityStore.GetIdentityKey(ctx, pniServiceID)
+	pniIdentity, err := cli.Store.IdentityKeyStore.GetIdentityKey(ctx, pniServiceID)
 	if err != nil {
 		return fmt.Errorf("failed to get identity for PNI %s: %w", pni, err)
 	} else if pniIdentity == nil {
 		return fmt.Errorf("identity not found for PNI %s", pni)
 	}
-	aciIdentity, err := cli.Store.IdentityStore.GetIdentityKey(ctx, sender)
+	aciIdentity, err := cli.Store.IdentityKeyStore.GetIdentityKey(ctx, sender)
 	if err != nil {
 		return fmt.Errorf("failed to get identity for ACI %s: %w", sender, err)
 	} else if aciIdentity == nil {
@@ -973,7 +977,7 @@ func (cli *Client) sealedSenderDecrypt(ctx context.Context, envelope *signalpb.E
 		prodServerTrustRootKey,
 		timestamp,
 		cli.Store.ACISessionStore,
-		cli.Store.IdentityStore,
+		cli.Store.ACIIdentityStore,
 		cli.Store.ACIPreKeyStore,
 		cli.Store.ACIPreKeyStore,
 	)
@@ -1016,13 +1020,17 @@ func (cli *Client) prekeyDecrypt(ctx context.Context, destination libsignalgo.Se
 	if ss == nil {
 		return nil, fmt.Errorf("no session store found for %s", destination)
 	}
+	is := cli.Store.IdentityStore(destination)
+	if is == nil {
+		return nil, fmt.Errorf("no identity store found for %s", destination)
+	}
 
 	data, err := libsignalgo.DecryptPreKey(
 		ctx,
 		preKeyMessage,
 		sender,
 		ss,
-		cli.Store.IdentityStore,
+		is,
 		pks,
 		pks,
 		pks,

@@ -27,12 +27,24 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-var _ libsignalgo.IdentityKeyStore = (*sqlStore)(nil)
+type sqlIdentityStore struct {
+	*sqlStore
+
+	OwnKeyPair          *libsignalgo.IdentityKeyPair
+	LocalRegistrationID uint32
+}
+
+type IdentityKeyStore interface {
+	SaveIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey) (bool, error)
+	GetIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID) (*libsignalgo.IdentityKey, error)
+	IsTrustedIdentity(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error)
+}
+
+var _ libsignalgo.IdentityKeyStore = (*sqlIdentityStore)(nil)
+var _ IdentityKeyStore = (*sqlStore)(nil)
 
 const (
-	getIdentityKeyPairQuery     = `SELECT aci_identity_key_pair FROM signalmeow_device WHERE aci_uuid=$1`
-	getRegistrationLocalIDQuery = `SELECT registration_id FROM signalmeow_device WHERE aci_uuid=$1`
-	insertIdentityKeyQuery      = `
+	insertIdentityKeyQuery = `
 		INSERT INTO signalmeow_identity_keys (account_id, their_service_id, key, trust_level)
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (account_id, their_service_id) DO UPDATE
@@ -48,25 +60,16 @@ const (
 	`
 )
 
-func scanIdentityKeyPair(row dbutil.Scannable) (*libsignalgo.IdentityKeyPair, error) {
-	return scanRecord(row, libsignalgo.DeserializeIdentityKeyPair)
+func (s *sqlIdentityStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
+	return s.OwnKeyPair, nil
+}
+
+func (s *sqlIdentityStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
+	return s.LocalRegistrationID, nil
 }
 
 func scanIdentityKey(row dbutil.Scannable) (*libsignalgo.IdentityKey, error) {
 	return scanRecord(row, libsignalgo.DeserializeIdentityKey)
-}
-
-func (s *sqlStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
-	return scanIdentityKeyPair(s.db.QueryRow(ctx, getIdentityKeyPairQuery, s.AccountID))
-}
-
-func (s *sqlStore) GetLocalRegistrationID(ctx context.Context) (uint32, error) {
-	var regID sql.NullInt64
-	err := s.db.QueryRow(ctx, getRegistrationLocalIDQuery, s.AccountID).Scan(&regID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get local registration ID: %w", err)
-	}
-	return uint32(regID.Int64), nil
 }
 
 func (s *sqlStore) SaveIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey) (bool, error) {
