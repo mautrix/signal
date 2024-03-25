@@ -407,24 +407,19 @@ func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *sign
 }
 
 func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
-	if cli.LastContactRequestTime == nil {
-		cli.LastContactRequestTime = new(int64)
-	}
-	currentUnixTime := time.Now().Unix()
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send contact sync request").
-		Int64("current_unix_time", currentUnixTime).
-		Int64("last_request_time", *cli.LastContactRequestTime).
-		Int64("seconds_since_last_request", currentUnixTime-*cli.LastContactRequestTime).
+		Time("last_request_time", cli.LastContactRequestTime).
 		Logger()
 	ctx = log.WithContext(ctx)
 	// If we've requested in the last minute, don't request again
-	if cli.LastContactRequestTime != nil && currentUnixTime-*cli.LastContactRequestTime < 60 {
+	if time.Since(cli.LastContactRequestTime) < 60*time.Second {
 		log.Warn().Msg("Not sending contact sync request because we already requested it in the past minute")
 		return nil
 	}
 
-	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(currentUnixTime), &signalpb.Content{
+	cli.LastContactRequestTime = time.Now()
+	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(time.Now().UnixMilli()), &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Request: &signalpb.SyncMessage_Request{
 				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
@@ -435,7 +430,6 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 		log.Err(err).Msg("Failed to send contact sync request message to myself")
 		return err
 	}
-	cli.LastContactRequestTime = &currentUnixTime
 	return nil
 }
 
