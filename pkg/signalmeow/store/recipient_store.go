@@ -57,7 +57,8 @@ const (
 			profile_about,
 			profile_about_emoji,
 			profile_avatar_path,
-			profile_fetched_at
+			profile_fetched_at,
+			needs_pni_signature
 		FROM signalmeow_recipients
 		WHERE account_id = $1
 	`
@@ -79,9 +80,10 @@ const (
 			profile_about,
 			profile_about_emoji,
 			profile_avatar_path,
-			profile_fetched_at
+			profile_fetched_at,
+			needs_pni_signature
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 		ON CONFLICT (account_id, aci_uuid) DO UPDATE SET
 			pni_uuid = excluded.pni_uuid,
 			e164_number = excluded.e164_number,
@@ -92,7 +94,8 @@ const (
 			profile_about = excluded.profile_about,
 			profile_about_emoji = excluded.profile_about_emoji,
 			profile_avatar_path = excluded.profile_avatar_path,
-			profile_fetched_at = excluded.profile_fetched_at
+			profile_fetched_at = excluded.profile_fetched_at,
+			needs_pni_signature = excluded.needs_pni_signature
 	`
 	upsertPNIRecipientQuery = `
 		INSERT INTO signalmeow_recipients (
@@ -127,6 +130,7 @@ func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 		&recipient.Profile.AboutEmoji,
 		&recipient.Profile.AvatarPath,
 		&profileFetchedAt,
+		&recipient.NeedsPNISignature,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -300,6 +304,7 @@ func (s *sqlStore) StoreRecipient(ctx context.Context, recipient *types.Recipien
 			recipient.Profile.AboutEmoji,
 			recipient.Profile.AvatarPath,
 			dbutil.UnixMilliPtr(recipient.Profile.FetchedAt),
+			recipient.NeedsPNISignature,
 		)
 	} else if recipient.PNI != uuid.Nil {
 		_, err = s.db.Exec(

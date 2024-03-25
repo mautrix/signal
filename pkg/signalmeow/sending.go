@@ -168,8 +168,6 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalg
 	cli.encryptionLock.Lock()
 	defer cli.encryptionLock.Unlock()
 
-	messages := []MyMessage{}
-
 	addresses, sessionRecords, err := cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
 	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
 		// No sessions, make one with prekey
@@ -184,6 +182,7 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalg
 		return nil, err
 	}
 
+	messages := make([]MyMessage, 0, len(addresses))
 	for i, recipientAddress := range addresses {
 		recipientDeviceID, err := recipientAddress.DeviceID()
 		if err != nil {
@@ -666,6 +665,41 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		messageTimestamp = *content.EditMessage.DataMessage.Timestamp
 	} else {
 		messageTimestamp = currentMessageTimestamp()
+	}
+	needsPNISignature := false
+	if recipientID.Type == libsignalgo.ServiceIDTypeACI {
+		_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, recipientID.UUID, uuid.Nil, func(recipientData *types.Recipient) (changed bool, err error) {
+			if recipientData.NeedsPNISignature {
+				needsPNISignature = true
+				zerolog.Ctx(ctx).Debug().
+					Stringer("recipient", recipientID).
+					Msg("Including PNI identity in message")
+				sig, err := cli.Store.PNIIdentityKeyPair.SignAlternateIdentity(cli.Store.ACIIdentityKeyPair.GetIdentityKey())
+				if err != nil {
+					return false, err
+				}
+				recipientData.NeedsPNISignature = false
+				content.PniSignatureMessage = &signalpb.PniSignatureMessage{
+					Pni:       cli.Store.PNI[:],
+					Signature: sig,
+				}
+				return true, nil
+			}
+			return false, nil
+		})
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to add PNI signature to message")
+		}
+	}
+	// Treat needs PNI signature as "this is a message request" and don't send receipts/typing
+	if needsPNISignature && (content.TypingMessage != nil || content.ReceiptMessage != nil) {
+		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
+		res := &SuccessfulSendResult{Recipient: recipientID}
+		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+			// Still send sync messages for read receipts
+			cli.sendSyncCopy(ctx, content, messageTimestamp, res)
+		}
+		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
 	}
 
 	isDeliveryReceipt := content.ReceiptMessage != nil && content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY

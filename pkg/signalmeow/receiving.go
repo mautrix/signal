@@ -615,6 +615,20 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			}, nil
 		}
 
+		if destinationServiceID == cli.Store.PNIServiceID() {
+			_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, theirServiceID.UUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
+				if !recipient.NeedsPNISignature {
+					log.Debug().Msg("Marking recipient as needing PNI signature")
+					recipient.NeedsPNISignature = true
+					return true, nil
+				}
+				return false, nil
+			})
+			if err != nil {
+				log.Err(err).Msg("Failed to set needs_pni_signature flag after receiving message to PNI service ID")
+			}
+		}
+
 		if content.GetPniSignatureMessage() != nil {
 			log.Debug().Msg("Content includes PNI signature message")
 			err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.GetPniSignatureMessage())
