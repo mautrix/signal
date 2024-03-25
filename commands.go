@@ -55,7 +55,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdSetDeviceName,
 		cmdPM,
 		cmdResolvePhone,
-		cmdSyncSpace,
+		cmdSync,
 		cmdDeleteSession,
 		cmdSetRelay,
 		cmdUnsetRelay,
@@ -309,18 +309,26 @@ func fnResolvePhone(ce *WrappedCommandEvent) {
 	}
 }
 
-var cmdSyncSpace = &commands.FullHandler{
-	Func: wrapCommand(fnSyncSpace),
-	Name: "sync-space",
+var cmdSync = &commands.FullHandler{
+	Func: wrapCommand(fnSync),
+	Name: "sync",
 	Help: commands.HelpMeta{
 		Section:     HelpSectionMiscellaneous,
-		Description: "Synchronize your personal filtering space",
+		Description: "Synchronize Signal bridge data",
+		Args:        "<space/portals>",
 	},
 	RequiresLogin: true,
 }
 
-func fnSyncSpace(ce *WrappedCommandEvent) {
-	if !ce.Bridge.Config.Bridge.PersonalFilteringSpaces {
+func fnSync(ce *WrappedCommandEvent) {
+	args := strings.ToLower(strings.Join(ce.Args, " "))
+	space := strings.Contains(args, "space")
+	groups := strings.Contains(args, "groups")
+	if !space && !groups {
+		ce.Reply("**Usage:** `sync <space/groups>`")
+		return
+	}
+	if !ce.Bridge.Config.Bridge.PersonalFilteringSpaces && space {
 		ce.Reply("Personal filtering spaces are not enabled on this instance of the bridge")
 		return
 	}
@@ -331,26 +339,49 @@ func fnSyncSpace(ce *WrappedCommandEvent) {
 		ce.Reply("Failed to get private chat IDs from database")
 		return
 	}
-	count := 0
 	allPortals := ce.Bridge.GetAllPortalsWithMXID()
-	for _, portal := range allPortals {
-		if portal.IsPrivateChat() {
-			continue
+	if space {
+		count := 0
+		for _, portal := range allPortals {
+			if portal.IsPrivateChat() {
+				continue
+			}
+			if ce.Bridge.StateStore.IsInRoom(ctx, portal.MXID, ce.User.MXID) && portal.addToPersonalSpace(ctx, ce.User) {
+				count++
+			}
 		}
-		if ce.Bridge.StateStore.IsInRoom(ctx, portal.MXID, ce.User.MXID) && portal.addToPersonalSpace(ctx, ce.User) {
+		for _, key := range dmKeys {
+			portal := ce.Bridge.GetPortalByChatID(key)
+			portal.addToPersonalSpace(ctx, ce.User)
 			count++
 		}
+		plural := "s"
+		if count == 1 {
+			plural = ""
+		}
+		ce.Reply("Added %d room%s to space", count, plural)
 	}
-	for _, key := range dmKeys {
-		portal := ce.Bridge.GetPortalByChatID(key)
-		portal.addToPersonalSpace(ctx, ce.User)
-		count++
+	if groups {
+		count := 0
+		for _, portal := range allPortals {
+			if portal.IsPrivateChat() {
+				continue
+			}
+			if ce.Bridge.StateStore.IsInRoom(ctx, portal.MXID, ce.User.MXID) {
+				groupInfo := portal.UpdateGroupInfo(ce.Ctx, ce.User, nil, 0, true)
+				if groupInfo != nil {
+					members := portal.SyncParticipants(ctx, ce.User, groupInfo)
+					portal.updatePowerLevelsAndJoinRule(ctx, groupInfo, members)
+					count++
+				}
+			}
+		}
+		plural := "s"
+		if count == 1 {
+			plural = ""
+		}
+		ce.Reply("Synced %d group%s", count, plural)
 	}
-	plural := "s"
-	if count == 1 {
-		plural = ""
-	}
-	ce.Reply("Added %d room%s to space", count, plural)
 }
 
 var cmdLogin = &commands.FullHandler{
