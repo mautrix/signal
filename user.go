@@ -766,6 +766,9 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 		Stringer("pni", evt.PNI.UUID).
 		Logger()
 	log.Debug().Msg("Handling ACI found event")
+	defer func() {
+		log.Debug().Msg("Finished handling ACI found event")
+	}()
 	ctx := log.WithContext(context.TODO())
 	user.bridge.portalsLock.Lock()
 	defer user.bridge.portalsLock.Unlock()
@@ -781,7 +784,7 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 	defer pniPortal.roomCreateLock.Unlock()
 	if pniPortal.MXID == "" {
 		log.Info().Msg("PNI portal doesn't have Matrix room, deleting row")
-		pniPortal.Delete()
+		pniPortal.unlockedDelete()
 		return
 	}
 	log.UpdateContext(func(c zerolog.Context) zerolog.Context {
@@ -805,7 +808,7 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 	defer aciPortal.roomCreateLock.Unlock()
 	if aciPortal.MXID == "" {
 		log.Info().Msg("ACI portal row exists, but doesn't have a Matrix room. Deleting ACI portal row and re-ID'ing PNI portal")
-		aciPortal.Delete()
+		aciPortal.unlockedDelete()
 		err := pniPortal.unlockedReID(ctx, evt.ACI.String())
 		if err != nil {
 			log.Err(err).Msg("Failed to re-ID PNI portal")
@@ -817,15 +820,17 @@ func (user *User) handleACIFound(evt *events.ACIFound) {
 			return c.Stringer("aci_portal_mxid", aciPortal.MXID)
 		})
 		log.Info().Msg("Both ACI and PNI portal have Matrix room, tombstoning PNI portal")
-		_, err := pniPortal.MainIntent().SendStateEvent(ctx, pniPortal.MXID, event.StateTombstone, "", &event.TombstoneEventContent{
-			Body:            fmt.Sprintf("This room has been merged"),
-			ReplacementRoom: aciPortal.MXID,
-		})
-		if err != nil {
-			log.Err(err).Msg("Failed to send tombstone to PNI portal")
-		}
-		pniPortal.Delete()
-		pniPortal.Cleanup(ctx, err == nil)
+		pniPortal.unlockedDelete()
+		go func() {
+			_, err := pniPortal.MainIntent().SendStateEvent(ctx, pniPortal.MXID, event.StateTombstone, "", &event.TombstoneEventContent{
+				Body:            fmt.Sprintf("This room has been merged"),
+				ReplacementRoom: aciPortal.MXID,
+			})
+			if err != nil {
+				log.Err(err).Msg("Failed to send tombstone to PNI portal")
+			}
+			pniPortal.Cleanup(ctx, err == nil)
+		}()
 	}
 }
 

@@ -2460,6 +2460,19 @@ func (portal *Portal) Delete() {
 		portal.log.Err(err).Msg("Failed to delete portal from db")
 	}
 	portal.bridge.portalsLock.Lock()
+	portal.unlockedDeleteCache()
+	portal.bridge.portalsLock.Unlock()
+}
+
+func (portal *Portal) unlockedDelete() {
+	err := portal.Portal.Delete(context.TODO())
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to delete portal from db")
+	}
+	portal.unlockedDeleteCache()
+}
+
+func (portal *Portal) unlockedDeleteCache() {
 	delete(portal.bridge.portalsByID, portal.PortalKey)
 	if len(portal.MXID) > 0 {
 		delete(portal.bridge.portalsByMXID, portal.MXID)
@@ -2476,7 +2489,6 @@ func (portal *Portal) Delete() {
 			user.RemoveInSpaceCache(portal.PortalKey)
 		}
 	}
-	portal.bridge.portalsLock.Unlock()
 }
 
 func (portal *Portal) Cleanup(ctx context.Context, puppetsOnly bool) {
