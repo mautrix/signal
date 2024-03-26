@@ -771,6 +771,7 @@ func fnCreate(ce *WrappedCommandEvent) {
 	var avatarHash string
 	var avatarURL id.ContentURI
 	var avatarBytes []byte
+	avatarSet := false
 	if ok {
 		roomAvatarEvent.Content.ParseRaw(event.StateRoomAvatar)
 		avatarURL = roomAvatarEvent.Content.AsRoomAvatar().URL
@@ -783,6 +784,7 @@ func fnCreate(ce *WrappedCommandEvent) {
 			hash := sha256.Sum256(avatarBytes)
 			avatarHash = hex.EncodeToString(hash[:])
 			ce.ZLog.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{ce.User.MXID, avatarURL})
+			avatarSet = true
 		}
 	}
 	var encryptionEvent *event.EncryptionEventContent
@@ -856,7 +858,7 @@ func fnCreate(ce *WrappedCommandEvent) {
 		Str("room_name", roomName).
 		Any("participants", participants).
 		Msg("Creating Signal group for Matrix room")
-	group, err := ce.User.Client.CreateGroupOnServer(ce.Ctx, &signalmeow.Group{
+	group, err := ce.User.Client.CreateGroup(ce.Ctx, &signalmeow.Group{
 		Title:       roomName,
 		Description: roomTopic,
 		Members:     participants,
@@ -899,16 +901,11 @@ func fnCreate(ce *WrappedCommandEvent) {
 		}
 		portal.Encrypted = true
 	}
-	revision, err := ce.User.Client.UpdateGroup(ce.Ctx, &signalmeow.GroupChange{}, gid)
-	if err != nil {
-		ce.Reply("Failed to update Group")
-		return
-	}
-	portal.Revision = revision
+	portal.Revision = group.Revision
 	portal.AvatarHash = avatarHash
 	portal.AvatarURL = avatarURL
 	portal.AvatarPath = group.AvatarPath
-	portal.AvatarSet = true
+	portal.AvatarSet = avatarSet
 	err = portal.Update(ce.Ctx)
 	if err != nil {
 		ce.ZLog.Err(err).Msg("Failed to save portal after creating group")
