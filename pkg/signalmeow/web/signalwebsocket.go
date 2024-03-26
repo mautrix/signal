@@ -297,7 +297,7 @@ func (s *SignalWebsocket) connectLoop(
 						loopCancel(fmt.Errorf("error sending keepalive: %w", err))
 						return
 					}
-					log.Info().Msg("Sent keepalive")
+					log.Debug().Msg("Sent keepalive")
 				case <-loopCtx.Done():
 					return
 				}
