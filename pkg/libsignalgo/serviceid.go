@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2024 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -23,11 +23,13 @@ package libsignalgo
 */
 import "C"
 import (
+	"database/sql/driver"
 	"fmt"
-	"runtime"
+	"strings"
 	"unsafe"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 )
 
 func init() {
@@ -36,38 +38,120 @@ func init() {
 	}
 }
 
-func SignalServiceIDFromUUID(uuid uuid.UUID) (cPNIType, error) {
-	var result C.SignalServiceIdFixedWidthBinaryBytes
-	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(uuid[:]))
-	runtime.KeepAlive(uuid)
-	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
+type ServiceIDType byte
+
+const (
+	ServiceIDTypeACI ServiceIDType = 0
+	ServiceIDTypePNI ServiceIDType = 1
+)
+
+func (st ServiceIDType) String() string {
+	switch st {
+	case ServiceIDTypeACI:
+		return "ACI"
+	case ServiceIDTypePNI:
+		return "PNI"
+	default:
+		panic(fmt.Sprintf("invalid ServiceIDType: %d", st))
 	}
-	return cPNIType(unsafe.Pointer(&result)), nil
 }
 
-func SignalPNIServiceIDFromUUID(uuid uuid.UUID) (cPNIType, error) {
-	var result C.SignalServiceIdFixedWidthBinaryBytes
-	// Prepend a 0x01 to the UUID to indicate that it is a PNI UUID
-	pniUUID := append([]byte{0x01}, uuid[:]...)
-	signalFfiError := C.signal_service_id_parse_from_service_id_binary(&result, BytesToBuffer(pniUUID))
-	runtime.KeepAlive(pniUUID)
-	if signalFfiError != nil {
-		return nil, wrapError(signalFfiError)
-	}
-	return cPNIType(unsafe.Pointer(&result)), nil
+func (st ServiceIDType) GoString() string {
+	return fmt.Sprintf("libsignalgo.ServiceIDType%s", st.String())
 }
 
-func SignalServiceIDToUUID(serviceId *C.SignalServiceIdFixedWidthBinaryBytes) (uuid.UUID, error) {
-	result := C.SignalOwnedBuffer{}
-	serviceIdBytes := cPNIType(unsafe.Pointer(serviceId)) // Hack around gcc bug, not needed for clang
-	signalFfiError := C.signal_service_id_service_id_binary(&result, serviceIdBytes)
-	if signalFfiError != nil {
-		return uuid.UUID{}, wrapError(signalFfiError)
+type ServiceID struct {
+	Type ServiceIDType
+	UUID uuid.UUID
+}
+
+var EmptyServiceID ServiceID
+
+func NewPNIServiceID(uuid uuid.UUID) ServiceID {
+	return ServiceID{
+		Type: ServiceIDTypePNI,
+		UUID: uuid,
 	}
-	uuidBytes := CopySignalOwnedBufferToBytes(result)
-	if len(uuidBytes) != 16 {
-		return uuid.UUID{}, fmt.Errorf("invalid UUID length: %d. UUID: %x", len(uuidBytes), uuidBytes)
+}
+
+func NewACIServiceID(uuid uuid.UUID) ServiceID {
+	return ServiceID{
+		Type: ServiceIDTypeACI,
+		UUID: uuid,
 	}
-	return uuid.UUID(uuidBytes), nil
+}
+
+func (s ServiceID) IsEmpty() bool {
+	return s.UUID == uuid.Nil
+}
+
+func (s ServiceID) Address(deviceID uint) (*Address, error) {
+	return newAddress(s.String(), deviceID)
+}
+
+func (s ServiceID) Bytes() []byte {
+	if s.Type == ServiceIDTypeACI {
+		return s.UUID[:]
+	}
+	return append([]byte{byte(s.Type)}, s.UUID[:]...)
+}
+
+func (s ServiceID) Value() (driver.Value, error) {
+	return s.String(), nil
+}
+
+func (s ServiceID) String() string {
+	if s.Type == ServiceIDTypeACI {
+		return s.UUID.String()
+	}
+	return fmt.Sprintf("%s:%s", s.Type, s.UUID)
+}
+
+func (s ServiceID) GoString() string {
+	return fmt.Sprintf(`libsignalgo.ServiceID{Type: %#v, UUID: uuid.MustParse("%s")}`, s.Type, s.UUID)
+}
+
+func (s ServiceID) MarshalZerologObject(e *zerolog.Event) {
+	e.Stringer("type", s.Type)
+	e.Stringer("uuid", s.UUID)
+}
+
+type ServiceIDFixedBytes [17]byte
+
+func (s ServiceID) FixedBytes() *ServiceIDFixedBytes {
+	var result ServiceIDFixedBytes
+	result[0] = byte(s.Type)
+	copy(result[1:], s.UUID[:])
+	return &result
+}
+
+func ServiceIDFromString(val string) (ServiceID, error) {
+	if len(val) < 36 {
+		return EmptyServiceID, fmt.Errorf("invalid UUID string: %s", val)
+	}
+	if strings.ToUpper(val[:4]) == "PNI:" {
+		parsed, err := uuid.Parse(val[4:])
+		if err != nil {
+			return EmptyServiceID, err
+		}
+		return NewPNIServiceID(parsed), nil
+	} else {
+		parsed, err := uuid.Parse(val)
+		if err != nil {
+			return EmptyServiceID, err
+		}
+		return NewACIServiceID(parsed), nil
+	}
+}
+
+func ServiceIDFromCFixedBytes(serviceID *C.SignalServiceIdFixedWidthBinaryBytes) ServiceID {
+	var id ServiceID
+	fixedBytes := (*ServiceIDFixedBytes)(unsafe.Pointer(serviceID))
+	id.Type = ServiceIDType(fixedBytes[0])
+	copy(id.UUID[:], fixedBytes[1:])
+	return id
+}
+
+func (s ServiceID) CFixedBytes() cPNIType {
+	return cPNIType(unsafe.Pointer(s.FixedBytes()))
 }

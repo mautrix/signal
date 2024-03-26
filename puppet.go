@@ -53,13 +53,13 @@ func (br *SignalBridge) GetPuppetBySignalIDString(id string) *Puppet {
 }
 
 func (br *SignalBridge) GetPuppetBySignalID(id uuid.UUID) *Puppet {
-	br.puppetsLock.Lock()
-	defer br.puppetsLock.Unlock()
-
 	if id == uuid.Nil {
 		br.ZLog.Warn().Msg("Trying to get puppet with empty signal_user_id")
 		return nil
 	}
+
+	br.puppetsLock.Lock()
+	defer br.puppetsLock.Unlock()
 
 	puppet, ok := br.puppets[id]
 	if !ok {
@@ -216,7 +216,7 @@ func (puppet *Puppet) CustomIntent() *appservice.IntentAPI {
 
 func (puppet *Puppet) IntentFor(portal *Portal) *appservice.IntentAPI {
 	if puppet != nil {
-		if puppet.customIntent == nil || portal.UserID() == puppet.SignalID {
+		if puppet.customIntent == nil || portal.UserID().UUID == puppet.SignalID {
 			return puppet.DefaultIntent()
 		}
 		return puppet.customIntent
@@ -240,7 +240,7 @@ func (puppet *Puppet) UpdateInfo(ctx context.Context, source *User) {
 	ctx = log.WithContext(ctx)
 	var err error
 	log.Debug().Msg("Fetching contact info to update puppet")
-	info, err := source.Client.ContactByID(ctx, puppet.SignalID)
+	info, err := source.Client.ContactByACI(ctx, puppet.SignalID)
 	if err != nil {
 		log.Err(err).Msg("Failed to fetch contact info")
 		return
@@ -311,7 +311,7 @@ func (puppet *Puppet) updatePortalMeta(ctx context.Context) {
 	}
 }
 
-func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *types.Contact) bool {
+func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *types.Recipient) bool {
 	var avatarData []byte
 	var avatarContentType string
 	log := zerolog.Ctx(ctx)
@@ -390,7 +390,7 @@ func (puppet *Puppet) updateAvatar(ctx context.Context, source *User, info *type
 	return true
 }
 
-func (puppet *Puppet) updateName(ctx context.Context, contact *types.Contact) bool {
+func (puppet *Puppet) updateName(ctx context.Context, contact *types.Recipient) bool {
 	// TODO set name quality
 	newName := puppet.bridge.Config.Bridge.FormatDisplayname(contact)
 	if puppet.NameSet && puppet.Name == newName {

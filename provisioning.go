@@ -36,7 +36,9 @@ import (
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 type provisioningContextKey int
@@ -143,10 +145,10 @@ type WhoAmIResponseSignal struct {
 }
 
 type ResolveIdentifierResponse struct {
-	RoomID      id.RoomID                          `json:"room_id"`
-	ChatID      ResolveIdentifierResponseChatID    `json:"chat_id"`
-	JustCreated bool                               `json:"just_created"`
-	OtherUser   ResolveIdentifierResponseOtherUser `json:"other_user"`
+	RoomID      id.RoomID                           `json:"room_id"`
+	ChatID      ResolveIdentifierResponseChatID     `json:"chat_id"`
+	JustCreated bool                                `json:"just_created"`
+	OtherUser   *ResolveIdentifierResponseOtherUser `json:"other_user,omitempty"`
 }
 
 type ResolveIdentifierResponseChatID struct {
@@ -169,37 +171,56 @@ func (prov *ProvisioningAPI) resolveIdentifier(ctx context.Context, user *User, 
 		return http.StatusBadRequest, nil, fmt.Errorf("error parsing phone number: %w", err)
 	}
 	e164String := fmt.Sprintf("+%d", e164Number)
-	var targetUUID uuid.UUID
-	if contact, err := user.Client.ContactByE164(ctx, e164String); err != nil {
+	var aci, pni uuid.UUID
+	var recipient *types.Recipient
+	if recipient, err = user.Client.ContactByE164(ctx, e164String); err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number in local contact list: %w", err)
-	} else if contact != nil {
-		targetUUID = contact.UUID
+	} else if recipient != nil {
+		aci = recipient.ACI
+		pni = recipient.PNI
 	} else if resp, err := user.Client.LookupPhone(ctx, e164Number); err != nil {
 		return http.StatusInternalServerError, nil, fmt.Errorf("error looking up number on server: %w", err)
-	} else if resp[e164Number].ACI != uuid.Nil {
-		targetUUID = resp[e164Number].ACI
-		err = user.Client.Store.ContactStore.UpdatePhone(ctx, targetUUID, e164String)
+	} else {
+		aci = resp[e164Number].ACI
+		pni = resp[e164Number].PNI
+		if aci == uuid.Nil && pni == uuid.Nil {
+			return http.StatusNotFound, nil, errors.New("user not found on Signal")
+		}
+		recipient, err = user.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
 		if err != nil {
-			zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to update phone number in user's contact store")
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
+	}
+	zerolog.Ctx(ctx).Debug().
+		Uint64("e164", e164Number).
+		Stringer("aci", aci).
+		Stringer("pni", pni).
+		Msg("Found DM target user")
+
+	var targetServiceID libsignalgo.ServiceID
+	var otherUserInfo *ResolveIdentifierResponseOtherUser
+	if aci != uuid.Nil {
+		targetServiceID = libsignalgo.NewACIServiceID(aci)
+		puppet := prov.bridge.GetPuppetBySignalID(aci)
+		otherUserInfo = &ResolveIdentifierResponseOtherUser{
+			MXID:        puppet.MXID.String(),
+			DisplayName: puppet.Name,
+			AvatarURL:   puppet.AvatarURL.String(),
 		}
 	} else {
-		return http.StatusNotFound, nil, errors.New("user not found on Signal")
+		targetServiceID = libsignalgo.NewPNIServiceID(pni)
+		// TODO fill other user displayname/avatar if there's a contact entry?
 	}
-
-	portal := user.GetPortalByChatID(targetUUID.String())
-	puppet := prov.bridge.GetPuppetBySignalID(targetUUID)
+	portal := user.GetPortalByChatID(targetServiceID.String())
 
 	return http.StatusOK, &ResolveIdentifierResponse{
 		RoomID: portal.MXID,
 		ChatID: ResolveIdentifierResponseChatID{
-			UUID:   targetUUID.String(),
+			UUID:   targetServiceID.String(),
 			Number: e164String,
 		},
-		OtherUser: ResolveIdentifierResponseOtherUser{
-			MXID:        puppet.MXID.String(),
-			DisplayName: puppet.Name,
-			AvatarURL:   puppet.AvatarURL.String(),
-		},
+		OtherUser: otherUserInfo,
 	}, nil
 }
 

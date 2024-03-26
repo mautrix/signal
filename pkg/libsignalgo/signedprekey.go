@@ -106,14 +106,14 @@ func (spkr *SignedPreKeyRecord) GetSignature() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(signature), nil
 }
 
-func (spkr *SignedPreKeyRecord) GetID() (uint, error) {
+func (spkr *SignedPreKeyRecord) GetID() (uint32, error) {
 	var id C.uint32_t
 	signalFfiError := C.signal_signed_pre_key_record_get_id(&id, spkr.ptr)
 	runtime.KeepAlive(spkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
-	return uint(id), nil
+	return uint32(id), nil
 }
 
 func (spkr *SignedPreKeyRecord) GetTimestamp() (time.Time, error) {

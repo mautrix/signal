@@ -24,6 +24,7 @@ import (
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -56,6 +57,7 @@ const (
 		WHERE chat_id=$1 AND receiver=$2
 	`
 	deletePortalQuery = `DELETE FROM portal WHERE chat_id=$1 AND receiver=$2`
+	reIDPortalQuery   = `UPDATE portal SET chat_id=$2 WHERE chat_id=$1 AND receiver=$3`
 )
 
 type PortalQuery struct {
@@ -67,8 +69,8 @@ type PortalKey struct {
 	Receiver uuid.UUID
 }
 
-func (pk *PortalKey) UserID() uuid.UUID {
-	parsed, _ := uuid.Parse(pk.ChatID)
+func (pk *PortalKey) UserID() libsignalgo.ServiceID {
+	parsed, _ := libsignalgo.ServiceIDFromString(pk.ChatID)
 	return parsed
 }
 
@@ -197,4 +199,8 @@ func (p *Portal) Update(ctx context.Context) error {
 
 func (p *Portal) Delete(ctx context.Context) error {
 	return p.qh.Exec(ctx, deletePortalQuery, p.ChatID, p.Receiver)
+}
+
+func (p *Portal) ReID(ctx context.Context, newID string) error {
+	return p.qh.Exec(ctx, reIDPortalQuery, p.ChatID, newID, p.Receiver)
 }

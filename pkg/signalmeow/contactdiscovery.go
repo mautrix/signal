@@ -86,8 +86,6 @@ func (cli *Client) LookupPhone(ctx context.Context, e164s ...uint64) (ContactDis
 		//      (it's meant for old_e164s)
 		//Token:    cli.cdToken,
 		NewE164S: requestData,
-
-		ReturnAcisWithoutUaks: proto.Bool(true),
 	})
 	if token != nil {
 		cli.cdToken = token

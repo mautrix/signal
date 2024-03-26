@@ -31,6 +31,7 @@ type Profile struct {
 	AvatarPath string
 	Key        libsignalgo.ProfileKey
 	FetchedAt  time.Time
+	Credential []byte
 }
 
 func (p *Profile) Equals(other *Profile) bool {
@@ -41,17 +42,18 @@ func (p *Profile) Equals(other *Profile) bool {
 		p.Key == other.Key
 }
 
-// The Contact struct combines information from two sources:
+// The Recipient struct combines information from two sources:
 // - A Signal "contact": contact info harvested from our user's phone's contact list
 // - A Signal "profile": contact info entered by the target user when registering for Signal
-// Users of this Contact struct should prioritize "contact" information, but fall back
-// to "profile" information if the contact information is not available.
-type Contact struct {
-	UUID          uuid.UUID
+type Recipient struct {
+	ACI           uuid.UUID
+	PNI           uuid.UUID
 	E164          string
 	ContactName   string
 	ContactAvatar ContactAvatar
 	Profile       Profile
+
+	NeedsPNISignature bool
 }
 
 type ContactAvatar struct {

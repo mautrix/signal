@@ -19,6 +19,7 @@ package events
 import (
 	"github.com/google/uuid"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
@@ -32,6 +33,7 @@ func (*Receipt) isSignalEvent()     {}
 func (*ReadSelf) isSignalEvent()    {}
 func (*Call) isSignalEvent()        {}
 func (*ContactList) isSignalEvent() {}
+func (*ACIFound) isSignalEvent()    {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -61,5 +63,10 @@ type Call struct {
 }
 
 type ContactList struct {
-	Contacts []*types.Contact
+	Contacts []*types.Recipient
+}
+
+type ACIFound struct {
+	PNI libsignalgo.ServiceID
+	ACI libsignalgo.ServiceID
 }

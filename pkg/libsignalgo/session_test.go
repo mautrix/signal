@@ -121,10 +121,12 @@ func initializeSessions(t *testing.T, aliceStore, bobStore *InMemorySignalProtoc
 // From SessionTests.swift:testSessionCipher
 func TestSessionCipher(t *testing.T) {
 	ctx := context.TODO()
+	aliceACI := uuid.New()
+	bobACI := uuid.New()
 
-	aliceAddress, err := libsignalgo.NewPhoneAddress("+14151111111", 1)
+	aliceAddress, err := libsignalgo.NewACIServiceID(aliceACI).Address(1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
+	bobAddress, err := libsignalgo.NewACIServiceID(bobACI).Address(1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -170,9 +172,12 @@ func TestSessionCipher(t *testing.T) {
 func TestSessionCipherWithBadStore(t *testing.T) {
 	ctx := context.TODO()
 
-	aliceAddress, err := libsignalgo.NewPhoneAddress("+14151111111", 1)
+	aliceACI := uuid.New()
+	bobACI := uuid.New()
+
+	aliceAddress, err := libsignalgo.NewACIServiceID(aliceACI).Address(1)
 	assert.NoError(t, err)
-	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
+	bobAddress, err := libsignalgo.NewACIServiceID(bobACI).Address(1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()
@@ -337,7 +342,9 @@ func TestArchiveSession(t *testing.T) {
 	ctx := context.TODO()
 	setupLogging()
 
-	bobAddress, err := libsignalgo.NewPhoneAddress("+14151111112", 1)
+	bobACI := uuid.New()
+
+	bobAddress, err := libsignalgo.NewACIServiceID(bobACI).Address(1)
 	assert.NoError(t, err)
 
 	aliceStore := NewInMemorySignalProtocolStore()

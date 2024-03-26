@@ -19,6 +19,7 @@ package libsignalgo_test
 import (
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -28,12 +29,14 @@ import (
 func TestAddress(t *testing.T) {
 	setupLogging()
 
-	addr, err := libsignalgo.NewPhoneAddress("addr1", 5)
+	testUUID := uuid.New()
+
+	addr, err := libsignalgo.NewPNIServiceID(testUUID).Address(5)
 	assert.NoError(t, err)
 
 	name, err := addr.Name()
 	assert.NoError(t, err)
-	assert.Equal(t, "addr1", name)
+	assert.Equal(t, "PNI:"+testUUID.String(), name)
 
 	deviceID, err := addr.DeviceID()
 	assert.NoError(t, err)

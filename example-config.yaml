@@ -255,7 +255,8 @@ bridge:
             # Disable rotating keys when a user's devices change?
             # You should not enable this option unless you understand all the implications.
             disable_device_change_key_rotation: false
-
+    # Should leaving the room on Matrix make the user leave on Signal?
+    bridge_matrix_leave: true
     # Settings for provisioning API
     provisioning:
         # Prefix for the provisioning API paths.

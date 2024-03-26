@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2024 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -18,8 +18,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
@@ -27,42 +25,28 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-var _ ProfileKeyStore = (*SQLStore)(nil)
-
-type ProfileKeyStore interface {
-	// LoadProfileKey loads the profile key for the given address.
-	// If the address is not found, nil is returned.
-	LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error)
-	StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error
-	MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error)
-}
-
 const (
-	loadProfileKeyQuery  = `SELECT key FROM signalmeow_profile_keys WHERE our_aci_uuid=$1 AND their_aci_uuid=$2`
-	storeProfileKeyQuery = `INSERT INTO signalmeow_profile_keys (our_aci_uuid, their_aci_uuid, key) VALUES ($1, $2, $3) ON CONFLICT (our_aci_uuid, their_aci_uuid) DO UPDATE SET key=excluded.key`
+	loadProfileKeyQuery  = `SELECT profile_key FROM signalmeow_recipients WHERE account_id=$1 AND aci_uuid=$2`
+	storeProfileKeyQuery = `
+		INSERT INTO signalmeow_recipients (account_id, aci_uuid, profile_key)
+		VALUES ($1, $2, $3)
+		ON CONFLICT (account_id, aci_uuid) DO UPDATE SET profile_key=excluded.profile_key
+	`
 )
 
 func scanProfileKey(row dbutil.Scannable) (*libsignalgo.ProfileKey, error) {
-	var record []byte
-	err := row.Scan(&record)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	} else if err != nil {
-		return nil, err
-	}
-	profileKey := libsignalgo.ProfileKey(record)
-	return &profileKey, err
+	return scanRecord(row, libsignalgo.DeserializeProfileKey)
 }
 
-func (s *SQLStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.ACI, theirACI))
+func (s *sqlStore) LoadProfileKey(ctx context.Context, theirACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
+	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, theirACI))
 }
 
-func (s *SQLStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
-	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.ACI, s.ACI))
+func (s *sqlStore) MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error) {
+	return scanProfileKey(s.db.QueryRow(ctx, loadProfileKeyQuery, s.AccountID, s.AccountID))
 }
 
-func (s *SQLStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
-	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.ACI, theirACI, key.Slice())
+func (s *sqlStore) StoreProfileKey(ctx context.Context, theirACI uuid.UUID, key libsignalgo.ProfileKey) error {
+	_, err := s.db.Exec(ctx, storeProfileKeyQuery, s.AccountID, theirACI, key.Slice())
 	return err
 }
