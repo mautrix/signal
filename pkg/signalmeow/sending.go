@@ -285,8 +285,10 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 }
 
 type SuccessfulSendResult struct {
-	Recipient    libsignalgo.ServiceID
-	Unidentified bool
+	Recipient              libsignalgo.ServiceID
+	RecipientE164          *string
+	Unidentified           bool
+	DestinationIdentityKey *libsignalgo.IdentityKey
 }
 type FailedSendResult struct {
 	Recipient libsignalgo.ServiceID
@@ -349,12 +351,14 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				Message:              dataMessage,
+				DestinationE164:      result.RecipientE164,
 				DestinationServiceId: proto.String(result.Recipient.String()),
 				Timestamp:            dataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId: proto.String(result.Recipient.String()),
-						Unidentified:         &result.Unidentified,
+						DestinationServiceId:   proto.String(result.Recipient.String()),
+						Unidentified:           &result.Unidentified,
+						DestinationIdentityKey: result.DestinationIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -367,12 +371,14 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				EditMessage:          editMessage,
+				DestinationE164:      result.RecipientE164,
 				DestinationServiceId: proto.String(result.Recipient.String()),
 				Timestamp:            editMessage.DataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId: proto.String(result.Recipient.String()),
-						Unidentified:         &result.Unidentified,
+						DestinationServiceId:   proto.String(result.Recipient.String()),
+						Unidentified:           &result.Unidentified,
+						DestinationIdentityKey: result.DestinationIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -661,29 +667,33 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		messageTimestamp = currentMessageTimestamp()
 	}
 	needsPNISignature := false
+	var aci, pni uuid.UUID
 	if recipientID.Type == libsignalgo.ServiceIDTypeACI {
-		_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, recipientID.UUID, uuid.Nil, func(recipientData *types.Recipient) (changed bool, err error) {
-			if recipientData.NeedsPNISignature {
-				needsPNISignature = true
-				zerolog.Ctx(ctx).Debug().
-					Stringer("recipient", recipientID).
-					Msg("Including PNI identity in message")
-				sig, err := cli.Store.PNIIdentityKeyPair.SignAlternateIdentity(cli.Store.ACIIdentityKeyPair.GetIdentityKey())
-				if err != nil {
-					return false, err
-				}
-				recipientData.NeedsPNISignature = false
-				content.PniSignatureMessage = &signalpb.PniSignatureMessage{
-					Pni:       cli.Store.PNI[:],
-					Signature: sig,
-				}
-				return true, nil
+		aci = recipientID.UUID
+	} else if recipientID.Type == libsignalgo.ServiceIDTypePNI {
+		pni = recipientID.UUID
+	}
+	recipientData, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipientData *types.Recipient) (changed bool, err error) {
+		if recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature {
+			needsPNISignature = true
+			zerolog.Ctx(ctx).Debug().
+				Stringer("recipient", recipientID).
+				Msg("Including PNI identity in message")
+			sig, err := cli.Store.PNIIdentityKeyPair.SignAlternateIdentity(cli.Store.ACIIdentityKeyPair.GetIdentityKey())
+			if err != nil {
+				return false, err
 			}
-			return false, nil
-		})
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to add PNI signature to message")
+			recipientData.NeedsPNISignature = false
+			content.PniSignatureMessage = &signalpb.PniSignatureMessage{
+				Pni:       cli.Store.PNI[:],
+				Signature: sig,
+			}
+			return true, nil
 		}
+		return false, nil
+	})
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get message recipient data")
 	}
 	// Treat needs PNI signature as "this is a message request" and don't send receipts/typing
 	if needsPNISignature && (content.TypingMessage != nil || content.ReceiptMessage != nil) {
@@ -726,6 +736,17 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 			Recipient:    recipientID,
 			Unidentified: sentUnidentified,
 		},
+	}
+	if recipientID.Type == libsignalgo.ServiceIDTypePNI {
+		result.DestinationIdentityKey, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, recipientID)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to add PNI destination identity key to sync message")
+		}
+		if recipientData != nil && recipientData.E164 != "" {
+			result.RecipientE164 = &recipientData.E164
+		} else {
+			zerolog.Ctx(ctx).Warn().Msg("No E164 number found for PNI sync message")
+		}
 	}
 
 	cli.sendSyncCopy(ctx, content, messageTimestamp, result.SuccessfulSendResult)

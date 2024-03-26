@@ -41,6 +41,17 @@ func NewIdentityKeyFromBytes(bytes []byte) (*IdentityKey, error) {
 	return &IdentityKey{publicKey: publicKey}, nil
 }
 
+func (i *IdentityKey) TrySerialize() []byte {
+	if i == nil {
+		return nil
+	}
+	serialized, err := i.Serialize()
+	if err != nil {
+		return nil
+	}
+	return serialized
+}
+
 func (i *IdentityKey) Serialize() ([]byte, error) {
 	return i.publicKey.Serialize()
 }
