@@ -532,7 +532,7 @@ func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
 	}
 }
 
-func (cli *Client) SendGroupChange(ctx context.Context, group *Group, groupContext *signalpb.GroupContextV2, groupChange *GroupChange) (*GroupMessageSendResult, error) {
+func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupContext *signalpb.GroupContextV2, groupChange *GroupChange) (*GroupMessageSendResult, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send group change message").
 		Stringer("group_id", group.GroupIdentifier).
@@ -545,14 +545,16 @@ func (cli *Client) SendGroupChange(ctx context.Context, group *Group, groupConte
 	}
 	content := wrapDataMessageInContent(dm)
 	recipients := group.Members
-	for _, member := range group.PendingMembers {
-		recipients = append(recipients, &member.GroupMember)
-	}
-	for _, member := range groupChange.AddPendingMembers {
-		recipients = append(recipients, &member.GroupMember)
-	}
-	for _, member := range groupChange.AddMembers {
-		recipients = append(recipients, &member.GroupMember)
+	if groupChange != nil {
+		for _, member := range group.PendingMembers {
+			recipients = append(recipients, &member.GroupMember)
+		}
+		for _, member := range groupChange.AddPendingMembers {
+			recipients = append(recipients, &member.GroupMember)
+		}
+		for _, member := range groupChange.AddMembers {
+			recipients = append(recipients, &member.GroupMember)
+		}
 	}
 	return cli.sendToGroup(ctx, recipients, content, timestamp)
 }

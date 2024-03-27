@@ -1564,7 +1564,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 		return 0, err
 	}
 	groupContext := &signalpb.GroupContextV2{Revision: &groupChange.Revision, GroupChange: groupChangeBytes, MasterKey: masterKeyBytes[:]}
-	_, err = cli.SendGroupChange(ctx, group, groupContext, groupChange)
+	_, err = cli.SendGroupUpdate(ctx, group, groupContext, groupChange)
 	if err != nil {
 		log.Err(err).Msg("Error sending GroupChange to group members")
 	}
@@ -1622,7 +1622,7 @@ func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, grou
 	return encryptedGroup, nil
 }
 
-func (cli *Client) CreateGroupOnServer(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
+func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "CreateGroupOnServer").Logger()
 	masterKeyByteArray := make([]byte, 32)
 	rand.Read(masterKeyByteArray)
@@ -1707,4 +1707,21 @@ func GenerateInviteLinkPassword() types.SerializedInviteLinkPassword {
 	inviteLinkPasswordBytes := make([]byte, 16)
 	rand.Read(inviteLinkPasswordBytes)
 	return InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
+}
+
+func (cli *Client) CreateGroup(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
+	log := zerolog.Ctx(ctx).With().Str("action", "CreateGroup").Logger()
+	group, err := cli.createGroupOnServer(ctx, decryptedGroup, avatarBytes)
+	if err != nil {
+		log.Err(err).Msg("Error creating group on server")
+		return nil, err
+	}
+	masterKeyBytes := masterKeyToBytes(group.groupMasterKey)
+	groupContext := &signalpb.GroupContextV2{Revision: &group.Revision, MasterKey: masterKeyBytes[:]}
+	_, err = cli.SendGroupUpdate(ctx, group, groupContext, nil)
+	if err != nil {
+		log.Err(err).Msg("Error sending GroupUpdate to group members")
+		return nil, err
+	}
+	return group, nil
 }
