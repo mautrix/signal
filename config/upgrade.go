@@ -100,6 +100,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Map, "bridge", "double_puppet_server_map")
 	helper.Copy(up.Bool, "bridge", "double_puppet_allow_discovery")
 	helper.Copy(up.Map, "bridge", "login_shared_secret_map")
+	helper.Copy(up.Bool, "bridge", "allow_manual_double_puppeting")
 	helper.Copy(up.Str, "bridge", "command_prefix")
 	helper.Copy(up.Str, "bridge", "management_room_text", "welcome")
 	helper.Copy(up.Str, "bridge", "management_room_text", "welcome_connected")
