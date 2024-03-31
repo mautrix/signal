@@ -42,8 +42,8 @@ type PreKeyStore interface {
 	StoreLastResortKyberPreKey(ctx context.Context, preKeyID uint32, record *libsignalgo.KyberPreKeyRecord) error
 	RemoveSignedPreKey(ctx context.Context, preKeyID uint32) error
 	RemoveKyberPreKey(ctx context.Context, preKeyID uint32) error
-	GetNextPreKeyID(ctx context.Context) (uint32, error)
-	GetNextKyberPreKeyID(ctx context.Context) (uint32, error)
+	GetNextPreKeyID(ctx context.Context) (count, max uint32, err error)
+	GetNextKyberPreKeyID(ctx context.Context) (count, max uint32, err error)
 	IsKyberPreKeyLastResort(ctx context.Context, preKeyID uint32) (bool, error)
 	AllPreKeys(ctx context.Context) ([]*libsignalgo.PreKeyRecord, error)
 	AllNormalKyberPreKeys(ctx context.Context) ([]*libsignalgo.KyberPreKeyRecord, error)
@@ -55,13 +55,13 @@ const (
 	getPreKeyQuery       = `SELECT key_pair FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3 AND is_signed=$4`
 	insertPreKeyQuery    = `INSERT INTO signalmeow_pre_keys (account_id, service_id, key_id, is_signed, key_pair) VALUES ($1, $2, $3, $4, $5)`
 	deletePreKeyQuery    = `DELETE FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3 AND is_signed=$4`
-	getLastPreKeyIDQuery = `SELECT MAX(key_id) FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_signed=$3`
+	getLastPreKeyIDQuery = `SELECT COUNT(*), COALESCE(MAX(key_id), 0) FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_signed=$3`
 
 	getAllKyberPreKeysQuery   = `SELECT key_pair FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND is_last_resort=false`
 	getKyberPreKeyQuery       = `SELECT key_pair FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3`
 	insertKyberPreKeyQuery    = `INSERT INTO signalmeow_kyber_pre_keys (account_id, service_id, key_id, key_pair, is_last_resort) VALUES ($1, $2, $3, $4, $5)`
 	deleteKyberPreKeyQuery    = `DELETE FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3`
-	getLastKyberPreKeyIDQuery = `SELECT MAX(key_id) FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2`
+	getLastKyberPreKeyIDQuery = `SELECT COUNT(*), COALESCE(MAX(key_id), 0) FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2`
 	isLastResortQuery         = `SELECT is_last_resort FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2 AND key_id=$3`
 )
 
@@ -182,22 +182,22 @@ func (s *scopedSQLStore) MarkKyberPreKeyUsed(ctx context.Context, id uint32) err
 	return nil
 }
 
-func (s *scopedSQLStore) GetNextPreKeyID(ctx context.Context) (uint32, error) {
-	var lastKeyID sql.NullInt64
-	err := s.db.QueryRow(ctx, getLastPreKeyIDQuery, s.AccountID, s.ServiceID, false).Scan(&lastKeyID)
+func (s *scopedSQLStore) GetNextPreKeyID(ctx context.Context) (count, next uint32, err error) {
+	err = s.db.QueryRow(ctx, getLastPreKeyIDQuery, s.AccountID, s.ServiceID, false).Scan(&count, &next)
 	if err != nil {
-		return 0, fmt.Errorf("failed to query next prekey ID: %w", err)
+		err = fmt.Errorf("failed to query next prekey ID: %w", err)
 	}
-	return uint32(lastKeyID.Int64) + 1, nil
+	next++
+	return
 }
 
-func (s *scopedSQLStore) GetNextKyberPreKeyID(ctx context.Context) (uint32, error) {
-	var lastKeyID sql.NullInt64
-	err := s.db.QueryRow(ctx, getLastKyberPreKeyIDQuery, s.AccountID, s.ServiceID).Scan(&lastKeyID)
+func (s *scopedSQLStore) GetNextKyberPreKeyID(ctx context.Context) (count, next uint32, err error) {
+	err = s.db.QueryRow(ctx, getLastKyberPreKeyIDQuery, s.AccountID, s.ServiceID).Scan(&count, &next)
 	if err != nil {
-		return 0, fmt.Errorf("failed to query next kyber prekey ID: %w", err)
+		err = fmt.Errorf("failed to query next kyber prekey ID: %w", err)
 	}
-	return uint32(lastKeyID.Int64) + 1, nil
+	next++
+	return
 }
 
 func (s *scopedSQLStore) IsKyberPreKeyLastResort(ctx context.Context, preKeyID uint32) (bool, error) {

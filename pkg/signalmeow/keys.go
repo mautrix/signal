@@ -42,11 +42,11 @@ type GeneratedPreKeys struct {
 }
 
 func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, pks store.PreKeyStore) error {
-	_, err := cli.GenerateAndSaveNextPreKeyBatch(ctx, pks)
+	_, err := cli.GenerateAndSaveNextPreKeyBatch(ctx, pks, 0)
 	if err != nil {
 		return fmt.Errorf("failed to generate and save next prekey batch: %w", err)
 	}
-	_, err = cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, pks)
+	_, err = cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, pks, 0)
 	if err != nil {
 		return fmt.Errorf("failed to generate and save next kyber prekey batch: %w", err)
 	}
@@ -106,43 +106,98 @@ func (cli *Client) RegisterAllPreKeys(ctx context.Context, pks store.PreKeyStore
 	return err
 }
 
-func (cli *Client) GenerateAndSaveNextPreKeyBatch(ctx context.Context, pks store.PreKeyStore) ([]*libsignalgo.PreKeyRecord, error) {
-	nextPreKeyID, err := pks.GetNextPreKeyID(ctx)
+func (cli *Client) GenerateAndSaveNextPreKeyBatch(ctx context.Context, pks store.PreKeyStore, serverCount int) (bool, error) {
+	storeCount, nextPreKeyID, err := pks.GetNextPreKeyID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get next prekey ID: %w", err)
+		return false, fmt.Errorf("failed to get next prekey ID: %w", err)
 	}
-	preKeys := GeneratePreKeys(nextPreKeyID, PREKEY_BATCH_SIZE)
-	for _, preKey := range preKeys {
-		err = pks.StorePreKey(ctx, 0, preKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to save prekey: %w", err)
+	if serverCount < PREKEY_BATCH_SIZE/2 {
+		if storeCount >= PREKEY_BATCH_SIZE {
+			zerolog.Ctx(ctx).Warn().
+				Int("server_count", serverCount).
+				Uint32("store_count", storeCount).
+				Msg("Store is full, but server is not, reuploading EC prekeys without generating more")
+		} else {
+			zerolog.Ctx(ctx).Info().
+				Int("server_count", serverCount).
+				Uint32("store_count", storeCount).
+				Msg("Generating and uploading EC prekeys")
+		}
+	} else if uint32(serverCount) > storeCount {
+		zerolog.Ctx(ctx).Warn().
+			Int("server_count", serverCount).
+			Uint32("store_count", storeCount).
+			Msg("Server has more EC prekeys than store, reuploading")
+	} else {
+		zerolog.Ctx(ctx).Debug().
+			Int("server_count", serverCount).
+			Uint32("store_count", storeCount).
+			Msg("EC prekey count is good")
+		return false, nil
+	}
+	if storeCount < PREKEY_BATCH_SIZE {
+		preKeys := GeneratePreKeys(nextPreKeyID, PREKEY_BATCH_SIZE-storeCount)
+		for _, preKey := range preKeys {
+			err = pks.StorePreKey(ctx, 0, preKey)
+			if err != nil {
+				return false, fmt.Errorf("failed to save prekey: %w", err)
+			}
 		}
 	}
-	return preKeys, nil
+	return true, nil
 }
 
-func (cli *Client) GenerateAndSaveNextKyberPreKeyBatch(ctx context.Context, pks store.PreKeyStore) ([]*libsignalgo.KyberPreKeyRecord, error) {
+func (cli *Client) GenerateAndSaveNextKyberPreKeyBatch(ctx context.Context, pks store.PreKeyStore, serverCount int) (bool, error) {
 	var identityKeyPair *libsignalgo.IdentityKeyPair
 	if pks.GetServiceID().Type == libsignalgo.ServiceIDTypePNI {
 		identityKeyPair = cli.Store.PNIIdentityKeyPair
 	} else {
 		identityKeyPair = cli.Store.ACIIdentityKeyPair
 	}
-	nextKyberPreKeyID, err := pks.GetNextKyberPreKeyID(ctx)
+	storeCount, nextKyberPreKeyID, err := pks.GetNextKyberPreKeyID(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get next kyber prekey ID: %w", err)
+		return false, fmt.Errorf("failed to get next kyber prekey ID: %w", err)
 	}
-	kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyID, PREKEY_BATCH_SIZE, identityKeyPair)
-	for _, kyberPreKey := range kyberPreKeys {
-		err = pks.StoreKyberPreKey(ctx, 0, kyberPreKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to save kyber prekey: %w", err)
+	if serverCount < PREKEY_BATCH_SIZE/2 {
+		if storeCount >= PREKEY_BATCH_SIZE {
+			zerolog.Ctx(ctx).Warn().
+				Int("server_count", serverCount).
+				Uint32("store_count", storeCount).
+				Msg("Store is full, but server is not, reuploading kyber prekeys without generating more")
+		} else {
+			zerolog.Ctx(ctx).Info().
+				Int("server_count", serverCount).
+				Uint32("store_count", storeCount).
+				Msg("Generating and uploading kyber prekeys")
+		}
+	} else if uint32(serverCount) > storeCount {
+		zerolog.Ctx(ctx).Warn().
+			Int("server_count", serverCount).
+			Uint32("store_count", storeCount).
+			Msg("Server has more kyber prekeys than store, reuploading")
+	} else {
+		zerolog.Ctx(ctx).Debug().
+			Int("server_count", serverCount).
+			Uint32("store_count", storeCount).
+			Msg("Kyber prekey count is good")
+		return false, nil
+	}
+	if storeCount < PREKEY_BATCH_SIZE {
+		kyberPreKeys := GenerateKyberPreKeys(nextKyberPreKeyID, PREKEY_BATCH_SIZE-storeCount, identityKeyPair)
+		for _, kyberPreKey := range kyberPreKeys {
+			err = pks.StoreKyberPreKey(ctx, 0, kyberPreKey)
+			if err != nil {
+				return false, fmt.Errorf("failed to save kyber prekey: %w", err)
+			}
 		}
 	}
-	return kyberPreKeys, nil
+	return true, nil
 }
 
 func GeneratePreKeys(startKeyID uint32, count uint32) []*libsignalgo.PreKeyRecord {
+	if count > PREKEY_BATCH_SIZE {
+		panic("count must be less than or equal to PREKEY_BATCH_SIZE")
+	}
 	generatedPreKeys := make([]*libsignalgo.PreKeyRecord, 0, count)
 	for keyID := startKeyID; keyID < startKeyID+count; keyID++ {
 		privateKey, err := libsignalgo.GeneratePrivateKey()
@@ -159,6 +214,9 @@ func GeneratePreKeys(startKeyID uint32, count uint32) []*libsignalgo.PreKeyRecor
 }
 
 func GenerateKyberPreKeys(startKeyID uint32, count uint32, identityKeyPair *libsignalgo.IdentityKeyPair) []*libsignalgo.KyberPreKeyRecord {
+	if count > PREKEY_BATCH_SIZE {
+		panic("count must be less than or equal to PREKEY_BATCH_SIZE")
+	}
 	generatedKyberPreKeys := make([]*libsignalgo.KyberPreKeyRecord, 0, count)
 	for keyID := startKeyID; keyID < startKeyID+count; keyID++ {
 		kyberPreKeyPair, err := libsignalgo.KyberKeyPairGenerate()
@@ -475,27 +533,17 @@ func (cli *Client) CheckAndUploadNewPreKeys(ctx context.Context, pks store.PreKe
 		log.Err(err).Msg("Error getting prekey counts")
 		return err
 	}
-	log.Debug().Int("preKeyCount", preKeyCount).Int("kyberPreKeyCount", kyberPreKeyCount).Msg("Checking prekey counts")
-
-	var preKeys []*libsignalgo.PreKeyRecord
-	var kyberPreKeys []*libsignalgo.KyberPreKeyRecord
-	if preKeyCount < 10 {
-		log.Info().Int("preKeyCount", preKeyCount).Msg("Generating and saving new prekeys")
-		preKeys, err = cli.GenerateAndSaveNextPreKeyBatch(ctx, pks)
-		if err != nil {
-			log.Err(err).Msg("Error generating and saving next prekey batch")
-			return err
-		}
+	doECUpload, err := cli.GenerateAndSaveNextPreKeyBatch(ctx, pks, preKeyCount)
+	if err != nil {
+		log.Err(err).Msg("Error generating and saving next prekey batch")
+		return err
 	}
-	if kyberPreKeyCount < 10 {
-		log.Info().Int("kyberPreKeyCount", kyberPreKeyCount).Msg("Generating and saving new kyber prekeys")
-		kyberPreKeys, err = cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, pks)
-		if err != nil {
-			log.Err(err).Msg("Error generating and saving next kyber prekey batch")
-			return err
-		}
+	doKyberUpload, err := cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, pks, kyberPreKeyCount)
+	if err != nil {
+		log.Err(err).Msg("Error generating and saving next kyber prekey batch")
+		return err
 	}
-	if len(preKeys) == 0 && len(kyberPreKeys) == 0 {
+	if !doECUpload && !doKyberUpload {
 		log.Debug().Msg("No new prekeys to upload")
 		return nil
 	}
@@ -510,9 +558,9 @@ func (cli *Client) CheckAndUploadNewPreKeys(ctx context.Context, pks store.PreKe
 func (cli *Client) StartKeyCheckLoop(ctx context.Context) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start key check loop").Logger()
 	go func() {
-		// Do the initial check within an hour of starting the loop
-		window_start := 0
-		window_size := 1
+		// Do the initial check in 5-10 minutes after starting the loop
+		window_start := 5
+		window_size := 5
 		for {
 			random_minutes_in_window := rand.Intn(window_size) + window_start
 			check_time := time.Duration(random_minutes_in_window) * time.Minute
