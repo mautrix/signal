@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
@@ -342,6 +343,8 @@ func KyberPreKeyToJSON(kyberPreKey *libsignalgo.KyberPreKeyRecord) (map[string]i
 	return kyberPreKeyJson, nil
 }
 
+var errPrekeyUpload422 = errors.New("http 422 while registering prekeys")
+
 func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pni bool, username string, password string) error {
 	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
 	// Convert generated prekeys to JSON
@@ -383,7 +386,9 @@ func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pn
 	}
 	defer resp.Body.Close()
 	// status code not 2xx
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+	if resp.StatusCode == 422 {
+		return errPrekeyUpload422
+	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("error registering prekeys: %v", resp.Status)
 	}
 	return err
@@ -619,6 +624,14 @@ func (cli *Client) StartKeyCheckLoop(ctx context.Context) {
 				}
 				err = cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
 				if err != nil {
+					if errors.Is(err, errPrekeyUpload422) {
+						log.Err(err).Msg("Got 422 error while uploading PNI prekeys, deleting session")
+						disconnectErr := cli.ClearKeysAndDisconnect(ctx)
+						if disconnectErr != nil {
+							log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
+						}
+						return
+					}
 					log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
 					// Retry within half an hour
 					window_start = 5
