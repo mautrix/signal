@@ -80,11 +80,11 @@ func (d *Device) ClearDeviceKeys(ctx context.Context) error {
 		zerolog.Ctx(ctx).Warn().Msg("ClearDeviceKeys called with nil device")
 		return nil
 	}
-	err := d.ACIPreKeyStore.DeleteAllPreKeys(ctx)
-	if err != nil {
-		return err
-	}
+	var err error
+	err = d.ACIPreKeyStore.DeleteAllPreKeys(ctx)
 	err = d.ACISessionStore.RemoveAllSessions(ctx)
+	err = d.PNIPreKeyStore.DeleteAllPreKeys(ctx)
+	err = d.PNISessionStore.RemoveAllSessions(ctx)
 	return err
 }
 
