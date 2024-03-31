@@ -272,41 +272,74 @@ func GenerateSignedPreKey(startSignedKeyId uint32, identityKeyPair *libsignalgo.
 	return signedPreKey
 }
 
-func PreKeyToJSON(preKey *libsignalgo.PreKeyRecord) map[string]interface{} {
-	id, _ := preKey.GetID()
-	publicKey, _ := preKey.GetPublicKey()
-	serializedKey, _ := publicKey.Serialize()
+func PreKeyToJSON(preKey *libsignalgo.PreKeyRecord) (map[string]interface{}, error) {
+	id, err := preKey.GetID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ID: %w", err)
+	}
+	publicKey, err := preKey.GetPublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+	serializedKey, err := publicKey.Serialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize public key: %w", err)
+	}
 	preKeyJson := map[string]interface{}{
 		"keyId":     id,
 		"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
 	}
-	return preKeyJson
+	return preKeyJson, nil
 }
 
-func SignedPreKeyToJSON(signedPreKey *libsignalgo.SignedPreKeyRecord) map[string]interface{} {
-	id, _ := signedPreKey.GetID()
-	publicKey, _ := signedPreKey.GetPublicKey()
-	serializedKey, _ := publicKey.Serialize()
-	signature, _ := signedPreKey.GetSignature()
+func SignedPreKeyToJSON(signedPreKey *libsignalgo.SignedPreKeyRecord) (map[string]interface{}, error) {
+	id, err := signedPreKey.GetID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ID: %w", err)
+	}
+	publicKey, err := signedPreKey.GetPublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+	serializedKey, err := publicKey.Serialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize public key: %w", err)
+	}
+	signature, err := signedPreKey.GetSignature()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get signature: %w", err)
+	}
 	signedPreKeyJson := map[string]interface{}{
 		"keyId":     id,
 		"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
 		"signature": base64.StdEncoding.EncodeToString(signature),
 	}
-	return signedPreKeyJson
+	return signedPreKeyJson, nil
 }
 
-func KyberPreKeyToJSON(kyberPreKey *libsignalgo.KyberPreKeyRecord) map[string]interface{} {
-	id, _ := kyberPreKey.GetID()
-	publicKey, _ := kyberPreKey.GetPublicKey()
-	serializedKey, _ := publicKey.Serialize()
-	signature, _ := kyberPreKey.GetSignature()
+func KyberPreKeyToJSON(kyberPreKey *libsignalgo.KyberPreKeyRecord) (map[string]interface{}, error) {
+	id, err := kyberPreKey.GetID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ID: %w", err)
+	}
+	publicKey, err := kyberPreKey.GetPublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get public key: %w", err)
+	}
+	serializedKey, err := publicKey.Serialize()
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize public key: %w", err)
+	}
+	signature, err := kyberPreKey.GetSignature()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get signature: %w", err)
+	}
 	kyberPreKeyJson := map[string]interface{}{
 		"keyId":     id,
 		"publicKey": base64.StdEncoding.EncodeToString(serializedKey),
 		"signature": base64.StdEncoding.EncodeToString(signature),
 	}
-	return kyberPreKeyJson
+	return kyberPreKeyJson, nil
 }
 
 func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pni bool, username string, password string) error {
@@ -315,11 +348,17 @@ func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pn
 	preKeysJson := []map[string]interface{}{}
 	kyberPreKeysJson := []map[string]interface{}{}
 	for _, preKey := range generatedPreKeys.PreKeys {
-		preKeyJson := PreKeyToJSON(preKey)
+		preKeyJson, err := PreKeyToJSON(preKey)
+		if err != nil {
+			return fmt.Errorf("failed to convert prekey to JSON: %w", err)
+		}
 		preKeysJson = append(preKeysJson, preKeyJson)
 	}
 	for _, kyberPreKey := range generatedPreKeys.KyberPreKeys {
-		kyberPreKeyJson := KyberPreKeyToJSON(kyberPreKey)
+		kyberPreKeyJson, err := KyberPreKeyToJSON(kyberPreKey)
+		if err != nil {
+			return fmt.Errorf("failed to convert kyber prekey to JSON: %w", err)
+		}
 		kyberPreKeysJson = append(kyberPreKeysJson, kyberPreKeyJson)
 	}
 
@@ -559,8 +598,8 @@ func (cli *Client) StartKeyCheckLoop(ctx context.Context) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start key check loop").Logger()
 	go func() {
 		// Do the initial check in 5-10 minutes after starting the loop
-		window_start := 5
-		window_size := 5
+		window_start := 0
+		window_size := 1
 		for {
 			random_minutes_in_window := rand.Intn(window_size) + window_start
 			check_time := time.Duration(random_minutes_in_window) * time.Minute

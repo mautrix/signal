@@ -358,11 +358,23 @@ func confirmDevice(
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
-	aciSignedPreKeyJson := SignedPreKeyToJSON(aciSignedPreKey)
-	pniSignedPreKeyJson := SignedPreKeyToJSON(pniSignedPreKey)
+	aciSignedPreKeyJson, err := SignedPreKeyToJSON(aciSignedPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert signed ACI prekey to JSON: %w", err)
+	}
+	pniSignedPreKeyJson, err := SignedPreKeyToJSON(pniSignedPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert signed PNI prekey to JSON: %w", err)
+	}
 
-	aciPQLastResortPreKeyJson := KyberPreKeyToJSON(aciPQLastResortPreKey)
-	pniPQLastResortPreKeyJson := KyberPreKeyToJSON(pniPQLastResortPreKey)
+	aciPQLastResortPreKeyJson, err := KyberPreKeyToJSON(aciPQLastResortPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert ACI kyber last resort prekey to JSON: %w", err)
+	}
+	pniPQLastResortPreKeyJson, err := KyberPreKeyToJSON(pniPQLastResortPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert PNI kyber last resort prekey to JSON: %w", err)
+	}
 
 	data := map[string]any{
 		"verificationCode": code,
