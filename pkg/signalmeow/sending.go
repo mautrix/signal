@@ -544,16 +544,21 @@ func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupConte
 		GroupV2:   groupContext,
 	}
 	content := wrapDataMessageInContent(dm)
-	recipients := group.Members
+	var recipients []*libsignalgo.ServiceID
+	for _, member := range group.Members {
+		serviceID := member.UserServiceID()
+		recipients = append(recipients, &serviceID)
+	}
 	for _, member := range group.PendingMembers {
-		recipients = append(recipients, &member.GroupMember)
+		recipients = append(recipients, &member.ServiceID)
 	}
 	if groupChange != nil {
 		for _, member := range groupChange.AddPendingMembers {
-			recipients = append(recipients, &member.GroupMember)
+			recipients = append(recipients, &member.ServiceID)
 		}
 		for _, member := range groupChange.AddMembers {
-			recipients = append(recipients, &member.GroupMember)
+			serviceID := member.UserServiceID()
+			recipients = append(recipients, &serviceID)
 		}
 	}
 	return cli.sendToGroup(ctx, recipients, content, timestamp)
@@ -578,32 +583,37 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		messageTimestamp = content.EditMessage.DataMessage.GetTimestamp()
 		content.EditMessage.DataMessage.GroupV2 = groupMetadataForDataMessage(*group)
 	}
-	return cli.sendToGroup(ctx, group.Members, content, messageTimestamp)
+	var recipients []*libsignalgo.ServiceID
+	for _, member := range group.Members {
+		serviceID := member.UserServiceID()
+		recipients = append(recipients, &serviceID)
+	}
+	return cli.sendToGroup(ctx, recipients, content, messageTimestamp)
 }
 
-func (cli *Client) sendToGroup(ctx context.Context, recipients []*GroupMember, content *signalpb.Content, messageTimestamp uint64) (*GroupMessageSendResult, error) {
+func (cli *Client) sendToGroup(ctx context.Context, recipients []*libsignalgo.ServiceID, content *signalpb.Content, messageTimestamp uint64) (*GroupMessageSendResult, error) {
 	// Send to each member of the group
 	result := &GroupMessageSendResult{
 		SuccessfullySentTo: []SuccessfulSendResult{},
 		FailedToSendTo:     []FailedSendResult{},
 	}
-	for _, member := range recipients {
-		if member.UserID == cli.Store.ACI {
+	for _, recipient := range recipients {
+		if recipient.Type == libsignalgo.ServiceIDTypeACI && recipient.UUID == cli.Store.ACI {
 			// Don't send normal DataMessages to ourselves
 			continue
 		}
-		log := zerolog.Ctx(ctx).With().Stringer("member", member.UserID).Logger()
+		log := zerolog.Ctx(ctx).With().Stringer("member", *recipient).Logger()
 		ctx := log.WithContext(ctx)
-		sentUnidentified, err := cli.sendContent(ctx, member.UserServiceID(), messageTimestamp, content, 0, true)
+		sentUnidentified, err := cli.sendContent(ctx, *recipient, messageTimestamp, content, 0, true)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
-				Recipient: member.UserServiceID(),
+				Recipient: *recipient,
 				Error:     err,
 			})
 			log.Err(err).Msg("Failed to send to user")
 		} else {
 			result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
-				Recipient:    member.UserServiceID(),
+				Recipient:    *recipient,
 				Unidentified: sentUnidentified,
 			})
 			log.Trace().Msg("Successfully sent to user")

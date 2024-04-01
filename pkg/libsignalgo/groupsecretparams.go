@@ -23,7 +23,6 @@ package libsignalgo
 import "C"
 import (
 	"crypto/rand"
-	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -139,41 +138,36 @@ func (gsp *GroupSecretParams) EncryptBlobWithPaddingDeterministic(randomness Ran
 	return CopySignalOwnedBufferToBytes(ciphertext), nil
 }
 
-func (gsp *GroupSecretParams) DecryptUUID(ciphertextUUID UUIDCiphertext) (uuid.UUID, error) {
-	// TODO this should probably be DecryptServiceID
-
+func (gsp *GroupSecretParams) DecryptServiceID(ciphertextServiceID UUIDCiphertext) (ServiceID, error) {
 	u := C.SignalServiceIdFixedWidthBinaryBytes{}
 	signalFfiError := C.signal_group_secret_params_decrypt_service_id(
 		&u,
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		(*[C.SignalUUID_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextUUID)),
+		(*[C.SignalUUID_CIPHERTEXT_LEN]C.uint8_t)(unsafe.Pointer(&ciphertextServiceID)),
 	)
 	runtime.KeepAlive(gsp)
-	runtime.KeepAlive(ciphertextUUID)
+	runtime.KeepAlive(ciphertextServiceID)
 	if signalFfiError != nil {
-		return uuid.Nil, wrapError(signalFfiError)
+		return EmptyServiceID, wrapError(signalFfiError)
 	}
 
 	serviceID := ServiceIDFromCFixedBytes(&u)
-	if serviceID.Type != ServiceIDTypeACI {
-		return uuid.Nil, fmt.Errorf("unexpected service ID type %d", serviceID.Type)
-	}
-	return serviceID.UUID, nil
+	return serviceID, nil
 }
 
-func (gsp *GroupSecretParams) EncryptUUID(uuid uuid.UUID) (*UUIDCiphertext, error) {
-	var cipherTextUUID [C.SignalUUID_CIPHERTEXT_LEN]C.uchar
+func (gsp *GroupSecretParams) EncryptServiceID(serviceID ServiceID) (*UUIDCiphertext, error) {
+	var cipherTextServiceID [C.SignalUUID_CIPHERTEXT_LEN]C.uchar
 	signalFfiError := C.signal_group_secret_params_encrypt_service_id(
-		&cipherTextUUID,
+		&cipherTextServiceID,
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uint8_t)(unsafe.Pointer(gsp)),
-		NewACIServiceID(uuid).CFixedBytes(),
+		serviceID.CFixedBytes(),
 	)
 	runtime.KeepAlive(gsp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
 	var result UUIDCiphertext
-	copy(result[:], C.GoBytes(unsafe.Pointer(&cipherTextUUID), C.int(C.SignalUUID_CIPHERTEXT_LEN)))
+	copy(result[:], C.GoBytes(unsafe.Pointer(&cipherTextServiceID), C.int(C.SignalUUID_CIPHERTEXT_LEN)))
 	return &result, nil
 }
 
