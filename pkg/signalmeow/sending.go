@@ -545,10 +545,10 @@ func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupConte
 	}
 	content := wrapDataMessageInContent(dm)
 	recipients := group.Members
+	for _, member := range group.PendingMembers {
+		recipients = append(recipients, &member.GroupMember)
+	}
 	if groupChange != nil {
-		for _, member := range group.PendingMembers {
-			recipients = append(recipients, &member.GroupMember)
-		}
 		for _, member := range groupChange.AddPendingMembers {
 			recipients = append(recipients, &member.GroupMember)
 		}
