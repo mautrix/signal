@@ -263,10 +263,8 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 	}, nil
 }
 
-// TODO: we should split this up into multiple functions
 func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
 	log := *zerolog.Ctx(ctx)
-	responseCode := 200
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
 	if err != nil {
@@ -274,11 +272,6 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		return nil, err
 	}
 	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
-	if err != nil {
-		log.Err(err).Str("destination_service_id", envelope.GetDestinationServiceId()).Msg("Failed to parse destination service ID")
-		return nil, err
-	}
-	var result *DecryptionResult
 	log.Trace().
 		Uint64("timestamp", envelope.GetTimestamp()).
 		Str("destination_service_id", envelope.GetDestinationServiceId()).
@@ -289,184 +282,42 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
 		Msg("Received envelope")
 
+	result, err := cli.decryptEnvelope(ctx, envelope)
+	if err != nil {
+		log.Err(err).Msg("decryptEnvelope error")
+		return nil, err
+	}
+
+	err = cli.handleDecryptedResult(ctx, result, destinationServiceID)
+	if err != nil {
+		log.Err(err).Msg("handleDecryptedResult error")
+		return nil, err
+	}
+
+	return &web.SimpleResponse{
+		Status: 200,
+	}, nil
+}
+
+func (cli *Client) decryptEnvelope(
+	ctx context.Context,
+	envelope *signalpb.Envelope,
+) (*DecryptionResult, error) {
+	log := zerolog.Ctx(ctx)
+
+	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
+	if err != nil {
+		log.Err(err).Str("destination_service_id", envelope.GetDestinationServiceId()).Msg("Failed to parse destination service ID")
+		return nil, err
+	}
+	var result *DecryptionResult
+
 	switch *envelope.Type {
 	case signalpb.Envelope_UNIDENTIFIED_SENDER:
-		if destinationServiceID != cli.Store.ACIServiceID() {
-			log.Warn().Stringer("destination_service_id", destinationServiceID).
-				Msg("Received UNIDENTIFIED_SENDER envelope for non-ACI destination")
-			break
-		}
-		usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
-			ctx,
-			envelope.GetContent(),
-			cli.Store.ACIIdentityStore,
-		)
-		if err != nil || usmc == nil {
-			if err == nil {
-				err = fmt.Errorf("usmc is nil")
-			}
-			log.Err(err).Msg("SealedSenderDecryptToUSMC error")
+		result, err = cli.decryptUnidentifiedSenderEnvelope(ctx, destinationServiceID, envelope)
+		if err != nil {
+			log.Err(err).Msg("decryptUnidentifiedSenderEnvelope error")
 			return nil, err
-		}
-
-		messageType, err := usmc.GetMessageType()
-		if err != nil {
-			log.Err(err).Msg("GetMessageType error")
-		}
-		senderCertificate, err := usmc.GetSenderCertificate()
-		if err != nil {
-			log.Err(err).Msg("GetSenderCertificate error")
-		}
-		senderUUID, err := senderCertificate.GetSenderUUID()
-		if err != nil {
-			log.Err(err).Msg("GetSenderUUID error")
-		}
-		senderDeviceID, err := senderCertificate.GetDeviceID()
-		if err != nil {
-			log.Err(err).Msg("GetDeviceID error")
-		}
-		senderAddress, err := libsignalgo.NewACIServiceID(senderUUID).Address(uint(senderDeviceID))
-		if err != nil {
-			log.Err(err).Msg("NewAddress error")
-		}
-		senderE164, err := senderCertificate.GetSenderE164()
-		if err != nil {
-			log.Err(err).Msg("GetSenderE164 error")
-		}
-		usmcContents, err := usmc.GetContents()
-		if err != nil {
-			log.Err(err).Msg("GetContents error")
-		}
-		log = log.With().
-			Stringer("sender_uuid", senderUUID).
-			Uint32("sender_device_id", senderDeviceID).
-			Str("sender_e164", senderE164).
-			Logger()
-		ctx = log.WithContext(ctx)
-		log.Trace().Msg("Received SealedSender message")
-
-		cli.Store.RecipientStore.UpdateRecipientE164(ctx, senderUUID, uuid.Nil, senderE164)
-
-		switch messageType {
-		case libsignalgo.CiphertextMessageTypeSenderKey:
-			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeSenderKey")
-			decryptedText, err := libsignalgo.GroupDecrypt(
-				ctx,
-				usmcContents,
-				senderAddress,
-				cli.Store.SenderKeyStore,
-			)
-			if err != nil {
-				if strings.Contains(err.Error(), "message with old counter") {
-					log.Warn().Msg("Duplicate message, ignoring")
-				} else {
-					log.Err(err).Msg("GroupDecrypt error")
-				}
-			} else {
-				err = stripPadding(&decryptedText)
-				if err != nil {
-					return nil, fmt.Errorf("stripPadding error: %v", err)
-				}
-				content := signalpb.Content{}
-				err = proto.Unmarshal(decryptedText, &content)
-				if err != nil {
-					log.Err(err).Msg("Unmarshal error")
-				}
-				result = &DecryptionResult{
-					SenderAddress: senderAddress,
-					Content:       &content,
-					SealedSender:  true,
-				}
-			}
-
-		case libsignalgo.CiphertextMessageTypePreKey:
-			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
-			result, err = cli.prekeyDecrypt(ctx, destinationServiceID, senderAddress, usmcContents)
-			if err != nil {
-				log.Err(err).Msg("Sealed sender prekey ciphertext decryption error")
-			}
-
-		case libsignalgo.CiphertextMessageTypeWhisper:
-			log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeWhisper")
-			message, err := libsignalgo.DeserializeMessage(usmcContents)
-			if err != nil {
-				log.Err(err).Msg("Sealed sender whisper deserialize error")
-			}
-			decryptedText, err := libsignalgo.Decrypt(
-				ctx,
-				message,
-				senderAddress,
-				cli.Store.ACISessionStore,
-				cli.Store.ACIIdentityStore,
-			)
-			if err != nil {
-				log.Err(err).Msg("Sealed sender whisper decryption error")
-			} else {
-				err = stripPadding(&decryptedText)
-				if err != nil {
-					return nil, fmt.Errorf("stripPadding error: %v", err)
-				}
-				content := signalpb.Content{}
-				err = proto.Unmarshal(decryptedText, &content)
-				if err != nil {
-					log.Err(err).Msg("Unmarshal error")
-				}
-				result = &DecryptionResult{
-					SenderAddress: senderAddress,
-					Content:       &content,
-					SealedSender:  true,
-				}
-			}
-
-		case libsignalgo.CiphertextMessageTypePlaintext:
-			log.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
-			// TODO: handle plaintext (usually DecryptionErrorMessage) and retries
-			// when implementing SenderKey groups
-
-			//plaintextContent, err := libsignalgo.DeserializePlaintextContent(usmcContents)
-			//if err != nil {
-			//	log.Err(err).Msg("DeserializePlaintextContent error")
-			//}
-			//body, err := plaintextContent.GetBody()
-			//if err != nil {
-			//	log.Err(err).Msg("PlaintextContent GetBody error")
-			//}
-			//content := signalpb.Content{}
-			//err = proto.Unmarshal(body, &content)
-			//if err != nil {
-			//	log.Err(err).Msg("PlaintextContent Unmarshal error")
-			//}
-			//result = &DecryptionResult{
-			//	SenderAddress: *senderAddress,
-			//	Content:       &content,
-			//	SealedSender:  true,
-			//}
-
-			return &web.SimpleResponse{
-				Status: responseCode,
-			}, nil
-
-		default:
-			log.Warn().Msg("SealedSender messageType is unknown")
-		}
-
-		// If we couldn't decrypt with specific decryption methods, try sealedSenderDecrypt
-		if result == nil || responseCode != 200 {
-			log.Debug().Msg("Didn't decrypt with specific methods, trying sealedSenderDecrypt")
-			var err error
-			result, err = cli.sealedSenderDecrypt(ctx, envelope)
-			if err != nil {
-				if strings.Contains(err.Error(), "self send of a sealed sender message") {
-					log.Debug().Msg("Message sent by us, ignoring")
-				} else {
-					log.Err(err).Msg("sealedSenderDecrypt error")
-				}
-			} else {
-				log.Trace().
-					Any("sender_address", result.SenderAddress).
-					Any("content", result.Content).
-					Msg("SealedSender decrypt result")
-			}
 		}
 
 	case signalpb.Envelope_PREKEY_BUNDLE:
@@ -539,31 +390,225 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		}
 
 	case signalpb.Envelope_RECEIPT:
+		log.Warn().Msg("Received RECEIPT envelope, not yet implemented")
 		// TODO: handle receipt
 
 	case signalpb.Envelope_KEY_EXCHANGE:
-		responseCode = 400
+		log.Warn().Msg("Received KEY_EXCHANGE envelope, not supported")
 
 	case signalpb.Envelope_UNKNOWN:
-		responseCode = 400
+		log.Warn().Msg("Received UNKNOWN envelope, not supported")
 
 	default:
 		log.Warn().Msg("Received actual unknown envelope type")
-		responseCode = 400
+	}
+	return result, nil
+}
+
+func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destinationServiceID libsignalgo.ServiceID, envelope *signalpb.Envelope) (*DecryptionResult, error) {
+	log := zerolog.Ctx(ctx)
+	var result *DecryptionResult
+
+	if destinationServiceID != cli.Store.ACIServiceID() {
+		log.Warn().Stringer("destination_service_id", destinationServiceID).
+			Msg("Received UNIDENTIFIED_SENDER envelope for non-ACI destination")
+		// Return nil, nil to skip the rest of the handling and return 200 OK to the server
+		return nil, nil
+	}
+	usmc, err := libsignalgo.SealedSenderDecryptToUSMC(
+		ctx,
+		envelope.GetContent(),
+		cli.Store.ACIIdentityStore,
+	)
+	if err != nil || usmc == nil {
+		if err == nil {
+			err = fmt.Errorf("usmc is nil")
+		}
+		log.Err(err).Msg("SealedSenderDecryptToUSMC error")
+		return nil, err
 	}
 
-	// Handle content that is now decrypted
+	messageType, err := usmc.GetMessageType()
+	if err != nil {
+		log.Err(err).Msg("GetMessageType error")
+	}
+	senderCertificate, err := usmc.GetSenderCertificate()
+	if err != nil {
+		log.Err(err).Msg("GetSenderCertificate error")
+	}
+	senderUUID, err := senderCertificate.GetSenderUUID()
+	if err != nil {
+		log.Err(err).Msg("GetSenderUUID error")
+	}
+	senderDeviceID, err := senderCertificate.GetDeviceID()
+	if err != nil {
+		log.Err(err).Msg("GetDeviceID error")
+	}
+	senderAddress, err := libsignalgo.NewACIServiceID(senderUUID).Address(uint(senderDeviceID))
+	if err != nil {
+		log.Err(err).Msg("NewAddress error")
+	}
+	senderE164, err := senderCertificate.GetSenderE164()
+	if err != nil {
+		log.Err(err).Msg("GetSenderE164 error")
+	}
+	usmcContents, err := usmc.GetContents()
+	if err != nil {
+		log.Err(err).Msg("GetContents error")
+	}
+	newLog := log.With().
+		Stringer("sender_uuid", senderUUID).
+		Uint32("sender_device_id", senderDeviceID).
+		Str("sender_e164", senderE164).
+		Logger()
+	log = &newLog
+	ctx = log.WithContext(ctx)
+	log.Trace().Msg("Received SealedSender message")
+
+	cli.Store.RecipientStore.UpdateRecipientE164(ctx, senderUUID, uuid.Nil, senderE164)
+
+	switch messageType {
+	case libsignalgo.CiphertextMessageTypeSenderKey:
+		log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeSenderKey")
+		decryptedText, err := libsignalgo.GroupDecrypt(
+			ctx,
+			usmcContents,
+			senderAddress,
+			cli.Store.SenderKeyStore,
+		)
+		if err != nil {
+			if strings.Contains(err.Error(), "message with old counter") {
+				log.Warn().Msg("Duplicate message, ignoring")
+			} else {
+				log.Err(err).Msg("GroupDecrypt error")
+			}
+		} else {
+			err = stripPadding(&decryptedText)
+			if err != nil {
+				return nil, fmt.Errorf("stripPadding error: %v", err)
+			}
+			content := signalpb.Content{}
+			err = proto.Unmarshal(decryptedText, &content)
+			if err != nil {
+				log.Err(err).Msg("Unmarshal error")
+			}
+			result = &DecryptionResult{
+				SenderAddress: senderAddress,
+				Content:       &content,
+				SealedSender:  true,
+			}
+		}
+
+	case libsignalgo.CiphertextMessageTypePreKey:
+		log.Trace().Msg("SealedSender messageType is CiphertextMessageTypePreKey")
+		result, err = cli.prekeyDecrypt(ctx, destinationServiceID, senderAddress, usmcContents)
+		if err != nil {
+			log.Err(err).Msg("Sealed sender prekey ciphertext decryption error")
+		}
+
+	case libsignalgo.CiphertextMessageTypeWhisper:
+		log.Trace().Msg("SealedSender messageType is CiphertextMessageTypeWhisper")
+		message, err := libsignalgo.DeserializeMessage(usmcContents)
+		if err != nil {
+			log.Err(err).Msg("Sealed sender whisper deserialize error")
+		}
+		decryptedText, err := libsignalgo.Decrypt(
+			ctx,
+			message,
+			senderAddress,
+			cli.Store.ACISessionStore,
+			cli.Store.ACIIdentityStore,
+		)
+		if err != nil {
+			log.Err(err).Msg("Sealed sender whisper decryption error")
+		} else {
+			err = stripPadding(&decryptedText)
+			if err != nil {
+				return nil, fmt.Errorf("stripPadding error: %v", err)
+			}
+			content := signalpb.Content{}
+			err = proto.Unmarshal(decryptedText, &content)
+			if err != nil {
+				log.Err(err).Msg("Unmarshal error")
+			}
+			result = &DecryptionResult{
+				SenderAddress: senderAddress,
+				Content:       &content,
+				SealedSender:  true,
+			}
+		}
+
+	case libsignalgo.CiphertextMessageTypePlaintext:
+		log.Debug().Msg("SealedSender messageType is CiphertextMessageTypePlaintext")
+		// TODO: handle plaintext (usually DecryptionErrorMessage) and retries
+		// when implementing SenderKey groups
+
+		//plaintextContent, err := libsignalgo.DeserializePlaintextContent(usmcContents)
+		//if err != nil {
+		//	log.Err(err).Msg("DeserializePlaintextContent error")
+		//}
+		//body, err := plaintextContent.GetBody()
+		//if err != nil {
+		//	log.Err(err).Msg("PlaintextContent GetBody error")
+		//}
+		//content := signalpb.Content{}
+		//err = proto.Unmarshal(body, &content)
+		//if err != nil {
+		//	log.Err(err).Msg("PlaintextContent Unmarshal error")
+		//}
+		//result = &DecryptionResult{
+		//	SenderAddress: *senderAddress,
+		//	Content:       &content,
+		//	SealedSender:  true,
+		//}
+
+		return nil, nil
+
+	default:
+		log.Warn().Msg("SealedSender messageType is unknown")
+	}
+
+	// If we couldn't decrypt with specific decryption methods, try sealedSenderDecrypt
+	if result == nil {
+		log.Debug().Msg("Didn't decrypt with specific methods, trying sealedSenderDecrypt")
+		var err error
+		result, err = cli.sealedSenderDecrypt(ctx, envelope)
+		if err != nil {
+			if strings.Contains(err.Error(), "self send of a sealed sender message") {
+				log.Debug().Msg("Message sent by us, ignoring")
+			} else {
+				log.Err(err).Msg("sealedSenderDecrypt error")
+			}
+		} else {
+			log.Trace().
+				Any("sender_address", result.SenderAddress).
+				Any("content", result.Content).
+				Msg("SealedSender decrypt result")
+		}
+	}
+	return result, nil
+}
+
+// TODO: we should split this up into multiple functions
+func (cli *Client) handleDecryptedResult(
+	ctx context.Context,
+	result *DecryptionResult,
+	destinationServiceID libsignalgo.ServiceID,
+) error {
+	log := zerolog.Ctx(ctx)
+
 	if result != nil && result.Content != nil {
 		content := result.Content
 		log.Trace().Any("raw_data", content).Msg("Raw event data")
 
 		name, _ := result.SenderAddress.Name()
 		deviceId, _ := result.SenderAddress.DeviceID()
-		log = log.With().
+		newLog := log.With().
 			Str("sender_name", name).
 			Uint("sender_device_id", deviceId).
 			Str("destination_service_id", destinationServiceID.String()).
 			Logger()
+		log = &newLog
 		ctx = log.WithContext(ctx)
 		log.Debug().Msg("Decrypted message")
 		printContentFieldString(ctx, content, "Decrypted content fields")
@@ -574,7 +619,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			skdm, err := libsignalgo.DeserializeSenderKeyDistributionMessage(content.GetSenderKeyDistributionMessage())
 			if err != nil {
 				log.Err(err).Msg("DeserializeSenderKeyDistributionMessage error")
-				return nil, err
+				return err
 			}
 			err = libsignalgo.ProcessSenderKeyDistributionMessage(
 				ctx,
@@ -584,19 +629,17 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			)
 			if err != nil {
 				log.Err(err).Msg("ProcessSenderKeyDistributionMessage error")
-				return nil, err
+				return err
 			}
 		}
 
 		theirServiceID, err := result.SenderAddress.NameServiceID()
 		if err != nil {
 			log.Err(err).Msg("Name error")
-			return nil, err
+			return err
 		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
-			return &web.SimpleResponse{
-				Status: responseCode,
-			}, nil
+			return nil
 		}
 
 		if destinationServiceID == cli.Store.PNIServiceID() {
@@ -647,7 +690,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 					syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
 					if err != nil {
 						log.Err(err).Msg("Sync message destination parse error")
-						return nil, err
+						return err
 					}
 				}
 				if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
@@ -746,9 +789,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		if content.ReceiptMessage != nil {
 			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirServiceID == cli.Store.ACIServiceID() {
 				// Ignore delivery receipts from other own devices
-				return &web.SimpleResponse{
-					Status: responseCode,
-				}, nil
+				return nil
 			}
 			cli.handleEvent(&events.Receipt{
 				Sender:  theirServiceID.UUID,
@@ -756,9 +797,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 			})
 		}
 	}
-	return &web.SimpleResponse{
-		Status: responseCode,
-	}, nil
+	return nil
 }
 
 func printStructFields(message protoreflect.Message, parent string, builder *strings.Builder) {
