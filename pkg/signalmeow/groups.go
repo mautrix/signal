@@ -1294,7 +1294,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 		})
 	}
 	for _, deletePendingMember := range decryptedGroupChange.DeletePendingMembers {
-		encryptedUserID, err := groupSecretParams.EncryptServiceID(libsignalgo.NewACIServiceID(deletePendingMember.UUID))
+		encryptedUserID, err := groupSecretParams.EncryptServiceID(*deletePendingMember)
 		if err != nil {
 			log.Err(err).Msg("Encrypt UserId error for deletePendingMember")
 			return nil, err
