@@ -1022,7 +1022,7 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 			log.Err(err).Msg("DecryptUUID Pni error for promotePendingPniAciMember")
 			return nil, err
 		}
-		if pniServiceID.Type != libsignalgo.ServiceIDTypeACI {
+		if pniServiceID.Type != libsignalgo.ServiceIDTypePNI {
 			return nil, fmt.Errorf("Wrong ServiceID kind: expected PNI, got ACI")
 		}
 		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(promotePendingPniAciMember.ProfileKey)
