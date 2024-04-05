@@ -578,6 +578,8 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 		if err != nil {
 			if strings.Contains(err.Error(), "self send of a sealed sender message") {
 				log.Debug().Msg("Message sent by us, ignoring")
+			} else if strings.Contains(err.Error(), "message with old counter") {
+				log.Info().Msg("Duplicate message, ignoring (sealedSenderDecrypt)")
 			} else {
 				log.Err(err).Msg("sealedSenderDecrypt error")
 			}
