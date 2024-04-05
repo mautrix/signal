@@ -304,7 +304,7 @@ func (cli *Client) decryptEnvelope(
 	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
 	if err != nil {
 		log.Err(err).Str("destination_service_id", envelope.GetDestinationServiceId()).Msg("Failed to parse destination service ID")
-		return DecryptionResult{Err: err}
+		return DecryptionResult{Err: err, Urgent: envelope.GetUrgent()}
 	}
 	var result *DecryptionResult
 
@@ -313,7 +313,7 @@ func (cli *Client) decryptEnvelope(
 		result, err = cli.decryptUnidentifiedSenderEnvelope(ctx, destinationServiceID, envelope)
 		if err != nil {
 			log.Err(err).Msg("decryptUnidentifiedSenderEnvelope error")
-			return DecryptionResult{Err: err}
+			return DecryptionResult{Err: err, Urgent: envelope.GetUrgent()}
 		}
 
 	case signalpb.Envelope_PREKEY_BUNDLE:
@@ -322,7 +322,7 @@ func (cli *Client) decryptEnvelope(
 			uint(*envelope.SourceDevice),
 		)
 		if err != nil {
-			return DecryptionResult{Err: fmt.Errorf("NewAddress error: %v", err)}
+			return DecryptionResult{Err: fmt.Errorf("NewAddress error: %v", err), Urgent: envelope.GetUrgent()}
 		}
 		result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content)
 		if err != nil {
@@ -346,15 +346,21 @@ func (cli *Client) decryptEnvelope(
 			uint(*envelope.SourceDevice),
 		)
 		if err != nil {
-			return DecryptionResult{Err: fmt.Errorf("NewAddress error: %v", err)}
+			return DecryptionResult{Err: fmt.Errorf("NewAddress error: %v", err), Urgent: envelope.GetUrgent()}
 		}
 		sessionStore := cli.Store.SessionStore(destinationServiceID)
 		if sessionStore == nil {
-			return DecryptionResult{Err: fmt.Errorf("no session store for destination service ID %s", destinationServiceID)}
+			return DecryptionResult{
+				Err:    fmt.Errorf("no session store for destination service ID %s", destinationServiceID),
+				Urgent: envelope.GetUrgent(),
+			}
 		}
 		identityStore := cli.Store.IdentityStore(destinationServiceID)
 		if identityStore == nil {
-			return DecryptionResult{Err: fmt.Errorf("no identity store for destination service ID %s", destinationServiceID)}
+			return DecryptionResult{
+				Err:    fmt.Errorf("no identity store for destination service ID %s", destinationServiceID),
+				Urgent: envelope.GetUrgent(),
+			}
 		}
 		decryptedText, err := libsignalgo.Decrypt(
 			ctx,
@@ -372,7 +378,7 @@ func (cli *Client) decryptEnvelope(
 		} else {
 			err = stripPadding(&decryptedText)
 			if err != nil {
-				return DecryptionResult{Err: fmt.Errorf("stripPadding error: %v", err)}
+				return DecryptionResult{Err: fmt.Errorf("stripPadding error: %v", err), Urgent: envelope.GetUrgent()}
 			}
 			content := signalpb.Content{}
 			err = proto.Unmarshal(decryptedText, &content)
@@ -401,9 +407,11 @@ func (cli *Client) decryptEnvelope(
 	if result == nil {
 		log.Warn().Msg("Decryption result is nil")
 		return DecryptionResult{
-			Err: fmt.Errorf("decryption result is nil"),
+			Err:    fmt.Errorf("decryption result is nil"),
+			Urgent: envelope.GetUrgent(),
 		}
 	}
+	result.Urgent = envelope.GetUrgent()
 	return *result
 }
 
@@ -608,17 +616,21 @@ func (cli *Client) handleDecryptedResult(
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {
-		log.Err(result.Err).Msg("Decryption error")
+		log.Err(result.Err).Bool("urgent", result.Urgent).Msg("Decryption error")
 		theirServiceID, err := result.SenderAddress.NameServiceID()
 		if err != nil {
 			log.Err(err).Msg("Name error handling decryption error")
 		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
 		}
-		cli.handleEvent(&events.DecryptionError{
-			Sender: theirServiceID.UUID,
-			Err:    result.Err,
-		})
+		// Only send decryption error event if the message was urgent,
+		// to prevent spamming errors for typing notifications and whatnot
+		if result.Urgent {
+			cli.handleEvent(&events.DecryptionError{
+				Sender: theirServiceID.UUID,
+				Err:    result.Err,
+			})
+		}
 		// Intentionally not returning here. In most cases there's nothing besides the error so
 		// nothing else will happen, but if there is content we still want to do what we can with it
 	}
@@ -1015,6 +1027,7 @@ type DecryptionResult struct {
 	Content       *signalpb.Content
 	SealedSender  bool
 	Err           error
+	Urgent        bool
 }
 
 const prodServerTrustRootStr = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
