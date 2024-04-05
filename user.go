@@ -858,6 +858,19 @@ func (user *User) eventHandler(rawEvt events.SignalEvent) {
 		} else {
 			user.log.Warn().Str("chat_id", evt.Info.ChatID).Msg("Couldn't get portal, dropping message")
 		}
+	case *events.DecryptionError:
+		portal := user.GetPortalByChatID(evt.Sender.String())
+		if portal == nil {
+			user.log.Warn().Stringer("chat_id", evt.Sender).Msg("Couldn't get portal for decryption error")
+			return
+		}
+		content := &event.MessageEventContent{MsgType: event.MsgNotice}
+		name := user.bridge.GetPuppetBySignalID(evt.Sender).Name
+		if name == "" {
+			name = "This user"
+		}
+		content.Body = fmt.Sprintf("%s sent a message that couldn't be decrypted. It may have been in this chat or a group chat. Please check your Signal app", name)
+		portal.sendMainIntentMessage(context.TODO(), content)
 	case *events.Receipt:
 		user.handleReceipt(evt)
 	case *events.ReadSelf:

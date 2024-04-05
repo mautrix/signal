@@ -282,11 +282,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
 		Msg("Received envelope")
 
-	result, err := cli.decryptEnvelope(ctx, envelope)
-	if err != nil {
-		log.Err(err).Msg("decryptEnvelope error")
-		return nil, err
-	}
+	result := cli.decryptEnvelope(ctx, envelope)
 
 	err = cli.handleDecryptedResult(ctx, result, destinationServiceID)
 	if err != nil {
@@ -302,13 +298,13 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 func (cli *Client) decryptEnvelope(
 	ctx context.Context,
 	envelope *signalpb.Envelope,
-) (*DecryptionResult, error) {
+) DecryptionResult {
 	log := zerolog.Ctx(ctx)
 
 	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
 	if err != nil {
 		log.Err(err).Str("destination_service_id", envelope.GetDestinationServiceId()).Msg("Failed to parse destination service ID")
-		return nil, err
+		return DecryptionResult{Err: err}
 	}
 	var result *DecryptionResult
 
@@ -317,7 +313,7 @@ func (cli *Client) decryptEnvelope(
 		result, err = cli.decryptUnidentifiedSenderEnvelope(ctx, destinationServiceID, envelope)
 		if err != nil {
 			log.Err(err).Msg("decryptUnidentifiedSenderEnvelope error")
-			return nil, err
+			return DecryptionResult{Err: err}
 		}
 
 	case signalpb.Envelope_PREKEY_BUNDLE:
@@ -326,7 +322,7 @@ func (cli *Client) decryptEnvelope(
 			uint(*envelope.SourceDevice),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("NewAddress error: %v", err)
+			return DecryptionResult{Err: fmt.Errorf("NewAddress error: %v", err)}
 		}
 		result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content)
 		if err != nil {
@@ -350,15 +346,15 @@ func (cli *Client) decryptEnvelope(
 			uint(*envelope.SourceDevice),
 		)
 		if err != nil {
-			return nil, fmt.Errorf("NewAddress error: %w", err)
+			return DecryptionResult{Err: fmt.Errorf("NewAddress error: %v", err)}
 		}
 		sessionStore := cli.Store.SessionStore(destinationServiceID)
 		if sessionStore == nil {
-			return nil, fmt.Errorf("no session store for destination service ID %s", destinationServiceID)
+			return DecryptionResult{Err: fmt.Errorf("no session store for destination service ID %s", destinationServiceID)}
 		}
 		identityStore := cli.Store.IdentityStore(destinationServiceID)
 		if identityStore == nil {
-			return nil, fmt.Errorf("no identity store for destination service ID %s", destinationServiceID)
+			return DecryptionResult{Err: fmt.Errorf("no identity store for destination service ID %s", destinationServiceID)}
 		}
 		decryptedText, err := libsignalgo.Decrypt(
 			ctx,
@@ -376,7 +372,7 @@ func (cli *Client) decryptEnvelope(
 		} else {
 			err = stripPadding(&decryptedText)
 			if err != nil {
-				return nil, fmt.Errorf("stripPadding error: %v", err)
+				return DecryptionResult{Err: fmt.Errorf("stripPadding error: %v", err)}
 			}
 			content := signalpb.Content{}
 			err = proto.Unmarshal(decryptedText, &content)
@@ -402,7 +398,13 @@ func (cli *Client) decryptEnvelope(
 	default:
 		log.Warn().Msg("Received actual unknown envelope type")
 	}
-	return result, nil
+	if result == nil {
+		log.Warn().Msg("Decryption result is nil")
+		return DecryptionResult{
+			Err: fmt.Errorf("decryption result is nil"),
+		}
+	}
+	return *result
 }
 
 func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destinationServiceID libsignalgo.ServiceID, envelope *signalpb.Envelope) (*DecryptionResult, error) {
@@ -592,210 +594,230 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 // TODO: we should split this up into multiple functions
 func (cli *Client) handleDecryptedResult(
 	ctx context.Context,
-	result *DecryptionResult,
+	result DecryptionResult,
 	destinationServiceID libsignalgo.ServiceID,
 ) error {
 	log := zerolog.Ctx(ctx)
+	if result.Content == nil {
+		log.Warn().Msg("Decrypted content is nil")
+		return nil
+	}
 
-	if result != nil && result.Content != nil {
-		content := result.Content
-		log.Trace().Any("raw_data", content).Msg("Raw event data")
-
-		name, _ := result.SenderAddress.Name()
-		deviceId, _ := result.SenderAddress.DeviceID()
-		newLog := log.With().
-			Str("sender_name", name).
-			Uint("sender_device_id", deviceId).
-			Str("destination_service_id", destinationServiceID.String()).
-			Logger()
-		log = &newLog
-		ctx = log.WithContext(ctx)
-		log.Debug().Msg("Decrypted message")
-		printContentFieldString(ctx, content, "Decrypted content fields")
-
-		// If there's a sender key distribution message, process it
-		if content.GetSenderKeyDistributionMessage() != nil {
-			log.Debug().Msg("content includes sender key distribution message")
-			skdm, err := libsignalgo.DeserializeSenderKeyDistributionMessage(content.GetSenderKeyDistributionMessage())
-			if err != nil {
-				log.Err(err).Msg("DeserializeSenderKeyDistributionMessage error")
-				return err
-			}
-			err = libsignalgo.ProcessSenderKeyDistributionMessage(
-				ctx,
-				skdm,
-				result.SenderAddress,
-				cli.Store.SenderKeyStore,
-			)
-			if err != nil {
-				log.Err(err).Msg("ProcessSenderKeyDistributionMessage error")
-				return err
-			}
-		}
-
+	// result.Err is set if there was an error during decryption and we
+	// should notifiy the user that the message could not be decrypted
+	if result.Err != nil {
+		log.Err(result.Err).Msg("Decryption error")
 		theirServiceID, err := result.SenderAddress.NameServiceID()
 		if err != nil {
-			log.Err(err).Msg("Name error")
-			return err
+			log.Err(err).Msg("Name error handling decryption error")
 		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
-			return nil
 		}
+		cli.handleEvent(&events.DecryptionError{
+			Sender: theirServiceID.UUID,
+			Err:    result.Err,
+		})
+		// Intentionally not returning here. In most cases there's nothing besides the error so
+		// nothing else will happen, but if there is content we still want to do what we can with it
+	}
 
-		if destinationServiceID == cli.Store.PNIServiceID() {
-			_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, theirServiceID.UUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
-				if !recipient.NeedsPNISignature {
-					log.Debug().Msg("Marking recipient as needing PNI signature")
-					recipient.NeedsPNISignature = true
-					return true, nil
-				}
-				return false, nil
-			})
-			if err != nil {
-				log.Err(err).Msg("Failed to set needs_pni_signature flag after receiving message to PNI service ID")
+	content := result.Content
+	log.Trace().Any("raw_data", content).Msg("Raw event data")
+
+	name, _ := result.SenderAddress.Name()
+	deviceId, _ := result.SenderAddress.DeviceID()
+	newLog := log.With().
+		Str("sender_name", name).
+		Uint("sender_device_id", deviceId).
+		Str("destination_service_id", destinationServiceID.String()).
+		Logger()
+	log = &newLog
+	ctx = log.WithContext(ctx)
+	log.Debug().Msg("Decrypted message")
+	printContentFieldString(ctx, content, "Decrypted content fields")
+
+	// If there's a sender key distribution message, process it
+	if content.GetSenderKeyDistributionMessage() != nil {
+		log.Debug().Msg("content includes sender key distribution message")
+		skdm, err := libsignalgo.DeserializeSenderKeyDistributionMessage(content.GetSenderKeyDistributionMessage())
+		if err != nil {
+			log.Err(err).Msg("DeserializeSenderKeyDistributionMessage error")
+			return err
+		}
+		err = libsignalgo.ProcessSenderKeyDistributionMessage(
+			ctx,
+			skdm,
+			result.SenderAddress,
+			cli.Store.SenderKeyStore,
+		)
+		if err != nil {
+			log.Err(err).Msg("ProcessSenderKeyDistributionMessage error")
+			return err
+		}
+	}
+
+	theirServiceID, err := result.SenderAddress.NameServiceID()
+	if err != nil {
+		log.Err(err).Msg("Name error")
+		return err
+	} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
+		log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
+		return nil
+	}
+
+	if destinationServiceID == cli.Store.PNIServiceID() {
+		_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, theirServiceID.UUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
+			if !recipient.NeedsPNISignature {
+				log.Debug().Msg("Marking recipient as needing PNI signature")
+				recipient.NeedsPNISignature = true
+				return true, nil
 			}
+			return false, nil
+		})
+		if err != nil {
+			log.Err(err).Msg("Failed to set needs_pni_signature flag after receiving message to PNI service ID")
 		}
+	}
 
-		if content.GetPniSignatureMessage() != nil {
-			log.Debug().Msg("Content includes PNI signature message")
-			err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.GetPniSignatureMessage())
+	if content.GetPniSignatureMessage() != nil {
+		log.Debug().Msg("Content includes PNI signature message")
+		err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.GetPniSignatureMessage())
+		if err != nil {
+			log.Err(err).
+				Hex("pni_raw", content.GetPniSignatureMessage().GetPni()).
+				Stringer("aci", theirServiceID.UUID).
+				Msg("Failed to verify ACI-PNI mapping")
+		}
+	}
+
+	// TODO: handle more sync messages
+	if content.SyncMessage != nil {
+		if content.SyncMessage.Keys != nil {
+			cli.Store.MasterKey = content.SyncMessage.Keys.GetMaster()
+			err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
 			if err != nil {
-				log.Err(err).
-					Hex("pni_raw", content.GetPniSignatureMessage().GetPni()).
-					Stringer("aci", theirServiceID.UUID).
-					Msg("Failed to verify ACI-PNI mapping")
-			}
-		}
-
-		// TODO: handle more sync messages
-		if content.SyncMessage != nil {
-			if content.SyncMessage.Keys != nil {
-				cli.Store.MasterKey = content.SyncMessage.Keys.GetMaster()
-				err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
-				if err != nil {
-					log.Err(err).Msg("Failed to save device after receiving master key")
-				} else {
-					log.Info().Msg("Received master key")
-					go cli.SyncStorage(ctx)
-				}
-			} else if content.SyncMessage.GetFetchLatest().GetType() == signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST {
-				log.Debug().Msg("Received storage manifest fetch latest notice")
+				log.Err(err).Msg("Failed to save device after receiving master key")
+			} else {
+				log.Info().Msg("Received master key")
 				go cli.SyncStorage(ctx)
 			}
-			syncSent := content.SyncMessage.GetSent()
-			if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
-				destination := syncSent.DestinationServiceId
-				var syncDestinationServiceID libsignalgo.ServiceID
-				if destination != nil {
-					syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
-					if err != nil {
-						log.Err(err).Msg("Sync message destination parse error")
-						return err
-					}
-				}
-				if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
-					log.Warn().Msg("sync message sent destination is nil")
-				} else if content.SyncMessage.Sent.Message != nil {
-					// TODO handle expiration start ts, and maybe the sync message ts?
-					cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, syncDestinationServiceID)
-				} else if content.SyncMessage.Sent.EditMessage != nil {
-					cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID)
+		} else if content.SyncMessage.GetFetchLatest().GetType() == signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST {
+			log.Debug().Msg("Received storage manifest fetch latest notice")
+			go cli.SyncStorage(ctx)
+		}
+		syncSent := content.SyncMessage.GetSent()
+		if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
+			destination := syncSent.DestinationServiceId
+			var syncDestinationServiceID libsignalgo.ServiceID
+			if destination != nil {
+				syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
+				if err != nil {
+					log.Err(err).Msg("Sync message destination parse error")
+					return err
 				}
 			}
-			if content.SyncMessage.Contacts != nil {
-				log.Debug().Msg("Recieved sync message contacts")
-				blob := content.SyncMessage.Contacts.Blob
-				if blob != nil {
-					contactsBytes, err := DownloadAttachment(ctx, blob)
-					if err != nil {
-						log.Err(err).Msg("Contacts Sync DownloadAttachment error")
-					}
-					// unmarshall contacts
-					contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
-					if err != nil {
-						log.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
-					}
-					log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
-					convertedContacts := make([]*types.Recipient, 0, len(contacts))
-					for i, signalContact := range contacts {
-						if signalContact.Aci == nil || *signalContact.Aci == "" {
-							// TODO lookup PNI via CDSI and store that when ACI is missing?
-							log.Info().
-								Any("contact", signalContact).
-								Msg("Signal Contact UUID is nil, skipping")
-							continue
-						}
-						contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
-						if err != nil {
-							log.Err(err).Msg("StoreContactDetailsAsContact error")
-							continue
-						}
-						convertedContacts = append(convertedContacts, contact)
-					}
-					cli.handleEvent(&events.ContactList{
-						Contacts: convertedContacts,
-					})
-				}
+			if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
+				log.Warn().Msg("sync message sent destination is nil")
+			} else if content.SyncMessage.Sent.Message != nil {
+				// TODO handle expiration start ts, and maybe the sync message ts?
+				cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, syncDestinationServiceID)
+			} else if content.SyncMessage.Sent.EditMessage != nil {
+				cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID)
 			}
-			if content.SyncMessage.Read != nil {
-				cli.handleEvent(&events.ReadSelf{
-					Messages: content.SyncMessage.GetRead(),
+		}
+		if content.SyncMessage.Contacts != nil {
+			log.Debug().Msg("Recieved sync message contacts")
+			blob := content.SyncMessage.Contacts.Blob
+			if blob != nil {
+				contactsBytes, err := DownloadAttachment(ctx, blob)
+				if err != nil {
+					log.Err(err).Msg("Contacts Sync DownloadAttachment error")
+				}
+				// unmarshall contacts
+				contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
+				if err != nil {
+					log.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
+				}
+				log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
+				convertedContacts := make([]*types.Recipient, 0, len(contacts))
+				for i, signalContact := range contacts {
+					if signalContact.Aci == nil || *signalContact.Aci == "" {
+						// TODO lookup PNI via CDSI and store that when ACI is missing?
+						log.Info().
+							Any("contact", signalContact).
+							Msg("Signal Contact UUID is nil, skipping")
+						continue
+					}
+					contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
+					if err != nil {
+						log.Err(err).Msg("StoreContactDetailsAsContact error")
+						continue
+					}
+					convertedContacts = append(convertedContacts, contact)
+				}
+				cli.handleEvent(&events.ContactList{
+					Contacts: convertedContacts,
 				})
 			}
-
 		}
-
-		var sendDeliveryReceipt bool
-		if content.DataMessage != nil {
-			sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID)
-		} else if content.EditMessage != nil {
-			sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID)
-		}
-		if sendDeliveryReceipt {
-			// TODO send delivery receipts after actually bridging instead of here
-			err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirServiceID.UUID)
-			if err != nil {
-				log.Err(err).Msg("sendDeliveryReceipts error")
-			}
-		}
-
-		if content.TypingMessage != nil {
-			var groupID types.GroupIdentifier
-			if content.TypingMessage.GetGroupId() != nil {
-				gidBytes := content.TypingMessage.GetGroupId()
-				groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
-			}
-			cli.handleEvent(&events.ChatEvent{
-				Info: events.MessageInfo{
-					Sender: theirServiceID.UUID,
-					ChatID: groupOrUserID(groupID, theirServiceID),
-				},
-				Event: content.TypingMessage,
+		if content.SyncMessage.Read != nil {
+			cli.handleEvent(&events.ReadSelf{
+				Messages: content.SyncMessage.GetRead(),
 			})
 		}
 
-		// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
-		if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
-			cli.handleEvent(&events.Call{
-				Info: events.MessageInfo{
-					Sender: theirServiceID.UUID,
-					ChatID: theirServiceID.String(),
-				},
-				IsRinging: content.CallMessage.Offer != nil,
-			})
-		}
+	}
 
-		// Read and delivery receipts
-		if content.ReceiptMessage != nil {
-			if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirServiceID == cli.Store.ACIServiceID() {
-				// Ignore delivery receipts from other own devices
-				return nil
-			}
-			cli.handleEvent(&events.Receipt{
-				Sender:  theirServiceID.UUID,
-				Content: content.ReceiptMessage,
-			})
+	var sendDeliveryReceipt bool
+	if content.DataMessage != nil {
+		sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID)
+	} else if content.EditMessage != nil {
+		sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID)
+	}
+	if sendDeliveryReceipt {
+		// TODO send delivery receipts after actually bridging instead of here
+		err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirServiceID.UUID)
+		if err != nil {
+			log.Err(err).Msg("sendDeliveryReceipts error")
 		}
+	}
+
+	if content.TypingMessage != nil {
+		var groupID types.GroupIdentifier
+		if content.TypingMessage.GetGroupId() != nil {
+			gidBytes := content.TypingMessage.GetGroupId()
+			groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
+		}
+		cli.handleEvent(&events.ChatEvent{
+			Info: events.MessageInfo{
+				Sender: theirServiceID.UUID,
+				ChatID: groupOrUserID(groupID, theirServiceID),
+			},
+			Event: content.TypingMessage,
+		})
+	}
+
+	// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
+	if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
+		cli.handleEvent(&events.Call{
+			Info: events.MessageInfo{
+				Sender: theirServiceID.UUID,
+				ChatID: theirServiceID.String(),
+			},
+			IsRinging: content.CallMessage.Offer != nil,
+		})
+	}
+
+	// Read and delivery receipts
+	if content.ReceiptMessage != nil {
+		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY && theirServiceID == cli.Store.ACIServiceID() {
+			// Ignore delivery receipts from other own devices
+			return nil
+		}
+		cli.handleEvent(&events.Receipt{
+			Sender:  theirServiceID.UUID,
+			Content: content.ReceiptMessage,
+		})
 	}
 	return nil
 }
@@ -990,6 +1012,7 @@ type DecryptionResult struct {
 	SenderAddress *libsignalgo.Address
 	Content       *signalpb.Content
 	SealedSender  bool
+	Err           error
 }
 
 const prodServerTrustRootStr = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
