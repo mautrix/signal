@@ -71,6 +71,9 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdInviteLink,
 		cmdResetInviteLink,
 		cmdCreate,
+		cmdInvite,
+		cmdListInvited,
+		cmdRevokeInvite,
 	)
 }
 
@@ -282,6 +285,218 @@ func fnPM(ce *WrappedCommandEvent) {
 	} else {
 		ce.Reply("Created portal room [%s](%s) with +%d and invited you to it.", portal.MXID, portal.MXID.URI(portal.bridge.Config.Homeserver.Domain).MatrixToURL(), number)
 	}
+}
+
+var cmdInvite = &commands.FullHandler{
+	Func: wrapCommand(fnInvite),
+	Name: "invite",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Invite a user by phone number.",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnInvite(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `invite <international phone number>`")
+		return
+	}
+	number, err := strconv.ParseUint(numberCleaner.Replace(strings.Join(ce.Args, "")), 10, 64)
+	if err != nil {
+		ce.Reply("Failed to parse number")
+		return
+	}
+
+	user := ce.User
+	var aci, pni uuid.UUID
+	e164 := fmt.Sprintf("+%d", number)
+	var recipient *types.Recipient
+
+	if recipient, err = user.Client.ContactByE164(ce.Ctx, e164); err != nil {
+		ce.Reply("Error looking up number in local contact list: %v", err)
+		return
+	} else if recipient != nil && (recipient.ACI != uuid.Nil || recipient.PNI != uuid.Nil) {
+		// TODO maybe lookup PNI if there's only ACI and E164 stored?
+		aci = recipient.ACI
+		pni = recipient.PNI
+	} else if resp, err := user.Client.LookupPhone(ce.Ctx, number); err != nil {
+		ce.ZLog.Err(err).Uint64("e164", number).Msg("Failed to lookup number on server")
+		ce.Reply("Error looking up number on server: %v", err)
+		return
+	} else {
+		aci = resp[number].ACI
+		pni = resp[number].PNI
+		if aci == uuid.Nil && pni == uuid.Nil {
+			ce.Reply("+%d doesn't seem to be on Signal", number)
+			return
+		}
+		recipient, err = user.Client.Store.RecipientStore.UpdateRecipientE164(ce.Ctx, aci, pni, e164)
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
+	}
+	ce.ZLog.Debug().
+		Uint64("e164", number).
+		Stringer("aci", aci).
+		Stringer("pni", pni).
+		Msg("Found Invite target user")
+
+	var groupChange signalmeow.GroupChange
+	if aci != uuid.Nil {
+		groupChange.AddMembers = []*signalmeow.AddMember{
+			{
+				GroupMember: signalmeow.GroupMember{
+					ACI:  aci,
+					Role: signalmeow.GroupMember_DEFAULT,
+				},
+			},
+		}
+	} else {
+		groupChange.AddPendingMembers = []*signalmeow.PendingMember{
+			{
+				ServiceID:     libsignalgo.NewPNIServiceID(pni),
+				AddedByUserID: ce.User.SignalID,
+				Role:          signalmeow.GroupMember_DEFAULT,
+			},
+		}
+	}
+	revision, err := ce.User.Client.UpdateGroup(ce.Ctx, &groupChange, ce.Portal.GroupID())
+	if err != nil {
+		ce.Reply("Failed to update group: %w", err)
+		return
+	}
+	ce.Portal.Revision = revision
+	if aci != uuid.Nil {
+		group, err := ce.User.Client.RetrieveGroupByID(ce.Ctx, ce.Portal.GroupID(), revision)
+		if err != nil {
+			ce.Reply("Failed to fetch group after invite: %w", err)
+		}
+		ce.Portal.SyncParticipants(ce.Ctx, user, group)
+		ce.Portal.Update(ce.Ctx)
+		return
+	}
+	ce.Portal.Update(ce.Ctx)
+	ce.Reply("Invited " + e164)
+}
+
+var cmdListInvited = &commands.FullHandler{
+	Func: wrapCommand(fnListInvited),
+	Name: "list-invited",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "list pending invites",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnListInvited(ce *WrappedCommandEvent) {
+	group, err := ce.User.Client.RetrieveGroupByID(ce.Ctx, ce.Portal.GroupID(), ce.Portal.Revision)
+	if err != nil {
+		ce.Reply("Failed to fetch group info: %w", err)
+		return
+	}
+	var memberList []string
+	for _, pendingMember := range group.PendingMembers {
+		recipientString, err := pendingMemberToString(ce.Ctx, ce.User, pendingMember)
+		if err != nil {
+			ce.Reply("Failed to fetch recipient for %s: %w", pendingMember.ServiceID, err)
+			continue
+		}
+		memberList = append(memberList, recipientString)
+	}
+	if len(memberList) == 0 {
+		ce.Reply("No pending Invites")
+	} else {
+		ce.Reply(strings.Join(memberList, "\n"))
+	}
+}
+
+func pendingMemberToString(ctx context.Context, user *User, pendingMember *signalmeow.PendingMember) (string, error) {
+	var pni, aci uuid.UUID
+	if pendingMember.ServiceID.Type == libsignalgo.ServiceIDTypeACI {
+		aci = pendingMember.ServiceID.UUID
+	} else {
+		pni = pendingMember.ServiceID.UUID
+	}
+	recipient, err := user.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
+	if err != nil {
+		return "", err
+	}
+	if recipient.E164 != "" {
+		return recipient.E164, nil
+	} else {
+		return "Unidentified User", nil
+	}
+}
+
+var cmdRevokeInvite = &commands.FullHandler{
+	Func: wrapCommand(fnRevokeInvite),
+	Name: "revoke-invite",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Revoke an invite by phone number.",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnRevokeInvite(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `RevokeInvite <international phone number>`")
+		return
+	}
+	e164 := "+" + numberCleaner.Replace(strings.Join(ce.Args, ""))
+
+	user := ce.User
+	var serviceID libsignalgo.ServiceID
+	group, err := ce.User.Client.RetrieveGroupByID(ce.Ctx, ce.Portal.GroupID(), ce.Portal.Revision)
+	if err != nil {
+		ce.Reply("Failed to fetch group info: %w", err)
+		return
+	}
+	var pni, aci uuid.UUID
+	for _, pendingMember := range group.PendingMembers {
+		if pendingMember.ServiceID.Type == libsignalgo.ServiceIDTypeACI {
+			aci = pendingMember.ServiceID.UUID
+		} else {
+			pni = pendingMember.ServiceID.UUID
+		}
+		recipient, err := user.Client.Store.RecipientStore.LoadAndUpdateRecipient(ce.Ctx, aci, pni, nil)
+		if err != nil {
+			continue
+		}
+		if recipient.E164 == e164 {
+			serviceID = pendingMember.ServiceID
+			break
+		}
+	}
+	if serviceID.UUID == uuid.Nil {
+		ce.Reply("User not in Group")
+		return
+	}
+	var groupChange signalmeow.GroupChange
+	groupChange.DeletePendingMembers = []*libsignalgo.ServiceID{&serviceID}
+	revision, err := ce.User.Client.UpdateGroup(ce.Ctx, &groupChange, ce.Portal.GroupID())
+	if err != nil {
+		ce.Reply("Failed to update group: %w", err)
+		return
+	}
+	if aci != uuid.Nil {
+		target := ce.Bridge.GetPuppetBySignalID(aci)
+		if target != nil {
+			ce.Bot.SendCustomMembershipEvent(ce.Ctx, ce.Portal.MXID, target.IntentFor(ce.Portal).UserID, event.MembershipLeave, "removed by "+user.MXID.String())
+		}
+	}
+	ce.Portal.Revision = revision
+	ce.Portal.Update(ce.Ctx)
+	ce.Reply("Revoked the invitation for " + e164)
 }
 
 var cmdResolvePhone = &commands.FullHandler{
@@ -822,12 +1037,12 @@ func fnCreate(ce *WrappedCommandEvent) {
 			// joined members that need to be pending-Members should have their signal invite auto-accepted
 			if membership == event.MembershipJoin || membership == event.MembershipInvite {
 				participants = append(participants, &signalmeow.GroupMember{
-					UserID: uuid,
-					Role:   role,
+					ACI:  uuid,
+					Role: role,
 				})
 			} else if membership == event.MembershipBan {
 				bannedMembers = append(bannedMembers, &signalmeow.BannedMember{
-					UserID: uuid,
+					ServiceID: libsignalgo.NewACIServiceID(uuid),
 				})
 			}
 		}
