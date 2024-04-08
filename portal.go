@@ -899,7 +899,11 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 			requiredRevision = requiredRevision - 1
 		}
 		if portal.Revision < requiredRevision {
-			portal.catchUpHistory(source, portal.Revision+1, requiredRevision, msg.GetTimestamp())
+			err := portal.catchUpHistory(source, portal.Revision+1, requiredRevision, msg.GetTimestamp())
+			if err != nil {
+				portal.log.Err(err).Msg("Failed to catch up group history, trying regular update")
+				portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
+			}
 		}
 	} else if portal.IsPrivateChat() && portal.UserID().UUID == portal.Receiver && portal.Name != NoteToSelfName {
 		// Slightly hacky way to make note to self names backfill
@@ -926,7 +930,7 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	}
 }
 
-func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevision uint32, ts uint64) {
+func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevision uint32, ts uint64) error {
 	log := portal.log.With().
 		Str("action", "catchUpHistory").
 		Stringer("source", source.MXID).
@@ -937,6 +941,7 @@ func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevisi
 	groupChanges, err := source.Client.GetGroupHistoryPage(ctx, portal.GroupID(), fromRevision, false)
 	if err != nil {
 		log.Err(err).Msg("Failed to get GroupChanges")
+		return err
 	}
 	for _, groupChangeState := range groupChanges {
 		sender := portal.bridge.GetPuppetBySignalID(groupChangeState.GroupChange.SourceACI)
@@ -946,6 +951,7 @@ func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevisi
 			break
 		}
 	}
+	return nil
 }
 
 func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {

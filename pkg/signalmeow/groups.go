@@ -853,18 +853,18 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		return nil, err
 	}
 
-	sourceServiceId, err := groupSecretParams.DecryptServiceID(libsignalgo.UUIDCiphertext(encryptedActions.SourceServiceId))
+	sourceServiceID, err := groupSecretParams.DecryptServiceID(libsignalgo.UUIDCiphertext(encryptedActions.SourceServiceId))
 	if err != nil {
 		log.Err(err).Msg("Couldn't decrypt source serviceID")
 		return nil, err
 	}
-	if sourceServiceId.Type != libsignalgo.ServiceIDTypeACI {
+	if sourceServiceID.Type != libsignalgo.ServiceIDTypeACI {
 		return nil, fmt.Errorf("wrong serviceid kind: expected aci, got pni")
 	}
 	decryptedGroupChange := &GroupChange{
 		groupMasterKey: groupMasterKey,
 		Revision:       encryptedActions.Revision,
-		SourceACI:      sourceServiceId.UUID,
+		SourceACI:      sourceServiceID.UUID,
 	}
 
 	if encryptedActions.ModifyTitle != nil {
@@ -1868,6 +1868,7 @@ func (cli *Client) decryptGroupChanges(ctx context.Context, encryptedGroupChange
 	for _, groupChangeState := range encryptedGroupChanges.GroupChanges {
 		var group *Group
 		var err error
+		// GroupState == nil is normal, except for first and last, depending on the parameters it was fetched with
 		if groupChangeState.GroupState != nil {
 			group, err = decryptGroup(ctx, groupChangeState.GroupState, groupMasterKey)
 			if err != nil {
@@ -1876,12 +1877,14 @@ func (cli *Client) decryptGroupChanges(ctx context.Context, encryptedGroupChange
 			}
 		}
 		var groupChange *GroupChange
-		if groupChangeState.GroupChange != nil {
-			groupChange, err = cli.decryptGroupChange(ctx, groupChangeState.GroupChange, groupMasterKey, false)
-			if err != nil {
-				log.Err(err).Msg("Failed to decrypt GroupChange")
-				return nil, err
-			}
+		// GroupChange shouldn't be nil - if it is, something will probably go wrong
+		if groupChangeState.GroupChange == nil {
+			return nil, fmt.Errorf("received group change state without group change")
+		}
+		groupChange, err = cli.decryptGroupChange(ctx, groupChangeState.GroupChange, groupMasterKey, false)
+		if err != nil {
+			log.Err(err).Msg("Failed to decrypt GroupChange")
+			return nil, err
 		}
 		groupChanges = append(groupChanges, &GroupChangeState{
 			GroupState:  group,
