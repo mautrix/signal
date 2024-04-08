@@ -934,8 +934,8 @@ func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevisi
 	log := portal.log.With().
 		Str("action", "catchUpHistory").
 		Stringer("source", source.MXID).
-		Uint32("from revision", fromRevision).
-		Uint32("to revision", toRevision).
+		Uint32("from_revision", fromRevision).
+		Uint32("to_revision", toRevision).
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	groupChanges, err := source.Client.GetGroupHistoryPage(ctx, portal.GroupID(), fromRevision, false)
