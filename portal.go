@@ -1184,7 +1184,6 @@ func (portal *Portal) applySignalGroupChange(ctx context.Context, source *User, 
 		log.Err(err).Msg("Failed to save portal in database after processing group change")
 	}
 	portal.UpdateBridgeInfo(ctx)
-	portal.CleanupIfEmpty(ctx)
 }
 
 func (portal *Portal) sendMembershipForPuppetAndUser(ctx context.Context, sender *Puppet, target uuid.UUID, membership event.Membership, action string) (puppet *Puppet, err error) {
@@ -2453,7 +2452,6 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			}
 		}
 	}
-	portal.CleanupIfEmpty(ctx)
 	return userIDs
 }
 
