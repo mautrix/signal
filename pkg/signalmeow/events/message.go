@@ -28,12 +28,13 @@ type SignalEvent interface {
 	isSignalEvent()
 }
 
-func (*ChatEvent) isSignalEvent()   {}
-func (*Receipt) isSignalEvent()     {}
-func (*ReadSelf) isSignalEvent()    {}
-func (*Call) isSignalEvent()        {}
-func (*ContactList) isSignalEvent() {}
-func (*ACIFound) isSignalEvent()    {}
+func (*ChatEvent) isSignalEvent()       {}
+func (*DecryptionError) isSignalEvent() {}
+func (*Receipt) isSignalEvent()         {}
+func (*ReadSelf) isSignalEvent()        {}
+func (*Call) isSignalEvent()            {}
+func (*ContactList) isSignalEvent()     {}
+func (*ACIFound) isSignalEvent()        {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -45,6 +46,11 @@ type MessageInfo struct {
 type ChatEvent struct {
 	Info  MessageInfo
 	Event signalpb.ChatEventContent
+}
+
+type DecryptionError struct {
+	Sender uuid.UUID
+	Err    error
 }
 
 type Receipt struct {
