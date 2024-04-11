@@ -943,26 +943,15 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		if modifyProfileKey == nil {
 			continue
 		}
-		encryptedUserID := libsignalgo.UUIDCiphertext(modifyProfileKey.UserId)
-		serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
+		aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, modifyProfileKey.UserId, modifyProfileKey.ProfileKey, modifyProfileKey.Presentation, groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("DecryptUUID UserId error for modifyProfileKey")
-			return nil, err
-		}
-		if serviceID.Type != libsignalgo.ServiceIDTypeACI {
-			return nil, fmt.Errorf("Wrong ServiceID kind: expected ACI, got PNI")
-		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(modifyProfileKey.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, serviceID.UUID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error for modifyProfileKey")
 			return nil, err
 		}
 		decryptedGroupChange.ModifyMemberProfileKeys = append(decryptedGroupChange.ModifyMemberProfileKeys, &ProfileKeyMember{
-			ACI:        serviceID.UUID,
+			ACI:        *aci,
 			ProfileKey: *profileKey,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, serviceID.UUID, *profileKey)
+		err = cli.Store.RecipientStore.StoreProfileKey(ctx, *aci, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -999,23 +988,15 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		if promotePendingMember == nil {
 			continue
 		}
-		encryptedUserID := libsignalgo.UUIDCiphertext(promotePendingMember.UserId)
-		serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
+		aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, promotePendingMember.UserId, promotePendingMember.ProfileKey, promotePendingMember.Presentation, groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("DecryptUUID UserId error for promotePendingMember")
-			return nil, err
-		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(promotePendingMember.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, serviceID.UUID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error for promotePendingMember")
 			return nil, err
 		}
 		decryptedGroupChange.PromotePendingMembers = append(decryptedGroupChange.PromotePendingMembers, &GroupMember{
-			ACI:        serviceID.UUID,
+			ACI:        *aci,
 			ProfileKey: *profileKey,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, serviceID.UUID, *profileKey)
+		err = cli.Store.RecipientStore.StoreProfileKey(ctx, *aci, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -1027,16 +1008,11 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		if promotePendingPniAciMember == nil {
 			continue
 		}
-		encryptedUserID := libsignalgo.UUIDCiphertext(promotePendingPniAciMember.UserId)
-		aciServiceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
+		aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, promotePendingPniAciMember.UserId, promotePendingPniAciMember.ProfileKey, promotePendingPniAciMember.Presentation, groupSecretParams)
 		if err != nil {
-			log.Err(err).Msg("DecryptUUID UserId error for promotePendingPniAciMember")
 			return nil, err
 		}
-		if aciServiceID.Type != libsignalgo.ServiceIDTypeACI {
-			return nil, fmt.Errorf("Wrong ServiceID kind: expected ACI, got PNI")
-		}
-		encryptedUserID = libsignalgo.UUIDCiphertext(promotePendingPniAciMember.Pni)
+		encryptedUserID := libsignalgo.UUIDCiphertext(promotePendingPniAciMember.Pni)
 		pniServiceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
 		if err != nil {
 			log.Err(err).Msg("DecryptUUID Pni error for promotePendingPniAciMember")
@@ -1045,18 +1021,12 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		if pniServiceID.Type != libsignalgo.ServiceIDTypePNI {
 			return nil, fmt.Errorf("Wrong ServiceID kind: expected PNI, got ACI")
 		}
-		encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(promotePendingPniAciMember.ProfileKey)
-		profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, aciServiceID.UUID)
-		if err != nil {
-			log.Err(err).Msg("DecryptProfileKey ProfileKey error for promotePendingPniAciMember")
-			return nil, err
-		}
 		decryptedGroupChange.PromotePendingPniAciMembers = append(decryptedGroupChange.PromotePendingPniAciMembers, &PromotePendingPniAciMember{
-			ACI:        aciServiceID.UUID,
+			ACI:        *aci,
 			ProfileKey: *profileKey,
 			PNI:        pniServiceID.UUID,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, aciServiceID.UUID, *profileKey)
+		err = cli.Store.RecipientStore.StoreProfileKey(ctx, *aci, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -1169,22 +1139,54 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	return decryptedGroupChange, nil
 }
 
-func decryptMember(ctx context.Context, member *signalpb.Member, groupSecretParams libsignalgo.GroupSecretParams) (*GroupMember, error) {
+func decryptPKeyAndIDorPresentation(ctx context.Context, userID []byte, profileKeyBytes []byte, presentationBytes []byte, groupSecretParams libsignalgo.GroupSecretParams) (*uuid.UUID, *libsignalgo.ProfileKey, error) {
 	log := zerolog.Ctx(ctx)
-	encryptedUserID := libsignalgo.UUIDCiphertext(member.UserId)
+	var encryptedUserID libsignalgo.UUIDCiphertext
+	var encryptedProfileKey libsignalgo.ProfileKeyCiphertext
+	if len(userID) == 0 || len(profileKeyBytes) == 0 {
+		presentation := libsignalgo.ProfileKeyCredentialPresentation(presentationBytes)
+		err := presentation.CheckValidContents()
+		if err != nil {
+			log.Err(err).Msg("Invalid presentation contents")
+			return nil, nil, err
+		}
+		encryptedUserID, err = presentation.UUIDCiphertext()
+		if err != nil {
+			log.Err(err).Msg("unable to get UUID from presentation")
+			return nil, nil, err
+		}
+		encryptedProfileKey, err = presentation.ProfileKeyCiphertext()
+		if err != nil {
+			log.Err(err).Msg("unable to get ProfileKey from presentation")
+			return nil, nil, err
+		}
+	} else {
+		encryptedUserID = libsignalgo.UUIDCiphertext(userID)
+		encryptedProfileKey = libsignalgo.ProfileKeyCiphertext(profileKeyBytes)
+	}
 	serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
 	if err != nil {
-		log.Err(err).Msg("DecryptUUID UserId error")
-		return nil, err
+		log.Err(err).Msg("Failed to decrypt ServiceID")
+		return nil, nil, err
 	}
-	encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(member.ProfileKey)
 	profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, serviceID.UUID)
 	if err != nil {
-		log.Err(err).Msg("DecryptProfileKey ProfileKey error")
+		return nil, nil, err
+	}
+	if serviceID.Type == libsignalgo.ServiceIDTypePNI {
+		return nil, nil, fmt.Errorf("wrong serviceid kind, expected ACI, got PNI")
+	}
+	return &serviceID.UUID, profileKey, nil
+
+}
+
+func decryptMember(ctx context.Context, member *signalpb.Member, groupSecretParams libsignalgo.GroupSecretParams) (*GroupMember, error) {
+	aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, member.UserId, member.ProfileKey, member.Presentation, groupSecretParams)
+	if err != nil {
 		return nil, err
 	}
 	return &GroupMember{
-		ACI:              serviceID.UUID,
+		ACI:              *aci,
 		ProfileKey:       *profileKey,
 		Role:             GroupMemberRole(member.Role),
 		JoinedAtRevision: member.JoinedAtRevision,
@@ -1215,21 +1217,12 @@ func decryptPendingMember(ctx context.Context, pendingMember *signalpb.PendingMe
 }
 
 func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.RequestingMember, groupSecretParams libsignalgo.GroupSecretParams) (*RequestingMember, error) {
-	log := zerolog.Ctx(ctx)
-	encryptedUserID := libsignalgo.UUIDCiphertext(requestingMember.UserId)
-	serviceID, err := groupSecretParams.DecryptServiceID(encryptedUserID)
+	aci, profileKey, err := decryptPKeyAndIDorPresentation(ctx, requestingMember.UserId, requestingMember.ProfileKey, requestingMember.Presentation, groupSecretParams)
 	if err != nil {
-		log.Err(err).Msg("DecryptUUID UserId error for requestingMember")
-		return nil, err
-	}
-	encryptedProfileKey := libsignalgo.ProfileKeyCiphertext(requestingMember.ProfileKey)
-	profileKey, err := groupSecretParams.DecryptProfileKey(encryptedProfileKey, serviceID.UUID)
-	if err != nil {
-		log.Err(err).Msg("DecryptProfileKey ProfileKey error for requestingMember")
 		return nil, err
 	}
 	return &RequestingMember{
-		ACI:        serviceID.UUID,
+		ACI:        *aci,
 		ProfileKey: *profileKey,
 		Timestamp:  requestingMember.Timestamp,
 	}, nil
@@ -1364,7 +1357,7 @@ func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroup
 	for _, deleteRequestingMember := range decryptedGroupChange.DeleteRequestingMembers {
 		encryptedUserID, err := groupSecretParams.EncryptServiceID(libsignalgo.NewACIServiceID(*deleteRequestingMember))
 		if err != nil {
-			log.Err(err).Msg("Encrypt UserId error for promotePendingMember")
+			log.Err(err).Msg("Encrypt UserId error for deleteRequestingMember")
 			return nil, err
 		}
 		groupChangeActions.DeleteRequestingMembers = append(groupChangeActions.DeleteRequestingMembers, &signalpb.GroupChange_Actions_DeleteRequestingMemberAction{
