@@ -31,7 +31,7 @@ if [[ ! -f /data/registration.yaml ]]; then
 	exit
 fi
 
-cd /data || exit 1
+cd /data || exit
 fixperms
 
 EXE=/usr/bin/mautrix-signal
