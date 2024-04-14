@@ -967,6 +967,18 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		log.Err(err).Msg("Handling GroupChange failed")
 		return
 	}
+	if portal.MXID == "" {
+		groupInfo, err := source.Client.RetrieveGroupByID(ctx, portal.GroupID(), groupChange.Revision)
+		if err != nil {
+			log.Err(err).Msg("Failed to obtain groupInfo for new portal")
+			return
+		}
+		groupInfo.UndoAddOrInviteChange(ctx, groupChange)
+		err = portal.CreateMatrixRoom(ctx, source, groupInfo.Revision, groupInfo)
+		if err != nil {
+			log.Err(err).Msg("Failed to create matrix room for new portal")
+		}
+	}
 	portal.applySignalGroupChange(ctx, source, sender, groupChange, ts)
 }
 
@@ -1350,7 +1362,7 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 	ctx := log.WithContext(context.TODO())
 	if portal.MXID == "" {
 		log.Debug().Msg("Creating Matrix room from incoming message")
-		if err := portal.CreateMatrixRoom(ctx, source, msg.GetGroupV2().GetRevision()); err != nil {
+		if err := portal.CreateMatrixRoom(ctx, source, msg.GetGroupV2().GetRevision(), nil); err != nil {
 			log.Error().Err(err).Msg("Failed to create portal room")
 			return
 		}
@@ -1732,7 +1744,7 @@ func (portal *Portal) ensureUserInvited(ctx context.Context, user *User) bool {
 	return user.ensureInvited(ctx, portal.MainIntent(), portal.MXID, portal.IsPrivateChat())
 }
 
-func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRevision uint32) error {
+func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRevision uint32, groupInfo *signalmeow.Group) error {
 	portal.roomCreateLock.Lock()
 	defer portal.roomCreateLock.Unlock()
 	if portal.MXID != "" {
@@ -1795,7 +1807,6 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	}
 
 	var dmPuppet *Puppet
-	var groupInfo *signalmeow.Group
 	var participants map[id.UserID]participant
 	if portal.IsPrivateChat() {
 		dmPuppet = portal.GetDMPuppet()
@@ -1806,7 +1817,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 			portal.UpdatePNIDMInfo(ctx, user)
 		}
 	} else {
-		groupInfo = portal.UpdateGroupInfo(ctx, user, nil, groupRevision, true)
+		groupInfo = portal.UpdateGroupInfo(ctx, user, groupInfo, groupRevision, true)
 		if groupInfo == nil {
 			portal.log.Error().Msg("Didn't get group info after updating portal")
 			return errors.New("failed to get group info")

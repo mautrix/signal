@@ -279,7 +279,7 @@ func fnPM(ce *WrappedCommandEvent) {
 		portal.MXID = ""
 	}
 
-	if err = portal.CreateMatrixRoom(ce.Ctx, user, 0); err != nil {
+	if err = portal.CreateMatrixRoom(ce.Ctx, user, 0, nil); err != nil {
 		ce.ZLog.Err(err).Msg("Failed to create portal room")
 		ce.Reply("Error creating Matrix room for portal to +%d", number)
 	} else {

@@ -1886,3 +1886,28 @@ func (cli *Client) decryptGroupChanges(ctx context.Context, encryptedGroupChange
 	}
 	return groupChanges, nil
 }
+
+func (group *Group) UndoAddOrInviteChange(ctx context.Context, groupChange *GroupChange) {
+	if len(groupChange.AddMembers) > 0 || len(groupChange.AddPendingMembers) > 0 || len(groupChange.PromoteRequestingMembers) > 0 {
+		group.Revision--
+	}
+	for i, members := range group.Members {
+		for _, addMember := range groupChange.AddMembers {
+			if addMember.ACI == members.ACI {
+				group.Members = append(group.Members[:i], group.Members[i+1:]...)
+			}
+		}
+		for _, addMember := range groupChange.PromoteRequestingMembers {
+			if addMember.ACI == members.ACI {
+				group.Members = append(group.Members[:i], group.Members[i+1:]...)
+			}
+		}
+	}
+	for i, pendingMember := range group.PendingMembers {
+		for _, addPendingMember := range groupChange.AddPendingMembers {
+			if addPendingMember.ServiceID == pendingMember.ServiceID {
+				group.PendingMembers = append(group.PendingMembers[:i], group.PendingMembers[i+1:]...)
+			}
+		}
+	}
+}
