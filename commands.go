@@ -1103,7 +1103,7 @@ func fnCreate(ce *WrappedCommandEvent) {
 	}
 	portal.MXID = ce.RoomID
 	portal.Name = roomName
-	portal.Encrypted = encryptionEvent.Algorithm == id.AlgorithmMegolmV1
+	portal.Encrypted = encryptionEvent != nil && encryptionEvent.Algorithm == id.AlgorithmMegolmV1
 	if !portal.Encrypted && ce.Bridge.Config.Bridge.Encryption.Default {
 		_, err = portal.MainIntent().SendStateEvent(ce.Ctx, portal.MXID, event.StateEncryption, "", portal.GetEncryptionEventContent())
 		if err != nil {
