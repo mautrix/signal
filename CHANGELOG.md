@@ -1,3 +1,29 @@
+# v0.6.0 (2024-04-16)
+
+* Updated to libsignal v0.44.0.
+* Refactored bridge to support Signal's new phone number identifier (PNI)
+  system in order to fix starting new chats and receiving messages from new
+  users.
+  * When starting a chat with a user you haven't talked to before, the portal
+    room will not have a ghost user for the recipient until they accept the
+    message request.
+* Added support for syncing existing groups on login instead of having to wait
+  for new messages.
+* Added notices if decrypting incoming message from Signal fails.
+* Added bridging of group metadata from Matrix to Signal
+  (thanks to [@maltee1] in [#461]).
+* Added command to create new Signal group for Matrix room
+  (thanks to [@maltee1] in [#461] and [#491]).
+* Added commands for inviting users to Signal groups by phone number
+  (thanks to [@maltee1] in [#495]).
+* Improved handling of missed Signal group metadata changes
+  (thanks to [@maltee1] in [#488]).
+
+[#461]: https://github.com/mautrix/signal/pull/461
+[#488]: https://github.com/mautrix/signal/pull/488
+[#491]: https://github.com/mautrix/signal/pull/491
+[#495]: https://github.com/mautrix/signal/pull/495
+
 # v0.5.1 (2024-03-16)
 
 * Updated to libsignal v0.41.0.
