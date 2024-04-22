@@ -42,17 +42,18 @@ type BridgeConfig struct {
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 
-	PersonalFilteringSpaces bool `yaml:"personal_filtering_spaces"`
-	BridgeNotices           bool `yaml:"bridge_notices"`
-	DeliveryReceipts        bool `yaml:"delivery_receipts"`
-	MessageStatusEvents     bool `yaml:"message_status_events"`
-	MessageErrorNotices     bool `yaml:"message_error_notices"`
-	SyncDirectChatList      bool `yaml:"sync_direct_chat_list"`
-	ResendBridgeInfo        bool `yaml:"resend_bridge_info"`
-	PublicPortals           bool `yaml:"public_portals"`
-	CaptionInMessage        bool `yaml:"caption_in_message"`
-	FederateRooms           bool `yaml:"federate_rooms"`
-	BridgeMatrixLeave       bool `yaml:"bridge_matrix_leave"`
+	PersonalFilteringSpaces bool   `yaml:"personal_filtering_spaces"`
+	BridgeNotices           bool   `yaml:"bridge_notices"`
+	DeliveryReceipts        bool   `yaml:"delivery_receipts"`
+	MessageStatusEvents     bool   `yaml:"message_status_events"`
+	MessageErrorNotices     bool   `yaml:"message_error_notices"`
+	SyncDirectChatList      bool   `yaml:"sync_direct_chat_list"`
+	ResendBridgeInfo        bool   `yaml:"resend_bridge_info"`
+	PublicPortals           bool   `yaml:"public_portals"`
+	CaptionInMessage        bool   `yaml:"caption_in_message"`
+	LocationFormat          string `yaml:"location_format"`
+	FederateRooms           bool   `yaml:"federate_rooms"`
+	BridgeMatrixLeave       bool   `yaml:"bridge_matrix_leave"`
 
 	DoublePuppetConfig bridgeconfig.DoublePuppetConfig `yaml:",inline"`
 

@@ -20,9 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/exmime"
 	"go.mau.fi/util/ffmpeg"
@@ -109,8 +111,13 @@ func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, cont
 			Emoji: emoji,
 		}
 	case event.MsgLocation:
-		// TODO implement
-		fallthrough
+		lat, lon, err := parseGeoURI(content.GeoURI)
+		if err != nil {
+			log.Err(err).Msg("Invalid geo URI")
+			return nil, err
+		}
+		locationString := fmt.Sprintf(mc.LocationFormat, lat, lon)
+		dm.Body = &locationString
 	default:
 		return nil, fmt.Errorf("%w %s", ErrUnsupportedMsgType, content.MsgType)
 	}
@@ -189,4 +196,21 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 		att.BlurHash = proto.String(content.Info.AnoaBlurhash)
 	}
 	return att, nil
+}
+
+func parseGeoURI(uri string) (lat, long string, err error) {
+	if !strings.HasPrefix(uri, "geo:") {
+		err = fmt.Errorf("uri doesn't have geo: prefix")
+		return
+	}
+	// Remove geo: prefix and anything after ;
+	coordinates := strings.Split(strings.TrimPrefix(uri, "geo:"), ";")[0]
+	splitCoordinates := strings.Split(coordinates, ",")
+	if len(splitCoordinates) != 2 {
+		err = fmt.Errorf("didn't find exactly two numbers separated by a comma")
+	} else {
+		lat = splitCoordinates[0]
+		long = splitCoordinates[1]
+	}
+	return
 }

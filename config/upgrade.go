@@ -96,6 +96,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Bool, "bridge", "resend_bridge_info")
 	helper.Copy(up.Bool, "bridge", "public_portals")
 	helper.Copy(up.Bool, "bridge", "caption_in_message")
+	helper.Copy(up.Str, "bridge", "location_format")
 	helper.Copy(up.Bool, "bridge", "federate_rooms")
 	helper.Copy(up.Map, "bridge", "double_puppet_server_map")
 	helper.Copy(up.Bool, "bridge", "double_puppet_allow_discovery")
