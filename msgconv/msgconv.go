@@ -54,6 +54,8 @@ type MessageConverter struct {
 	ConvertGIFToAPNG     bool
 	MaxFileSize          int64
 	AsyncFiles           bool
+
+	LocationFormat string
 }
 
 func (mc *MessageConverter) IsPrivateChat(ctx context.Context) bool {
