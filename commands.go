@@ -74,6 +74,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdInvite,
 		cmdListInvited,
 		cmdRevokeInvite,
+		cmdSubmitChallenge,
 	)
 }
 
@@ -1127,4 +1128,29 @@ func fnCreate(ce *WrappedCommandEvent) {
 	}
 	portal.UpdateBridgeInfo(ce.Ctx)
 	ce.Reply("Successfully created Signal group %s", gid.String())
+}
+
+var cmdSubmitChallenge = &commands.FullHandler{
+	Func: wrapCommand(fnSubmitChallenge),
+	Name: "submit-challenge",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionMiscellaneous,
+		Description: "Submit a captcha challenge when getting rate limited",
+		Args:        "<_captcha token_>",
+	},
+	RequiresLogin: true,
+}
+
+func fnSubmitChallenge(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `submit-challenge <_captcha token_>`")
+	}
+	captcha := ce.Args[0]
+	captcha = strings.TrimPrefix(captcha, "signalcaptcha://")
+	err := ce.User.Client.SubmitRateLimitRecaptchaChallenge(ce.Ctx, captcha)
+	if err != nil {
+		ce.Reply("Failed to submit challenge: %v", err)
+		return
+	}
+	ce.Reply("Captcha challenge submitted successfully")
 }
