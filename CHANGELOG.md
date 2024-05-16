@@ -1,3 +1,13 @@
+# v0.6.1 (2024-05-16)
+
+* Added support for bridging location messages from Matrix to Signal
+  (thanks to [@maltee1] in [#504]).
+  * Note that Signal doesn't support real location messages, so they're just
+    bridged as links. The link template is configurable.
+* Fixed bridging long text messages from Signal
+  (thanks to [@maltee1] in [#509]).
+* Improved handling of ping timeouts in Signal websocket.
+
 # v0.6.0 (2024-04-16)
 
 * Updated to libsignal v0.44.0.
