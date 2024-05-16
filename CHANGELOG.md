@@ -5,8 +5,11 @@
   * Note that Signal doesn't support real location messages, so they're just
     bridged as links. The link template is configurable.
 * Fixed bridging long text messages from Signal
-  (thanks to [@maltee1] in [#509]).
+  (thanks to [@maltee1] in [#506]).
 * Improved handling of ping timeouts in Signal websocket.
+
+[#504]: https://github.com/mautrix/signal/pull/504
+[#506]: https://github.com/mautrix/signal/pull/506
 
 # v0.6.0 (2024-04-16)
 
