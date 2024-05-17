@@ -452,7 +452,8 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		fileName += ".ogg"
 		mimeType = "audio/ogg"
 		extra["org.matrix.msc3245.voice"] = map[string]any{}
-		extra["org.matrix.msc1767.audio"] = map[string]any{}
+		// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
+		//extra["org.matrix.msc1767.audio"] = map[string]any{"duration": ???}
 	}
 	var file *event.EncryptedFileInfo
 	uploadMime := mimeType
