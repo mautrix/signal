@@ -42,16 +42,18 @@ type BridgeConfig struct {
 
 	PortalMessageBuffer int `yaml:"portal_message_buffer"`
 
-	PersonalFilteringSpaces bool `yaml:"personal_filtering_spaces"`
-	BridgeNotices           bool `yaml:"bridge_notices"`
-	DeliveryReceipts        bool `yaml:"delivery_receipts"`
-	MessageStatusEvents     bool `yaml:"message_status_events"`
-	MessageErrorNotices     bool `yaml:"message_error_notices"`
-	SyncDirectChatList      bool `yaml:"sync_direct_chat_list"`
-	ResendBridgeInfo        bool `yaml:"resend_bridge_info"`
-	PublicPortals           bool `yaml:"public_portals"`
-	CaptionInMessage        bool `yaml:"caption_in_message"`
-	FederateRooms           bool `yaml:"federate_rooms"`
+	PersonalFilteringSpaces bool   `yaml:"personal_filtering_spaces"`
+	BridgeNotices           bool   `yaml:"bridge_notices"`
+	DeliveryReceipts        bool   `yaml:"delivery_receipts"`
+	MessageStatusEvents     bool   `yaml:"message_status_events"`
+	MessageErrorNotices     bool   `yaml:"message_error_notices"`
+	SyncDirectChatList      bool   `yaml:"sync_direct_chat_list"`
+	ResendBridgeInfo        bool   `yaml:"resend_bridge_info"`
+	PublicPortals           bool   `yaml:"public_portals"`
+	CaptionInMessage        bool   `yaml:"caption_in_message"`
+	LocationFormat          string `yaml:"location_format"`
+	FederateRooms           bool   `yaml:"federate_rooms"`
+	BridgeMatrixLeave       bool   `yaml:"bridge_matrix_leave"`
 
 	DoublePuppetConfig bridgeconfig.DoublePuppetConfig `yaml:",inline"`
 
@@ -164,17 +166,21 @@ type DisplaynameParams struct {
 	Username    string
 	PhoneNumber string
 	UUID        string
+	ACI         string
+	PNI         string
 	AboutEmoji  string
 }
 
-func (bc BridgeConfig) FormatDisplayname(contact *types.Contact) string {
+func (bc BridgeConfig) FormatDisplayname(contact *types.Recipient) string {
 	var buffer strings.Builder
 	_ = bc.displaynameTemplate.Execute(&buffer, DisplaynameParams{
 		ProfileName: contact.Profile.Name,
 		ContactName: contact.ContactName,
 		//Username:    contact.Username,
 		PhoneNumber: contact.E164,
-		UUID:        contact.UUID.String(),
+		UUID:        contact.ACI.String(),
+		ACI:         contact.ACI.String(),
+		PNI:         contact.PNI.String(),
 		AboutEmoji:  contact.Profile.AboutEmoji,
 	})
 	return buffer.String()

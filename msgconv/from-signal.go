@@ -115,7 +115,16 @@ func (mc *MessageConverter) ToMatrix(ctx context.Context, dm *signalpb.DataMessa
 		return cm
 	}
 	for i, att := range dm.GetAttachments() {
-		cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att))
+		if att.GetContentType() != "text/x-signal-plain" {
+			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att))
+		} else {
+			longBody, err := mc.downloadSignalLongText(ctx, att)
+			if err == nil {
+				dm.Body = longBody
+			} else {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to download Signal long text")
+			}
+		}
 	}
 	for _, contact := range dm.GetContact() {
 		cm.Parts = append(cm.Parts, mc.convertContactToMatrix(ctx, contact))
@@ -415,6 +424,15 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 	return converted
 }
 
+func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *signalpb.AttachmentPointer) (*string, error) {
+	data, err := signalmeow.DownloadAttachment(ctx, att)
+	if err != nil {
+		return nil, fmt.Errorf("failed to download attachment: %w", err)
+	}
+	longBody := string(data)
+	return &longBody, nil
+}
+
 func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer) (*ConvertedMessagePart, error) {
 	data, err := signalmeow.DownloadAttachment(ctx, att)
 	if err != nil {
@@ -434,7 +452,8 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		fileName += ".ogg"
 		mimeType = "audio/ogg"
 		extra["org.matrix.msc3245.voice"] = map[string]any{}
-		extra["org.matrix.msc1767.audio"] = map[string]any{}
+		// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
+		//extra["org.matrix.msc1767.audio"] = map[string]any{"duration": ???}
 	}
 	var file *event.EncryptedFileInfo
 	uploadMime := mimeType

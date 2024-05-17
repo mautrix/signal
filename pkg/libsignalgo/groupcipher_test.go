@@ -30,7 +30,7 @@ import (
 func TestGroupCipher(t *testing.T) {
 	ctx := context.TODO()
 
-	sender, err := libsignalgo.NewPhoneAddress("+14159999111", 4)
+	sender, err := libsignalgo.NewACIServiceID(uuid.New()).Address(4)
 	assert.NoError(t, err)
 
 	distributionID, err := uuid.Parse("d1d1d1d1-7000-11eb-b32a-33b8a8a487a6")

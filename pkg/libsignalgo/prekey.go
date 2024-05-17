@@ -117,14 +117,14 @@ func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
-func (pkr *PreKeyRecord) GetID() (uint, error) {
+func (pkr *PreKeyRecord) GetID() (uint32, error) {
 	var id C.uint32_t
 	signalFfiError := C.signal_pre_key_record_get_id(&id, pkr.ptr)
 	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
 	}
-	return uint(id), nil
+	return uint32(id), nil
 }
 
 func (pkr *PreKeyRecord) GetPublicKey() (*PublicKey, error) {

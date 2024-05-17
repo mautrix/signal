@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -10,30 +11,38 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
 
-// SQLStore is basically a StoreContainer with an ACI UUID attached to it,
-// reperesenting a store for a single user
-type SQLStore struct {
-	*StoreContainer
-	ACI uuid.UUID
+type sqlStore struct {
+	*Container
+	AccountID uuid.UUID
+
+	contactLock sync.Mutex
 }
 
-func newSQLStore(container *StoreContainer, aci uuid.UUID) *SQLStore {
-	return &SQLStore{
-		StoreContainer: container,
-		ACI:            aci,
-	}
+type scopedSQLStore struct {
+	*Container
+	AccountID uuid.UUID
+	ServiceID libsignalgo.ServiceID
 }
 
 type DeviceData struct {
 	ACIIdentityKeyPair *libsignalgo.IdentityKeyPair
 	PNIIdentityKeyPair *libsignalgo.IdentityKeyPair
-	RegistrationID     int
+	ACIRegistrationID  int
 	PNIRegistrationID  int
 	ACI                uuid.UUID
 	PNI                uuid.UUID
 	DeviceID           int
 	Number             string
 	Password           string
+	MasterKey          []byte
+}
+
+func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {
+	return libsignalgo.NewACIServiceID(d.ACI)
+}
+
+func (d *DeviceData) PNIServiceID() libsignalgo.ServiceID {
+	return libsignalgo.NewPNIServiceID(d.PNI)
 }
 
 func (d *DeviceData) BasicAuthCreds() (string, string) {
@@ -51,20 +60,18 @@ type Device struct {
 	// (search for "innerStore" further down in this file)
 
 	// libsignalgo store interfaces
-	PreKeyStore       libsignalgo.PreKeyStore
-	SignedPreKeyStore libsignalgo.SignedPreKeyStore
-	KyberPreKeyStore  libsignalgo.KyberPreKeyStore
-	IdentityStore     libsignalgo.IdentityKeyStore
-	SessionStore      libsignalgo.SessionStore
-	SenderKeyStore    libsignalgo.SenderKeyStore
+	ACIPreKeyStore   PreKeyStore
+	PNIPreKeyStore   PreKeyStore
+	ACISessionStore  SessionStore
+	PNISessionStore  SessionStore
+	ACIIdentityStore libsignalgo.IdentityKeyStore
+	PNIIdentityStore libsignalgo.IdentityKeyStore
+	IdentityKeyStore IdentityKeyStore
+	SenderKeyStore   libsignalgo.SenderKeyStore
 
-	// internal store interfaces
-	PreKeyStoreExtras  PreKeyStoreExtras
-	SessionStoreExtras SessionStoreExtras
-	ProfileKeyStore    ProfileKeyStore
-	GroupStore         GroupStore
-	ContactStore       ContactStore
-	DeviceStore        DeviceStore
+	GroupStore     GroupStore
+	RecipientStore RecipientStore
+	DeviceStore    DeviceStore
 }
 
 func (d *Device) ClearDeviceKeys(ctx context.Context) error {
@@ -73,11 +80,11 @@ func (d *Device) ClearDeviceKeys(ctx context.Context) error {
 		zerolog.Ctx(ctx).Warn().Msg("ClearDeviceKeys called with nil device")
 		return nil
 	}
-	err := d.PreKeyStoreExtras.DeleteAllPreKeys(ctx)
+	err := d.ACIPreKeyStore.DeleteAllPreKeys(ctx)
 	if err != nil {
 		return err
 	}
-	err = d.SessionStoreExtras.RemoveAllSessions(ctx)
+	err = d.ACISessionStore.RemoveAllSessions(ctx)
 	return err
 }
 
@@ -91,4 +98,31 @@ func (d *Device) IsDeviceLoggedIn() bool {
 func (d *Device) ClearPassword(ctx context.Context) error {
 	d.Password = ""
 	return d.DeviceStore.PutDevice(ctx, &d.DeviceData)
+}
+
+func (d *Device) PreKeyStore(serviceID libsignalgo.ServiceID) PreKeyStore {
+	if serviceID == d.ACIServiceID() {
+		return d.ACIPreKeyStore
+	} else if serviceID == d.PNIServiceID() {
+		return d.PNIPreKeyStore
+	}
+	return nil
+}
+
+func (d *Device) SessionStore(serviceID libsignalgo.ServiceID) SessionStore {
+	if serviceID == d.ACIServiceID() {
+		return d.ACISessionStore
+	} else if serviceID == d.PNIServiceID() {
+		return d.PNISessionStore
+	}
+	return nil
+}
+
+func (d *Device) IdentityStore(serviceID libsignalgo.ServiceID) libsignalgo.IdentityKeyStore {
+	if serviceID == d.ACIServiceID() {
+		return d.ACIIdentityStore
+	} else if serviceID == d.PNIServiceID() {
+		return d.PNIIdentityStore
+	}
+	return nil
 }

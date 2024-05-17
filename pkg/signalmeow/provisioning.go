@@ -123,21 +123,19 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		username := *provisioningMessage.Number
 		password := random.String(22)
 		code := provisioningMessage.ProvisioningCode
-		registrationId := mrand.Intn(16383) + 1
-		pniRegistrationId := mrand.Intn(16383) + 1
-		aciSignedPreKey := GenerateSignedPreKey(1, types.UUIDKindACI, aciIdentityKeyPair)
-		pniSignedPreKey := GenerateSignedPreKey(2, types.UUIDKindPNI, pniIdentityKeyPair)
-		aciPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, types.UUIDKindACI, aciIdentityKeyPair)
-		pniPQLastResortPreKeys := GenerateKyberPreKeys(1, 1, types.UUIDKindPNI, pniIdentityKeyPair)
-		aciPQLastResortPreKey := aciPQLastResortPreKeys[0]
-		pniPQLastResortPreKey := pniPQLastResortPreKeys[0]
+		aciRegistrationID := mrand.Intn(16383) + 1
+		pniRegistrationID := mrand.Intn(16383) + 1
+		aciSignedPreKey := GenerateSignedPreKey(1, aciIdentityKeyPair)
+		pniSignedPreKey := GenerateSignedPreKey(1, pniIdentityKeyPair)
+		aciPQLastResortPreKey := GenerateKyberPreKeys(1, 1, aciIdentityKeyPair)[0]
+		pniPQLastResortPreKey := GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
 		deviceResponse, err := confirmDevice(
 			ctx,
 			username,
 			password,
 			*code,
-			registrationId,
-			pniRegistrationId,
+			aciRegistrationID,
+			pniRegistrationID,
 			aciSignedPreKey,
 			pniSignedPreKey,
 			aciPQLastResortPreKey,
@@ -159,8 +157,8 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		data := &store.DeviceData{
 			ACIIdentityKeyPair: aciIdentityKeyPair,
 			PNIIdentityKeyPair: pniIdentityKeyPair,
-			RegistrationID:     registrationId,
-			PNIRegistrationID:  pniRegistrationId,
+			ACIRegistrationID:  aciRegistrationID,
+			PNIRegistrationID:  pniRegistrationID,
 			ACI:                deviceResponse.ACI,
 			PNI:                deviceResponse.PNI,
 			DeviceID:           deviceId,
@@ -187,15 +185,15 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		device.ClearDeviceKeys(ctx)
 
 		// Store identity keys?
-		address, err := libsignalgo.NewUUIDAddress(device.ACI, uint(device.DeviceID))
+		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.ACIServiceID(), device.ACIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
-				Err:   fmt.Errorf("error creating new address: %w", err),
+				Err:   fmt.Errorf("error saving identity key: %w", err),
 			}
 			return
 		}
-		_, err = device.IdentityStore.SaveIdentityKey(ctx, address, device.ACIIdentityKeyPair.GetIdentityKey())
+		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -205,13 +203,20 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		}
 
 		// Store signed prekeys (now that we have a device)
-		device.PreKeyStoreExtras.SaveSignedPreKey(ctx, types.UUIDKindACI, aciSignedPreKey, true)
-		device.PreKeyStoreExtras.SaveSignedPreKey(ctx, types.UUIDKindPNI, pniSignedPreKey, true)
-		device.PreKeyStoreExtras.SaveKyberPreKey(ctx, types.UUIDKindACI, aciPQLastResortPreKey, true)
-		device.PreKeyStoreExtras.SaveKyberPreKey(ctx, types.UUIDKindPNI, pniPQLastResortPreKey, true)
+		device.ACIPreKeyStore.StoreSignedPreKey(ctx, 1, aciSignedPreKey)
+		device.PNIPreKeyStore.StoreSignedPreKey(ctx, 1, pniSignedPreKey)
+		device.ACIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, aciPQLastResortPreKey)
+		device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
 
 		// Store our profile key
-		err = device.ProfileKeyStore.StoreProfileKey(ctx, data.ACI, profileKey)
+		err = device.RecipientStore.StoreRecipient(ctx, &types.Recipient{
+			ACI:  data.ACI,
+			PNI:  data.PNI,
+			E164: data.Number,
+			Profile: types.Profile{
+				Key: profileKey,
+			},
+		})
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -226,7 +231,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		// Generate, store, and register prekeys
 		// TODO hacky client construction
 		cli := &Client{Store: device}
-		err = cli.GenerateAndRegisterPreKeys(ctx, types.UUIDKindACI)
+		err = cli.GenerateAndRegisterPreKeys(ctx, device.ACIPreKeyStore)
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -234,7 +239,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			}
 			return
 		}
-		err = cli.GenerateAndRegisterPreKeys(ctx, types.UUIDKindPNI)
+		err = cli.GenerateAndRegisterPreKeys(ctx, device.PNIPreKeyStore)
 		if err != nil {
 			c <- ProvisioningResponse{
 				State: StateProvisioningError,
@@ -330,8 +335,8 @@ func confirmDevice(
 	username string,
 	password string,
 	code string,
-	registrationId int,
-	pniRegistrationId int,
+	aciRegistrationID int,
+	pniRegistrationID int,
 	aciSignedPreKey *libsignalgo.SignedPreKeyRecord,
 	pniSignedPreKey *libsignalgo.SignedPreKeyRecord,
 	aciPQLastResortPreKey *libsignalgo.KyberPreKeyRecord,
@@ -353,19 +358,31 @@ func confirmDevice(
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
-	aciSignedPreKeyJson := SignedPreKeyToJSON(aciSignedPreKey)
-	pniSignedPreKeyJson := SignedPreKeyToJSON(pniSignedPreKey)
+	aciSignedPreKeyJson, err := SignedPreKeyToJSON(aciSignedPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert signed ACI prekey to JSON: %w", err)
+	}
+	pniSignedPreKeyJson, err := SignedPreKeyToJSON(pniSignedPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert signed PNI prekey to JSON: %w", err)
+	}
 
-	aciPQLastResortPreKeyJson := KyberPreKeyToJSON(aciPQLastResortPreKey)
-	pniPQLastResortPreKeyJson := KyberPreKeyToJSON(pniPQLastResortPreKey)
+	aciPQLastResortPreKeyJson, err := KyberPreKeyToJSON(aciPQLastResortPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert ACI kyber last resort prekey to JSON: %w", err)
+	}
+	pniPQLastResortPreKeyJson, err := KyberPreKeyToJSON(pniPQLastResortPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert PNI kyber last resort prekey to JSON: %w", err)
+	}
 
 	data := map[string]any{
 		"verificationCode": code,
 		"accountAttributes": map[string]any{
 			"fetchesMessages":   true,
 			"name":              encryptedDeviceName,
-			"registrationId":    registrationId,
-			"pniRegistrationId": pniRegistrationId,
+			"registrationId":    aciRegistrationID,
+			"pniRegistrationId": pniRegistrationID,
 			"capabilities": map[string]any{
 				"pni": true,
 			},

@@ -16,15 +16,16 @@
   * [x] Message edits
   * [x] Message reactions
   * [x] Message redactions
-  * [ ] Group info changes
-    * [ ] Name
-    * [ ] Avatar
-    * [ ] Topic
+  * [x] Group info changes
+    * [x] Name
+    * [x] Avatar
+    * [x] Topic
   * [ ] Membership actions
     * [ ] Join (accepting invites)
-    * [ ] Invite
-    * [ ] Leave
-    * [ ] Kick/Ban/Unban
+    * [x] Invite
+    * [x] Leave
+    * [x] Kick/Ban/Unban
+  * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
   * [x] Delivery receipts (sent after message is bridged)

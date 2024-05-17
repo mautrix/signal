@@ -30,6 +30,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
@@ -45,6 +46,7 @@ import (
 	"go.mau.fi/mautrix-signal/msgconv"
 	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
 	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -71,8 +73,18 @@ func (br *SignalBridge) GetPortalByMXID(mxid id.RoomID) *Portal {
 func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 	br.portalsLock.Lock()
 	defer br.portalsLock.Unlock()
+	return br.unlockedGetPortalByChatID(key, true)
+}
+
+func (br *SignalBridge) GetPortalByChatIDIfExists(key database.PortalKey) *Portal {
+	br.portalsLock.Lock()
+	defer br.portalsLock.Unlock()
+	return br.unlockedGetPortalByChatID(key, false)
+}
+
+func (br *SignalBridge) unlockedGetPortalByChatID(key database.PortalKey, createIfNotExists bool) *Portal {
 	// If this PortalKey is for a group, Receiver should be empty
-	if key.UserID() == uuid.Nil {
+	if key.UserID().IsEmpty() {
 		key.Receiver = uuid.Nil
 	}
 	portal, ok := br.portalsByID[key]
@@ -82,7 +94,11 @@ func (br *SignalBridge) GetPortalByChatID(key database.PortalKey) *Portal {
 			br.ZLog.Err(err).Msg("Failed to get portal from database")
 			return nil
 		}
-		return br.loadPortal(context.TODO(), dbPortal, &key)
+		keyIfNotExists := &key
+		if !createIfNotExists {
+			keyIfNotExists = nil
+		}
+		return br.loadPortal(context.TODO(), dbPortal, keyIfNotExists)
 	}
 	return portal
 }
@@ -220,6 +236,7 @@ func (br *SignalBridge) NewPortal(dbPortal *database.Portal) *Portal {
 		MatrixFmtParams:      matrixFormatParams,
 		ConvertVoiceMessages: true,
 		MaxFileSize:          br.MediaConfig.UploadSize,
+		LocationFormat:       br.Config.Bridge.LocationFormat,
 	}
 	go portal.messageLoop()
 
@@ -268,17 +285,18 @@ func (portal *Portal) GetRelayUser() *User {
 }
 
 func (portal *Portal) IsPrivateChat() bool {
-	return portal.UserID() != uuid.Nil
+	return !portal.UserID().IsEmpty()
 }
 
 func (portal *Portal) IsNoteToSelf() bool {
 	userID := portal.UserID()
-	return userID != uuid.Nil && userID == portal.Receiver
+	return !userID.IsEmpty() && userID.UUID == portal.Receiver
 }
 
 func (portal *Portal) MainIntent() *appservice.IntentAPI {
-	if portal.IsPrivateChat() {
-		return portal.bridge.GetPuppetBySignalID(portal.UserID()).DefaultIntent()
+	dmPuppet := portal.GetDMPuppet()
+	if dmPuppet != nil {
+		return dmPuppet.DefaultIntent()
 	}
 
 	return portal.bridge.Bot
@@ -876,10 +894,19 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	// Always update sender info when we receive a message from them, there's caching inside the function
 	sender.UpdateInfo(genericCtx, source)
 	// Handle earlier missed group changes here.
-	// If this message is a group change, don't handle it here, it's handled below.
-	if msg.GetGroupV2().GetGroupChange() == nil && portal.Revision < msg.GetGroupV2().GetRevision() {
-		portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
-	} else if portal.IsPrivateChat() && portal.UserID() == portal.Receiver && portal.Name != NoteToSelfName {
+	if msg.GetGroupV2() != nil {
+		requiredRevision := msg.GetGroupV2().GetRevision()
+		if msg.GetGroupV2().GetGroupChange() != nil {
+			requiredRevision = requiredRevision - 1
+		}
+		if portal.Revision < requiredRevision {
+			err := portal.catchUpHistory(source, portal.Revision+1, requiredRevision, msg.GetTimestamp())
+			if err != nil {
+				portal.log.Err(err).Msg("Failed to catch up group history, trying regular update")
+				portal.UpdateInfo(genericCtx, source, nil, msg.GetGroupV2().GetRevision())
+			}
+		}
+	} else if portal.IsPrivateChat() && portal.UserID().UUID == portal.Receiver && portal.Name != NoteToSelfName {
 		// Slightly hacky way to make note to self names backfill
 		portal.UpdateDMInfo(genericCtx, false)
 	}
@@ -904,6 +931,30 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 	}
 }
 
+func (portal *Portal) catchUpHistory(source *User, fromRevision uint32, toRevision uint32, ts uint64) error {
+	log := portal.log.With().
+		Str("action", "catchUpHistory").
+		Stringer("source", source.MXID).
+		Uint32("from_revision", fromRevision).
+		Uint32("to_revision", toRevision).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	groupChanges, err := source.Client.GetGroupHistoryPage(ctx, portal.GroupID(), fromRevision, false)
+	if err != nil {
+		log.Err(err).Msg("Failed to get GroupChanges")
+		return err
+	}
+	for _, groupChangeState := range groupChanges {
+		sender := portal.bridge.GetPuppetBySignalID(groupChangeState.GroupChange.SourceACI)
+		portal.applySignalGroupChange(ctx, source, sender, groupChangeState.GroupChange, ts)
+		// for revision > toRevision, we should have received a group change already
+		if groupChangeState.GroupChange.Revision == toRevision {
+			break
+		}
+	}
+	return nil
+}
+
 func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, groupMeta *signalpb.GroupContextV2, ts uint64) {
 	log := portal.log.With().
 		Str("action", "handle signal group change").
@@ -917,6 +968,11 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		log.Err(err).Msg("Handling GroupChange failed")
 		return
 	}
+	portal.applySignalGroupChange(ctx, source, sender, groupChange, ts)
+}
+
+func (portal *Portal) applySignalGroupChange(ctx context.Context, source *User, sender *Puppet, groupChange *signalmeow.GroupChange, ts uint64) {
+	log := zerolog.Ctx(ctx)
 	if groupChange.Revision <= portal.Revision {
 		return
 	}
@@ -935,20 +991,21 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 	}
 	intent := sender.IntentFor(portal)
 	modifyRoles := groupChange.ModifyMemberRoles
+	var err error
 	for _, deleteBannedMember := range groupChange.DeleteBannedMembers {
-		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deleteBannedMember, event.MembershipLeave, "unbanned")
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *&deleteBannedMember.UUID, event.MembershipLeave, "unbanned")
 		if err != nil {
 			log.Warn().Stringer("signal_user_id", deleteBannedMember).Msg("Couldn't get puppet for unban")
 		}
 	}
 	for _, addMember := range groupChange.AddMembers {
-		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addMember.UserID, Role: addMember.Role})
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{ACI: addMember.ACI, Role: addMember.Role})
 		var puppet *Puppet
 		if addMember.JoinFromInviteLink {
-			puppet = portal.bridge.GetPuppetBySignalID(addMember.UserID)
+			puppet = portal.bridge.GetPuppetBySignalID(addMember.ACI)
 			if puppet != nil {
 				if puppet.customIntent == nil {
-					user := portal.bridge.GetUserBySignalID(addMember.UserID)
+					user := portal.bridge.GetUserBySignalID(addMember.ACI)
 					if user != nil {
 						portal.MainIntent().SendCustomMembershipEvent(ctx, portal.MXID, user.MXID, event.MembershipInvite, "Joined via invite Link")
 					}
@@ -961,20 +1018,23 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 				}
 			}
 		} else {
-			puppet, _ = portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.UserID, event.MembershipInvite, "added")
+			puppet, _ = portal.sendMembershipForPuppetAndUser(ctx, sender, addMember.ACI, event.MembershipInvite, "added")
 		}
 		if puppet != nil {
 			puppet.IntentFor(portal).SendCustomMembershipEvent(ctx, portal.MXID, puppet.IntentFor(portal).UserID, event.MembershipJoin, "")
 		} else {
-			log.Warn().Stringer("signal_user_id", addMember.UserID).Msg("Couldn't get puppet for invite")
+			log.Warn().Stringer("signal_user_id", addMember.ACI).Msg("Couldn't get puppet for invite")
 		}
 	}
 	bannedMembers := make(map[uuid.UUID]bool)
 	for _, addBannedMember := range groupChange.AddBannedMembers {
-		bannedMembers[addBannedMember.UserID] = true
-		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addBannedMember.UserID, event.MembershipBan, "banned")
+		if addBannedMember.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			continue
+		}
+		bannedMembers[addBannedMember.ServiceID.UUID] = true
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addBannedMember.ServiceID.UUID, event.MembershipBan, "banned")
 		if err != nil {
-			log.Warn().Stringer("signal_user_id", addBannedMember.UserID).Msg("Couldn't get puppet for ban")
+			log.Warn().Stringer("signal_user_id", addBannedMember.ServiceID.UUID).Msg("Couldn't get puppet for ban")
 		}
 	}
 	for _, deleteMember := range groupChange.DeleteMembers {
@@ -987,10 +1047,13 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, deletePendingMember := range groupChange.DeletePendingMembers {
-		if bannedMembers[*deletePendingMember] {
+		if deletePendingMember.Type == libsignalgo.ServiceIDTypePNI {
 			continue
 		}
-		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, *deletePendingMember, event.MembershipLeave, "invite withdrawn")
+		if bannedMembers[deletePendingMember.UUID] {
+			continue
+		}
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, deletePendingMember.UUID, event.MembershipLeave, "invite withdrawn")
 		if err != nil {
 			log.Warn().Stringer("signal_user_id", deletePendingMember).Msg("Couldn't get puppet for removal")
 		}
@@ -1005,35 +1068,46 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 		}
 	}
 	for _, promotePendingMember := range groupChange.PromotePendingMembers {
-		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promotePendingMember.UserID, event.MembershipInvite, "request accepted")
-		if err == nil {
-			puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
-		} else {
-			log.Warn().Stringer("signal_user_id", promotePendingMember.UserID).Msg("Couldn't get puppet for invite")
+		puppet := portal.bridge.GetPuppetBySignalID(promotePendingMember.ACI)
+		if puppet == nil {
+			log.Warn().Stringer("signal_user_id", promotePendingMember.ACI).Msg("Couldn't get puppet for invite")
+			continue
 		}
+		puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+	}
+	for _, promotePendingPniAciMember := range groupChange.PromotePendingPniAciMembers {
+		puppet := portal.bridge.GetPuppetBySignalID(promotePendingPniAciMember.ACI)
+		if puppet == nil {
+			log.Warn().Stringer("signal_user_id", promotePendingPniAciMember.ACI).Msg("Couldn't get puppet for invite")
+			continue
+		}
+		puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
 	}
 	for _, addPendingMember := range groupChange.AddPendingMembers {
-		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addPendingMember.UserID, event.MembershipInvite, "invited")
-		if err != nil {
-			log.Warn().Stringer("signal_user_id", addPendingMember.UserID).Msg("Couldn't get puppet for invite")
+		if addPendingMember.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			continue
 		}
-		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: addPendingMember.UserID, Role: addPendingMember.Role})
+		_, err := portal.sendMembershipForPuppetAndUser(ctx, sender, addPendingMember.ServiceID.UUID, event.MembershipInvite, "invited")
+		if err != nil {
+			log.Warn().Stringer("signal_user_id", addPendingMember.ServiceID).Msg("Couldn't get puppet for invite")
+		}
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{ACI: addPendingMember.ServiceID.UUID, Role: addPendingMember.Role})
 	}
 	for _, promoteRequestingMember := range groupChange.PromoteRequestingMembers {
-		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promoteRequestingMember.UserID, event.MembershipInvite, "accepted")
+		puppet, err := portal.sendMembershipForPuppetAndUser(ctx, sender, promoteRequestingMember.ACI, event.MembershipInvite, "accepted")
 		if err == nil {
 			err = puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
 			if err != nil {
-				log.Warn().Stringer("signal_user_id", promoteRequestingMember.UserID).Msg("failed to join puppet")
+				log.Warn().Stringer("signal_user_id", promoteRequestingMember.ACI).Msg("failed to join puppet")
 			}
 		} else {
-			log.Warn().Stringer("signal_user_id", promoteRequestingMember.UserID).Msg("Couldn't get puppet for join")
+			log.Warn().Stringer("signal_user_id", promoteRequestingMember.ACI).Msg("Couldn't get puppet for join")
 		}
-		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{UserID: promoteRequestingMember.UserID, Role: promoteRequestingMember.Role})
+		modifyRoles = append(modifyRoles, &signalmeow.RoleMember{ACI: promoteRequestingMember.ACI, Role: promoteRequestingMember.Role})
 	}
 	for _, addRequestingMember := range groupChange.AddRequestingMembers {
 		// sender and target should be the same SignalID
-		puppet := portal.bridge.GetPuppetBySignalID(addRequestingMember.UserID)
+		puppet := portal.bridge.GetPuppetBySignalID(addRequestingMember.ACI)
 		if puppet != nil {
 			portal.sendMembershipWithPuppet(ctx, sender, puppet.IntentFor(portal).UserID, event.MembershipKnock, "knocked")
 		}
@@ -1045,9 +1119,9 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 			log.Err(err).Msg("Couldn't get power levels")
 		} else {
 			for _, modifyRole := range modifyRoles {
-				puppet := portal.bridge.GetPuppetBySignalID(modifyRole.UserID)
+				puppet := portal.bridge.GetPuppetBySignalID(modifyRole.ACI)
 				if puppet == nil {
-					log.Warn().Stringer("signal_user_id", modifyRole.UserID).Msg("Couldn't get puppet for power level change")
+					log.Warn().Stringer("signal_user_id", modifyRole.ACI).Msg("Couldn't get puppet for power level change")
 					continue
 				}
 				powerLevel := 0
@@ -1056,7 +1130,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 				}
 				levels.EnsureUserLevel(puppet.IntentFor(portal).UserID, powerLevel)
 				if puppet.customIntent == nil {
-					user := portal.bridge.GetUserBySignalID(modifyRole.UserID)
+					user := portal.bridge.GetUserBySignalID(modifyRole.ACI)
 					if user != nil {
 						levels.EnsureUserLevel(user.MXID, powerLevel)
 					}
@@ -1073,9 +1147,7 @@ func (portal *Portal) handleSignalGroupChange(source *User, sender *Puppet, grou
 				if *groupChange.ModifyAttributesAccess == signalmeow.AccessControl_ADMINISTRATOR {
 					level = 50
 				}
-				levels.EnsureEventLevel(event.StateRoomName, level)
-				levels.EnsureEventLevel(event.StateTopic, level)
-				levels.EnsureEventLevel(event.StateRoomAvatar, level)
+				levels.StateDefaultPtr = &level
 			}
 			if groupChange.ModifyMemberAccess != nil {
 				level := 0
@@ -1311,6 +1383,14 @@ func (portal *Portal) handleSignalNormalDataMessage(source *User, sender *Puppet
 		portal.storeMessageInDB(ctx, resp.EventID, sender.SignalID, converted.Timestamp, i)
 		if converted.DisappearIn != 0 {
 			portal.addDisappearingMessage(ctx, resp.EventID, converted.DisappearIn, sender.SignalID == source.SignalID)
+			// Ensure portal expiration timer is correct in DMs
+			if portal.implicitlyUpdateExpirationTimer(ctx, converted.DisappearIn) {
+				log.Info().Uint32("new_time", converted.DisappearIn).Msg("Implicitly updated expiration timer")
+				err := portal.Update(ctx)
+				if err != nil {
+					log.Err(err).Msg("Failed to save portal in database after implicitly updating group info")
+				}
+			}
 		}
 	}
 }
@@ -1488,7 +1568,8 @@ func (portal *Portal) setTyping(userIDs []id.UserID, isTyping bool) {
 		// Check to see if portal.ChatID is a standard UUID (with dashes)
 		// Note: not handling sending to a group right now, since that will
 		// require SenderKey sending to not be terrible
-		if portal.IsPrivateChat() {
+		dmUserID := portal.UserID()
+		if !dmUserID.IsEmpty() && dmUserID.Type == libsignalgo.ServiceIDTypeACI {
 			// this is a 1:1 chat
 			portal.log.Debug().Msg("Sending Typing event to Signal")
 			ctx := context.TODO()
@@ -1584,7 +1665,7 @@ func (portal *Portal) handleMatrixReadReceipt(sender *User, eventID id.EventID, 
 		// Don't use portal.sendSignalMessage because we're sending this straight to
 		// who sent the original message, not the portal's ChatID
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		result := sender.Client.SendMessage(ctx, destination, signalmeow.ReadReceptMessageForTimestamps(messages))
+		result := sender.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(destination), signalmeow.ReadReceptMessageForTimestamps(messages))
 		cancel()
 		if !result.WasSuccessful {
 			log.Err(result.FailedSendResult.Error).
@@ -1709,7 +1790,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 		})
 		portal.Encrypted = true
 
-		if portal.IsPrivateChat() {
+		if portal.IsPrivateChat() && portal.MainIntent() != portal.bridge.Bot {
 			invite = append(invite, portal.bridge.Bot.UserID)
 		}
 	}
@@ -1718,8 +1799,12 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	var groupInfo *signalmeow.Group
 	if portal.IsPrivateChat() {
 		dmPuppet = portal.GetDMPuppet()
-		dmPuppet.UpdateInfo(ctx, user)
-		portal.UpdateDMInfo(ctx, false)
+		if dmPuppet != nil {
+			dmPuppet.UpdateInfo(ctx, user)
+			portal.UpdateDMInfo(ctx, false)
+		} else {
+			portal.UpdatePNIDMInfo(ctx, user)
+		}
 	} else {
 		groupInfo = portal.UpdateGroupInfo(ctx, user, nil, groupRevision, true)
 		if groupInfo == nil {
@@ -1778,7 +1863,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	user.syncChatDoublePuppetDetails(portal, true)
 	go portal.addToPersonalSpace(portal.log.WithContext(context.TODO()), user)
 
-	if portal.IsPrivateChat() {
+	if dmPuppet != nil {
 		user.UpdateDirectChats(ctx, map[id.UserID][]id.RoomID{
 			dmPuppet.MXID: {portal.MXID},
 		})
@@ -1788,10 +1873,11 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 }
 
 func (portal *Portal) GetDMPuppet() *Puppet {
-	if !portal.IsPrivateChat() {
+	userID := portal.UserID()
+	if userID.IsEmpty() || userID.Type != libsignalgo.ServiceIDTypeACI {
 		return nil
 	}
-	return portal.bridge.GetPuppetBySignalID(portal.UserID())
+	return portal.bridge.GetPuppetBySignalID(userID.UUID)
 }
 
 func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *signalmeow.Group, revision uint32) {
@@ -1809,6 +1895,18 @@ func (portal *Portal) UpdateInfo(ctx context.Context, source *User, groupInfo *s
 const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
+func (portal *Portal) PostReIDUpdate(ctx context.Context, user *User) {
+	_, err := portal.bridge.Bot.SetPowerLevel(ctx, portal.MXID, portal.MainIntent().UserID, 100)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to update ghost power level after portal re-ID")
+	}
+	portal.GetDMPuppet().UpdateInfo(ctx, user)
+	portal.UpdateDMInfo(ctx, true)
+	if !portal.Encrypted {
+		_, _ = portal.bridge.Bot.LeaveRoom(ctx, portal.MXID)
+	}
+}
+
 func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	log := zerolog.Ctx(ctx).With().
 		Str("function", "UpdateDMInfo").
@@ -1818,7 +1916,7 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	puppet := portal.GetDMPuppet()
 
 	update := forceSave
-	if portal.UserID() == portal.Receiver {
+	if portal.UserID().UUID == portal.Receiver {
 		noteToSelfAvatar := portal.bridge.Config.Bridge.NoteToSelfAvatar.ParseOrIgnore()
 		avatarHash := sha256.Sum256([]byte(noteToSelfAvatar.String()))
 
@@ -1827,6 +1925,19 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	} else if portal.shouldSetDMRoomMetadata() {
 		update = portal.updateName(ctx, puppet.Name, nil) || update
 		update = portal.updateAvatarWithMXC(ctx, puppet.AvatarPath, puppet.AvatarHash, puppet.AvatarURL) || update
+	} else {
+		// Clear name/avatar if they're set in a DM that shouldn't have them set
+		if portal.Name != "" && portal.NameSet {
+			update = portal.updateName(ctx, "", nil) || update
+		}
+		// Avatar is currently never set in PNI portals
+		//if !portal.AvatarURL.IsEmpty() && portal.AvatarSet {
+		//	update = true
+		//	portal.AvatarURL = id.ContentURI{}
+		//	portal.AvatarHash = ""
+		//	portal.AvatarPath = ""
+		//	portal.updateAvatarInRoom(ctx, nil)
+		//}
 	}
 	topic := PrivateChatTopic
 	if portal.bridge.Config.Bridge.NumberInTopic && puppet.Number != "" {
@@ -1835,6 +1946,40 @@ func (portal *Portal) UpdateDMInfo(ctx context.Context, forceSave bool) {
 	update = portal.updateTopic(ctx, topic, nil) || update
 	if update {
 		err := portal.Update(ctx)
+		if err != nil {
+			log.Err(err).Msg("Failed to save portal in database after updating group info")
+		}
+		portal.UpdateBridgeInfo(ctx)
+	}
+}
+
+func (portal *Portal) UpdatePNIDMInfo(ctx context.Context, user *User) {
+	portalUserID := portal.UserID()
+	if portalUserID.Type != libsignalgo.ServiceIDTypePNI {
+		return
+	}
+	log := zerolog.Ctx(ctx)
+	update := false
+	recipient, err := user.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, uuid.Nil, portalUserID.UUID, nil)
+	if err != nil {
+		log.Err(err).Msg("Failed to get PNI DM recipient entry")
+	}
+	if recipient == nil {
+		recipient = &types.Recipient{PNI: portalUserID.UUID}
+	}
+	topic := PrivateChatTopic
+	name := portalUserID.UUID.String()
+	if recipient.E164 != "" {
+		topic = fmt.Sprintf("%s with %s", topic, recipient.E164)
+		name = recipient.E164
+	}
+	if recipient.ContactName != "" {
+		name = recipient.ContactName
+	}
+	update = portal.updateTopic(ctx, topic, nil) || update
+	update = portal.updateName(ctx, name, nil) || update
+	if update {
+		err = portal.Update(ctx)
 		if err != nil {
 			log.Err(err).Msg("Failed to save portal in database after updating group info")
 		}
@@ -1976,6 +2121,22 @@ func (portal *Portal) updateExpirationTimer(ctx context.Context, newExpirationTi
 		_, err := portal.sendMainIntentMessage(ctx, msg.Content)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing")
+		}
+	}
+	return true
+}
+
+func (portal *Portal) implicitlyUpdateExpirationTimer(ctx context.Context, newExpirationTimer uint32) bool {
+	if portal.ExpirationTime == newExpirationTimer {
+		return false
+	}
+	portal.ExpirationTime = newExpirationTimer
+	if portal.MXID != "" {
+		msg := portal.MsgConv.ConvertDisappearingTimerChangeToMatrix(ctx, newExpirationTimer, false)
+		msg.Content.Body = fmt.Sprintf("Automatically enabled disappearing message timer (%s) because incoming message is disappearing", exfmt.Duration(time.Duration(newExpirationTimer)*time.Second))
+		_, err := portal.sendMainIntentMessage(ctx, msg.Content)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing implicitly")
 		}
 	}
 	return true
@@ -2132,14 +2293,14 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		}
 	}
 	for _, member := range info.Members {
-		puppet := portal.bridge.GetPuppetBySignalID(member.UserID)
+		puppet := portal.bridge.GetPuppetBySignalID(member.ACI)
 		if puppet == nil {
-			log.Warn().Stringer("signal_user_id", member.UserID).Msg("Couldn't get puppet for group member")
+			log.Warn().Stringer("signal_user_id", member.ACI).Msg("Couldn't get puppet for group member")
 			continue
 		}
 		puppet.UpdateInfo(ctx, source)
 		intent := puppet.IntentFor(portal)
-		if member.UserID != source.SignalID && portal.MXID != "" {
+		if member.ACI != source.SignalID && portal.MXID != "" {
 			userIDs[intent.UserID] = ((int)(member.Role) >> 1) * 50
 		}
 		delete(currentMembers, intent.UserID)
@@ -2147,11 +2308,11 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			if currentMembers[intent.UserID] != event.MembershipJoin {
 				err := intent.EnsureJoined(ctx, portal.MXID)
 				if err != nil {
-					log.Err(err).Stringer("signal_user_id", member.UserID).Msg("Failed to ensure user is joined to portal")
+					log.Err(err).Stringer("signal_user_id", member.ACI).Msg("Failed to ensure user is joined to portal")
 				}
 			}
 			if puppet.customIntent == nil {
-				user := portal.bridge.GetUserBySignalID(member.UserID)
+				user := portal.bridge.GetUserBySignalID(member.ACI)
 				if user != nil {
 					delete(currentMembers, user.MXID)
 					userIDs[user.MXID] = ((int)(member.Role) >> 1) * 50
@@ -2168,9 +2329,12 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		return userIDs
 	}
 	for _, pendingMember := range info.PendingMembers {
-		puppet := portal.bridge.GetPuppetBySignalID(pendingMember.UserID)
+		if pendingMember.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			continue
+		}
+		puppet := portal.bridge.GetPuppetBySignalID(pendingMember.ServiceID.UUID)
 		if puppet == nil {
-			log.Warn().Stringer("signal_user_id", pendingMember.UserID).Msg("Couldn't get puppet for group member")
+			log.Warn().Stringer("signal_user_id", pendingMember.ServiceID.UUID).Msg("Couldn't get puppet for group member")
 			continue
 		}
 		mxid := puppet.IntentFor(portal).UserID
@@ -2190,7 +2354,7 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		userIDs[mxid] = ((int)(pendingMember.Role) >> 1) * 50
 		delete(currentMembers, mxid)
 		if puppet.customIntent == nil {
-			user := portal.bridge.GetUserBySignalID(pendingMember.UserID)
+			user := portal.bridge.GetUserBySignalID(pendingMember.ServiceID.UUID)
 			if user == nil {
 				continue
 			}
@@ -2214,9 +2378,9 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		}
 	}
 	for _, requestingMember := range info.RequestingMembers {
-		puppet := portal.bridge.GetPuppetBySignalID(requestingMember.UserID)
+		puppet := portal.bridge.GetPuppetBySignalID(requestingMember.ACI)
 		if puppet == nil {
-			log.Warn().Stringer("signal_user_id", requestingMember.UserID).Msg("Couldn't get puppet for group member")
+			log.Warn().Stringer("signal_user_id", requestingMember.ACI).Msg("Couldn't get puppet for group member")
 			continue
 		}
 		mxid := puppet.IntentFor(portal).UserID
@@ -2236,9 +2400,12 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		delete(currentMembers, mxid)
 	}
 	for _, bannedMember := range info.BannedMembers {
-		puppet := portal.bridge.GetPuppetBySignalID(bannedMember.UserID)
+		if bannedMember.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			continue
+		}
+		puppet := portal.bridge.GetPuppetBySignalID(bannedMember.ServiceID.UUID)
 		if puppet == nil {
-			log.Warn().Stringer("signal_user_id", bannedMember.UserID).Msg("Couldn't get puppet for group member")
+			log.Warn().Stringer("signal_user_id", bannedMember.ServiceID.UUID).Msg("Couldn't get puppet for group member")
 			continue
 		}
 		mxid := puppet.IntentFor(portal).UserID
@@ -2250,7 +2417,7 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 		}
 		delete(currentMembers, mxid)
 		if puppet.customIntent == nil {
-			user := portal.bridge.GetUserBySignalID(bannedMember.UserID)
+			user := portal.bridge.GetUserBySignalID(bannedMember.ServiceID.UUID)
 			if user == nil {
 				continue
 			}
@@ -2354,6 +2521,19 @@ func (portal *Portal) Delete() {
 		portal.log.Err(err).Msg("Failed to delete portal from db")
 	}
 	portal.bridge.portalsLock.Lock()
+	portal.unlockedDeleteCache()
+	portal.bridge.portalsLock.Unlock()
+}
+
+func (portal *Portal) unlockedDelete() {
+	err := portal.Portal.Delete(context.TODO())
+	if err != nil {
+		portal.log.Err(err).Msg("Failed to delete portal from db")
+	}
+	portal.unlockedDeleteCache()
+}
+
+func (portal *Portal) unlockedDeleteCache() {
 	delete(portal.bridge.portalsByID, portal.PortalKey)
 	if len(portal.MXID) > 0 {
 		delete(portal.bridge.portalsByMXID, portal.MXID)
@@ -2370,7 +2550,6 @@ func (portal *Portal) Delete() {
 			user.RemoveInSpaceCache(portal.PortalKey)
 		}
 	}
-	portal.bridge.portalsLock.Unlock()
 }
 
 func (portal *Portal) Cleanup(ctx context.Context, puppetsOnly bool) {
@@ -2414,4 +2593,430 @@ func (br *SignalBridge) CleanupRoom(ctx context.Context, log *zerolog.Logger, in
 	if err != nil {
 		log.Err(err).Msg("Failed to leave room while cleaning up portal")
 	}
+}
+
+func (portal *Portal) HandleMatrixLeave(brSender bridge.User, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix leave").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	if portal.IsPrivateChat() {
+		log.Info().Msg("User left private chat portal, cleaning up and deleting...")
+		portal.Delete()
+		portal.Cleanup(ctx, false)
+		return
+	} else if portal.bridge.Config.Bridge.BridgeMatrixLeave {
+		portal.deleteMember(sender, sender.SignalID, evt)
+	}
+	portal.CleanupIfEmpty(ctx)
+}
+func (portal *Portal) HandleMatrixKick(brSender bridge.User, ghost bridge.Ghost, evt *event.Event) {
+	portal.deleteMember(brSender.(*User), ghost.(*Puppet).SignalID, evt)
+}
+func (portal *Portal) deleteMember(sender *User, target uuid.UUID, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix kick/leave").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	groupChange := &signalmeow.GroupChange{DeleteMembers: []*uuid.UUID{&target}}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error deleting Member from Signal")
+		return
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+func (portal *Portal) HandleMatrixInvite(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix invite").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	puppet := brGhost.(*Puppet)
+	role := signalmeow.GroupMember_DEFAULT
+	levels, err := portal.MainIntent().PowerLevels(ctx, portal.MXID)
+	if err != nil {
+		log.Err(err).Msg("Couldn't get power levels")
+		if levels.GetUserLevel(puppet.IntentFor(portal).UserID) >= 50 {
+			role = signalmeow.GroupMember_ADMINISTRATOR
+		}
+	}
+	groupChange := &signalmeow.GroupChange{AddMembers: []*signalmeow.AddMember{{
+		GroupMember: signalmeow.GroupMember{
+			ACI:  puppet.SignalID,
+			Role: role,
+		},
+	}}}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error inviting user on Signal")
+	}
+	puppet.IntentFor(portal).EnsureJoined(ctx, portal.MXID)
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixAcceptKnock(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix accept knock").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	puppet := brGhost.(*Puppet)
+	role := signalmeow.GroupMember_DEFAULT
+	levels, err := portal.MainIntent().PowerLevels(ctx, portal.MXID)
+	if err != nil {
+		log.Err(err).Msg("Couldn't get power levels")
+		if levels.GetUserLevel(puppet.IntentFor(portal).UserID) >= 50 {
+			role = signalmeow.GroupMember_ADMINISTRATOR
+		}
+	}
+	groupChange := &signalmeow.GroupChange{PromoteRequestingMembers: []*signalmeow.RoleMember{{
+		ACI:  puppet.SignalID,
+		Role: role,
+	}}}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error accepting join request on Signal")
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixRejectKnock(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
+	portal.removeRequestingMember(brSender.(*User), brGhost.(*Puppet).SignalID, evt)
+}
+
+func (portal *Portal) HandleMatrixRetractKnock(brSender bridge.User, evt *event.Event) {
+	portal.removeRequestingMember(brSender.(*User), brSender.(*User).SignalID, evt)
+}
+
+func (portal *Portal) removeRequestingMember(sender *User, target uuid.UUID, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix knock -> leave").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	groupChange := &signalmeow.GroupChange{DeleteRequestingMembers: []*uuid.UUID{&target}}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error removing requesting member")
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixKnock(brSender bridge.User, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix knock").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	log.Debug().Msg("Knocks aren't implemented yet :(")
+}
+
+func (portal *Portal) HandleMatrixBan(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix ban").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	puppet := brGhost.(*Puppet)
+	groupChange := &signalmeow.GroupChange{AddBannedMembers: []*signalmeow.BannedMember{{
+		ServiceID: libsignalgo.NewACIServiceID(puppet.SignalID),
+		Timestamp: uint64(time.Now().UnixMilli()),
+	}}}
+	switch prevMembership := evt.Unsigned.PrevContent.AsMember().Membership; prevMembership {
+	case event.MembershipJoin:
+		groupChange.DeleteMembers = []*uuid.UUID{&puppet.SignalID}
+	case event.MembershipKnock:
+		groupChange.DeleteRequestingMembers = []*uuid.UUID{&puppet.SignalID}
+	case event.MembershipInvite:
+		serviceID := libsignalgo.NewACIServiceID(puppet.SignalID)
+		groupChange.DeletePendingMembers = []*libsignalgo.ServiceID{&serviceID}
+	}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error banning on Signal")
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixUnban(brSender bridge.User, brGhost bridge.Ghost, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix unban").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	puppet := brGhost.(*Puppet)
+	serviceID := libsignalgo.NewACIServiceID(puppet.SignalID)
+	groupChange := &signalmeow.GroupChange{DeleteBannedMembers: []*libsignalgo.ServiceID{&serviceID}}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error unbanning on Signal")
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixPowerLevels(brSender bridge.User, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix power levels").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	if !sender.IsLoggedIn() {
+		log.Warn().Msg("Can't change power levels: user is not logged in")
+		return
+	}
+	evt.Content.ParseRaw(event.StatePowerLevels)
+	levels := evt.Content.AsPowerLevels()
+	var prevLevels *event.PowerLevelsEventContent
+	if evt.Unsigned.PrevContent != nil {
+		evt.Unsigned.PrevContent.ParseRaw(event.StatePowerLevels)
+		prevLevels = evt.Unsigned.PrevContent.AsPowerLevels()
+	} else {
+		prevLevels = &event.PowerLevelsEventContent{}
+	}
+	groupChange := &signalmeow.GroupChange{}
+	var role signalmeow.GroupMemberRole
+	for user, level := range levels.Users {
+		prevLevel := prevLevels.GetUserLevel(user)
+		if (level >= 50 && prevLevel < 50) || (level < 50 && prevLevel >= 50) {
+			puppet := portal.bridge.GetPuppetByMXID(user)
+			if puppet == nil {
+				log.Warn().Stringer("mxid", user).Msg("Couldn't get puppet for power level change")
+				continue
+			}
+			role = signalmeow.GroupMember_DEFAULT
+			if level >= 50 {
+				role = signalmeow.GroupMember_ADMINISTRATOR
+			}
+			groupChange.ModifyMemberRoles = append(groupChange.ModifyMemberRoles, &signalmeow.RoleMember{
+				ACI:  puppet.SignalID,
+				Role: role,
+			})
+		}
+	}
+	if levels.EventsDefault >= 50 && prevLevels.EventsDefault < 50 {
+		announcementsOnly := true
+		groupChange.ModifyAnnouncementsOnly = &announcementsOnly
+	} else if levels.EventsDefault < 50 && prevLevels.EventsDefault >= 50 {
+		announcementsOnly := false
+		groupChange.ModifyAnnouncementsOnly = &announcementsOnly
+	}
+	if levels.StateDefault() >= 50 && prevLevels.StateDefault() < 50 {
+		attributesAccess := signalmeow.AccessControl_ADMINISTRATOR
+		groupChange.ModifyAttributesAccess = &attributesAccess
+	} else if levels.StateDefault() < 50 && prevLevels.StateDefault() >= 50 {
+		attributesAccess := signalmeow.AccessControl_MEMBER
+		groupChange.ModifyAttributesAccess = &attributesAccess
+	}
+	if levels.Invite() >= 50 && prevLevels.Invite() < 50 {
+		memberAccess := signalmeow.AccessControl_ADMINISTRATOR
+		groupChange.ModifyMemberAccess = &memberAccess
+	} else if levels.Invite() < 50 && prevLevels.Invite() >= 50 {
+		memberAccess := signalmeow.AccessControl_MEMBER
+		groupChange.ModifyMemberAccess = &memberAccess
+	}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error changing group access control")
+		return
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixJoinRule(brSender bridge.User, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix join rule").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	if !sender.IsLoggedIn() {
+		log.Warn().Msg("Can't change join rule: user is not logged in")
+		return
+	}
+	evt.Content.ParseRaw(event.StateJoinRules)
+	joinRule := evt.Content.AsJoinRules().JoinRule
+	groupChange := &signalmeow.GroupChange{}
+	addFromInviteLinkAccess := signalmeow.AccessControl_UNSATISFIABLE
+	if joinRule == event.JoinRuleKnock {
+		addFromInviteLinkAccess = signalmeow.AccessControl_ADMINISTRATOR
+	} else if joinRule == event.JoinRulePublic {
+		addFromInviteLinkAccess = signalmeow.AccessControl_ANY
+	}
+	groupChange.ModifyAddFromInviteLinkAccess = &addFromInviteLinkAccess
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error updating group access control")
+		return
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+}
+
+func (portal *Portal) HandleMatrixMeta(brSender bridge.User, evt *event.Event) {
+	log := portal.log.With().
+		Str("action", "handle matrix meta").
+		Stringer("event_id", evt.ID).
+		Str("event_type", evt.Type.String()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	sender := brSender.(*User)
+	if !sender.IsLoggedIn() {
+		log.Warn().Msg("Can't change room info: user is not logged in")
+		return
+	}
+
+	var err error
+	groupChange := &signalmeow.GroupChange{Revision: portal.Revision + 1}
+	var avatarPath *string
+	var avatarHash string
+	var avatarURL id.ContentURI
+	var avatarChanged bool
+	switch content := evt.Content.Parsed.(type) {
+	case *event.RoomNameEventContent:
+		if content.Name == portal.Name {
+			return
+		}
+		portal.Name = content.Name
+		groupChange.ModifyTitle = &content.Name
+	case *event.TopicEventContent:
+		if content.Topic == portal.Topic {
+			return
+		}
+		portal.Topic = content.Topic
+		groupChange.ModifyDescription = &content.Topic
+	case *event.RoomAvatarEventContent:
+		if content.URL == portal.AvatarURL {
+			return
+		}
+		var data []byte
+		if !content.URL.IsEmpty() {
+			data, err = portal.MainIntent().DownloadBytes(ctx, content.URL)
+			if err != nil {
+				log.Err(err).Stringer("Failed to download updated avatar %s", content.URL)
+				return
+			}
+			log.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{sender.MXID, content.URL})
+		} else {
+			log.Debug().Stringer("%s removed the group avatar", sender.MXID)
+		}
+		avatarPath, err = sender.Client.UploadGroupAvatar(ctx, data, portal.GroupID())
+		if err != nil {
+			log.Err(err).Msg("Failed to upload group avatar")
+			return
+		}
+		groupChange.ModifyAvatar = avatarPath
+		hash := sha256.Sum256(data)
+		avatarHash = hex.EncodeToString(hash[:])
+		avatarChanged = true
+		avatarURL = content.URL
+	}
+	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		log.Err(err).Msg("Error updating group attributes")
+		return
+	}
+	if avatarChanged {
+		log.Debug().Msg("Successfully updated group avatar")
+		portal.AvatarSet = true
+		portal.AvatarPath = *avatarPath
+		portal.AvatarHash = avatarHash
+		portal.AvatarURL = avatarURL
+		portal.UpdateBridgeInfo(ctx)
+	}
+	portal.Revision = revision
+	portal.Update(ctx)
+	log.Info().Msg("finished updating group")
+}
+
+func (portal *Portal) CleanupIfEmpty(ctx context.Context) {
+	log := portal.log.With().
+		Str("action", "Clean up if empty").
+		Logger()
+	users, err := portal.GetMatrixUsers(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to get Matrix user list to determine if portal needs to be cleaned up")
+		return
+	}
+
+	if len(users) == 0 {
+		log.Info().Msg("Room seems to be empty, cleaning up...")
+		portal.Delete()
+		portal.Cleanup(ctx, false)
+	}
+}
+
+func (portal *Portal) GetMatrixUsers(ctx context.Context) ([]id.UserID, error) {
+	members, err := portal.MainIntent().JoinedMembers(ctx, portal.MXID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get member list: %w", err)
+	}
+	var users []id.UserID
+	for userID := range members.Joined {
+		_, isPuppet := portal.bridge.ParsePuppetMXID(userID)
+		if !isPuppet && userID != portal.bridge.Bot.UserID {
+			users = append(users, userID)
+		}
+	}
+	return users, nil
+}
+
+func (portal *Portal) GetInviteLink(ctx context.Context, source *User) (string, error) {
+	info, err := source.Client.RetrieveGroupByID(ctx, portal.GroupID(), portal.Revision)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).
+			Stringer("source_user_id", source.MXID).
+			Msg("Failed to fetch group info")
+		return "", err
+	}
+	inviteLinkPassword, err := info.GetInviteLink()
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get invite link")
+	}
+	return inviteLinkPassword, nil
+}
+
+func (portal *Portal) ResetInviteLink(ctx context.Context, source *User) error {
+	inviteLinkPassword := signalmeow.GenerateInviteLinkPassword()
+	groupChange := &signalmeow.GroupChange{ModifyInviteLinkPassword: &inviteLinkPassword}
+	revision, err := source.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Error setting invite link password")
+		return err
+	}
+	portal.Revision = revision
+	return portal.Update(ctx)
+}
+
+func (portal *Portal) GetEncryptionEventContent() (evt *event.EncryptionEventContent) {
+	evt = &event.EncryptionEventContent{Algorithm: id.AlgorithmMegolmV1}
+	if rot := portal.bridge.Config.Bridge.Encryption.Rotation; rot.EnableCustom {
+		evt.RotationPeriodMillis = rot.Milliseconds
+		evt.RotationPeriodMessages = rot.Messages
+	}
+	return
 }

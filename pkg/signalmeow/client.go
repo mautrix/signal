@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -38,7 +39,7 @@ type Client struct {
 	GroupCache             *GroupCache
 	ProfileCache           *ProfileCache
 	GroupCallCache         *map[string]bool
-	LastContactRequestTime *int64
+	LastContactRequestTime time.Time
 
 	encryptionLock sync.Mutex
 

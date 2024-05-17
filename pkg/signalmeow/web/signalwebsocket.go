@@ -292,12 +292,15 @@ func (s *SignalWebsocket) connectLoop(
 			for {
 				select {
 				case <-ticker.C:
-					err := ws.Ping(loopCtx)
+					pingCtx, cancel := context.WithTimeout(loopCtx, 20*time.Second)
+					err := ws.Ping(pingCtx)
+					cancel()
 					if err != nil {
-						loopCancel(fmt.Errorf("error sending keepalive: %w", err))
+						log.Err(err).Msg("Error pinging")
+						loopCancel(err)
 						return
 					}
-					log.Info().Msg("Sent keepalive")
+					log.Debug().Msg("Sent keepalive")
 				case <-loopCtx.Done():
 					return
 				}

@@ -18,18 +18,24 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/skip2/go-qrcode"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridge/commands"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var (
@@ -62,6 +68,12 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdDeletePortal,
 		cmdDeleteAllPortals,
 		cmdCleanupLostPortals,
+		cmdInviteLink,
+		cmdResetInviteLink,
+		cmdCreate,
+		cmdInvite,
+		cmdListInvited,
+		cmdRevokeInvite,
 	)
 }
 
@@ -212,39 +224,49 @@ func fnPM(ce *WrappedCommandEvent) {
 	}
 
 	user := ce.User
-	var targetUUID uuid.UUID
+	var aci, pni uuid.UUID
+	e164 := fmt.Sprintf("+%d", number)
+	var recipient *types.Recipient
 
-	if contact, err := user.Client.ContactByE164(ce.Ctx, fmt.Sprintf("+%d", number)); err != nil {
+	if recipient, err = user.Client.ContactByE164(ce.Ctx, e164); err != nil {
 		ce.Reply("Error looking up number in local contact list: %v", err)
 		return
-	} else if contact != nil {
-		targetUUID = contact.UUID
+	} else if recipient != nil && (recipient.ACI != uuid.Nil || recipient.PNI != uuid.Nil) {
+		// TODO maybe lookup PNI if there's only ACI and E164 stored?
+		aci = recipient.ACI
+		pni = recipient.PNI
 	} else if resp, err := user.Client.LookupPhone(ce.Ctx, number); err != nil {
 		ce.ZLog.Err(err).Uint64("e164", number).Msg("Failed to lookup number on server")
 		ce.Reply("Error looking up number on server: %v", err)
 		return
-	} else if resp[number].ACI == uuid.Nil {
-		if resp[number].PNI == uuid.Nil {
-			ce.Reply("+%d doesn't seem to be on Signal", number)
-		} else {
-			ce.Reply("Server only returned PNI (%s) for +%d, but the bridge doesn't know what to do with it", resp[number].PNI, number)
-		}
-		return
 	} else {
-		targetUUID = resp[number].ACI
-		err = user.Client.Store.ContactStore.UpdatePhone(ce.Ctx, targetUUID, fmt.Sprintf("+%d", number))
-		if err != nil {
-			ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
+		aci = resp[number].ACI
+		pni = resp[number].PNI
+		if aci == uuid.Nil && pni == uuid.Nil {
+			ce.Reply("+%d doesn't seem to be on Signal", number)
+			return
 		}
+		recipient, err = user.Client.Store.RecipientStore.UpdateRecipientE164(ce.Ctx, aci, pni, e164)
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
 	}
 	ce.ZLog.Debug().
 		Uint64("e164", number).
-		Stringer("uuid", targetUUID).
+		Stringer("aci", aci).
+		Stringer("pni", pni).
 		Msg("Found DM target user")
 
-	portal := user.GetPortalByChatID(targetUUID.String())
+	var targetServiceID libsignalgo.ServiceID
+	if aci != uuid.Nil {
+		targetServiceID = libsignalgo.NewACIServiceID(aci)
+	} else {
+		targetServiceID = libsignalgo.NewPNIServiceID(pni)
+	}
+	portal := user.GetPortalByChatID(targetServiceID.String())
 	if portal == nil {
-		ce.Reply("Couldn't get portal with %s/+%d", targetUUID, number)
+		ce.Reply("Couldn't get portal with %s/+%d", targetServiceID, number)
 		return
 	} else if portal.MXID != "" {
 		ok := portal.ensureUserInvited(ce.Ctx, ce.User)
@@ -263,6 +285,218 @@ func fnPM(ce *WrappedCommandEvent) {
 	} else {
 		ce.Reply("Created portal room [%s](%s) with +%d and invited you to it.", portal.MXID, portal.MXID.URI(portal.bridge.Config.Homeserver.Domain).MatrixToURL(), number)
 	}
+}
+
+var cmdInvite = &commands.FullHandler{
+	Func: wrapCommand(fnInvite),
+	Name: "invite",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Invite a user by phone number.",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnInvite(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `invite <international phone number>`")
+		return
+	}
+	number, err := strconv.ParseUint(numberCleaner.Replace(strings.Join(ce.Args, "")), 10, 64)
+	if err != nil {
+		ce.Reply("Failed to parse number")
+		return
+	}
+
+	user := ce.User
+	var aci, pni uuid.UUID
+	e164 := fmt.Sprintf("+%d", number)
+	var recipient *types.Recipient
+
+	if recipient, err = user.Client.ContactByE164(ce.Ctx, e164); err != nil {
+		ce.Reply("Error looking up number in local contact list: %v", err)
+		return
+	} else if recipient != nil && (recipient.ACI != uuid.Nil || recipient.PNI != uuid.Nil) {
+		// TODO maybe lookup PNI if there's only ACI and E164 stored?
+		aci = recipient.ACI
+		pni = recipient.PNI
+	} else if resp, err := user.Client.LookupPhone(ce.Ctx, number); err != nil {
+		ce.ZLog.Err(err).Uint64("e164", number).Msg("Failed to lookup number on server")
+		ce.Reply("Error looking up number on server: %v", err)
+		return
+	} else {
+		aci = resp[number].ACI
+		pni = resp[number].PNI
+		if aci == uuid.Nil && pni == uuid.Nil {
+			ce.Reply("+%d doesn't seem to be on Signal", number)
+			return
+		}
+		recipient, err = user.Client.Store.RecipientStore.UpdateRecipientE164(ce.Ctx, aci, pni, e164)
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
+	}
+	ce.ZLog.Debug().
+		Uint64("e164", number).
+		Stringer("aci", aci).
+		Stringer("pni", pni).
+		Msg("Found Invite target user")
+
+	var groupChange signalmeow.GroupChange
+	if aci != uuid.Nil {
+		groupChange.AddMembers = []*signalmeow.AddMember{
+			{
+				GroupMember: signalmeow.GroupMember{
+					ACI:  aci,
+					Role: signalmeow.GroupMember_DEFAULT,
+				},
+			},
+		}
+	} else {
+		groupChange.AddPendingMembers = []*signalmeow.PendingMember{
+			{
+				ServiceID:     libsignalgo.NewPNIServiceID(pni),
+				AddedByUserID: ce.User.SignalID,
+				Role:          signalmeow.GroupMember_DEFAULT,
+			},
+		}
+	}
+	revision, err := ce.User.Client.UpdateGroup(ce.Ctx, &groupChange, ce.Portal.GroupID())
+	if err != nil {
+		ce.Reply("Failed to update group: %w", err)
+		return
+	}
+	ce.Portal.Revision = revision
+	if aci != uuid.Nil {
+		group, err := ce.User.Client.RetrieveGroupByID(ce.Ctx, ce.Portal.GroupID(), revision)
+		if err != nil {
+			ce.Reply("Failed to fetch group after invite: %w", err)
+		}
+		ce.Portal.SyncParticipants(ce.Ctx, user, group)
+		ce.Portal.Update(ce.Ctx)
+		return
+	}
+	ce.Portal.Update(ce.Ctx)
+	ce.Reply("Invited " + e164)
+}
+
+var cmdListInvited = &commands.FullHandler{
+	Func: wrapCommand(fnListInvited),
+	Name: "list-invited",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "list pending invites",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnListInvited(ce *WrappedCommandEvent) {
+	group, err := ce.User.Client.RetrieveGroupByID(ce.Ctx, ce.Portal.GroupID(), ce.Portal.Revision)
+	if err != nil {
+		ce.Reply("Failed to fetch group info: %w", err)
+		return
+	}
+	var memberList []string
+	for _, pendingMember := range group.PendingMembers {
+		recipientString, err := pendingMemberToString(ce.Ctx, ce.User, pendingMember)
+		if err != nil {
+			ce.Reply("Failed to fetch recipient for %s: %w", pendingMember.ServiceID, err)
+			continue
+		}
+		memberList = append(memberList, recipientString)
+	}
+	if len(memberList) == 0 {
+		ce.Reply("No pending Invites")
+	} else {
+		ce.Reply(strings.Join(memberList, "\n"))
+	}
+}
+
+func pendingMemberToString(ctx context.Context, user *User, pendingMember *signalmeow.PendingMember) (string, error) {
+	var pni, aci uuid.UUID
+	if pendingMember.ServiceID.Type == libsignalgo.ServiceIDTypeACI {
+		aci = pendingMember.ServiceID.UUID
+	} else {
+		pni = pendingMember.ServiceID.UUID
+	}
+	recipient, err := user.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
+	if err != nil {
+		return "", err
+	}
+	if recipient.E164 != "" {
+		return recipient.E164, nil
+	} else {
+		return "Unidentified User", nil
+	}
+}
+
+var cmdRevokeInvite = &commands.FullHandler{
+	Func: wrapCommand(fnRevokeInvite),
+	Name: "revoke-invite",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Revoke an invite by phone number.",
+		Args:        "<_international phone number_>",
+	},
+	RequiresLogin:  true,
+	RequiresPortal: true,
+}
+
+func fnRevokeInvite(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `RevokeInvite <international phone number>`")
+		return
+	}
+	e164 := "+" + numberCleaner.Replace(strings.Join(ce.Args, ""))
+
+	user := ce.User
+	var serviceID libsignalgo.ServiceID
+	group, err := ce.User.Client.RetrieveGroupByID(ce.Ctx, ce.Portal.GroupID(), ce.Portal.Revision)
+	if err != nil {
+		ce.Reply("Failed to fetch group info: %w", err)
+		return
+	}
+	var pni, aci uuid.UUID
+	for _, pendingMember := range group.PendingMembers {
+		if pendingMember.ServiceID.Type == libsignalgo.ServiceIDTypeACI {
+			aci = pendingMember.ServiceID.UUID
+		} else {
+			pni = pendingMember.ServiceID.UUID
+		}
+		recipient, err := user.Client.Store.RecipientStore.LoadAndUpdateRecipient(ce.Ctx, aci, pni, nil)
+		if err != nil {
+			continue
+		}
+		if recipient.E164 == e164 {
+			serviceID = pendingMember.ServiceID
+			break
+		}
+	}
+	if serviceID.UUID == uuid.Nil {
+		ce.Reply("User not in Group")
+		return
+	}
+	var groupChange signalmeow.GroupChange
+	groupChange.DeletePendingMembers = []*libsignalgo.ServiceID{&serviceID}
+	revision, err := ce.User.Client.UpdateGroup(ce.Ctx, &groupChange, ce.Portal.GroupID())
+	if err != nil {
+		ce.Reply("Failed to update group: %w", err)
+		return
+	}
+	if aci != uuid.Nil {
+		target := ce.Bridge.GetPuppetBySignalID(aci)
+		if target != nil {
+			ce.Bot.SendCustomMembershipEvent(ce.Ctx, ce.Portal.MXID, target.IntentFor(ce.Portal).UserID, event.MembershipLeave, "removed by "+user.MXID.String())
+		}
+	}
+	ce.Portal.Revision = revision
+	ce.Portal.Update(ce.Ctx)
+	ce.Reply("Revoked the invitation for " + e164)
 }
 
 var cmdResolvePhone = &commands.FullHandler{
@@ -295,12 +529,6 @@ func fnResolvePhone(ce *WrappedCommandEvent) {
 			result, found := resp[phone]
 			if found {
 				_, _ = fmt.Fprintf(&out, "+%d: %s / %s\n", phone, result.ACI, result.PNI)
-				if result.ACI != uuid.Nil {
-					err = ce.User.Client.Store.ContactStore.UpdatePhone(ce.Ctx, result.ACI, fmt.Sprintf("+%d", phone))
-					if err != nil {
-						ce.ZLog.Warn().Err(err).Msg("Failed to update phone number in user's contact store")
-					}
-				}
 			} else {
 				_, _ = fmt.Fprintf(&out, "+%d: not found\n", phone)
 			}
@@ -641,4 +869,262 @@ func fnCleanupLostPortals(ce *WrappedCommandEvent) {
 		}
 	}
 	ce.Reply("Finished cleaning up portals")
+}
+
+var cmdInviteLink = &commands.FullHandler{
+	Func: wrapCommand(fnInviteLink),
+	Name: "invite-link",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Get the invite link for the corresponding Signal Group",
+	},
+	RequiresLogin: true,
+}
+
+func fnInviteLink(ce *WrappedCommandEvent) {
+	if ce.Portal == nil {
+		ce.Reply("This is not a portal room")
+		return
+	}
+	if ce.Portal.IsPrivateChat() {
+		ce.Reply("Invite Links are not available for private chats")
+		return
+	}
+	inviteLinkPassword, err := ce.Portal.GetInviteLink(ce.Ctx, ce.User)
+	if err != nil {
+		ce.Reply("Error getting invite link %w", err)
+		return
+	}
+	ce.Reply(inviteLinkPassword)
+}
+
+var cmdResetInviteLink = &commands.FullHandler{
+	Func: wrapCommand(fnResetInviteLink),
+	Name: "reset-invite-link",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionPortalManagement,
+		Description: "Generate a new invite link password",
+	},
+	RequiresLogin: true,
+}
+
+func fnResetInviteLink(ce *WrappedCommandEvent) {
+	if ce.Portal == nil {
+		ce.Reply("This is not a portal room")
+		return
+	}
+	if ce.Portal.IsPrivateChat() {
+		ce.Reply("Invite Links are not available for private chats")
+		return
+	}
+	err := ce.Portal.ResetInviteLink(ce.Ctx, ce.User)
+	if err != nil {
+		ce.Reply("Error setting new invite link %w", err)
+	}
+	inviteLink, err := ce.Portal.GetInviteLink(ce.Ctx, ce.User)
+	if err != nil {
+		ce.Reply("Error getting new invite link %w", err)
+		return
+	}
+	ce.Reply(inviteLink)
+}
+
+var cmdCreate = &commands.FullHandler{
+	Func: wrapCommand(fnCreate),
+	Name: "create",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionCreatingPortals,
+		Description: "Create a Signal group chat for the current Matrix room.",
+	},
+	RequiresLogin: true,
+}
+
+func fnCreate(ce *WrappedCommandEvent) {
+	if ce.Portal != nil {
+		ce.Reply("This is already a portal room")
+		return
+	}
+
+	roomState, err := ce.Bot.State(ce.Ctx, ce.RoomID)
+	if err != nil {
+		ce.Reply("Failed to get room state: %w", err)
+		return
+	}
+	members := roomState[event.StateMember]
+	powerLevelsRaw, ok := roomState[event.StatePowerLevels][""]
+	if !ok {
+		ce.Reply("Failed to get room power levels")
+		return
+	}
+	powerLevelsRaw.Content.ParseRaw(event.StatePowerLevels)
+	powerLevels := powerLevelsRaw.Content.AsPowerLevels()
+	joinRulesRaw, ok := roomState[event.StateJoinRules][""]
+	if !ok {
+		ce.Reply("Failed to get join rules")
+		return
+	}
+	joinRulesRaw.Content.ParseRaw(event.StateJoinRules)
+	joinRule := joinRulesRaw.Content.AsJoinRules().JoinRule
+	roomNameEventRaw, ok := roomState[event.StateRoomName][""]
+	if !ok {
+		ce.Reply("Failed to get room name")
+		return
+	}
+	roomNameEventRaw.Content.ParseRaw(event.StateRoomName)
+	roomName := roomNameEventRaw.Content.AsRoomName().Name
+	if len(roomName) == 0 {
+		ce.Reply("Please set a name for the room first")
+		return
+	}
+	roomTopic := ""
+	roomTopicEvent, ok := roomState[event.StateTopic][""]
+	if ok {
+		roomTopicEvent.Content.ParseRaw(event.StateTopic)
+		roomTopic = roomTopicEvent.Content.AsTopic().Topic
+	}
+	roomAvatarEvent, ok := roomState[event.StateRoomAvatar][""]
+	var avatarHash string
+	var avatarURL id.ContentURI
+	var avatarBytes []byte
+	avatarSet := false
+	if ok {
+		roomAvatarEvent.Content.ParseRaw(event.StateRoomAvatar)
+		avatarURL = roomAvatarEvent.Content.AsRoomAvatar().URL
+		if !avatarURL.IsEmpty() {
+			avatarBytes, err = ce.Bot.DownloadBytes(ce.Ctx, avatarURL)
+			if err != nil {
+				ce.ZLog.Err(err).Stringer("Failed to download updated avatar %s", avatarURL)
+				return
+			}
+			hash := sha256.Sum256(avatarBytes)
+			avatarHash = hex.EncodeToString(hash[:])
+			ce.ZLog.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{ce.User.MXID, avatarURL})
+			avatarSet = true
+		}
+	}
+	var encryptionEvent *event.EncryptionEventContent
+	encryptionEventContent, ok := roomState[event.StateEncryption][""]
+	if ok {
+		encryptionEventContent.Content.ParseRaw(event.StateEncryption)
+		encryptionEvent = encryptionEventContent.Content.AsEncryption()
+	}
+	var participants []*signalmeow.GroupMember
+	var bannedMembers []*signalmeow.BannedMember
+	participantDedup := make(map[uuid.UUID]bool)
+	participantDedup[uuid.Nil] = true
+	for key, member := range members {
+		mxid := id.UserID(key)
+		member.Content.ParseRaw(event.StateMember)
+		content := member.Content.AsMember()
+		membership := content.Membership
+		var uuid uuid.UUID
+		puppet := ce.Bridge.GetPuppetByMXID(mxid)
+		if puppet != nil {
+			uuid = puppet.SignalID
+		} else {
+			user := ce.Bridge.GetUserByMXID(mxid)
+			if user != nil && user.IsLoggedIn() {
+				uuid = user.SignalID
+			}
+		}
+		role := signalmeow.GroupMember_DEFAULT
+		if powerLevels.GetUserLevel(mxid) >= 50 {
+			role = signalmeow.GroupMember_ADMINISTRATOR
+		}
+		if !participantDedup[uuid] {
+			participantDedup[uuid] = true
+			// invites should be added on signal and then auto-joined
+			// joined members that need to be pending-Members should have their signal invite auto-accepted
+			if membership == event.MembershipJoin || membership == event.MembershipInvite {
+				participants = append(participants, &signalmeow.GroupMember{
+					ACI:  uuid,
+					Role: role,
+				})
+			} else if membership == event.MembershipBan {
+				bannedMembers = append(bannedMembers, &signalmeow.BannedMember{
+					ServiceID: libsignalgo.NewACIServiceID(uuid),
+				})
+			}
+		}
+	}
+	addFromInviteLinkAccess := signalmeow.AccessControl_UNSATISFIABLE
+	if joinRule == event.JoinRulePublic {
+		addFromInviteLinkAccess = signalmeow.AccessControl_ANY
+	} else if joinRule == event.JoinRuleKnock {
+		addFromInviteLinkAccess = signalmeow.AccessControl_ADMINISTRATOR
+	}
+	var inviteLinkPassword types.SerializedInviteLinkPassword
+	if addFromInviteLinkAccess != signalmeow.AccessControl_UNSATISFIABLE {
+		inviteLinkPassword = signalmeow.GenerateInviteLinkPassword()
+	}
+	membersAccess := signalmeow.AccessControl_MEMBER
+	if powerLevels.Invite() >= 50 {
+		membersAccess = signalmeow.AccessControl_ADMINISTRATOR
+	}
+	attributesAccess := signalmeow.AccessControl_MEMBER
+	if powerLevels.StateDefault() >= 50 {
+		attributesAccess = signalmeow.AccessControl_ADMINISTRATOR
+	}
+	announcementsOnly := false
+	if powerLevels.EventsDefault >= 50 {
+		announcementsOnly = true
+	}
+	ce.ZLog.Info().
+		Str("room_name", roomName).
+		Any("participants", participants).
+		Msg("Creating Signal group for Matrix room")
+	group, err := ce.User.Client.CreateGroup(ce.Ctx, &signalmeow.Group{
+		Title:       roomName,
+		Description: roomTopic,
+		Members:     participants,
+		AccessControl: &signalmeow.GroupAccessControl{
+			Members:           membersAccess,
+			Attributes:        attributesAccess,
+			AddFromInviteLink: addFromInviteLinkAccess,
+		},
+		InviteLinkPassword: &inviteLinkPassword,
+		BannedMembers:      bannedMembers,
+		AnnouncementsOnly:  announcementsOnly,
+	}, avatarBytes)
+	if err != nil {
+		ce.Reply("Failed to create group: %v", err)
+		return
+	}
+	gid := group.GroupIdentifier
+	ce.ZLog.UpdateContext(func(c zerolog.Context) zerolog.Context {
+		return c.Stringer("group_id", gid)
+	})
+	portal := ce.User.GetPortalByChatID(gid.String())
+	portal.roomCreateLock.Lock()
+	defer portal.roomCreateLock.Unlock()
+	if len(portal.MXID) != 0 {
+		ce.ZLog.Warn().Msg("Detected race condition in room creation")
+		// TODO race condition, clean up the old room
+	}
+	portal.MXID = ce.RoomID
+	portal.Name = roomName
+	portal.Encrypted = encryptionEvent != nil && encryptionEvent.Algorithm == id.AlgorithmMegolmV1
+	if !portal.Encrypted && ce.Bridge.Config.Bridge.Encryption.Default {
+		_, err = portal.MainIntent().SendStateEvent(ce.Ctx, portal.MXID, event.StateEncryption, "", portal.GetEncryptionEventContent())
+		if err != nil {
+			ce.ZLog.Err(err).Msg("Failed to enable encryption in room")
+			if errors.Is(err, mautrix.MForbidden) {
+				ce.Reply("I don't seem to have permission to enable encryption in this room.")
+			} else {
+				ce.Reply("Failed to enable encryption in room: %v", err)
+			}
+		}
+		portal.Encrypted = true
+	}
+	portal.Revision = group.Revision
+	portal.AvatarHash = avatarHash
+	portal.AvatarURL = avatarURL
+	portal.AvatarPath = group.AvatarPath
+	portal.AvatarSet = avatarSet
+	err = portal.Update(ce.Ctx)
+	if err != nil {
+		ce.ZLog.Err(err).Msg("Failed to save portal after creating group")
+	}
+	portal.UpdateBridgeInfo(ce.Ctx)
+	ce.Reply("Successfully created Signal group %s", gid.String())
 }

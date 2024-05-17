@@ -102,7 +102,7 @@ func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uu
 }
 
 func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUID) (*libsignalgo.ProfileKey, error) {
-	profileKey, err := cli.Store.ProfileKeyStore.LoadProfileKey(ctx, signalACI)
+	profileKey, err := cli.Store.RecipientStore.LoadProfileKey(ctx, signalACI)
 	if err != nil {
 		return nil, fmt.Errorf("error getting profile key: %w", err)
 	}
@@ -154,7 +154,6 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 }
 
 func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*types.Profile, error) {
-	log := zerolog.Ctx(ctx)
 	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting profile key: %w", err)
@@ -162,6 +161,15 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*t
 		return nil, errProfileKeyNotFound
 	}
 
+	credentialRequest, err := cli.ProfileKeyCredentialRequest(ctx, signalID)
+	if err != nil {
+		return nil, fmt.Errorf("error getting profile key credential request: %w", err)
+	}
+	return cli.fetchProfileWithRequestAndKey(ctx, signalID, credentialRequest, profileKey)
+}
+
+func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID uuid.UUID, credentialRequest []byte, profileKey *libsignalgo.ProfileKey) (*types.Profile, error) {
+	log := zerolog.Ctx(ctx)
 	profileKeyVersion, err := profileKey.GetProfileKeyVersion(signalID)
 	if err != nil {
 		return nil, fmt.Errorf("error getting profile key version: %w", err)
@@ -172,12 +180,6 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*t
 		return nil, fmt.Errorf("error deriving access key: %w", err)
 	}
 	base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
-
-	credentialRequest, err := cli.ProfileKeyCredentialRequest(ctx, signalID)
-	if err != nil {
-		return nil, fmt.Errorf("error getting profile key credential request: %w", err)
-	}
-
 	path := "/v1/profile/" + signalID.String()
 	useUnidentified := profileKeyVersion != nil && accessKey != nil
 	if useUnidentified {
@@ -241,6 +243,7 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*t
 	}
 	// TODO store other metadata fields?
 	profile.AvatarPath = profileResponse.Avatar
+	profile.Credential = profileResponse.Credential
 	profile.Key = *profileKey
 
 	return &profile, nil
@@ -343,4 +346,42 @@ func AesgcmEncrypt(key, nonce, plaintext []byte) ([]byte, error) {
 		return nil, err
 	}
 	return aesgcm.Seal(nil, nonce, plaintext, nil), nil
+}
+
+func (cli *Client) FetchExpiringProfileKeyCredentialById(ctx context.Context, signalACI uuid.UUID) (*libsignalgo.ExpiringProfileKeyCredential, error) {
+	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalACI)
+	if err != nil {
+		return nil, fmt.Errorf("error getting profile key for ACI: %w", err)
+	}
+	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
+		prodServerPublicParams,
+		signalACI,
+		*profileKey,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error creating profile key credential request context: %w", err)
+	}
+
+	request, err := requestContext.ProfileKeyCredentialRequestContextGetRequest()
+	if err != nil {
+		return nil, fmt.Errorf("error getting profile key credential request: %w", err)
+	}
+
+	// convert request bytes to hexidecimal representation
+	hexRequest := hex.EncodeToString(request[:])
+	credentialRequest := []byte(hexRequest)
+
+	profile, err := cli.fetchProfileWithRequestAndKey(ctx, signalACI, credentialRequest, profileKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch profile: %w", err)
+	}
+	response, err := libsignalgo.NewExpiringProfileKeyCredentialResponse(profile.Credential)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get expiring profile key credential response: %w", err)
+	}
+	epkc, err := libsignalgo.ReceiveExpiringProfileKeyCredential(prodServerPublicParams, requestContext, response, uint64(time.Now().Unix()))
+	if err != nil {
+		return nil, fmt.Errorf("failed to receive expiring profile key credential: %w", err)
+	}
+	return epkc, nil
 }

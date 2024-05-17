@@ -144,7 +144,7 @@ func checkForErrorWithSessions(err error, addresses []*libsignalgo.Address, sess
 }
 
 func (cli *Client) howManyOtherDevicesDoWeHave(ctx context.Context) int {
-	addresses, _, err := cli.Store.SessionStoreExtras.AllSessionsForUUID(ctx, cli.Store.ACI)
+	addresses, _, err := cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, cli.Store.ACIServiceID())
 	if err != nil {
 		return 0
 	}
@@ -163,27 +163,26 @@ func (cli *Client) howManyOtherDevicesDoWeHave(ctx context.Context) int {
 	return otherDevices
 }
 
-func (cli *Client) buildMessagesToSend(ctx context.Context, recipientUUID uuid.UUID, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
+func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalgo.ServiceID, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
 	// We need to prevent multiple encryption operations from happening at once, or else ratchets can race
 	cli.encryptionLock.Lock()
 	defer cli.encryptionLock.Unlock()
 
-	messages := []MyMessage{}
-
-	addresses, sessionRecords, err := cli.Store.SessionStoreExtras.AllSessionsForUUID(ctx, recipientUUID)
+	addresses, sessionRecords, err := cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
 	if err == nil && (len(addresses) == 0 || len(sessionRecords) == 0) {
 		// No sessions, make one with prekey
-		err = cli.FetchAndProcessPreKey(ctx, recipientUUID, -1)
+		err = cli.FetchAndProcessPreKey(ctx, recipient, -1)
 		if err != nil {
 			return nil, err
 		}
-		addresses, sessionRecords, err = cli.Store.SessionStoreExtras.AllSessionsForUUID(ctx, recipientUUID)
+		addresses, sessionRecords, err = cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
 	}
 	err = checkForErrorWithSessions(err, addresses, sessionRecords)
 	if err != nil {
 		return nil, err
 	}
 
+	messages := make([]MyMessage, 0, len(addresses))
 	for i, recipientAddress := range addresses {
 		recipientDeviceID, err := recipientAddress.DeviceID()
 		if err != nil {
@@ -191,7 +190,7 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipientUUID uuid.U
 		}
 
 		// Don't send to this device that we are sending from
-		if recipientUUID == cli.Store.ACI && recipientDeviceID == uint(cli.Store.DeviceID) {
+		if recipient == cli.Store.ACIServiceID() && recipientDeviceID == uint(cli.Store.DeviceID) {
 			zerolog.Ctx(ctx).Debug().
 				Uint("recipient_device_id", recipientDeviceID).
 				Msg("Not sending to the device I'm sending from")
@@ -203,7 +202,7 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipientUUID uuid.U
 		if err != nil {
 			return nil, err
 		}
-		paddedMessage, err := addPadding(3, []byte(serializedMessage)) // TODO: figure out how to get actual version
+		paddedMessage, err := addPadding(3, serializedMessage) // TODO: figure out how to get actual version
 		if err != nil {
 			return nil, err
 		}
@@ -239,10 +238,10 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipientUUID uuid.U
 func (cli *Client) buildAuthedMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
 	cipherTextMessage, err := libsignalgo.Encrypt(
 		ctx,
-		[]byte(paddedMessage),
+		paddedMessage,
 		recipientAddress,
-		cli.Store.SessionStore,
-		cli.Store.IdentityStore,
+		cli.Store.ACISessionStore,
+		cli.Store.ACIIdentityStore,
 	)
 	if err != nil {
 		return 0, nil, err
@@ -271,11 +270,11 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 	}
 	encryptedPayload, err = libsignalgo.SealedSenderEncryptPlaintext(
 		ctx,
-		[]byte(paddedMessage),
+		paddedMessage,
 		recipientAddress,
 		cert,
-		cli.Store.SessionStore,
-		cli.Store.IdentityStore,
+		cli.Store.ACISessionStore,
+		cli.Store.ACIIdentityStore,
 	)
 	if err != nil {
 		return 0, nil, err
@@ -286,12 +285,14 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 }
 
 type SuccessfulSendResult struct {
-	RecipientUUID uuid.UUID
-	Unidentified  bool
+	Recipient              libsignalgo.ServiceID
+	RecipientE164          *string
+	Unidentified           bool
+	DestinationIdentityKey *libsignalgo.IdentityKey
 }
 type FailedSendResult struct {
-	RecipientUUID uuid.UUID
-	Error         error
+	Recipient libsignalgo.ServiceID
+	Error     error
 }
 type SendMessageResult struct {
 	WasSuccessful bool
@@ -312,7 +313,7 @@ func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationServiceId: proto.String(result.RecipientUUID.String()),
+			DestinationServiceId: proto.String(result.Recipient.String()),
 			Unidentified:         &result.Unidentified,
 		})
 	}
@@ -330,7 +331,7 @@ func syncMessageFromGroupEditMessage(editMessage *signalpb.EditMessage, results 
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
 		unidentifiedStatuses = append(unidentifiedStatuses, &signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
-			DestinationServiceId: proto.String(result.RecipientUUID.String()),
+			DestinationServiceId: proto.String(result.Recipient.String()),
 			Unidentified:         &result.Unidentified,
 		})
 	}
@@ -350,12 +351,14 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				Message:              dataMessage,
-				DestinationServiceId: proto.String(result.RecipientUUID.String()),
+				DestinationE164:      result.RecipientE164,
+				DestinationServiceId: proto.String(result.Recipient.String()),
 				Timestamp:            dataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId: proto.String(result.RecipientUUID.String()),
-						Unidentified:         &result.Unidentified,
+						DestinationServiceId:   proto.String(result.Recipient.String()),
+						Unidentified:           &result.Unidentified,
+						DestinationIdentityKey: result.DestinationIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -368,12 +371,14 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
 				EditMessage:          editMessage,
-				DestinationServiceId: proto.String(result.RecipientUUID.String()),
+				DestinationE164:      result.RecipientE164,
+				DestinationServiceId: proto.String(result.Recipient.String()),
 				Timestamp:            editMessage.DataMessage.Timestamp,
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId: proto.String(result.RecipientUUID.String()),
-						Unidentified:         &result.Unidentified,
+						DestinationServiceId:   proto.String(result.Recipient.String()),
+						Unidentified:           &result.Unidentified,
+						DestinationIdentityKey: result.DestinationIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -381,28 +386,23 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 	}
 }
 
-func syncMessageForContactRequest() *signalpb.Content {
-	return &signalpb.Content{
-		SyncMessage: &signalpb.SyncMessage{
-			Request: &signalpb.SyncMessage_Request{
-				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
-			},
-		},
-	}
-}
-
-func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender uuid.UUID) *signalpb.Content {
+func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender libsignalgo.ServiceID) *signalpb.Content {
 	if *receiptMessage.Type != signalpb.ReceiptMessage_READ {
 		zerolog.Ctx(ctx).Warn().
 			Any("receipt_message_type", receiptMessage.Type).
 			Msg("syncMessageFromReadReceiptMessage called with non-read receipt message")
+		return nil
+	} else if messageSender.Type != libsignalgo.ServiceIDTypeACI {
+		zerolog.Ctx(ctx).Warn().
+			Stringer("message_sender", messageSender).
+			Msg("syncMessageFromReadReceiptMessage called with non-ACI message sender")
 		return nil
 	}
 	read := []*signalpb.SyncMessage_Read{}
 	for _, timestamp := range receiptMessage.Timestamp {
 		read = append(read, &signalpb.SyncMessage_Read{
 			Timestamp: proto.Uint64(timestamp),
-			SenderAci: proto.String(messageSender.String()),
+			SenderAci: proto.String(messageSender.UUID.String()),
 		})
 	}
 	return &signalpb.Content{
@@ -413,30 +413,51 @@ func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *sign
 }
 
 func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
-	if cli.LastContactRequestTime == nil {
-		cli.LastContactRequestTime = new(int64)
-	}
-	currentUnixTime := time.Now().Unix()
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send contact sync request").
-		Int64("current_unix_time", currentUnixTime).
-		Int64("last_request_time", *cli.LastContactRequestTime).
-		Int64("seconds_since_last_request", currentUnixTime-*cli.LastContactRequestTime).
+		Time("last_request_time", cli.LastContactRequestTime).
 		Logger()
 	ctx = log.WithContext(ctx)
 	// If we've requested in the last minute, don't request again
-	if cli.LastContactRequestTime != nil && currentUnixTime-*cli.LastContactRequestTime < 60 {
+	if time.Since(cli.LastContactRequestTime) < 60*time.Second {
 		log.Warn().Msg("Not sending contact sync request because we already requested it in the past minute")
 		return nil
 	}
 
-	groupRequest := syncMessageForContactRequest()
-	_, err := cli.sendContent(ctx, cli.Store.ACI, uint64(currentUnixTime), groupRequest, 0, true)
+	cli.LastContactRequestTime = time.Now()
+	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(time.Now().UnixMilli()), &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Request: &signalpb.SyncMessage_Request{
+				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
+			},
+		},
+	}, 0, false)
 	if err != nil {
 		log.Err(err).Msg("Failed to send contact sync request message to myself")
 		return err
 	}
-	cli.LastContactRequestTime = &currentUnixTime
+	return nil
+}
+
+func (cli *Client) SendStorageMasterKeyRequest(ctx context.Context) error {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "send key sync request").
+		Logger()
+	ctx = log.WithContext(ctx)
+
+	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(time.Now().UnixMilli()), &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			Request: &signalpb.SyncMessage_Request{
+				Type: signalpb.SyncMessage_Request_KEYS.Enum(),
+			},
+		},
+	}, 0, false)
+	if err != nil {
+		log.Err(err).Msg("Failed to send key sync request message to myself")
+		return err
+	} else {
+		log.Info().Msg("Sent key sync request to self")
+	}
 	return nil
 }
 
@@ -511,6 +532,38 @@ func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
 	}
 }
 
+func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupContext *signalpb.GroupContextV2, groupChange *GroupChange) (*GroupMessageSendResult, error) {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "send group change message").
+		Stringer("group_id", group.GroupIdentifier).
+		Logger()
+	ctx = log.WithContext(ctx)
+	timestamp := currentMessageTimestamp()
+	dm := &signalpb.DataMessage{
+		Timestamp: &timestamp,
+		GroupV2:   groupContext,
+	}
+	content := wrapDataMessageInContent(dm)
+	var recipients []*libsignalgo.ServiceID
+	for _, member := range group.Members {
+		serviceID := member.UserServiceID()
+		recipients = append(recipients, &serviceID)
+	}
+	for _, member := range group.PendingMembers {
+		recipients = append(recipients, &member.ServiceID)
+	}
+	if groupChange != nil {
+		for _, member := range groupChange.AddPendingMembers {
+			recipients = append(recipients, &member.ServiceID)
+		}
+		for _, member := range groupChange.AddMembers {
+			serviceID := member.UserServiceID()
+			recipients = append(recipients, &serviceID)
+		}
+	}
+	return cli.sendToGroup(ctx, recipients, content, timestamp)
+}
+
 func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifier, content *signalpb.Content) (*GroupMessageSendResult, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send group message").
@@ -530,30 +583,38 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		messageTimestamp = content.EditMessage.DataMessage.GetTimestamp()
 		content.EditMessage.DataMessage.GroupV2 = groupMetadataForDataMessage(*group)
 	}
+	var recipients []*libsignalgo.ServiceID
+	for _, member := range group.Members {
+		serviceID := member.UserServiceID()
+		recipients = append(recipients, &serviceID)
+	}
+	return cli.sendToGroup(ctx, recipients, content, messageTimestamp)
+}
 
+func (cli *Client) sendToGroup(ctx context.Context, recipients []*libsignalgo.ServiceID, content *signalpb.Content, messageTimestamp uint64) (*GroupMessageSendResult, error) {
 	// Send to each member of the group
 	result := &GroupMessageSendResult{
 		SuccessfullySentTo: []SuccessfulSendResult{},
 		FailedToSendTo:     []FailedSendResult{},
 	}
-	for _, member := range group.Members {
-		if member.UserID == cli.Store.ACI {
+	for _, recipient := range recipients {
+		if recipient.Type == libsignalgo.ServiceIDTypeACI && recipient.UUID == cli.Store.ACI {
 			// Don't send normal DataMessages to ourselves
 			continue
 		}
-		log := log.With().Stringer("member", member.UserID).Logger()
+		log := zerolog.Ctx(ctx).With().Stringer("member", *recipient).Logger()
 		ctx := log.WithContext(ctx)
-		sentUnidentified, err := cli.sendContent(ctx, member.UserID, messageTimestamp, content, 0, true)
+		sentUnidentified, err := cli.sendContent(ctx, *recipient, messageTimestamp, content, 0, true)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
-				RecipientUUID: member.UserID,
-				Error:         err,
+				Recipient: *recipient,
+				Error:     err,
 			})
 			log.Err(err).Msg("Failed to send to user")
 		} else {
 			result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
-				RecipientUUID: member.UserID,
-				Unidentified:  sentUnidentified,
+				Recipient:    *recipient,
+				Unidentified: sentUnidentified,
 			})
 			log.Trace().Msg("Successfully sent to user")
 		}
@@ -567,9 +628,9 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		} else if content.GetEditMessage() != nil {
 			syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
 		}
-		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTimestamp, syncContent, 0, true)
+		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true)
 		if selfSendErr != nil {
-			log.Err(selfSendErr).Msg("Failed to send sync message to myself")
+			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 		}
 	}
 
@@ -593,10 +654,10 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 		} else if content.GetEditMessage() != nil {
 			syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result)
 		} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
-			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.RecipientUUID)
+			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.Recipient)
 		}
 		if syncContent != nil {
-			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACI, messageTS, syncContent, 0, true)
+			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true)
 			if selfSendErr != nil {
 				zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 			} else {
@@ -607,7 +668,7 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 	return false
 }
 
-func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, content *signalpb.Content) SendMessageResult {
+func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.ServiceID, content *signalpb.Content) SendMessageResult {
 	// Assemble the content to send
 	var messageTimestamp uint64
 	if content.GetDataMessage() != nil {
@@ -617,12 +678,51 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, conte
 	} else {
 		messageTimestamp = currentMessageTimestamp()
 	}
+	needsPNISignature := false
+	var aci, pni uuid.UUID
+	if recipientID.Type == libsignalgo.ServiceIDTypeACI {
+		aci = recipientID.UUID
+	} else if recipientID.Type == libsignalgo.ServiceIDTypePNI {
+		pni = recipientID.UUID
+	}
+	recipientData, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipientData *types.Recipient) (changed bool, err error) {
+		if recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature {
+			needsPNISignature = true
+			zerolog.Ctx(ctx).Debug().
+				Stringer("recipient", recipientID).
+				Msg("Including PNI identity in message")
+			sig, err := cli.Store.PNIIdentityKeyPair.SignAlternateIdentity(cli.Store.ACIIdentityKeyPair.GetIdentityKey())
+			if err != nil {
+				return false, err
+			}
+			recipientData.NeedsPNISignature = false
+			content.PniSignatureMessage = &signalpb.PniSignatureMessage{
+				Pni:       cli.Store.PNI[:],
+				Signature: sig,
+			}
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get message recipient data")
+	}
+	// Treat needs PNI signature as "this is a message request" and don't send receipts/typing
+	if needsPNISignature && (content.TypingMessage != nil || content.ReceiptMessage != nil) {
+		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
+		res := &SuccessfulSendResult{Recipient: recipientID}
+		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+			// Still send sync messages for read receipts
+			cli.sendSyncCopy(ctx, content, messageTimestamp, res)
+		}
+		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
+	}
 
 	isDeliveryReceipt := content.ReceiptMessage != nil && content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY
-	if recipientID == cli.Store.ACI && !isDeliveryReceipt {
+	if recipientID == cli.Store.ACIServiceID() && !isDeliveryReceipt {
 		res := &SuccessfulSendResult{
-			RecipientUUID: recipientID,
-			Unidentified:  false,
+			Recipient:    recipientID,
+			Unidentified: false,
 		}
 		ok := cli.sendSyncCopy(ctx, content, messageTimestamp, res)
 		return SendMessageResult{
@@ -637,17 +737,28 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID uuid.UUID, conte
 		return SendMessageResult{
 			WasSuccessful: false,
 			FailedSendResult: &FailedSendResult{
-				RecipientUUID: recipientID,
-				Error:         err,
+				Recipient: recipientID,
+				Error:     err,
 			},
 		}
 	}
 	result := SendMessageResult{
 		WasSuccessful: true,
 		SuccessfulSendResult: &SuccessfulSendResult{
-			RecipientUUID: recipientID,
-			Unidentified:  sentUnidentified,
+			Recipient:    recipientID,
+			Unidentified: sentUnidentified,
 		},
+	}
+	if recipientID.Type == libsignalgo.ServiceIDTypePNI {
+		result.DestinationIdentityKey, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, recipientID)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to add PNI destination identity key to sync message")
+		}
+		if recipientData != nil && recipientData.E164 != "" {
+			result.RecipientE164 = &recipientData.E164
+		} else {
+			zerolog.Ctx(ctx).Warn().Msg("No E164 number found for PNI sync message")
+		}
 	}
 
 	cli.sendSyncCopy(ctx, content, messageTimestamp, result.SuccessfulSendResult)
@@ -661,7 +772,7 @@ func currentMessageTimestamp() uint64 {
 
 func (cli *Client) sendContent(
 	ctx context.Context,
-	recipientUUID uuid.UUID,
+	recipient libsignalgo.ServiceID,
 	messageTimestamp uint64,
 	content *signalpb.Content,
 	retryCount int,
@@ -669,7 +780,7 @@ func (cli *Client) sendContent(
 ) (sentUnidentified bool, err error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send content").
-		Stringer("recipient", recipientUUID).
+		Stringer("recipient", recipient).
 		Uint64("timestamp", messageTimestamp).
 		Logger()
 	ctx = log.WithContext(ctx)
@@ -691,13 +802,18 @@ func (cli *Client) sendContent(
 		return false, fmt.Errorf("too many retries")
 	}
 
-	// Don't use unauthed websocket to send a payload to my own other devices
-	if recipientUUID == cli.Store.ACI {
+	if recipient.Type == libsignalgo.ServiceIDTypePNI && recipient.UUID == cli.Store.PNI {
+		return false, fmt.Errorf("can't send to own PNI")
+	} else if recipient.Type == libsignalgo.ServiceIDTypeACI && recipient.UUID == cli.Store.ACI {
+		// Don't use unauthed websocket to send a payload to my own other devices
+		useUnidentifiedSender = false
+	} else if recipient.Type == libsignalgo.ServiceIDTypePNI {
+		// Can't use unidentified sender for PNIs because only ACIs have profile keys
 		useUnidentifiedSender = false
 	}
 	var accessKey *libsignalgo.AccessKey
 	if useUnidentifiedSender {
-		profileKey, err := cli.ProfileKeyForSignalID(ctx, recipientUUID)
+		profileKey, err := cli.ProfileKeyForSignalID(ctx, recipient.UUID)
 		if err != nil {
 			return false, fmt.Errorf("failed to get profile key: %w", err)
 		} else if profileKey == nil {
@@ -710,7 +826,7 @@ func (cli *Client) sendContent(
 	}
 
 	var messages []MyMessage
-	messages, err = cli.buildMessagesToSend(ctx, recipientUUID, content, useUnidentifiedSender)
+	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender)
 	if err != nil {
 		log.Err(err).Msg("Error building messages to send")
 		return false, err
@@ -726,7 +842,7 @@ func (cli *Client) sendContent(
 	if err != nil {
 		return false, err
 	}
-	path := fmt.Sprintf("/v1/messages/%v", recipientUUID)
+	path := fmt.Sprintf("/v1/messages/%s", recipient)
 	request := web.CreateWSRequest(http.MethodPut, path, jsonBytes, nil, nil)
 
 	var response *signalpb.WebSocketResponseMessage
@@ -769,17 +885,17 @@ func (cli *Client) sendContent(
 	if needToRetry {
 		var err error
 		if *response.Status == 409 {
-			err = cli.handle409(ctx, recipientUUID, response)
+			err = cli.handle409(ctx, recipient, response)
 		} else if *response.Status == 410 {
-			err = cli.handle410(ctx, recipientUUID, response)
+			err = cli.handle410(ctx, recipient, response)
 		} else if *response.Status == 428 {
-			err = cli.handle428(ctx, recipientUUID, response)
+			err = cli.handle428(ctx, recipient, response)
 		}
 		if err != nil {
 			return false, err
 		}
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, sentUnidentified)
+		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, sentUnidentified)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
@@ -787,7 +903,7 @@ func (cli *Client) sendContent(
 	} else if *response.Status == 401 && useUnidentifiedSender {
 		log.Debug().Msg("Retrying send without sealed sender")
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipientUUID, messageTimestamp, content, retryCount+1, false)
+		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, false)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
@@ -800,7 +916,7 @@ func (cli *Client) sendContent(
 }
 
 // A 409 means our device list was out of date, so we will fix it up
-func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
+func (cli *Client) handle409(ctx context.Context, recipient libsignalgo.ServiceID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
 	// TODO use an actual struct for this
@@ -816,7 +932,7 @@ func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, respo
 		log.Debug().Any("missing_devices", missingDevices).Msg("missing devices found in 409 response")
 		// TODO: establish session with missing devices
 		for _, missingDevice := range missingDevices {
-			err = cli.FetchAndProcessPreKey(ctx, recipientUUID, int(missingDevice.(float64)))
+			err = cli.FetchAndProcessPreKey(ctx, recipient, int(missingDevice.(float64)))
 			if err != nil {
 				return nil
 			}
@@ -826,16 +942,12 @@ func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, respo
 		extraDevices := body["extraDevices"].([]any)
 		log.Debug().Any("extra_devices", extraDevices).Msg("extra devices found in 409 response")
 		for _, extraDevice := range extraDevices {
-			// Remove extra device from the sessionstore
-			recipient, err := libsignalgo.NewUUIDAddress(
-				recipientUUID,
-				uint(extraDevice.(float64)),
-			)
+			recipientAddr, err := recipient.Address(uint(extraDevice.(float64)))
 			if err != nil {
 				log.Err(err).Msg("NewAddress error")
 				return err
 			}
-			err = cli.Store.SessionStoreExtras.RemoveSession(ctx, recipient)
+			err = cli.Store.ACISessionStore.RemoveSession(ctx, recipientAddr)
 			if err != nil {
 				log.Err(err).Msg("RemoveSession error")
 				return err
@@ -846,7 +958,7 @@ func (cli *Client) handle409(ctx context.Context, recipientUUID uuid.UUID, respo
 }
 
 // A 410 means we have a stale device, so get rid of it
-func (cli *Client) handle410(ctx context.Context, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
+func (cli *Client) handle410(ctx context.Context, recipient libsignalgo.ServiceID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
 	// TODO use an actual struct
@@ -861,20 +973,17 @@ func (cli *Client) handle410(ctx context.Context, recipientUUID uuid.UUID, respo
 		staleDevices := body["staleDevices"].([]any)
 		log.Debug().Any("stale_devices", staleDevices).Msg("stale devices found in 410 response")
 		for _, staleDevice := range staleDevices {
-			recipient, err := libsignalgo.NewUUIDAddress(
-				recipientUUID,
-				uint(staleDevice.(float64)),
-			)
+			recipientAddr, err := recipient.Address(uint(staleDevice.(float64)))
 			if err != nil {
 				log.Err(err).Msg("error creating new UUID Address")
 				return err
 			}
-			err = cli.Store.SessionStoreExtras.RemoveSession(ctx, recipient)
+			err = cli.Store.ACISessionStore.RemoveSession(ctx, recipientAddr)
 			if err != nil {
 				log.Err(err).Msg("RemoveSession error")
 				return err
 			}
-			err = cli.FetchAndProcessPreKey(ctx, recipientUUID, int(staleDevice.(float64)))
+			err = cli.FetchAndProcessPreKey(ctx, recipient, int(staleDevice.(float64)))
 			if err != nil {
 				return err
 			}
@@ -886,7 +995,7 @@ func (cli *Client) handle410(ctx context.Context, recipientUUID uuid.UUID, respo
 // We got rate limited.
 // We ~~will~~ could try sending a "pushChallenge" response, but if that doesn't work we just gotta wait.
 // TODO: explore captcha response
-func (cli *Client) handle428(ctx context.Context, recipientUUID uuid.UUID, response *signalpb.WebSocketResponseMessage) error {
+func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
 	// TODO use an actual struct

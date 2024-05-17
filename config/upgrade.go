@@ -96,6 +96,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Bool, "bridge", "resend_bridge_info")
 	helper.Copy(up.Bool, "bridge", "public_portals")
 	helper.Copy(up.Bool, "bridge", "caption_in_message")
+	helper.Copy(up.Str, "bridge", "location_format")
 	helper.Copy(up.Bool, "bridge", "federate_rooms")
 	helper.Copy(up.Map, "bridge", "double_puppet_server_map")
 	helper.Copy(up.Bool, "bridge", "double_puppet_allow_discovery")
@@ -125,6 +126,7 @@ func DoUpgrade(helper *up.Helper) {
 	helper.Copy(up.Int, "bridge", "encryption", "rotation", "milliseconds")
 	helper.Copy(up.Int, "bridge", "encryption", "rotation", "messages")
 	helper.Copy(up.Bool, "bridge", "encryption", "rotation", "disable_device_change_key_rotation")
+	helper.Copy(up.Bool, "bridge", "bridge_matrix_leave")
 
 	helper.Copy(up.Str, "bridge", "provisioning", "prefix")
 	if secret, ok := helper.Get(up.Str, "bridge", "provisioning", "shared_secret"); !ok || secret == "generate" {

@@ -15,8 +15,7 @@ Some quick links:
 * Basic usage: [Authentication](https://docs.mau.fi/bridges/go/signal/authentication.html)
 
 ### Features & Roadmap
-[ROADMAP.md](https://github.com/mautrix/signal/blob/main/ROADMAP.md)
-contains a general overview of what is supported by the bridge.
+[ROADMAP.md](ROADMAP.md) contains a general overview of what is supported by the bridge.
 
 ## Discussion
 Matrix room: [`#signal:maunium.net`](https://matrix.to/#/#signal:maunium.net)

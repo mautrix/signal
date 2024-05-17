@@ -19,7 +19,6 @@ package msgconv
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -55,8 +54,10 @@ type MessageConverter struct {
 	ConvertGIFToAPNG     bool
 	MaxFileSize          int64
 	AsyncFiles           bool
+
+	LocationFormat string
 }
 
 func (mc *MessageConverter) IsPrivateChat(ctx context.Context) bool {
-	return mc.GetData(ctx).UserID() != uuid.Nil
+	return !mc.GetData(ctx).UserID().IsEmpty()
 }

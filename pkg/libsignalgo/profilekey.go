@@ -23,6 +23,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"errors"
 	"runtime"
 	"unsafe"
 
@@ -30,10 +31,22 @@ import (
 	"go.mau.fi/util/random"
 )
 
-type ProfileKey [C.SignalPROFILE_KEY_LEN]byte
+const ProfileKeyLength = C.SignalPROFILE_KEY_LEN
+
+type ProfileKey [ProfileKeyLength]byte
 type ProfileKeyCommitment [C.SignalPROFILE_KEY_COMMITMENT_LEN]byte
 type ProfileKeyVersion [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]byte
 type AccessKey [C.SignalACCESS_KEY_LEN]byte
+
+func DeserializeProfileKey(bytes []byte) (*ProfileKey, error) {
+	if len(bytes) == 0 {
+		return nil, nil
+	} else if len(bytes) != ProfileKeyLength {
+		return nil, errors.New("invalid profile key length")
+	}
+	key := ProfileKey(bytes)
+	return &key, nil
+}
 
 var blankProfileKey ProfileKey
 
@@ -50,7 +63,7 @@ func (pv *ProfileKeyVersion) String() string {
 }
 
 func (pk *ProfileKey) Slice() []byte {
-	if pk == nil {
+	if pk.IsEmpty() {
 		return nil
 	}
 	return pk[:]
@@ -59,10 +72,7 @@ func (pk *ProfileKey) Slice() []byte {
 func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {
 	c_result := [C.SignalPROFILE_KEY_COMMITMENT_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
+	c_uuid := NewACIServiceID(u).CFixedBytes()
 
 	signalFfiError := C.signal_profile_key_get_commitment(
 		&c_result,
@@ -84,10 +94,7 @@ func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) 
 func (pk *ProfileKey) GetProfileKeyVersion(u uuid.UUID) (*ProfileKeyVersion, error) {
 	c_result := [C.SignalPROFILE_KEY_VERSION_ENCODED_LEN]C.uchar{}
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(pk))
-	c_uuid, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
+	c_uuid := NewACIServiceID(u).CFixedBytes()
 
 	signalFfiError := C.signal_profile_key_get_profile_key_version(
 		&c_result,
@@ -130,6 +137,8 @@ type ProfileKeyCredentialRequest [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN]byt
 type ProfileKeyCredentialResponse []byte
 type ProfileKeyCredentialPresentation []byte
 type ServerPublicParams [C.SignalSERVER_PUBLIC_PARAMS_LEN]byte
+type ExpiringProfileKeyCredential [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]byte
+type ExpiringProfileKeyCredentialResponse [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]byte
 
 func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
 	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
@@ -137,10 +146,7 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicPar
 	randBytes := [32]byte(random.Bytes(32))
 	c_random := (*[32]C.uchar)(unsafe.Pointer(&randBytes[0]))
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
-	c_uuid, err := SignalServiceIDFromUUID(u)
-	if err != nil {
-		return nil, err
-	}
+	c_uuid := NewACIServiceID(u).CFixedBytes()
 
 	signalFfiError := C.signal_server_public_params_create_profile_key_credential_request_context_deterministic(
 		&c_result,
@@ -176,37 +182,64 @@ func (p *ProfileKeyCredentialRequestContext) ProfileKeyCredentialRequestContextG
 	return &result, nil
 }
 
-func NewProfileKeyCredentialResponse(b []byte) (ProfileKeyCredentialResponse, error) {
+func NewExpiringProfileKeyCredentialResponse(b []byte) (*ExpiringProfileKeyCredentialResponse, error) {
 	borrowedBuffer := BytesToBuffer(b)
 	signalFfiError := C.signal_expiring_profile_key_credential_response_check_valid_contents(borrowedBuffer)
 	runtime.KeepAlive(b)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return ProfileKeyCredentialResponse(b), nil
+	response := ExpiringProfileKeyCredentialResponse(b)
+	return &response, nil
 }
 
-//func NewProfileKeyCredentialPresentation(b []byte) (ProfileKeyCredentialPresentation, error) {
-//	C.signal_profile_key_credential_presentation_check_valid_contents(cBytes(b), cLen(b))
-//	if res := C.FFI_ProfileKeyCredentialPresentation_checkValidContents(cBytes(b), cLen(b)); res != C.FFI_RETURN_OK {
-//		return nil, errFromCode(res)
-//	}
-//	return ProfileKeyCredentialPresentation(b), nil
-//}
-//
-//func (a ProfileKeyCredentialPresentation) UUIDCiphertext() ([]byte, error) {
-//	out := make([]byte, C.UUID_CIPHERTEXT_LEN)
-//	if res := C.FFI_ProfileKeyCredentialPresentation_getUuidCiphertext(cBytes(a), cLen(a), cBytes(out), cLen(out)); res != C.FFI_RETURN_OK {
-//		return nil, errFromCode(res)
-//	}
-//	return out, nil
-//}
-//
-//func (a ProfileKeyCredentialPresentation) ProfileKeyCiphertext() ([]byte, error) {
-//	out := make([]byte, C.PROFILE_KEY_CIPHERTEXT_LEN)
-//	if res := C.FFI_ProfileKeyCredentialPresentation_getProfileKeyCiphertext(cBytes(a), cLen(a), cBytes(out), cLen(out)); res != C.FFI_RETURN_OK {
-//		return nil, errFromCode(res)
-//	}
-//	return out, nil
-//}
-//
+func ReceiveExpiringProfileKeyCredential(spp ServerPublicParams, requestContext *ProfileKeyCredentialRequestContext, response *ExpiringProfileKeyCredentialResponse, currentTimeInSeconds uint64) (*ExpiringProfileKeyCredential, error) {
+	c_credential := [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar{}
+	signalFfiError := C.signal_server_public_params_receive_expiring_profile_key_credential(
+		&c_credential,
+		(*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&spp[0])),
+		(*[C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar)(unsafe.Pointer(requestContext)),
+		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]C.uchar)(unsafe.Pointer(response)),
+		(C.uint64_t)(currentTimeInSeconds),
+	)
+	runtime.KeepAlive(spp)
+	runtime.KeepAlive(requestContext)
+	runtime.KeepAlive(response)
+	runtime.KeepAlive(currentTimeInSeconds)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	credential := ExpiringProfileKeyCredential{}
+	copy(credential[:], C.GoBytes(unsafe.Pointer(&c_credential), C.int(C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN)))
+	return &credential, nil
+}
+
+func (a ProfileKeyCredentialPresentation) CheckValidContents() error {
+	signalFfiError := C.signal_profile_key_credential_presentation_check_valid_contents(BytesToBuffer(a))
+	runtime.KeepAlive(a)
+	return wrapError(signalFfiError)
+}
+
+func (a ProfileKeyCredentialPresentation) UUIDCiphertext() (UUIDCiphertext, error) {
+	out := [C.SignalUUID_CIPHERTEXT_LEN]C.uchar{}
+	signalFfiError := C.signal_profile_key_credential_presentation_get_uuid_ciphertext(&out, BytesToBuffer(a))
+	runtime.KeepAlive(a)
+	if signalFfiError != nil {
+		return UUIDCiphertext{}, wrapError(signalFfiError)
+	}
+	var result UUIDCiphertext
+	copy(result[:], C.GoBytes(unsafe.Pointer(&out), C.int(C.SignalUUID_CIPHERTEXT_LEN)))
+	return result, nil
+}
+
+func (a ProfileKeyCredentialPresentation) ProfileKeyCiphertext() (ProfileKeyCiphertext, error) {
+	out := [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]C.uchar{}
+	signalFfiError := C.signal_profile_key_credential_presentation_get_profile_key_ciphertext(&out, BytesToBuffer(a))
+	runtime.KeepAlive(a)
+	if signalFfiError != nil {
+		return ProfileKeyCiphertext{}, wrapError(signalFfiError)
+	}
+	var result ProfileKeyCiphertext
+	copy(result[:], C.GoBytes(unsafe.Pointer(&out), C.int(C.SignalPROFILE_KEY_CIPHERTEXT_LEN)))
+	return result, nil
+}
