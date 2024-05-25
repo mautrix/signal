@@ -39,6 +39,7 @@ FROM signalmeow_device
 `
 
 const getDeviceQuery = getAllDevicesQuery + " WHERE aci_uuid=$1"
+const deviceByPNIQuery = getAllDevicesQuery + "Where pni_uuid=$1"
 
 func (c *Container) Upgrade(ctx context.Context) error {
 	return c.db.Upgrade(ctx)
@@ -113,6 +114,14 @@ func (c *Container) GetAllDevices(ctx context.Context) ([]*Device, error) {
 // If the device is not found, nil is returned instead.
 func (c *Container) DeviceByACI(ctx context.Context, aci uuid.UUID) (*Device, error) {
 	sess, err := c.scanDevice(c.db.QueryRow(ctx, getDeviceQuery, aci))
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return sess, err
+}
+
+func (c *Container) DeviceByPNI(ctx context.Context, pni uuid.UUID) (*Device, error) {
+	sess, err := c.scanDevice(c.db.QueryRow(ctx, deviceByPNIQuery, pni))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}

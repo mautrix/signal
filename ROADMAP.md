@@ -20,8 +20,8 @@
     * [x] Name
     * [x] Avatar
     * [x] Topic
-  * [ ] Membership actions
-    * [ ] Join (accepting invites)
+  * [x] Membership actions
+    * [x] Join (accepting invites)
     * [x] Invite
     * [x] Leave
     * [x] Kick/Ban/Unban
