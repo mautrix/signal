@@ -1,4 +1,4 @@
 #!/bin/sh
 git submodule init
 git submodule update
-make
+make GO_EXTRA_OPTS="$*"

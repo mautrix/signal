@@ -1,10 +1,11 @@
-.PHONY: all build_rust copy_library build_go clean
+.PHONY: all clean
 
-all: build_rust copy_library build_go
+GO_BINARY=mautrix-signal
+
+all: $(GO_BINARY)
 
 LIBRARY_FILENAME=libsignal_ffi.a
 RUST_DIR=pkg/libsignalgo/libsignal
-GO_BINARY=mautrix-signal
 
 # TODO fix linking with debug library
 #ifneq ($(DBG),1)
@@ -13,16 +14,19 @@ RUST_TARGET_SUBDIR=release
 #RUST_TARGET_SUBDIR=debug
 #endif
 
-build_rust:
+RUST_LIBRARY_DIR=$(RUST_DIR)/target/$(RUST_TARGET_SUBDIR)
+RUST_LIBRARY=$(RUST_LIBRARY_DIR)/$(LIBRARY_FILENAME)
+
+$(RUST_LIBRARY):
 	./build-rust.sh
 
-copy_library:
-	cp $(RUST_DIR)/target/$(RUST_TARGET_SUBDIR)/$(LIBRARY_FILENAME) .
-
-build_go:
-	LIBRARY_PATH="$${LIBRARY_PATH}:." ./build-go.sh
+$(GO_BINARY): $(RUST_LIBRARY)
+	LIBRARY_PATH="${RUST_LIBRARY_DIR}:$${LIBRARY_PATH}" \
+		./build-go.sh $(GO_EXTRA_OPTS)
 
 clean:
 	rm -f ./$(LIBRARY_FILENAME)
 	cd $(RUST_DIR) && cargo clean
 	rm -f $(GO_BINARY)
+
+.PHONY: $(RUST_LIBRARY) $(GO_BINARY)
