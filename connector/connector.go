@@ -145,8 +145,115 @@ type SignalClient struct {
 	Client    *signalmeow.Client
 }
 
+func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.UserInfo {
+	isBot := false
+	ui := &bridgev2.UserInfo{
+		IsBot: &isBot,
+	}
+	// TODO use template for name
+	if contact.ContactName != "" {
+		ui.Name = &contact.ContactName
+	} else if contact.Profile.Name != "" {
+		ui.Name = &contact.Profile.Name
+	} else if contact.E164 != "" {
+		ui.Name = &contact.E164
+	}
+	// TODO only use this if contact avatars are allowed
+	if contact.ContactAvatar.Hash != "" {
+		ui.Avatar = &bridgev2.Avatar{
+			ID: networkid.AvatarID("hash:" + contact.ContactAvatar.Hash),
+			Get: func(ctx context.Context) ([]byte, error) {
+				if contact.ContactAvatar.Image == nil {
+					return nil, fmt.Errorf("contact avatar not available")
+				}
+				return contact.ContactAvatar.Image, nil
+			},
+		}
+	} else if contact.Profile.AvatarPath != "" {
+		ui.Avatar = &bridgev2.Avatar{
+			ID: makeAvatarPathID(contact.Profile.AvatarPath),
+			Get: func(ctx context.Context) ([]byte, error) {
+				return s.Client.DownloadUserAvatar(ctx, contact.Profile.AvatarPath, contact.Profile.Key)
+			},
+		}
+	} else {
+		ui.Avatar = &bridgev2.Avatar{
+			ID:     "",
+			Remove: true,
+		}
+	}
+	return ui
+}
+
+func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
+	userID, err := parseUserID(ghost.ID)
+	if err != nil {
+		return nil, err
+	}
+	contact, err := s.Client.ContactByACI(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return s.contactToUserInfo(contact), nil
+}
+
+func makeAvatarPathID(avatarPath string) networkid.AvatarID {
+	if avatarPath == "" {
+		return ""
+	}
+	return networkid.AvatarID("path:" + avatarPath)
+}
+
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.PortalInfo, error) {
-	return &bridgev2.PortalInfo{}, nil
+	userID, groupID, err := s.parsePortalID(portal.ID)
+	if err != nil {
+		return nil, err
+	}
+	isSpace := false
+	if groupID != "" {
+		groupInfo, err := s.Client.RetrieveGroupByID(ctx, groupID, 0)
+		if err != nil {
+			return nil, err
+		}
+		isDM := false
+		members := make([]networkid.UserID, len(groupInfo.Members))
+		for i, member := range groupInfo.Members {
+			members[i] = makeUserID(member.ACI)
+		}
+		return &bridgev2.PortalInfo{
+			Name:  &groupInfo.Title,
+			Topic: &groupInfo.Description,
+			Avatar: &bridgev2.Avatar{
+				ID: makeAvatarPathID(groupInfo.AvatarPath),
+				Get: func(ctx context.Context) ([]byte, error) {
+					return s.Client.DownloadGroupAvatar(ctx, groupInfo)
+				},
+				Remove: groupInfo.AvatarPath == "",
+			},
+			Members:      members,
+			IsDirectChat: &isDM,
+			IsSpace:      &isSpace,
+		}, nil
+	} else if userID.Type == libsignalgo.ServiceIDTypePNI {
+		isDM := true
+		// TODO set name/avatar because we don't have the recipient user ID
+		return &bridgev2.PortalInfo{
+			Members:      []networkid.UserID{makeUserID(s.Client.Store.ACI)},
+			IsDirectChat: &isDM,
+			IsSpace:      &isSpace,
+		}, nil
+	} else {
+		isDM := true
+		return &bridgev2.PortalInfo{
+			Members:      []networkid.UserID{makeUserID(userID.UUID), makeUserID(s.Client.Store.ACI)},
+			IsDirectChat: &isDM,
+			IsSpace:      &isSpace,
+		}, nil
+	}
+}
+
+func (s *SignalClient) IsThisUser(_ context.Context, userID networkid.UserID) bool {
+	return userID == makeUserID(s.Client.Store.ACI)
 }
 
 func (s *SignalClient) Connect(ctx context.Context) error {
@@ -162,24 +269,31 @@ func (s *SignalClient) IsLoggedIn() bool {
 	return s.Client.IsLoggedIn()
 }
 
-func (s *SignalClient) parsePortalID(portalID networkid.PortalID) (string, error) {
+func parseUserID(userID networkid.UserID) (uuid.UUID, error) {
+	return uuid.Parse(string(userID))
+}
+
+func (s *SignalClient) parsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
 	parts := strings.Split(string(portalID), "|")
 	if len(parts) == 1 {
 		if len(parts[0]) == 44 {
-			return parts[0], nil
+			groupID = types.GroupIdentifier(parts[0])
+		} else {
+			err = fmt.Errorf("invalid portal ID: expected group ID to be 44 characters")
 		}
-		return "", fmt.Errorf("invalid portal ID: expected group ID to be 44 characters")
 	} else if len(parts) == 2 {
 		ourACI := s.Client.Store.ACI.String()
 		if parts[0] == ourACI {
-			return parts[1], nil
+			userID, err = libsignalgo.ServiceIDFromString(parts[1])
 		} else if parts[1] == ourACI {
-			return parts[0], nil
+			userID, err = libsignalgo.ServiceIDFromString(parts[0])
 		} else {
-			return "", fmt.Errorf("invalid portal ID: expected one side to be our ACI")
+			err = fmt.Errorf("invalid portal ID: expected one side to be our ACI")
 		}
+	} else {
+		err = fmt.Errorf("invalid portal ID: unexpected number of pipe-separated parts")
 	}
-	return "", fmt.Errorf("invalid portal ID: unexpected number of pipe-separated parts")
+	return
 }
 
 func (s *SignalClient) getPortalID(chatID string) networkid.PortalID {
@@ -237,6 +351,13 @@ type msgconvContext struct {
 }
 
 func (s *SignalClient) convertMessage(ctx context.Context, portal *bridgev2.Portal, data *events.ChatEvent) (*bridgev2.ConvertedMessage, error) {
+	mcCtx := &msgconvContext{
+		Connector: s.Main,
+		Intent:    s.Main.Bridge.Bot, // TODO get correct intent?
+		Client:    s,
+		Portal:    portal,
+	}
+	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
 	dataMsg := data.Event.(*signalpb.DataMessage)
 	converted := s.Main.MsgConv.ToMatrix(ctx, dataMsg)
 	var replyTo *networkid.MessageOptionalPartID
@@ -304,19 +425,9 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		ReplyTo:   msg.ReplyTo,
 	}
 	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
-	chatID, err := s.parsePortalID(msg.Portal.ID)
+	userID, groupID, err := s.parsePortalID(msg.Portal.ID)
 	if err != nil {
 		return nil, err
-	}
-	var userID libsignalgo.ServiceID
-	var groupID types.GroupIdentifier
-	if len(chatID) == 44 {
-		groupID = types.GroupIdentifier(chatID)
-	} else {
-		userID, err = libsignalgo.ServiceIDFromString(chatID)
-		if err != nil {
-			return nil, err
-		}
 	}
 	converted, err := s.Main.MsgConv.ToSignal(ctx, msg.Event, msg.Content, msg.OrigSender != nil)
 	if err != nil {
@@ -414,7 +525,11 @@ func (mpm *msgconvPortalMethods) GetClient(ctx context.Context) *signalmeow.Clie
 func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 	mcCtx := ctx.Value(msgconvContextKey).(*msgconvContext)
 	portal := mcCtx.Portal
-	chatID, _ := mcCtx.Client.parsePortalID(portal.ID)
+	userID, groupID, _ := mcCtx.Client.parsePortalID(portal.ID)
+	chatID := string(groupID)
+	if chatID == "" {
+		chatID = userID.String()
+	}
 	pk := legacydb.PortalKey{
 		ChatID: chatID,
 	}

@@ -1765,7 +1765,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 		initialState = append(initialState, &event.Event{
 			Type: event.StateRoomAvatar,
 			Content: event.Content{Parsed: &event.RoomAvatarEventContent{
-				URL: portal.AvatarURL,
+				URL: portal.AvatarURL.CUString(),
 			}},
 		})
 	}
@@ -2910,17 +2910,18 @@ func (portal *Portal) HandleMatrixMeta(brSender bridge.User, evt *event.Event) {
 		portal.Topic = content.Topic
 		groupChange.ModifyDescription = &content.Topic
 	case *event.RoomAvatarEventContent:
-		if content.URL == portal.AvatarURL {
+		url := content.URL.ParseOrIgnore()
+		if url == portal.AvatarURL {
 			return
 		}
 		var data []byte
-		if !content.URL.IsEmpty() {
-			data, err = portal.MainIntent().DownloadBytes(ctx, content.URL)
+		if !url.IsEmpty() {
+			data, err = portal.MainIntent().DownloadBytes(ctx, url)
 			if err != nil {
-				log.Err(err).Stringer("Failed to download updated avatar %s", content.URL)
+				log.Err(err).Stringer("Failed to download updated avatar %s", url)
 				return
 			}
-			log.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{sender.MXID, content.URL})
+			log.Debug().Stringers("%s set the group avatar to %s", []fmt.Stringer{sender.MXID, url})
 		} else {
 			log.Debug().Stringer("%s removed the group avatar", sender.MXID)
 		}
@@ -2933,7 +2934,7 @@ func (portal *Portal) HandleMatrixMeta(brSender bridge.User, evt *event.Event) {
 		hash := sha256.Sum256(data)
 		avatarHash = hex.EncodeToString(hash[:])
 		avatarChanged = true
-		avatarURL = content.URL
+		avatarURL = url
 	}
 	revision, err := sender.Client.UpdateGroup(ctx, groupChange, portal.GroupID())
 	if err != nil {
