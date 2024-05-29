@@ -412,7 +412,29 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	case *events.ReadSelf:
 	case *events.Call:
 	case *events.ContactList:
+		s.handleSignalContactList(evt)
 	case *events.ACIFound:
+	}
+}
+
+func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
+	log := s.UserLogin.Log.With().Str("action", "handle contact list").Logger()
+	ctx := log.WithContext(context.TODO())
+	for _, contact := range evt.Contacts {
+		if contact.ACI != uuid.Nil {
+			fullContact, err := s.Client.ContactByACI(ctx, contact.ACI)
+			if err != nil {
+				log.Err(err).Msg("Failed to get full contact info from store")
+				continue
+			}
+			fullContact.ContactAvatar = contact.ContactAvatar
+			ghost, err := s.Main.Bridge.GetGhostByID(ctx, makeUserID(contact.ACI))
+			if err != nil {
+				log.Err(err).Msg("Failed to get ghost to update contact info")
+				continue
+			}
+			ghost.UpdateInfo(ctx, s.contactToUserInfo(contact))
+		}
 	}
 }
 

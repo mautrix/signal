@@ -892,7 +892,7 @@ func (portal *Portal) handleSignalDataMessage(source *User, sender *Puppet, msg 
 		Uint64("msg_ts", msg.GetTimestamp()).
 		Logger().WithContext(context.TODO())
 	// Always update sender info when we receive a message from them, there's caching inside the function
-	sender.UpdateInfo(genericCtx, source)
+	sender.UpdateInfo(genericCtx, source, nil)
 	// Handle earlier missed group changes here.
 	if msg.GetGroupV2() != nil {
 		requiredRevision := msg.GetGroupV2().GetRevision()
@@ -1800,7 +1800,7 @@ func (portal *Portal) CreateMatrixRoom(ctx context.Context, user *User, groupRev
 	if portal.IsPrivateChat() {
 		dmPuppet = portal.GetDMPuppet()
 		if dmPuppet != nil {
-			dmPuppet.UpdateInfo(ctx, user)
+			dmPuppet.UpdateInfo(ctx, user, nil)
 			portal.UpdateDMInfo(ctx, false)
 		} else {
 			portal.UpdatePNIDMInfo(ctx, user)
@@ -1900,7 +1900,7 @@ func (portal *Portal) PostReIDUpdate(ctx context.Context, user *User) {
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to update ghost power level after portal re-ID")
 	}
-	portal.GetDMPuppet().UpdateInfo(ctx, user)
+	portal.GetDMPuppet().UpdateInfo(ctx, user, nil)
 	portal.UpdateDMInfo(ctx, true)
 	if !portal.Encrypted {
 		_, _ = portal.bridge.Bot.LeaveRoom(ctx, portal.MXID)
@@ -2298,7 +2298,7 @@ func (portal *Portal) SyncParticipants(ctx context.Context, source *User, info *
 			log.Warn().Stringer("signal_user_id", member.ACI).Msg("Couldn't get puppet for group member")
 			continue
 		}
-		puppet.UpdateInfo(ctx, source)
+		puppet.UpdateInfo(ctx, source, nil)
 		intent := puppet.IntentFor(portal)
 		if member.ACI != source.SignalID && portal.MXID != "" {
 			userIDs[intent.UserID] = ((int)(member.Role) >> 1) * 50
