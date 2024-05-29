@@ -48,7 +48,9 @@ func main() {
 	log := exerrors.Must(cfg.Logging.Compile())
 	exzerolog.SetupDefaults(log)
 	db := exerrors.Must(dbutil.NewFromConfig("mautrix-signal", cfg.Database, dbutil.ZeroLogger(log.With().Str("db_section", "main").Logger())))
-	bridge := bridgev2.NewBridge("", db, *log, matrix.NewConnector(&cfg), connector.NewConnector())
+	signalConnector := connector.NewConnector()
+	exerrors.PanicIfNotNil(cfg.Network.Decode(signalConnector.Config))
+	bridge := bridgev2.NewBridge("", db, *log, matrix.NewConnector(&cfg), signalConnector)
 	bridge.CommandPrefix = "!signal"
 	bridge.Commands.AddHandlers(&bridgev2.FullHandler{
 		Func: fnLogin,

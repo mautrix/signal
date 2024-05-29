@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -47,17 +48,65 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
+type SignalConfig struct {
+	DisplaynameTemplate string `yaml:"displayname_template"`
+	UseContactAvatars   bool   `yaml:"use_contact_avatars"`
+	UseOutdatedProfiles bool   `yaml:"use_outdated_profiles"`
+	NumberInTopic       bool   `yaml:"number_in_topic"`
+	DeviceName          string `yaml:"device_name"`
+
+	displaynameTemplate *template.Template `yaml:"-"`
+}
+
+type DisplaynameParams struct {
+	ProfileName string
+	ContactName string
+	Username    string
+	PhoneNumber string
+	UUID        string
+	ACI         string
+	PNI         string
+	AboutEmoji  string
+}
+
+func (c *SignalConfig) FormatDisplayname(contact *types.Recipient) string {
+	var nameBuf strings.Builder
+	err := c.displaynameTemplate.Execute(&nameBuf, &DisplaynameParams{
+		ProfileName: contact.Profile.Name,
+		ContactName: contact.ContactName,
+		Username:    "",
+		PhoneNumber: contact.E164,
+		UUID:        contact.ACI.String(),
+		ACI:         contact.ACI.String(),
+		PNI:         contact.PNI.String(),
+		AboutEmoji:  contact.Profile.AboutEmoji,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return nameBuf.String()
+}
+
 type SignalConnector struct {
 	MsgConv *msgconv.MessageConverter
 	Store   *store.Container
 	Bridge  *bridgev2.Bridge
+	Config  *SignalConfig
 }
 
 func NewConnector() *SignalConnector {
-	return &SignalConnector{}
+	return &SignalConnector{
+		Config: &SignalConfig{},
+	}
 }
 
 func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
+	var err error
+	s.Config.displaynameTemplate, err = template.New("displayname").Parse(s.Config.DisplaynameTemplate)
+	if err != nil {
+		// TODO return error or do this later?
+		panic(err)
+	}
 	s.Store = store.NewStore(bridge.DB.Database, dbutil.ZeroLogger(bridge.Log.With().Str("db_section", "signalmeow").Logger()))
 	s.Bridge = bridge
 	s.MsgConv = &msgconv.MessageConverter{
@@ -150,16 +199,9 @@ func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.Use
 	ui := &bridgev2.UserInfo{
 		IsBot: &isBot,
 	}
-	// TODO use template for name
-	if contact.ContactName != "" {
-		ui.Name = &contact.ContactName
-	} else if contact.Profile.Name != "" {
-		ui.Name = &contact.Profile.Name
-	} else if contact.E164 != "" {
-		ui.Name = &contact.E164
-	}
-	// TODO only use this if contact avatars are allowed
-	if contact.ContactAvatar.Hash != "" {
+	name := s.Main.Config.FormatDisplayname(contact)
+	ui.Name = &name
+	if s.Main.Config.UseContactAvatars && contact.ContactAvatar.Hash != "" {
 		ui.Avatar = &bridgev2.Avatar{
 			ID: networkid.AvatarID("hash:" + contact.ContactAvatar.Hash),
 			Get: func(ctx context.Context) ([]byte, error) {
@@ -235,17 +277,34 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 			IsSpace:      &isSpace,
 		}, nil
 	} else if userID.Type == libsignalgo.ServiceIDTypePNI {
+		contact, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, uuid.Nil, userID.UUID, nil)
+		if err != nil {
+			return nil, err
+		}
+		var topic, name string
+		name = s.Main.Config.FormatDisplayname(contact)
+		if s.Main.Config.NumberInTopic && contact.E164 != "" {
+			topic = fmt.Sprintf("")
+			// TODO set topic
+		}
 		isDM := true
-		// TODO set name/avatar because we don't have the recipient user ID
 		return &bridgev2.PortalInfo{
 			Members:      []networkid.UserID{makeUserID(s.Client.Store.ACI)},
+			Name:         &name,
+			Topic:        &topic,
 			IsDirectChat: &isDM,
 			IsSpace:      &isSpace,
 		}, nil
 	} else {
+		var topic, name string
+		if s.Main.Config.NumberInTopic {
+			// TODO set topic
+		}
 		isDM := true
 		return &bridgev2.PortalInfo{
 			Members:      []networkid.UserID{makeUserID(userID.UUID), makeUserID(s.Client.Store.ACI)},
+			Name:         &name,
+			Topic:        &topic,
 			IsDirectChat: &isDM,
 			IsSpace:      &isSpace,
 		}, nil
