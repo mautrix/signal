@@ -755,7 +755,7 @@ func (user *User) handleContactList(evt *events.ContactList) {
 		if puppet == nil {
 			continue
 		}
-		puppet.UpdateInfo(ctx, user)
+		puppet.UpdateInfo(ctx, user, &contact.ContactAvatar)
 	}
 }
 
