@@ -20,6 +20,7 @@ import (
 	_ "embed"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 )
@@ -39,8 +40,6 @@ func SetLogger(l zerolog.Logger) {
 type FFILogger struct {
 	logger zerolog.Logger
 }
-
-func (FFILogger) Enabled(target string, level libsignalgo.LogLevel) bool { return true }
 
 func (l FFILogger) Log(target string, level libsignalgo.LogLevel, file string, line uint, message string) {
 	var evt *zerolog.Event
@@ -73,8 +72,8 @@ var _ libsignalgo.Logger = FFILogger{}
 
 //go:embed prod-server-public-params.dat
 var prodServerPublicParamsSlice []byte
-var prodServerPublicParams libsignalgo.ServerPublicParams
+var prodServerPublicParams *libsignalgo.ServerPublicParams
 
 func init() {
-	prodServerPublicParams = libsignalgo.ServerPublicParams(prodServerPublicParamsSlice)
+	prodServerPublicParams = exerrors.Must(libsignalgo.DeserializeServerPublicParams(prodServerPublicParamsSlice))
 }

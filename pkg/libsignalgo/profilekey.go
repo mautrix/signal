@@ -136,13 +136,11 @@ type ProfileKeyCredentialRequestContext [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_
 type ProfileKeyCredentialRequest [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_LEN]byte
 type ProfileKeyCredentialResponse []byte
 type ProfileKeyCredentialPresentation []byte
-type ServerPublicParams [C.SignalSERVER_PUBLIC_PARAMS_LEN]byte
 type ExpiringProfileKeyCredential [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]byte
 type ExpiringProfileKeyCredentialResponse [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]byte
 
-func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
+func CreateProfileKeyCredentialRequestContext(serverPublicParams *ServerPublicParams, u uuid.UUID, profileKey ProfileKey) (*ProfileKeyCredentialRequestContext, error) {
 	c_result := [C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar{}
-	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
 	randBytes := [32]byte(random.Bytes(32))
 	c_random := (*[32]C.uchar)(unsafe.Pointer(&randBytes[0]))
 	c_profileKey := (*[C.SignalPROFILE_KEY_LEN]C.uchar)(unsafe.Pointer(&profileKey[0]))
@@ -150,12 +148,11 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams ServerPublicPar
 
 	signalFfiError := C.signal_server_public_params_create_profile_key_credential_request_context_deterministic(
 		&c_result,
-		c_serverPublicParams,
+		serverPublicParams,
 		c_random,
 		c_uuid,
 		c_profileKey,
 	)
-	runtime.KeepAlive(serverPublicParams)
 	runtime.KeepAlive(u)
 	runtime.KeepAlive(profileKey)
 	runtime.KeepAlive(randBytes)
@@ -193,16 +190,15 @@ func NewExpiringProfileKeyCredentialResponse(b []byte) (*ExpiringProfileKeyCrede
 	return &response, nil
 }
 
-func ReceiveExpiringProfileKeyCredential(spp ServerPublicParams, requestContext *ProfileKeyCredentialRequestContext, response *ExpiringProfileKeyCredentialResponse, currentTimeInSeconds uint64) (*ExpiringProfileKeyCredential, error) {
+func ReceiveExpiringProfileKeyCredential(spp *ServerPublicParams, requestContext *ProfileKeyCredentialRequestContext, response *ExpiringProfileKeyCredentialResponse, currentTimeInSeconds uint64) (*ExpiringProfileKeyCredential, error) {
 	c_credential := [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar{}
 	signalFfiError := C.signal_server_public_params_receive_expiring_profile_key_credential(
 		&c_credential,
-		(*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&spp[0])),
+		spp,
 		(*[C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar)(unsafe.Pointer(requestContext)),
 		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]C.uchar)(unsafe.Pointer(response)),
 		(C.uint64_t)(currentTimeInSeconds),
 	)
-	runtime.KeepAlive(spp)
 	runtime.KeepAlive(requestContext)
 	runtime.KeepAlive(response)
 	runtime.KeepAlive(currentTimeInSeconds)

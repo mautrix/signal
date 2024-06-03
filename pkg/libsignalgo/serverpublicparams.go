@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
-// Copyright (C) 2023 Scott Weber
+// Copyright (C) 2024 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -23,21 +23,34 @@ package libsignalgo
 */
 import "C"
 import (
+	"fmt"
 	"runtime"
 	"unsafe"
 )
 
+type ServerPublicParams = C.SignalServerPublicParams
 type NotarySignature [C.SignalSIGNATURE_LEN]byte
 
+func DeserializeServerPublicParams(params []byte) (out *ServerPublicParams, err error) {
+	if len(params) != C.SignalSERVER_PUBLIC_PARAMS_LEN {
+		err = fmt.Errorf("invalid server public params length: %d (expected %d)", len(params), int(C.SignalSERVER_PUBLIC_PARAMS_LEN))
+		return
+	}
+	signalFfiError := C.signal_server_public_params_deserialize(&out, BytesToBuffer(params[:]))
+	if signalFfiError != nil {
+		err = wrapError(signalFfiError)
+	}
+	return
+}
+
 func ServerPublicParamsVerifySignature(
-	serverPublicParams ServerPublicParams,
+	serverPublicParams *ServerPublicParams,
 	messageBytes []byte,
 	NotarySignature NotarySignature,
 ) error {
 	c_notarySignature := (*[C.SignalSIGNATURE_LEN]C.uint8_t)(unsafe.Pointer(&NotarySignature[0]))
-	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
 	signalFfiError := C.signal_server_public_params_verify_signature(
-		c_serverPublicParams,
+		serverPublicParams,
 		BytesToBuffer(messageBytes),
 		c_notarySignature,
 	)
