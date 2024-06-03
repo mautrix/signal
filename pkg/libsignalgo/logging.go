@@ -20,9 +20,8 @@ package libsignalgo
 #cgo LDFLAGS: -lsignal_ffi -ldl -lm
 #include <./libsignal-ffi.h>
 
-extern bool signal_log_enabled_callback(void *ctx, char *target, SignalLogLevel level);
 extern void signal_log_callback(void *ctx, char *target, SignalLogLevel level, char *file, uint32_t line, char *message);
-extern void signal_log_flush_callback();
+extern void signal_log_flush_callback(void *ctx);
 */
 import "C"
 import (
