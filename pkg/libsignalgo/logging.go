@@ -20,22 +20,25 @@ package libsignalgo
 #cgo LDFLAGS: -lsignal_ffi -ldl -lm
 #include <./libsignal-ffi.h>
 
-extern bool signal_log_enabled_callback(char *target, SignalLogLevel level);
-extern void signal_log_callback(char *target, SignalLogLevel level, char *file, uint32_t line, char *message);
+extern bool signal_log_enabled_callback(void *ctx, char *target, SignalLogLevel level);
+extern void signal_log_callback(void *ctx, char *target, SignalLogLevel level, char *file, uint32_t line, char *message);
 extern void signal_log_flush_callback();
 */
 import "C"
+import (
+	"unsafe"
+)
 
 // ffiLogger is the global logger object.
 var ffiLogger Logger
 
 //export signal_log_callback
-func signal_log_callback(target *C.char, level C.SignalLogLevel, file *C.char, line C.uint32_t, message *C.char) {
+func signal_log_callback(ctx unsafe.Pointer, target *C.char, level C.SignalLogLevel, file *C.char, line C.uint32_t, message *C.char) {
 	ffiLogger.Log(C.GoString(target), LogLevel(int(level)), C.GoString(file), uint(line), C.GoString(message))
 }
 
 //export signal_log_flush_callback
-func signal_log_flush_callback() {
+func signal_log_flush_callback(ctx unsafe.Pointer) {
 	ffiLogger.Flush()
 }
 
