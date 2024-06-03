@@ -208,18 +208,17 @@ func (gsp *GroupSecretParams) EncryptProfileKey(profileKey ProfileKey, u uuid.UU
 	return &result, nil
 }
 
-func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp ServerPublicParams, credential ExpiringProfileKeyCredential) (*ProfileKeyCredentialPresentation, error) {
+func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp *ServerPublicParams, credential ExpiringProfileKeyCredential) (*ProfileKeyCredentialPresentation, error) {
 	var out C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	randomness := GenerateRandomness()
 	signalFfiError := C.signal_server_public_params_create_expiring_profile_key_credential_presentation_deterministic(
 		&out,
-		(*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&spp)),
+		spp,
 		(*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)),
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(gsp)),
 		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar)(unsafe.Pointer(&credential)),
 	)
 	runtime.KeepAlive(gsp)
-	runtime.KeepAlive(spp)
 	runtime.KeepAlive(credential)
 	runtime.KeepAlive(randomness)
 	if signalFfiError != nil {

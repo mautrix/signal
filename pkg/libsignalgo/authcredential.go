@@ -40,18 +40,17 @@ func (ac *AuthCredentialWithPni) Slice() []byte {
 }
 
 func ReceiveAuthCredentialWithPni(
-	serverPublicParams ServerPublicParams,
+	serverPublicParams *ServerPublicParams,
 	aci uuid.UUID,
 	pni uuid.UUID,
 	redemptionTime uint64,
 	authCredResponse AuthCredentialWithPniResponse,
 ) (*AuthCredentialWithPni, error) {
 	var c_result C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
 
 	signalFfiError := C.signal_server_public_params_receive_auth_credential_with_pni_as_service_id(
 		&c_result,
-		c_serverPublicParams,
+		serverPublicParams,
 		NewACIServiceID(aci).CFixedBytes(),
 		NewPNIServiceID(pni).CFixedBytes(),
 		C.uint64_t(redemptionTime),
@@ -78,19 +77,18 @@ func NewAuthCredentialWithPniResponse(b []byte) (*AuthCredentialWithPniResponse,
 }
 
 func CreateAuthCredentialWithPniPresentation(
-	serverPublicParams ServerPublicParams,
+	serverPublicParams *ServerPublicParams,
 	randomness Randomness,
 	groupSecretParams GroupSecretParams,
 	authCredWithPni AuthCredentialWithPni,
 ) (*AuthCredentialPresentation, error) {
 	var c_result C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	c_serverPublicParams := (*[C.SignalSERVER_PUBLIC_PARAMS_LEN]C.uchar)(unsafe.Pointer(&serverPublicParams[0]))
 	c_randomness := (*[C.SignalRANDOMNESS_LEN]C.uchar)(unsafe.Pointer(&randomness[0]))
 	c_groupSecretParams := (*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(&groupSecretParams[0]))
 
 	signalFfiError := C.signal_server_public_params_create_auth_credential_with_pni_presentation_deterministic(
 		&c_result,
-		c_serverPublicParams,
+		serverPublicParams,
 		c_randomness,
 		c_groupSecretParams,
 		BytesToBuffer(authCredWithPni[:]),
