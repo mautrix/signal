@@ -165,7 +165,7 @@ var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
 var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
 var _ msgconv.PortalMethods = (*msgconvPortalMethods)(nil)
 
-func (s *SignalConnector) PrepareLogin(ctx context.Context, login *bridgev2.UserLogin) error {
+func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {
 	aci, err := uuid.Parse(string(login.ID))
 	if err != nil {
 		return fmt.Errorf("failed to parse user login ID: %w", err)
