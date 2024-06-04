@@ -21,10 +21,10 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 func (s *SignalConnector) GetLoginFlows() []bridgev2.LoginFlow {

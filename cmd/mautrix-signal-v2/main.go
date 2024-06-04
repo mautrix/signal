@@ -23,12 +23,12 @@ import (
 	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/exzerolog"
 	"gopkg.in/yaml.v3"
-
-	"go.mau.fi/mautrix-signal/connector"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
 	"maunium.net/go/mautrix/bridgev2/matrix"
+
+	"go.mau.fi/mautrix-signal/pkg/connector"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 func main() {
