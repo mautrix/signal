@@ -194,6 +194,17 @@ type SignalClient struct {
 	Client    *signalmeow.Client
 }
 
+func (s *SignalClient) LogoutRemote(ctx context.Context) {
+	err := s.Client.StopReceiveLoops()
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to stop receive loops for logout")
+	}
+	err = s.Main.Store.DeleteDevice(context.TODO(), &s.Client.Store.DeviceData)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to delete device from store")
+	}
+}
+
 func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.UserInfo {
 	isBot := false
 	ui := &bridgev2.UserInfo{
@@ -409,10 +420,10 @@ type msgconvContext struct {
 	ReplyTo   *database.Message
 }
 
-func (s *SignalClient) convertMessage(ctx context.Context, portal *bridgev2.Portal, data *events.ChatEvent) (*bridgev2.ConvertedMessage, error) {
+func (s *SignalClient) convertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, data *events.ChatEvent) (*bridgev2.ConvertedMessage, error) {
 	mcCtx := &msgconvContext{
 		Connector: s.Main,
-		Intent:    s.Main.Bridge.Bot, // TODO get correct intent?
+		Intent:    intent,
 		Client:    s,
 		Portal:    portal,
 	}
@@ -437,11 +448,11 @@ func (s *SignalClient) convertMessage(ctx context.Context, portal *bridgev2.Port
 
 	}
 	return &bridgev2.ConvertedMessage{
-		ID:          makeMessageID(data.Info.Sender, dataMsg.GetTimestamp()),
-		EventSender: s.makeEventSender(data.Info.Sender),
-		Timestamp:   time.UnixMilli(int64(converted.Timestamp)),
-		ReplyTo:     replyTo,
-		Parts:       convertedParts,
+		//ID:          makeMessageID(data.Info.Sender, dataMsg.GetTimestamp()),
+		//EventSender: s.makeEventSender(data.Info.Sender),
+		Timestamp: time.UnixMilli(int64(converted.Timestamp)),
+		ReplyTo:   replyTo,
+		Parts:     convertedParts,
 	}, nil
 }
 
@@ -457,6 +468,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 						Uint64("message_id", innerEvt.GetTimestamp()).
 						Stringer("sender_id", evt.Info.Sender)
 				},
+				ID:           makeMessageID(evt.Info.Sender, innerEvt.GetTimestamp()),
+				Sender:       s.makeEventSender(evt.Info.Sender),
 				PortalID:     s.getPortalID(evt.Info.ChatID),
 				Data:         evt,
 				CreatePortal: true,

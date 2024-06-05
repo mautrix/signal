@@ -21,7 +21,7 @@ require (
 	golang.org/x/net v0.25.0
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
-	maunium.net/go/mautrix v0.18.2-0.20240603193336-a599b15466ae
+	maunium.net/go/mautrix v0.18.2-0.20240605105031-218ed06e73f6
 	nhooyr.io/websocket v1.8.11
 )
 
