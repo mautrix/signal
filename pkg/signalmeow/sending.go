@@ -304,6 +304,13 @@ type GroupMessageSendResult struct {
 	FailedToSendTo     []FailedSendResult
 }
 
+type SendResult interface {
+	isSendResult()
+}
+
+func (gmsr *GroupMessageSendResult) isSendResult() {}
+func (smsr *SendMessageResult) isSendResult()      {}
+
 func contentFromDataMessage(dataMessage *signalpb.DataMessage) *signalpb.Content {
 	return &signalpb.Content{
 		DataMessage: dataMessage,
