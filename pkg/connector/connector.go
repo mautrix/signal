@@ -435,16 +435,157 @@ type msgconvContext struct {
 	ReplyTo   *database.Message
 }
 
-func (s *SignalClient) convertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, data *events.ChatEvent) (*bridgev2.ConvertedMessage, error) {
+type Bv2ChatEvent struct {
+	*events.ChatEvent
+	s *SignalClient
+}
+
+var (
+	_ bridgev2.RemoteMessage            = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteEdit               = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteEventWithTimestamp = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteReactionWithMeta   = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteMessageRemove      = (*Bv2ChatEvent)(nil)
+)
+
+func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
+	switch innerEvt := evt.Event.(type) {
+	case *signalpb.DataMessage:
+		switch {
+		case innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil:
+			return bridgev2.RemoteEventMessage
+		case innerEvt.Reaction != nil:
+			if innerEvt.Reaction.GetRemove() {
+				return bridgev2.RemoteEventReactionRemove
+			}
+			return bridgev2.RemoteEventReaction
+		case innerEvt.Delete != nil:
+			return bridgev2.RemoteEventMessageRemove
+		}
+	case *signalpb.EditMessage:
+		return bridgev2.RemoteEventEdit
+	case *signalpb.TypingMessage:
+		//return bridgev2.RemoteEventTyping
+	}
+	return bridgev2.RemoteEventUnknown
+}
+
+func (evt *Bv2ChatEvent) GetPortalID() networkid.PortalID {
+	return evt.s.getPortalID(evt.Info.ChatID)
+}
+
+func (evt *Bv2ChatEvent) ShouldCreatePortal() bool {
+	return evt.GetType() == bridgev2.RemoteEventMessage
+}
+
+func (evt *Bv2ChatEvent) AddLogContext(c zerolog.Context) zerolog.Context {
+	c = c.Stringer("sender_id", evt.Info.Sender)
+	switch innerEvt := evt.Event.(type) {
+	case *signalpb.DataMessage:
+		c = c.Uint64("message_ts", innerEvt.GetTimestamp())
+		switch {
+		case innerEvt.Reaction != nil:
+			c = c.Uint64("reaction_target_ts", innerEvt.Reaction.GetTargetSentTimestamp())
+		case innerEvt.Delete != nil:
+			c = c.Uint64("delete_target_ts", innerEvt.Delete.GetTargetSentTimestamp())
+		}
+	case *signalpb.EditMessage:
+		c = c.
+			Uint64("edit_target_ts", innerEvt.GetTargetSentTimestamp()).
+			Uint64("edit_ts", innerEvt.GetDataMessage().GetTimestamp())
+	}
+	return c
+}
+
+func (evt *Bv2ChatEvent) GetSender() bridgev2.EventSender {
+	return evt.s.makeEventSender(evt.Info.Sender)
+}
+
+func (evt *Bv2ChatEvent) GetID() networkid.MessageID {
+	ts := evt.getDataMsgTimestamp()
+	if ts == 0 {
+		panic(fmt.Errorf("GetID() called for non-DataMessage event"))
+	}
+	return makeMessageID(evt.Info.Sender, ts)
+}
+
+func (evt *Bv2ChatEvent) getDataMsgTimestamp() uint64 {
+	switch innerEvt := evt.Event.(type) {
+	case *signalpb.DataMessage:
+		return innerEvt.GetTimestamp()
+	case *signalpb.EditMessage:
+		return innerEvt.GetDataMessage().GetTimestamp()
+	default:
+		return 0
+	}
+}
+
+func (evt *Bv2ChatEvent) GetTimestamp() time.Time {
+	ts := evt.getDataMsgTimestamp()
+	if ts == 0 {
+		return time.Now()
+	}
+	return time.UnixMilli(int64(ts))
+}
+
+func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
+	var targetAuthorACI string
+	var targetSentTS uint64
+	switch innerEvt := evt.Event.(type) {
+	case *signalpb.DataMessage:
+		switch {
+		case innerEvt.Reaction != nil:
+			targetAuthorACI = innerEvt.Reaction.GetTargetAuthorAci()
+			targetSentTS = innerEvt.Reaction.GetTargetSentTimestamp()
+		case innerEvt.Delete != nil:
+			targetSentTS = innerEvt.Delete.GetTargetSentTimestamp()
+		default:
+			panic(fmt.Errorf("GetTargetMessage() called for message type without target"))
+		}
+	case *signalpb.EditMessage:
+		targetSentTS = innerEvt.GetTargetSentTimestamp()
+	default:
+		panic(fmt.Errorf("GetTargetMessage() called for message type without target"))
+	}
+	targetAuthorUUID := evt.Info.Sender
+	if targetAuthorACI != "" {
+		targetAuthorUUID, _ = uuid.Parse(targetAuthorACI)
+	}
+	return makeMessageID(targetAuthorUUID, targetSentTS)
+}
+
+func (evt *Bv2ChatEvent) GetReactionEmoji() (string, networkid.EmojiID) {
+	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
+	if !ok || dataMsg.Reaction == nil {
+		panic(fmt.Errorf("GetReactionEmoji() called for non-reaction event"))
+	}
+	return dataMsg.GetReaction().GetEmoji(), ""
+}
+
+func (evt *Bv2ChatEvent) GetReactionDBMetadata() map[string]any {
+	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
+	if !ok || dataMsg.Reaction == nil {
+		return map[string]any{}
+	}
+	return map[string]any{
+		"emoji": dataMsg.GetReaction().GetEmoji(),
+	}
+}
+
+func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI) (*bridgev2.ConvertedMessage, error) {
 	mcCtx := &msgconvContext{
-		Connector: s.Main,
+		Connector: evt.s.Main,
 		Intent:    intent,
-		Client:    s,
+		Client:    evt.s,
 		Portal:    portal,
 	}
 	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
-	dataMsg := data.Event.(*signalpb.DataMessage)
-	converted := s.Main.MsgConv.ToMatrix(ctx, dataMsg)
+	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
+	if !ok {
+		return nil, fmt.Errorf("ConvertMessage() called for non-DataMessage event")
+	}
+	converted := evt.s.Main.MsgConv.ToMatrix(ctx, dataMsg)
+	converted.MergeCaption()
 	var replyTo *networkid.MessageOptionalPartID
 	if dataMsg.GetQuote() != nil {
 		quoteAuthor, _ := uuid.Parse(dataMsg.Quote.GetAuthorAci())
@@ -463,37 +604,42 @@ func (s *SignalClient) convertMessage(ctx context.Context, portal *bridgev2.Port
 
 	}
 	return &bridgev2.ConvertedMessage{
-		//ID:          makeMessageID(data.Info.Sender, dataMsg.GetTimestamp()),
-		//EventSender: s.makeEventSender(data.Info.Sender),
-		Timestamp: time.UnixMilli(int64(converted.Timestamp)),
-		ReplyTo:   replyTo,
-		Parts:     convertedParts,
+		ReplyTo: replyTo,
+		Parts:   convertedParts,
 	}, nil
+}
+
+func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, existing []*database.Message) (*bridgev2.ConvertedEdit, error) {
+	mcCtx := &msgconvContext{
+		Connector: evt.s.Main,
+		Intent:    intent,
+		Client:    evt.s,
+		Portal:    portal,
+	}
+	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
+	editMsg, ok := evt.Event.(*signalpb.EditMessage)
+	if !ok {
+		return nil, fmt.Errorf("ConvertEdit() called for non-EditMessage event")
+	}
+	// TODO tell converter about existing parts to avoid reupload?
+	converted := evt.s.Main.MsgConv.ToMatrix(ctx, editMsg.GetDataMessage())
+	converted.MergeCaption()
+	convertedEdit := &bridgev2.ConvertedEdit{}
+	// TODO can anything other than the text be edited?
+	lastPart := converted.Parts[len(converted.Parts)-1]
+	convertedEdit.ModifiedParts = append(convertedEdit.ModifiedParts, &bridgev2.ConvertedEditPart{
+		Part:    existing[len(existing)-1],
+		Type:    lastPart.Type,
+		Content: lastPart.Content,
+		Extra:   lastPart.Extra,
+	})
+	return convertedEdit, nil
 }
 
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
-		switch innerEvt := evt.Event.(type) {
-		case *signalpb.DataMessage:
-			s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &bridgev2.SimpleRemoteEvent[*events.ChatEvent]{
-				Type: bridgev2.RemoteEventMessage,
-				LogContext: func(c zerolog.Context) zerolog.Context {
-					return c.
-						Uint64("message_id", innerEvt.GetTimestamp()).
-						Stringer("sender_id", evt.Info.Sender)
-				},
-				ID:           makeMessageID(evt.Info.Sender, innerEvt.GetTimestamp()),
-				Sender:       s.makeEventSender(evt.Info.Sender),
-				PortalID:     s.getPortalID(evt.Info.ChatID),
-				Data:         evt,
-				CreatePortal: true,
-
-				ConvertMessageFunc: s.convertMessage,
-			})
-		case *signalpb.EditMessage:
-		case *signalpb.TypingMessage:
-		}
+		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s})
 	case *events.DecryptionError:
 	case *events.Receipt:
 	case *events.ReadSelf:
