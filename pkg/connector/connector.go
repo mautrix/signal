@@ -444,7 +444,8 @@ var (
 	_ bridgev2.RemoteMessage            = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteEdit               = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteEventWithTimestamp = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteReactionWithMeta   = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteReaction           = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteReactionRemove     = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteMessageRemove      = (*Bv2ChatEvent)(nil)
 )
 
@@ -562,14 +563,8 @@ func (evt *Bv2ChatEvent) GetReactionEmoji() (string, networkid.EmojiID) {
 	return dataMsg.GetReaction().GetEmoji(), ""
 }
 
-func (evt *Bv2ChatEvent) GetReactionDBMetadata() map[string]any {
-	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
-	if !ok || dataMsg.Reaction == nil {
-		return map[string]any{}
-	}
-	return map[string]any{
-		"emoji": dataMsg.GetReaction().GetEmoji(),
-	}
+func (evt *Bv2ChatEvent) GetRemovedEmojiID() networkid.EmojiID {
+	return ""
 }
 
 func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI) (*bridgev2.ConvertedMessage, error) {
@@ -695,8 +690,6 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	}
 	dbMsg := &database.Message{
 		ID:        makeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
-		MXID:      msg.Event.ID,
-		RoomID:    msg.Portal.ID,
 		SenderID:  makeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(converted.GetTimestamp())),
 		Metadata:  meta,
@@ -763,16 +756,15 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 	}
 }
 
+func (s *SignalClient) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
+	return bridgev2.MatrixReactionPreResponse{
+		SenderID: makeUserID(s.Client.Store.ACI),
+		EmojiID:  "",
+		Emoji:    variationselector.FullyQualify(msg.Content.RelatesTo.Key),
+	}, nil
+}
+
 func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (reaction *database.Reaction, err error) {
-	senderID := makeUserID(s.Client.Store.ACI)
-	// emojiID is always empty because only one reaction is allowed per message+user
-	var emojiID networkid.EmojiID
-	signalEmoji := variationselector.FullyQualify(msg.Content.RelatesTo.Key)
-	if existing, err := msg.GetExisting(ctx, senderID, emojiID); err != nil {
-		return nil, fmt.Errorf("failed to check for duplicate reaction: %w", err)
-	} else if existing != nil && existing.Metadata["emoji"] == signalEmoji {
-		return nil, nil
-	}
 	targetAuthorACI, targetSentTimestamp, err := parseMessageID(msg.TargetMessage.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target message ID: %w", err)
@@ -782,7 +774,7 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 			Timestamp:               proto.Uint64(uint64(msg.Event.Timestamp)),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:               proto.String(signalEmoji),
+				Emoji:               proto.String(msg.PreHandleResp.Emoji),
 				Remove:              proto.Bool(false),
 				TargetAuthorAci:     proto.String(targetAuthorACI.String()),
 				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
@@ -795,18 +787,7 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 	}
 	// TODO check result
 	fmt.Println(res)
-	return &database.Reaction{
-		RoomID:        msg.Portal.ID,
-		MessageID:     msg.TargetMessage.ID,
-		MessagePartID: msg.TargetMessage.PartID,
-		SenderID:      senderID,
-		EmojiID:       emojiID,
-		MXID:          msg.Event.ID,
-		Timestamp:     time.UnixMilli(msg.Event.Timestamp),
-		Metadata: map[string]any{
-			"emoji": signalEmoji,
-		},
-	}, nil
+	return &database.Reaction{}, nil
 }
 
 func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
