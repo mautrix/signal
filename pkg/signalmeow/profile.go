@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -300,22 +299,6 @@ func decryptBytes(key []byte, encryptedText []byte) ([]byte, error) {
 func decryptString(key *libsignalgo.ProfileKey, encryptedText []byte) (string, error) {
 	data, err := decryptBytes(key[:], encryptedText)
 	return string(data), err
-}
-
-func encryptString(key libsignalgo.ProfileKey, plaintext string, paddedLength int) ([]byte, error) {
-	inputLength := len(plaintext)
-	if inputLength > paddedLength {
-		return nil, errors.New("plaintext longer than paddedLength")
-	}
-	padded := append([]byte(plaintext), make([]byte, paddedLength-inputLength)...)
-	nonce := make([]byte, NONCE_LENGTH)
-	rand.Read(nonce)
-	keyBytes := key[:]
-	ciphertext, err := AesgcmEncrypt(keyBytes, nonce, padded)
-	if err != nil {
-		return nil, err
-	}
-	return append(nonce, ciphertext...), nil
 }
 
 const NONCE_LENGTH = 12

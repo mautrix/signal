@@ -304,11 +304,6 @@ type GroupMessageSendResult struct {
 	FailedToSendTo     []FailedSendResult
 }
 
-func contentFromDataMessage(dataMessage *signalpb.DataMessage) *signalpb.Content {
-	return &signalpb.Content{
-		DataMessage: dataMessage,
-	}
-}
 func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results []SuccessfulSendResult) *signalpb.Content {
 	unidentifiedStatuses := []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{}
 	for _, result := range results {
