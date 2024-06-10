@@ -28,7 +28,6 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/variationselector"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
 
 	"maunium.net/go/mautrix/bridgev2"
@@ -345,41 +344,12 @@ func parseUserID(userID networkid.UserID) (uuid.UUID, error) {
 }
 
 func (s *SignalClient) parsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
-	parts := strings.Split(string(portalID), "|")
-	if len(parts) == 1 {
-		if len(parts[0]) == 44 {
-			groupID = types.GroupIdentifier(parts[0])
-		} else {
-			err = fmt.Errorf("invalid portal ID: expected group ID to be 44 characters")
-		}
-	} else if len(parts) == 2 {
-		ourACI := s.Client.Store.ACI.String()
-		if parts[0] == ourACI {
-			userID, err = libsignalgo.ServiceIDFromString(parts[1])
-		} else if parts[1] == ourACI {
-			userID, err = libsignalgo.ServiceIDFromString(parts[0])
-		} else {
-			err = fmt.Errorf("invalid portal ID: expected one side to be our ACI")
-		}
+	if len(portalID) == 44 {
+		groupID = types.GroupIdentifier(portalID)
 	} else {
-		err = fmt.Errorf("invalid portal ID: unexpected number of pipe-separated parts")
+		userID, err = libsignalgo.ServiceIDFromString(string(portalID))
 	}
 	return
-}
-
-func (s *SignalClient) getPortalID(chatID string) networkid.PortalID {
-	if len(chatID) == 44 {
-		// Group ID
-		return networkid.PortalID(chatID)
-	} else if strings.HasPrefix(chatID, "PNI:") {
-		// Temporary new DM ID: always put our own ACI first, the portal will never be shared anyway
-		return networkid.PortalID(fmt.Sprintf("%s|%s", s.Client.Store.ACI, chatID))
-	} else {
-		// DM ID: sort the two parts so the ID is always the same regardless of which side is receiving the message
-		parts := []string{s.Client.Store.ACI.String(), chatID}
-		slices.Sort(parts)
-		return networkid.PortalID(strings.Join(parts, "|"))
-	}
 }
 
 func parseMessageID(messageID networkid.MessageID) (sender uuid.UUID, timestamp uint64, err error) {
@@ -471,8 +441,13 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	return bridgev2.RemoteEventUnknown
 }
 
-func (evt *Bv2ChatEvent) GetPortalID() networkid.PortalID {
-	return evt.s.getPortalID(evt.Info.ChatID)
+func (evt *Bv2ChatEvent) GetPortalKey() networkid.PortalKey {
+	key := networkid.PortalKey{ID: networkid.PortalID(evt.Info.ChatID)}
+	// For non-group chats, add receiver
+	if len(evt.Info.ChatID) != 44 {
+		key.Receiver = makeUserLoginID(evt.s.Client.Store.ACI)
+	}
+	return key
 }
 
 func (evt *Bv2ChatEvent) ShouldCreatePortal() bool {
