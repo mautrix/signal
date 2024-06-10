@@ -989,7 +989,7 @@ func fnCreate(ce *WrappedCommandEvent) {
 	avatarSet := false
 	if ok {
 		roomAvatarEvent.Content.ParseRaw(event.StateRoomAvatar)
-		avatarURL = roomAvatarEvent.Content.AsRoomAvatar().URL
+		avatarURL = roomAvatarEvent.Content.AsRoomAvatar().URL.ParseOrIgnore()
 		if !avatarURL.IsEmpty() {
 			avatarBytes, err = ce.Bot.DownloadBytes(ce.Ctx, avatarURL)
 			if err != nil {
