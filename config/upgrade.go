@@ -25,7 +25,7 @@ import (
 	"maunium.net/go/mautrix/bridge/bridgeconfig"
 )
 
-func DoUpgrade(helper *up.Helper) {
+func DoUpgrade(helper up.Helper) {
 	bridgeconfig.Upgrader.DoUpgrade(helper)
 
 	legacyDB, ok := helper.Get(up.Str, "appservice", "database")

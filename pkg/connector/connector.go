@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"strconv"
 	"strings"
@@ -26,10 +27,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	up "go.mau.fi/util/configupgrade"
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
-
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -94,10 +95,42 @@ type SignalConnector struct {
 	Config  *SignalConfig
 }
 
+var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
+var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
+var _ msgconv.PortalMethods = (*msgconvPortalMethods)(nil)
+
 func NewConnector() *SignalConnector {
 	return &SignalConnector{
 		Config: &SignalConfig{},
 	}
+}
+
+//go:embed example-config.yaml
+var ExampleConfig string
+
+func (s *SignalConnector) GetName() bridgev2.BridgeName {
+	return bridgev2.BridgeName{
+		DisplayName:      "Signal",
+		NetworkURL:       "https://signal.org",
+		NetworkIcon:      "mxc://maunium.net/wPJgTQbZOtpBFmDNkiNEMDUp",
+		NetworkID:        "signal",
+		BeeperBridgeType: "signal",
+		DefaultPort:      29328,
+	}
+}
+
+func upgradeConfig(helper up.Helper) {
+	helper.Copy(up.Str, "displayname_template")
+	helper.Copy(up.Bool, "use_contact_avatars")
+	helper.Copy(up.Bool, "use_outdated_profiles")
+	helper.Copy(up.Bool, "number_in_topic")
+	helper.Copy(up.Str, "device_name")
+	helper.Copy(up.Str, "note_to_self_avatar")
+	helper.Copy(up.Str, "location_format")
+}
+
+func (s *SignalConnector) GetConfig() (string, any, up.Upgrader) {
+	return ExampleConfig, s.Config, up.SimpleUpgrader(upgradeConfig)
 }
 
 func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
@@ -160,10 +193,6 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 func (s *SignalConnector) Start(ctx context.Context) error {
 	return s.Store.Upgrade(ctx)
 }
-
-var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
-var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
-var _ msgconv.PortalMethods = (*msgconvPortalMethods)(nil)
 
 func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {
 	aci, err := uuid.Parse(string(login.ID))

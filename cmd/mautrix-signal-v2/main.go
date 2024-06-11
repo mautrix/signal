@@ -17,31 +17,32 @@
 package main
 
 import (
-	"os"
-
-	"go.mau.fi/util/dbutil"
-	"go.mau.fi/util/exerrors"
-	"go.mau.fi/util/exzerolog"
-	"gopkg.in/yaml.v3"
-	"maunium.net/go/mautrix/bridgev2"
-	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
-	"maunium.net/go/mautrix/bridgev2/matrix"
+	"maunium.net/go/mautrix/bridgev2/matrix/mxmain"
 
 	"go.mau.fi/mautrix-signal/pkg/connector"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
+// Information to find out exactly which commit the bridge was built from.
+// These are filled at build time with the -X linker flag.
+var (
+	Tag       = "unknown"
+	Commit    = "unknown"
+	BuildTime = "unknown"
+)
+
 func main() {
-	var cfg bridgeconfig.Config
-	config := exerrors.Must(os.ReadFile("config.yaml"))
-	exerrors.PanicIfNotNil(yaml.Unmarshal(config, &cfg))
-	log := exerrors.Must(cfg.Logging.Compile())
-	exzerolog.SetupDefaults(log)
-	signalmeow.SetLogger(log.With().Str("component", "signalmeow").Logger())
-	db := exerrors.Must(dbutil.NewFromConfig("mautrix-signal", cfg.Database, dbutil.ZeroLogger(log.With().Str("db_section", "main").Logger())))
-	signalConnector := connector.NewConnector()
-	exerrors.PanicIfNotNil(cfg.Network.Decode(signalConnector.Config))
-	bridge := bridgev2.NewBridge("", db, *log, matrix.NewConnector(&cfg), signalConnector)
-	bridge.CommandPrefix = "!signal"
-	bridge.Start()
+	m := mxmain.BridgeMain{
+		Name:        "mautrix-signal",
+		URL:         "https://github.com/mautrix/signal",
+		Description: "A Matrix-Signal puppeting bridge.",
+		Version:     "0.7.0",
+
+		Connector: connector.NewConnector(),
+	}
+	m.PostInit = func() {
+		signalmeow.SetLogger(m.Log.With().Str("component", "signalmeow").Logger())
+	}
+	m.InitVersion(Tag, Commit, BuildTime)
+	m.Run()
 }
