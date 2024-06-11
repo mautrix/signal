@@ -31,6 +31,7 @@ import (
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
+	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -355,12 +356,115 @@ func (s *SignalClient) IsThisUser(_ context.Context, userID networkid.UserID) bo
 	return userID == makeUserID(s.Client.Store.ACI)
 }
 
+func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnectionStatus) {
+	var peekedConnectionStatus signalmeow.SignalConnectionStatus
+	for {
+		var connectionStatus signalmeow.SignalConnectionStatus
+		if peekedConnectionStatus.Event != signalmeow.SignalConnectionEventNone {
+			s.UserLogin.Log.Debug().
+				Stringer("peeked_connection_status_event", peekedConnectionStatus.Event).
+				Msg("Using peeked connectionStatus event")
+			connectionStatus = peekedConnectionStatus
+			peekedConnectionStatus = signalmeow.SignalConnectionStatus{}
+		} else {
+			var ok bool
+			connectionStatus, ok = <-statusChan
+			if !ok {
+				s.UserLogin.Log.Debug().Msg("statusChan channel closed")
+				return
+			}
+		}
+
+		err := connectionStatus.Err
+		switch connectionStatus.Event {
+		case signalmeow.SignalConnectionEventConnected:
+			s.UserLogin.Log.Debug().Msg("Sending Connected BridgeState")
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+
+		case signalmeow.SignalConnectionEventDisconnected:
+			s.UserLogin.Log.Debug().Msg("Received SignalConnectionEventDisconnected")
+
+			// Debounce: wait 7s before sending TransientDisconnect, in case we get a reconnect
+			// We should wait until the next message comes in, or 7 seconds has passed.
+			// - If a disconnected event comes in, just loop again, unless it's been more than 7 seconds.
+			// - If a non-disconnected event comes in, store it in peekedConnectionStatus,
+			//   break out of this loop and go back to the top of the goroutine to handle it in the switch.
+			// - If 7 seconds passes without any non-disconnect messages, send the TransientDisconnect.
+			//   (Why 7 seconds? It was 5 at first, but websockets min retry is 5 seconds,
+			//     so it would send TransientDisconnect right before reconnecting. 7 seems to work well.)
+			debounceTimer := time.NewTimer(7 * time.Second)
+		PeekLoop:
+			for {
+				var ok bool
+				select {
+				case peekedConnectionStatus, ok = <-statusChan:
+					// Handle channel closing
+					if !ok {
+						s.UserLogin.Log.Debug().Msg("connectionStatus channel closed")
+						return
+					}
+					// If it's another Disconnected event, just keep looping
+					if peekedConnectionStatus.Event == signalmeow.SignalConnectionEventDisconnected {
+						peekedConnectionStatus = signalmeow.SignalConnectionStatus{}
+						continue
+					}
+					// If it's a non-disconnect event, break out of the PeekLoop and handle it in the switch
+					break PeekLoop
+				case <-debounceTimer.C:
+					// Time is up, so break out of the loop and send the TransientDisconnect
+					break PeekLoop
+				}
+			}
+			// We're out of the PeekLoop, so either we got a non-disconnect event, or it's been 7 seconds (or both).
+			// We want to send TransientDisconnect if it's been 7 seconds, but not if the latest event was something
+			// other than Disconnected
+			if !debounceTimer.Stop() { // If the timer has already expired
+				// Send TransientDisconnect only if the latest event is a disconnect or no event
+				// (peekedConnectionStatus could be something else if the timer and the event race)
+				if peekedConnectionStatus.Event == signalmeow.SignalConnectionEventDisconnected ||
+					peekedConnectionStatus.Event == signalmeow.SignalConnectionEventNone {
+					s.UserLogin.Log.Debug().Msg("Sending TransientDisconnect BridgeState")
+					if err == nil {
+						s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect})
+					} else {
+						s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+					}
+				}
+			}
+
+		case signalmeow.SignalConnectionEventLoggedOut:
+			s.UserLogin.Log.Debug().Msg("Sending BadCredentials BridgeState")
+			if err == nil {
+				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
+			} else {
+				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
+			}
+			err = s.Client.ClearKeysAndDisconnect(context.TODO())
+			if err != nil {
+				s.UserLogin.Log.Error().Err(err).Msg("Failed to clear keys and disconnect")
+			}
+
+		case signalmeow.SignalConnectionEventError:
+			s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+
+		case signalmeow.SignalConnectionCleanShutdown:
+			if s.Client.IsLoggedIn() {
+				s.UserLogin.Log.Debug().Msg("Clean Shutdown - sending no BridgeState")
+			} else {
+				s.UserLogin.Log.Debug().Msg("Clean Shutdown, but logged out - Sending BadCredentials BridgeState")
+				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You have been logged out of Signal, please reconnect"})
+			}
+		}
+	}
+}
+
 func (s *SignalClient) Connect(ctx context.Context) error {
-	_, err := s.Client.StartReceiveLoops(ctx)
+	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		return err
 	}
-	// TODO status
+	go s.bridgeStateLoop(ch)
 	return nil
 }
 
