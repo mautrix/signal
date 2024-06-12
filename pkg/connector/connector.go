@@ -29,6 +29,7 @@ import (
 	"github.com/rs/zerolog"
 	up "go.mau.fi/util/configupgrade"
 	"go.mau.fi/util/dbutil"
+	"go.mau.fi/util/exzerolog"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix/bridge/status"
@@ -51,11 +52,13 @@ import (
 )
 
 type SignalConfig struct {
-	DisplaynameTemplate string `yaml:"displayname_template"`
-	UseContactAvatars   bool   `yaml:"use_contact_avatars"`
-	UseOutdatedProfiles bool   `yaml:"use_outdated_profiles"`
-	NumberInTopic       bool   `yaml:"number_in_topic"`
-	DeviceName          string `yaml:"device_name"`
+	DisplaynameTemplate string              `yaml:"displayname_template"`
+	UseContactAvatars   bool                `yaml:"use_contact_avatars"`
+	UseOutdatedProfiles bool                `yaml:"use_outdated_profiles"`
+	NumberInTopic       bool                `yaml:"number_in_topic"`
+	DeviceName          string              `yaml:"device_name"`
+	NoteToSelfAvatar    id.ContentURIString `yaml:"note_to_self_avatar"`
+	LocationFormat      string              `yaml:"location_format"`
 
 	displaynameTemplate *template.Template `yaml:"-"`
 }
@@ -97,6 +100,7 @@ type SignalConnector struct {
 }
 
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
+var _ bridgev2.MaxFileSizeingNetwork = (*SignalConnector)(nil)
 var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
 var _ msgconv.PortalMethods = (*msgconvPortalMethods)(nil)
 
@@ -174,7 +178,7 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 				user, _ := s.Bridge.GetExistingUserByMXID(ctx, userID)
 				// TODO log errors?
 				if user != nil {
-					preferredLogin, _ := ctx.Value(msgconvContextKey).(*msgconvContext).Portal.FindPreferredLogin(ctx, user)
+					preferredLogin, _, _ := ctx.Value(msgconvContextKey).(*msgconvContext).Portal.FindPreferredLogin(ctx, user, true)
 					if preferredLogin != nil {
 						u, _ := uuid.Parse(string(preferredLogin.ID))
 						return u
@@ -185,10 +189,14 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 		},
 		ConvertVoiceMessages: true,
 		ConvertGIFToAPNG:     true,
-		MaxFileSize:          100 * 1024 * 1024,
+		MaxFileSize:          50 * 1024 * 1024,
 		AsyncFiles:           true,
-		LocationFormat:       "",
+		LocationFormat:       s.Config.LocationFormat,
 	}
+}
+
+func (s *SignalConnector) SetMaxFileSize(maxSize int64) {
+	s.MsgConv.MaxFileSize = maxSize
 }
 
 func (s *SignalConnector) Start(ctx context.Context) error {
@@ -582,7 +590,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	case *signalpb.EditMessage:
 		return bridgev2.RemoteEventEdit
 	case *signalpb.TypingMessage:
-		//return bridgev2.RemoteEventTyping
+		return bridgev2.RemoteEventTyping
 	}
 	return bridgev2.RemoteEventUnknown
 }
@@ -752,13 +760,124 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 	return convertedEdit, nil
 }
 
+type Bv2Receipt struct {
+	Type   signalpb.ReceiptMessage_Type
+	Chat   networkid.PortalKey
+	Sender bridgev2.EventSender
+
+	LastTS time.Time
+	LastID networkid.MessageID
+	IDs    []networkid.MessageID
+}
+
+func (b *Bv2Receipt) GetType() bridgev2.RemoteEventType {
+	switch b.Type {
+	case signalpb.ReceiptMessage_READ:
+		return bridgev2.RemoteEventReadReceipt
+	case signalpb.ReceiptMessage_DELIVERY:
+		return bridgev2.RemoteEventDeliveryReceipt
+	default:
+		return bridgev2.RemoteEventUnknown
+	}
+}
+
+func (b *Bv2Receipt) GetPortalKey() networkid.PortalKey {
+	return b.Chat
+}
+
+func (b *Bv2Receipt) AddLogContext(c zerolog.Context) zerolog.Context {
+	return c.
+		Str("sender_id", string(b.Sender.Sender)).
+		Stringer("receipt_type", b.Type).
+		Array("message_ids", exzerolog.ArrayOfStrs(b.IDs))
+}
+
+func (b *Bv2Receipt) GetSender() bridgev2.EventSender {
+	return b.Sender
+}
+
+func (b *Bv2Receipt) GetLastReceiptTarget() networkid.MessageID {
+	return b.LastID
+}
+
+func (b *Bv2Receipt) GetReceiptTargets() []networkid.MessageID {
+	return b.IDs
+}
+
+var _ bridgev2.RemoteReceipt = (*Bv2Receipt)(nil)
+
+func convertReceipts[T any](ctx context.Context, input []T, getMessageFunc func(ctx context.Context, msgID T) (*database.Message, error)) map[networkid.PortalKey]*Bv2Receipt {
+	log := zerolog.Ctx(ctx)
+	receipts := make(map[networkid.PortalKey]*Bv2Receipt)
+	for _, msgID := range input {
+		msg, err := getMessageFunc(ctx, msgID)
+		if err != nil {
+			log.Err(err).Any("message_id", msgID).Msg("Failed to get target message for receipt")
+		} else if msg == nil {
+			log.Debug().Any("message_id", msgID).Msg("Got receipt for unknown message")
+		} else {
+			receiptEvt, ok := receipts[msg.Room]
+			if !ok {
+				receiptEvt = &Bv2Receipt{Chat: msg.Room}
+				receipts[msg.Room] = receiptEvt
+			}
+			receiptEvt.IDs = append(receiptEvt.IDs, msg.ID)
+			if receiptEvt.LastTS.Before(msg.Timestamp) {
+				receiptEvt.LastTS = msg.Timestamp
+				receiptEvt.LastID = msg.ID
+			}
+		}
+	}
+	return receipts
+}
+
+func (s *SignalClient) dispatchReceipts(sender uuid.UUID, receiptType signalpb.ReceiptMessage_Type, receipts map[networkid.PortalKey]*Bv2Receipt) {
+	evtSender := s.makeEventSender(sender)
+	for chat, receiptEvt := range receipts {
+		receiptEvt.Chat = chat
+		receiptEvt.Sender = evtSender
+		receiptEvt.Type = receiptType
+		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, receiptEvt)
+	}
+}
+
+func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) {
+	log := s.UserLogin.Log.With().
+		Str("action", "handle signal receipt").
+		Stringer("sender_id", evt.Sender).
+		Stringer("receipt_type", evt.Content.GetType()).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	receipts := convertReceipts(ctx, evt.Content.Timestamp, func(ctx context.Context, msgTS uint64) (*database.Message, error) {
+		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, makeMessageID(s.Client.Store.ACI, msgTS))
+	})
+	s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
+}
+
+func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) {
+	log := s.UserLogin.Log.With().
+		Str("action", "handle signal read self").
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	receipts := convertReceipts(ctx, evt.Messages, func(ctx context.Context, msgInfo *signalpb.SyncMessage_Read) (*database.Message, error) {
+		aciUUID, err := uuid.Parse(msgInfo.GetSenderAci())
+		if err != nil {
+			return nil, err
+		}
+		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, makeMessageID(aciUUID, msgInfo.GetTimestamp()))
+	})
+	s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
+}
+
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
 		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s})
 	case *events.DecryptionError:
 	case *events.Receipt:
+		s.handleSignalReceipt(evt)
 	case *events.ReadSelf:
+		s.handleSignalReadSelf(evt)
 	case *events.Call:
 	case *events.ContactList:
 		s.handleSignalContactList(evt)
@@ -959,6 +1078,58 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 	}
 	// TODO check result
 	fmt.Println(res)
+	return nil
+}
+
+func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bridgev2.MatrixReadReceipt) error {
+	if !receipt.ReadUpTo.After(receipt.LastRead) {
+		return nil
+	}
+	if receipt.LastRead.IsZero() {
+		receipt.LastRead = receipt.ReadUpTo.Add(-5 * time.Second)
+	}
+	dbMessages, err := s.Main.Bridge.DB.Message.GetMessagesBetweenTimeQuery(ctx, receipt.Portal.PortalKey, receipt.LastRead, receipt.ReadUpTo)
+	if err != nil {
+		return fmt.Errorf("failed to get messages to mark as read: %w", err)
+	} else if len(dbMessages) == 0 {
+		return nil
+	}
+	messagesToRead := map[uuid.UUID][]uint64{}
+	for _, msg := range dbMessages {
+		userID, timestamp, err := parseMessageID(msg.ID)
+		if err != nil {
+			return fmt.Errorf("failed to parse message ID %q: %w", msg.ID, err)
+		}
+		messagesToRead[userID] = append(messagesToRead[userID], timestamp)
+	}
+	zerolog.Ctx(ctx).Debug().
+		Any("targets", messagesToRead).
+		Msg("Collected read receipt target messages")
+
+	// TODO send sync message manually containing all read receipts instead of a separate message for each recipient
+
+	for destination, messages := range messagesToRead {
+		// Don't send read receipts for own messages
+		if destination == s.Client.Store.ACI {
+			continue
+		}
+		// Don't use portal.sendSignalMessage because we're sending this straight to
+		// who sent the original message, not the portal's ChatID
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		result := s.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(destination), signalmeow.ReadReceptMessageForTimestamps(messages))
+		cancel()
+		if !result.WasSuccessful {
+			zerolog.Ctx(ctx).Err(result.FailedSendResult.Error).
+				Stringer("destination", destination).
+				Uints64("message_ids", messages).
+				Msg("Failed to send read receipt to Signal")
+		} else {
+			zerolog.Ctx(ctx).Debug().
+				Stringer("destination", destination).
+				Uints64("message_ids", messages).
+				Msg("Sent read receipt to Signal")
+		}
+	}
 	return nil
 }
 
