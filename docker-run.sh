@@ -4,6 +4,11 @@ if [[ -z "$GID" ]]; then
 	GID="$UID"
 fi
 
+BINARY_NAME=/usr/bin/mautrix-signal
+if [[ "$BRIDGEV2" == "1" ]]; then
+	BINARY_NAME=/usr/bin/mautrix-signal-v2
+fi
+
 # Define functions.
 function fixperms {
 	chown -R $UID:$GID /data
@@ -15,7 +20,11 @@ function fixperms {
 }
 
 if [[ ! -f /data/config.yaml ]]; then
-	cp /opt/mautrix-signal/example-config.yaml /data/config.yaml
+	if [[ "$BRIDGEV2" == "1" ]]; then
+		$BINARY_NAME -c /data/config -e
+	else
+		cp /opt/mautrix-signal/example-config.yaml /data/config.yaml
+	fi
 	echo "Didn't find a config file."
 	echo "Copied default config file to /data/config.yaml"
 	echo "Modify that config file to your liking."
@@ -24,7 +33,7 @@ if [[ ! -f /data/config.yaml ]]; then
 fi
 
 if [[ ! -f /data/registration.yaml ]]; then
-	/usr/bin/mautrix-signal -g -c /data/config.yaml -r /data/registration.yaml || exit $?
+	$BINARY_NAME -g -c /data/config.yaml -r /data/registration.yaml || exit $?
 	echo "Didn't find a registration file."
 	echo "Generated one for you."
 	echo "See https://docs.mau.fi/bridges/general/registering-appservices.html on how to use it."
@@ -34,13 +43,12 @@ fi
 cd /data
 fixperms
 
-EXE=/usr/bin/mautrix-signal
 DLV=/usr/bin/dlv
 if [ -x "$DLV" ]; then
     if [ "$DBGWAIT" != 1 ]; then
         NOWAIT=1
     fi
-    EXE="${DLV} exec ${EXE} ${NOWAIT:+--continue --accept-multiclient} --api-version 2 --headless -l :4040"
+    BINARY_NAME="${DLV} exec ${BINARY_NAME} ${NOWAIT:+--continue --accept-multiclient} --api-version 2 --headless -l :4040"
 fi
 
-exec su-exec $UID:$GID $EXE
+exec su-exec $UID:$GID $BINARY_NAME

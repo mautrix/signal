@@ -1,12 +1,17 @@
 include:
 - project: 'mautrix/ci'
   file: '/go.yml'
+- project: 'mautrix/ci'
+  file: '/gov2.yml'
 
 variables:
   BUILDER_IMAGE: dock.mau.dev/tulir/gomuks-build-docker/signal
-  BINARY_NAME: mautrix-signal
 
 # 32-bit arm builds aren't supported
 build arm:
+  rules:
+    - when: never
+
+build arm v2:
   rules:
     - when: never
