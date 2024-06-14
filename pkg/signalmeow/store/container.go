@@ -65,6 +65,9 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 		return nil, fmt.Errorf("failed to deserialize PNI identity key pair: %w", err)
 	}
 
+	if len(device.MasterKey) == 0 {
+		device.MasterKey = nil
+	}
 	baseStore := &sqlStore{Container: c, AccountID: device.ACI}
 	aciStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.ACIServiceID()}
 	pniStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.PNIServiceID()}
