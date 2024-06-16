@@ -1,3 +1,10 @@
+# v0.6.2 (2024-06-16)
+
+* Fixed voice messages not being rendered correctly in Element X.
+* Fixed contact avatars not being bridged correctly even when enabled in
+  the bridge config.
+* Implemented connector for the upcoming bridgev2 architecture.
+
 # v0.6.1 (2024-05-16)
 
 * Added support for bridging location messages from Matrix to Signal
