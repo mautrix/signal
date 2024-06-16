@@ -571,6 +571,7 @@ var (
 	_ bridgev2.RemoteReaction           = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteReactionRemove     = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteMessageRemove      = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteTyping             = (*Bv2ChatEvent)(nil)
 )
 
 func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
@@ -593,6 +594,14 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 		return bridgev2.RemoteEventTyping
 	}
 	return bridgev2.RemoteEventUnknown
+}
+
+func (evt *Bv2ChatEvent) GetTimeout() time.Duration {
+	if evt.Event.(*signalpb.TypingMessage).GetAction() == signalpb.TypingMessage_STARTED {
+		return 15 * time.Second
+	} else {
+		return 0
+	}
 }
 
 func (evt *Bv2ChatEvent) GetPortalKey() networkid.PortalKey {
