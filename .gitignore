@@ -7,5 +7,6 @@
 
 /mautrix-signal
 /mautrix-signalgo
+/mautrix-signal-v2
 /start
 /libsignal_ffi.a
