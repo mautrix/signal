@@ -102,6 +102,7 @@ type SignalConnector struct {
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
 var _ bridgev2.MaxFileSizeingNetwork = (*SignalConnector)(nil)
 var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
+var _ bridgev2.PushableNetworkAPI = (*SignalClient)(nil)
 var _ msgconv.PortalMethods = (*msgconvPortalMethods)(nil)
 
 func NewConnector() *SignalConnector {
@@ -230,6 +231,27 @@ type SignalClient struct {
 	Main      *SignalConnector
 	UserLogin *bridgev2.UserLogin
 	Client    *signalmeow.Client
+}
+
+var pushCfg = &bridgev2.PushConfig{
+	FCM: &bridgev2.FCMPushConfig{
+		// https://github.com/signalapp/Signal-Android/blob/main/app/src/main/res/values/firebase_messaging.xml#L4
+		SenderID: "312334754206",
+	},
+	APNs: &bridgev2.APNsPushConfig{
+		BundleID: "org.whispersystems.signal",
+	},
+}
+
+func (s *SignalClient) GetPushConfigs() *bridgev2.PushConfig {
+	return pushCfg
+}
+
+func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType bridgev2.PushType, token string) error {
+	if pushType != bridgev2.PushTypeFCM {
+		return fmt.Errorf("unsupported push type: %s", pushType)
+	}
+	return s.Client.RegisterFCM(ctx, token)
 }
 
 func (s *SignalClient) LogoutRemote(ctx context.Context) {
