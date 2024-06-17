@@ -488,9 +488,17 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 		}
 	}
 }
+
 func (s *SignalClient) Connect(ctx context.Context) error {
 	s.tryConnect(ctx, 0)
 	return nil
+}
+
+func (s *SignalClient) Disconnect() {
+	err := s.Client.StopReceiveLoops()
+	if err != nil {
+		s.UserLogin.Log.Err(err).Msg("Failed to stop receive loops")
+	}
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
