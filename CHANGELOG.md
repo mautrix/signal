@@ -1,5 +1,6 @@
 # v0.6.2 (2024-06-16)
 
+* Updated to libsignal v0.51.0.
 * Fixed voice messages not being rendered correctly in Element X.
 * Fixed contact avatars not being bridged correctly even when enabled in
   the bridge config.
