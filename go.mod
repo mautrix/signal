@@ -3,7 +3,6 @@ module go.mau.fi/mautrix-signal
 go 1.21
 
 require (
-	github.com/beeper/libserv v0.0.0-20231231202820-c7303abfc32c
 	github.com/emersion/go-vcard v0.0.0-20230815062825-8fda7d206ec9
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.0

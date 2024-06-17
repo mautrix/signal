@@ -28,11 +28,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/beeper/libserv/pkg/requestlog"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/hlog"
+	"go.mau.fi/util/requestlog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/id"
 
