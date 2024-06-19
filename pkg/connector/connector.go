@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -103,6 +104,7 @@ var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
 var _ bridgev2.MaxFileSizeingNetwork = (*SignalConnector)(nil)
 var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
 var _ bridgev2.PushableNetworkAPI = (*SignalClient)(nil)
+var _ bridgev2.GroupCreatingNetworkAPI = (*SignalClient)(nil)
 var _ msgconv.PortalMethods = (*msgconvPortalMethods)(nil)
 
 func NewConnector() *SignalConnector {
@@ -323,13 +325,13 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 	if err != nil {
 		return nil, err
 	}
-	isSpace := false
 	if groupID != "" {
 		groupInfo, err := s.Client.RetrieveGroupByID(ctx, groupID, 0)
 		if err != nil {
 			return nil, err
 		}
 		isDM := false
+		isSpace := false
 		members := make([]networkid.UserID, len(groupInfo.Members))
 		for i, member := range groupInfo.Members {
 			members[i] = makeUserID(member.ACI)
@@ -348,39 +350,125 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 			IsDirectChat: &isDM,
 			IsSpace:      &isSpace,
 		}, nil
-	} else if userID.Type == libsignalgo.ServiceIDTypePNI {
-		contact, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, uuid.Nil, userID.UUID, nil)
+	} else {
+		aci, pni := serviceIDToACIAndPNI(userID)
+		contact, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
 		if err != nil {
 			return nil, err
 		}
-		var topic, name string
-		name = s.Main.Config.FormatDisplayname(contact)
-		if s.Main.Config.NumberInTopic && contact.E164 != "" {
-			topic = fmt.Sprintf("")
-			// TODO set topic
+		return s.makeCreateDMResponse(contact).PortalInfo, nil
+	}
+}
+
+func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
+	number, err := bridgev2.CleanPhoneNumber(number)
+	if err != nil {
+		return nil, err
+	}
+	e164Number, err := strconv.ParseUint(strings.TrimPrefix(number, "+"), 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing phone number: %w", err)
+	}
+	e164String := fmt.Sprintf("+%d", e164Number)
+	var aci, pni uuid.UUID
+	var recipient *types.Recipient
+	if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {
+		return nil, fmt.Errorf("error looking up number in local contact list: %w", err)
+	} else if recipient != nil {
+		aci = recipient.ACI
+		pni = recipient.PNI
+	} else if resp, err := s.Client.LookupPhone(ctx, e164Number); err != nil {
+		return nil, fmt.Errorf("error looking up number on server: %w", err)
+	} else {
+		aci = resp[e164Number].ACI
+		pni = resp[e164Number].PNI
+		if aci == uuid.Nil && pni == uuid.Nil {
+			return nil, errors.New("user not found on Signal")
 		}
-		isDM := true
-		return &bridgev2.PortalInfo{
-			Members:      []networkid.UserID{makeUserID(s.Client.Store.ACI)},
-			Name:         &name,
-			Topic:        &topic,
-			IsDirectChat: &isDM,
-			IsSpace:      &isSpace,
+		recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
+	}
+	zerolog.Ctx(ctx).Debug().
+		Uint64("e164", e164Number).
+		Stringer("aci", aci).
+		Stringer("pni", pni).
+		Msg("Found resolve identifier target user")
+
+	// createChat is a no-op: chats don't need to be created, and we always return chat info
+	if aci != uuid.Nil {
+		ghost, err := s.Main.Bridge.GetGhostByID(ctx, makeUserID(aci))
+		if err != nil {
+			return nil, fmt.Errorf("failed to get ghost: %w", err)
+		}
+		return &bridgev2.ResolveIdentifierResponse{
+			UserID:   makeUserID(aci),
+			UserInfo: s.contactToUserInfo(recipient),
+			Ghost:    ghost,
+			Chat:     s.makeCreateDMResponse(recipient),
 		}, nil
 	} else {
-		var topic, name string
-		if s.Main.Config.NumberInTopic {
-			// TODO set topic
-		}
-		isDM := true
-		return &bridgev2.PortalInfo{
-			Members:      []networkid.UserID{makeUserID(userID.UUID), makeUserID(s.Client.Store.ACI)},
-			Name:         &name,
-			Topic:        &topic,
-			IsDirectChat: &isDM,
-			IsSpace:      &isSpace,
+		return &bridgev2.ResolveIdentifierResponse{
+			UserID:   makeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni)),
+			UserInfo: s.contactToUserInfo(recipient),
+			Chat:     s.makeCreateDMResponse(recipient),
 		}, nil
 	}
+}
+
+const PrivateChatTopic = "Signal private chat"
+const NoteToSelfName = "Signal Note to Self"
+
+func serviceIDToACIAndPNI(serviceID libsignalgo.ServiceID) (aci, pni uuid.UUID) {
+	if serviceID.Type == libsignalgo.ServiceIDTypeACI {
+		return serviceID.UUID, uuid.Nil
+	} else {
+		return uuid.Nil, serviceID.UUID
+	}
+}
+
+func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev2.CreateChatResponse {
+	isDirectChat := true
+	isSpace := false
+	name := ""
+	topic := PrivateChatTopic
+	members := []networkid.UserID{makeUserID(s.Client.Store.ACI)}
+	if s.Main.Config.NumberInTopic && recipient.E164 != "" {
+		topic = fmt.Sprintf("%s with %s", PrivateChatTopic, recipient.E164)
+	}
+	var serviceID libsignalgo.ServiceID
+	if recipient.ACI == uuid.Nil {
+		name = s.Main.Config.FormatDisplayname(recipient)
+		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
+	} else {
+		if recipient.ACI == s.Client.Store.ACI {
+			name = NoteToSelfName
+		} else {
+			// The other user is only present if their ACI is known
+			members = append(members, makeUserID(recipient.ACI))
+		}
+		serviceID = libsignalgo.NewACIServiceID(recipient.ACI)
+	}
+	return &bridgev2.CreateChatResponse{
+		PortalID: networkid.PortalKey{
+			ID:       networkid.PortalID(serviceID.String()),
+			Receiver: s.UserLogin.ID,
+		},
+		PortalInfo: &bridgev2.PortalInfo{
+			Name:         &name,
+			Topic:        &topic,
+			Members:      members,
+			IsDirectChat: &isDirectChat,
+			IsSpace:      &isSpace,
+		},
+	}
+}
+
+func (s *SignalClient) CreateGroup(ctx context.Context, name string, users ...networkid.UserID) (*bridgev2.CreateChatResponse, error) {
+	//TODO implement me
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (s *SignalClient) IsThisUser(_ context.Context, userID networkid.UserID) bool {
@@ -525,7 +613,18 @@ func (s *SignalClient) IsLoggedIn() bool {
 }
 
 func parseUserID(userID networkid.UserID) (uuid.UUID, error) {
-	return uuid.Parse(string(userID))
+	serviceID, err := parseUserIDAsServiceID(userID)
+	if err != nil {
+		return uuid.Nil, err
+	} else if serviceID.Type != libsignalgo.ServiceIDTypeACI {
+		return uuid.Nil, fmt.Errorf("invalid user ID: expected ACI type")
+	} else {
+		return serviceID.UUID, nil
+	}
+}
+
+func parseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {
+	return libsignalgo.ServiceIDFromString(string(userID))
 }
 
 func (s *SignalClient) parsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
@@ -556,6 +655,10 @@ func makeMessageID(sender uuid.UUID, timestamp uint64) networkid.MessageID {
 }
 
 func makeUserID(user uuid.UUID) networkid.UserID {
+	return networkid.UserID(user.String())
+}
+
+func makeUserIDFromServiceID(user libsignalgo.ServiceID) networkid.UserID {
 	return networkid.UserID(user.String())
 }
 
@@ -944,6 +1047,37 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	case *events.ContactList:
 		s.handleSignalContactList(evt)
 	case *events.ACIFound:
+		s.handleSignalACIFound(evt)
+	}
+}
+
+func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {
+	log := s.UserLogin.Log.With().
+		Str("action", "handle aci found").
+		Stringer("aci", evt.ACI).
+		Stringer("pni", evt.PNI).
+		Logger()
+	ctx := log.WithContext(context.TODO())
+	pniPortalKey := networkid.PortalKey{
+		ID:       networkid.PortalID(evt.PNI.String()),
+		Receiver: s.UserLogin.ID,
+	}
+	aciPortalKey := networkid.PortalKey{
+		ID:       networkid.PortalID(evt.ACI.String()),
+		Receiver: s.UserLogin.ID,
+	}
+	result, portal, err := s.Main.Bridge.ReIDPortal(ctx, pniPortalKey, aciPortalKey)
+	if err != nil {
+		log.Err(err).Msg("Failed to re-ID portal")
+	} else if result == bridgev2.ReIDResultSourceReIDd || result == bridgev2.ReIDResultTargetDeletedAndSourceReIDd {
+		// If the source portal is re-ID'd, we need to sync metadata and participants.
+		// If the source is deleted, then it doesn't matter, any existing target will already be correct
+		info, err := s.GetChatInfo(ctx, portal)
+		if err != nil {
+			log.Err(err).Msg("Failed to get chat info to update portal after re-ID")
+		} else {
+			portal.UpdateInfo(ctx, info, s.UserLogin, nil, time.Time{})
+		}
 	}
 }
 
