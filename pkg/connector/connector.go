@@ -1195,6 +1195,22 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 	return nil
 }
 
+func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.MatrixTyping) error {
+	userID, _, err := s.parsePortalID(typing.Portal.ID)
+	if err != nil {
+		return err
+	}
+	// Only send typing notifications in DMs for now
+	// Sending efficiently to groups requires implementing the proper SenderKey stuff first
+	if !userID.IsEmpty() && userID.Type == libsignalgo.ServiceIDTypeACI {
+		typingMessage := signalmeow.TypingMessage(typing.IsTyping)
+		result := s.Client.SendMessage(ctx, userID, typingMessage)
+		fmt.Println(result)
+		// TODO check result
+	}
+	return nil
+}
+
 type msgconvPortalMethods struct{}
 
 func (mpm *msgconvPortalMethods) UploadMatrixMedia(ctx context.Context, data []byte, fileName, contentType string) (id.ContentURIString, error) {
