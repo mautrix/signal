@@ -193,6 +193,7 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 		MaxFileSize:          50 * 1024 * 1024,
 		AsyncFiles:           true,
 		LocationFormat:       s.Config.LocationFormat,
+		NoUpdateDisappearing: true,
 	}
 }
 
@@ -764,11 +765,33 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 			Content: part.Content,
 			Extra:   part.Extra,
 		}
-
+	}
+	var disappear database.DisappearingSetting
+	if converted.DisappearIn != 0 {
+		disappear = database.DisappearingSetting{
+			Type:  database.DisappearingTypeAfterRead,
+			Timer: time.Duration(converted.DisappearIn) * time.Second,
+		}
+		if evt.Info.Sender == evt.s.Client.Store.ACI {
+			disappear.DisappearAt = time.UnixMilli(int64(dataMsg.GetTimestamp())).Add(disappear.Timer)
+		}
+		if portal.Metadata.DisappearTimer != disappear.Timer {
+			portal.Metadata.DisappearType = disappear.Type
+			portal.Metadata.DisappearTimer = disappear.Timer
+			// TODO if the message doesn't have the DataMessage_EXPIRATION_TIMER_UPDATE,
+			//      we should send a message to the portal notifying of the implicit update
+			err := portal.Save(ctx)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to save portal metadata after updating disappearing timer")
+			} else {
+				zerolog.Ctx(ctx).Debug().Dur("new_timer", portal.Metadata.DisappearTimer).Msg("Updated disappearing timer in portal")
+			}
+		}
 	}
 	return &bridgev2.ConvertedMessage{
-		ReplyTo: replyTo,
-		Parts:   convertedParts,
+		ReplyTo:   replyTo,
+		Parts:     convertedParts,
+		Disappear: disappear,
 	}, nil
 }
 
@@ -945,7 +968,7 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 	}
 }
 
-func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *database.Message, err error) {
+func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
 	mcCtx := &msgconvContext{
 		Connector: s.Main,
 		Intent:    nil,
@@ -964,19 +987,20 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	}
 	// TODO check result
 	fmt.Println(res)
-	meta := map[string]any{
-		"contains_attachments": len(converted.Attachments) > 0,
-	}
 	dbMsg := &database.Message{
 		ID:        makeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
 		SenderID:  makeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(converted.GetTimestamp())),
-		Metadata:  meta,
+	}
+	dbMsg.Metadata.Extra = map[string]any{
+		"contains_attachments": len(converted.Attachments) > 0,
 	}
 	if msg.ReplyTo != nil {
 		dbMsg.RelatesToRowID = msg.ReplyTo.RowID
 	}
-	return dbMsg, nil
+	return &bridgev2.MatrixMessageResponse{
+		DB: dbMsg,
+	}, nil
 }
 
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
@@ -1014,7 +1038,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	// TODO check result
 	fmt.Println(res)
 	msg.EditTarget.ID = makeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
-	msg.EditTarget.Metadata["contains_attachments"] = len(converted.Attachments) > 0
+	msg.EditTarget.Metadata.Extra["contains_attachments"] = len(converted.Attachments) > 0
 	return nil
 }
 
@@ -1070,7 +1094,6 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 }
 
 func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
-	emoji, _ := msg.TargetReaction.Metadata["emoji"].(string)
 	targetAuthorACI, targetSentTimestamp, err := parseMessageID(msg.TargetReaction.MessageID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
@@ -1080,7 +1103,7 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 			Timestamp:               proto.Uint64(uint64(msg.Event.Timestamp)),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:               proto.String(emoji),
+				Emoji:               proto.String(msg.TargetReaction.Metadata.Emoji),
 				Remove:              proto.Bool(true),
 				TargetAuthorAci:     proto.String(targetAuthorACI.String()),
 				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
@@ -1199,7 +1222,7 @@ func (mpm *msgconvPortalMethods) GetSignalReply(ctx context.Context, content *ev
 		AuthorAci: proto.String(string(mcCtx.ReplyTo.SenderID)),
 		Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
 	}
-	if mcCtx.ReplyTo.Metadata["contains_attachments"] != false {
+	if mcCtx.ReplyTo.Metadata.Extra["contains_attachments"] != false {
 		quote.Attachments = make([]*signalpb.DataMessage_Quote_QuotedAttachment, 1)
 	}
 	return quote
@@ -1237,6 +1260,6 @@ func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 		//Revision:       portal.Metadata["revision"].(uint32),
 		Encrypted: true,
 		//RelayUserID:    portal.Relay.UserMXID,
-		//ExpirationTime: portal.Metadata["expiration_timer"].(uint32),
+		ExpirationTime: uint32(portal.Metadata.DisappearTimer.Milliseconds()),
 	}
 }

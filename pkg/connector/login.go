@@ -136,9 +136,13 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	if qr.Existing == nil {
 		ul, err = qr.User.NewLogin(ctx, &database.UserLogin{
 			ID: newLoginID,
-			Metadata: map[string]any{
-				"phone":       signalPhone,
-				"remote_name": signalPhone,
+			Metadata: database.UserLoginMetadata{
+				StandardUserLoginMetadata: database.StandardUserLoginMetadata{
+					RemoteName: signalPhone,
+				},
+				Extra: map[string]any{
+					"phone": signalPhone,
+				},
 			},
 		}, nil)
 		if err != nil {
@@ -146,8 +150,8 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		}
 	} else {
 		ul = qr.Existing
-		ul.Metadata["phone"] = signalPhone
-		ul.Metadata["remote_name"] = signalPhone
+		ul.Metadata.Extra["phone"] = signalPhone
+		ul.Metadata.RemoteName = signalPhone
 		err = ul.Save(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update existing login: %w", err)

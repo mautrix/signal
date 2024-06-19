@@ -54,6 +54,7 @@ type MessageConverter struct {
 	ConvertGIFToAPNG     bool
 	MaxFileSize          int64
 	AsyncFiles           bool
+	NoUpdateDisappearing bool
 
 	LocationFormat string
 }
