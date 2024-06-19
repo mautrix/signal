@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strconv"
@@ -193,12 +194,19 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 		topic = fmt.Sprintf("%s with %s", PrivateChatTopic, recipient.E164)
 	}
 	var serviceID libsignalgo.ServiceID
+	var avatar *bridgev2.Avatar
 	if recipient.ACI == uuid.Nil {
 		name = s.Main.Config.FormatDisplayname(recipient)
 		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
 	} else {
 		if recipient.ACI == s.Client.Store.ACI {
 			name = NoteToSelfName
+			avatar = &bridgev2.Avatar{
+				ID:     networkid.AvatarID(s.Main.Config.NoteToSelfAvatar),
+				Remove: len(s.Main.Config.NoteToSelfAvatar) == 0,
+				MXC:    s.Main.Config.NoteToSelfAvatar,
+				Hash:   sha256.Sum256([]byte(s.Main.Config.NoteToSelfAvatar)),
+			}
 		} else {
 			// The other user is only present if their ACI is known
 			members = append(members, makeUserID(recipient.ACI))
@@ -209,6 +217,7 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 		PortalID: s.makeDMPortalKey(serviceID),
 		PortalInfo: &bridgev2.PortalInfo{
 			Name:         &name,
+			Avatar:       avatar,
 			Topic:        &topic,
 			Members:      members,
 			IsDirectChat: &isDirectChat,
