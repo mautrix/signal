@@ -44,7 +44,6 @@ func (s *SignalConnector) CreateLogin(ctx context.Context, user *bridgev2.User, 
 
 type QRLogin struct {
 	User       *bridgev2.User
-	Existing   *bridgev2.UserLogin
 	Main       *SignalConnector
 	cancelChan context.CancelFunc
 	ProvChan   chan signalmeow.ProvisioningResponse
@@ -116,9 +115,6 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		return nil, ctx.Err()
 	}
 	newLoginID := makeUserLoginID(signalID)
-	if qr.Existing != nil && qr.Existing.ID != newLoginID {
-		return nil, fmt.Errorf("user ID mismatch for re-auth")
-	}
 
 	select {
 	case resp := <-qr.ProvChan:
@@ -131,9 +127,15 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		return nil, ctx.Err()
 	}
 
-	var ul *bridgev2.UserLogin
-	var err error
-	if qr.Existing == nil {
+	ul, err := qr.Main.Bridge.GetUserLoginByID(ctx, newLoginID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing login: %w", err)
+	}
+	if ul.UserMXID != qr.User.MXID {
+		// TODO delete old user login instead of failing new login
+		return nil, fmt.Errorf("login ID already in use by another user")
+	}
+	if ul == nil {
 		ul, err = qr.User.NewLogin(ctx, &database.UserLogin{
 			ID: newLoginID,
 			Metadata: database.UserLoginMetadata{
@@ -149,7 +151,6 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 			return nil, fmt.Errorf("failed to save new login: %w", err)
 		}
 	} else {
-		ul = qr.Existing
 		ul.Metadata.Extra["phone"] = signalPhone
 		ul.Metadata.RemoteName = signalPhone
 		err = ul.Save(ctx)
