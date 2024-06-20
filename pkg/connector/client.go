@@ -21,7 +21,9 @@ type SignalClient struct {
 
 var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
 var _ bridgev2.PushableNetworkAPI = (*SignalClient)(nil)
+var _ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
 var _ bridgev2.GroupCreatingNetworkAPI = (*SignalClient)(nil)
+var _ bridgev2.ContactListingNetworkAPI = (*SignalClient)(nil)
 
 var pushCfg = &bridgev2.PushConfig{
 	FCM: &bridgev2.FCMPushConfig{

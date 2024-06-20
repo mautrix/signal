@@ -91,7 +91,11 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.UserInfo {
 	isBot := false
 	ui := &bridgev2.UserInfo{
-		IsBot: &isBot,
+		IsBot:       &isBot,
+		Identifiers: []string{},
+	}
+	if contact.E164 != "" {
+		ui.Identifiers = append(ui.Identifiers, "tel:"+contact.E164)
 	}
 	name := s.Main.Config.FormatDisplayname(contact)
 	ui.Name = &name
@@ -182,6 +186,32 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 func (s *SignalClient) CreateGroup(ctx context.Context, name string, users ...networkid.UserID) (*bridgev2.CreateChatResponse, error) {
 	//TODO implement me
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveIdentifierResponse, error) {
+	recipients, err := s.Client.Store.RecipientStore.LoadAllContacts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	resp := make([]*bridgev2.ResolveIdentifierResponse, len(recipients))
+	for i, recipient := range recipients {
+		recipientResp := &bridgev2.ResolveIdentifierResponse{
+			UserInfo: s.contactToUserInfo(recipient),
+			Chat:     s.makeCreateDMResponse(recipient),
+		}
+		if recipient.ACI != uuid.Nil {
+			recipientResp.UserID = makeUserID(recipient.ACI)
+			ghost, err := s.Main.Bridge.GetGhostByID(ctx, recipientResp.UserID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get ghost for %s: %w", recipient.ACI, err)
+			}
+			recipientResp.Ghost = ghost
+		} else {
+			recipientResp.UserID = makeUserIDFromServiceID(libsignalgo.NewPNIServiceID(recipient.PNI))
+		}
+		resp[i] = recipientResp
+	}
+	return resp, nil
 }
 
 func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev2.CreateChatResponse {
