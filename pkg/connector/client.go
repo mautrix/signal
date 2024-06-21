@@ -19,11 +19,41 @@ type SignalClient struct {
 	Client    *signalmeow.Client
 }
 
-var _ bridgev2.NetworkAPI = (*SignalClient)(nil)
-var _ bridgev2.PushableNetworkAPI = (*SignalClient)(nil)
-var _ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
-var _ bridgev2.GroupCreatingNetworkAPI = (*SignalClient)(nil)
-var _ bridgev2.ContactListingNetworkAPI = (*SignalClient)(nil)
+var signalCaps = &bridgev2.NetworkRoomCapabilities{
+	FormattedText:    true,
+	UserMentions:     true,
+	LocationMessages: true,
+	Captions:         true,
+	Replies:          true,
+	Edits:            true,
+	EditMaxCount:     10,
+	EditMaxAge:       24 * time.Hour,
+	Deletes:          true,
+	DeleteMaxAge:     24 * time.Hour,
+	DefaultFileRestriction: &bridgev2.FileRestriction{
+		MaxSize: 100 * 1024 * 1024,
+	},
+	ReadReceipts:  true,
+	Reactions:     true,
+	ReactionCount: 1,
+}
+
+func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *bridgev2.NetworkRoomCapabilities {
+	return signalCaps
+}
+
+var (
+	_ bridgev2.NetworkAPI                    = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI    = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.GroupCreatingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.ContactListingNetworkAPI      = (*SignalClient)(nil)
+)
 
 var pushCfg = &bridgev2.PushConfig{
 	FCM: &bridgev2.FCMPushConfig{

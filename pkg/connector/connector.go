@@ -80,7 +80,7 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 					return signalfmt.UserInfo{}
 				}
 				userInfo := signalfmt.UserInfo{
-					MXID: ghost.MXID,
+					MXID: ghost.Intent.GetMXID(),
 					Name: ghost.Name,
 				}
 				userLogin := s.Bridge.GetCachedUserLoginByID(networkid.UserLoginID(uuid.String()))
@@ -124,7 +124,11 @@ func (s *SignalConnector) SetMaxFileSize(maxSize int64) {
 }
 
 func (s *SignalConnector) Start(ctx context.Context) error {
-	return s.Store.Upgrade(ctx)
+	err := s.Store.Upgrade(ctx)
+	if err != nil {
+		return bridgev2.DBUpgradeError{Err: err, Section: "signalmeow"}
+	}
+	return nil
 }
 
 func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {

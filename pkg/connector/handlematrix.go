@@ -122,6 +122,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	fmt.Println(res)
 	msg.EditTarget.ID = makeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
 	msg.EditTarget.Metadata.Extra["contains_attachments"] = len(converted.Attachments) > 0
+	msg.EditTarget.Metadata.EditCount++
 	return nil
 }
 

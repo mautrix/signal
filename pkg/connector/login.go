@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 
@@ -127,13 +128,13 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		return nil, ctx.Err()
 	}
 
-	ul, err := qr.Main.Bridge.GetUserLoginByID(ctx, newLoginID)
+	ul, err := qr.Main.Bridge.GetExistingUserLoginByID(ctx, newLoginID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get existing login: %w", err)
 	}
-	if ul.UserMXID != qr.User.MXID {
-		// TODO delete old user login instead of failing new login
-		return nil, fmt.Errorf("login ID already in use by another user")
+	if ul != nil && ul.UserMXID != qr.User.MXID {
+		ul.Delete(ctx, status.BridgeState{StateEvent: status.StateLoggedOut, Error: "overridden-by-another-user"}, false)
+		ul = nil
 	}
 	if ul == nil {
 		ul, err = qr.User.NewLogin(ctx, &database.UserLogin{

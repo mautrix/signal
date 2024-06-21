@@ -273,6 +273,7 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 		Content: lastPart.Content,
 		Extra:   lastPart.Extra,
 	})
+	convertedEdit.ModifiedParts[0].Part.Metadata.EditCount++
 	return convertedEdit, nil
 }
 
