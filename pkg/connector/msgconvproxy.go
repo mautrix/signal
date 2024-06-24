@@ -110,6 +110,6 @@ func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 		//Revision:       portal.Metadata["revision"].(uint32),
 		Encrypted: true,
 		//RelayUserID:    portal.Relay.UserMXID,
-		ExpirationTime: uint32(portal.Metadata.DisappearTimer.Milliseconds()),
+		ExpirationTime: uint32(portal.Metadata.DisappearTimer.Seconds()),
 	}
 }
