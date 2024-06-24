@@ -50,6 +50,14 @@ func NewConnector() *SignalConnector {
 	}
 }
 
+var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
+	DisappearingMessages: true,
+}
+
+func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities {
+	return signalGeneralCaps
+}
+
 func (s *SignalConnector) GetName() bridgev2.BridgeName {
 	return bridgev2.BridgeName{
 		DisplayName:      "Signal",
