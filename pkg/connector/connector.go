@@ -52,6 +52,7 @@ func NewConnector() *SignalConnector {
 
 var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 	DisappearingMessages: true,
+	AggressiveUpdateInfo: true,
 }
 
 func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities {
