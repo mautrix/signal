@@ -17,6 +17,8 @@
 package main
 
 import (
+	"net/http"
+
 	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
 	"maunium.net/go/mautrix/bridgev2/matrix/mxmain"
 
@@ -52,6 +54,16 @@ func main() {
 			m.LegacyMigrateSimple(legacyMigrateRenameTables, legacyMigrateCopyData),
 			true,
 		)
+	}
+	m.PostStart = func() {
+		if m.Matrix.Provisioning != nil {
+			m.Matrix.Provisioning.Router.HandleFunc("/v2/link/new", legacyProvLinkNew).Methods(http.MethodPost)
+			m.Matrix.Provisioning.Router.HandleFunc("/v2/link/wait/scan", legacyProvLinkWaitScan).Methods(http.MethodPost)
+			m.Matrix.Provisioning.Router.HandleFunc("/v2/link/wait/account", legacyProvLinkWaitAccount).Methods(http.MethodPost)
+			m.Matrix.Provisioning.Router.HandleFunc("/v2/logout", legacyProvLogout).Methods(http.MethodPost)
+			m.Matrix.Provisioning.Router.HandleFunc("/v2/resolve_identifier/{phonenum}", legacyProvResolveIdentifier).Methods(http.MethodGet)
+			m.Matrix.Provisioning.Router.HandleFunc("/v2/pm/{phonenum}", legacyProvPM).Methods(http.MethodPost)
+		}
 	}
 	m.InitVersion(Tag, Commit, BuildTime)
 	m.Run()

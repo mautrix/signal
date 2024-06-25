@@ -19,7 +19,6 @@ package connector
 import (
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -148,7 +147,7 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 		aci = resp[e164Number].ACI
 		pni = resp[e164Number].PNI
 		if aci == uuid.Nil && pni == uuid.Nil {
-			return nil, errors.New("user not found on Signal")
+			return nil, nil
 		}
 		recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
 		if err != nil {
