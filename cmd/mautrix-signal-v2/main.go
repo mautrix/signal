@@ -17,6 +17,7 @@
 package main
 
 import (
+	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
 	"maunium.net/go/mautrix/bridgev2/matrix/mxmain"
 
 	"go.mau.fi/mautrix-signal/pkg/connector"
@@ -31,17 +32,26 @@ var (
 	BuildTime = "unknown"
 )
 
-func main() {
-	m := mxmain.BridgeMain{
-		Name:        "mautrix-signal",
-		URL:         "https://github.com/mautrix/signal",
-		Description: "A Matrix-Signal puppeting bridge.",
-		Version:     "0.7.0",
+var m = mxmain.BridgeMain{
+	Name:        "mautrix-signal",
+	URL:         "https://github.com/mautrix/signal",
+	Description: "A Matrix-Signal puppeting bridge.",
+	Version:     "0.7.0",
 
-		Connector: connector.NewConnector(),
-	}
+	Connector: connector.NewConnector(),
+}
+
+func main() {
+	bridgeconfig.HackyMigrateLegacyNetworkConfig = migrateLegacyConfig
 	m.PostInit = func() {
 		signalmeow.SetLogger(m.Log.With().Str("component", "signalmeow").Logger())
+		m.CheckLegacyDB(
+			20,
+			"v0.5.1",
+			"v0.7.0",
+			m.LegacyMigrateSimple(legacyMigrateRenameTables, legacyMigrateCopyData),
+			true,
+		)
 	}
 	m.InitVersion(Tag, Commit, BuildTime)
 	m.Run()
