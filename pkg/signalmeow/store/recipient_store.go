@@ -244,6 +244,14 @@ func (s *sqlStore) LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUI
 			if err != nil {
 				return fmt.Errorf("failed to run updater function: %w", err)
 			}
+			// SQL only supports one ON CONFLICT clause, which means StoreRecipient will key on the ACI if it's present.
+			// If we're adding an ACI to a PNI row, just delete the PNI row first to avoid conflicts on the PNI key.
+			if outRecipient.PNI != uuid.Nil && outRecipient.ACI == uuid.Nil && aci != uuid.Nil {
+				err = s.DeleteRecipientByPNI(ctx, outRecipient.PNI)
+				if err != nil {
+					return fmt.Errorf("failed to delete old PNI row: %w", err)
+				}
+			}
 			if outRecipient.PNI == uuid.Nil && pni != uuid.Nil {
 				outRecipient.PNI = pni
 				changed = true
