@@ -475,7 +475,12 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	ctx = log.WithContext(ctx)
 	log.Trace().Msg("Received SealedSender message")
 
-	cli.Store.RecipientStore.UpdateRecipientE164(ctx, senderUUID, uuid.Nil, senderE164)
+	if senderE164 != "" {
+		_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, senderUUID, uuid.Nil, senderE164)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to update sender E164 in recipient store")
+		}
+	}
 
 	switch messageType {
 	case libsignalgo.CiphertextMessageTypeSenderKey:
