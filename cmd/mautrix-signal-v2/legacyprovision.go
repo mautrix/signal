@@ -193,14 +193,7 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 func legacyProvLogout(w http.ResponseWriter, r *http.Request) {
-	user := m.Matrix.Provisioning.GetUser(r)
-	for {
-		login := user.GetDefaultLogin()
-		if login == nil {
-			break
-		}
-		login.Logout(r.Context())
-	}
+	// No-op for backwards compatibility
 	legacyprovision.JSONResponse(w, http.StatusOK, nil)
 }
 
