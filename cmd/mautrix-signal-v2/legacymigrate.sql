@@ -87,7 +87,7 @@ SELECT
     NULL, -- relates_to
     -- only: postgres
     '{}'::jsonb -- metadata
-    -- only: sqlite (line commented
+    -- only: sqlite (line commented)
 --  '{}'
 FROM message_old;
 
