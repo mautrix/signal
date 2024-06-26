@@ -76,7 +76,7 @@ func (puppet *Puppet) StartCustomMXID(reloginOnFail bool) error {
 }
 
 func (user *User) tryAutomaticDoublePuppeting() {
-	if !user.bridge.Config.CanAutoDoublePuppet(user.MXID) {
+	if !user.bridge.DoublePuppet.CanAutoDoublePuppet(user.MXID) {
 		return
 	}
 	user.log.Debug().Msg("Checking if double puppeting needs to be enabled")
