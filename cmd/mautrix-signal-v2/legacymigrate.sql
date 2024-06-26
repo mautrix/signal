@@ -75,7 +75,7 @@ INSERT INTO message (
 SELECT
     '', -- bridge_id
     cast(sender AS TEXT) || '|' || timestamp, -- id
-    CAST(part_index AS TEXT), -- part_id
+    CASE WHEN part_index=0 THEN '' ELSE CAST(part_index AS TEXT) END, -- part_id
     mxid,
     signal_chat_id, -- room_id
     CASE
@@ -85,10 +85,7 @@ SELECT
     cast(sender AS TEXT), -- sender_id
     timestamp * 1000000,
     NULL, -- relates_to
-    -- only: postgres
-    '{}'::jsonb -- metadata
-    -- only: sqlite (line commented)
---  '{}'
+    '{}' -- metadata
 FROM message_old;
 
 INSERT INTO disappearing_message (
