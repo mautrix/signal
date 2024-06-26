@@ -5,9 +5,6 @@ if [[ -z "$GID" ]]; then
 fi
 
 BINARY_NAME=/usr/bin/mautrix-signal
-if [[ "$BRIDGEV2" == "1" ]]; then
-	BINARY_NAME=/usr/bin/mautrix-signal-v2
-fi
 
 # Define functions.
 function fixperms {
