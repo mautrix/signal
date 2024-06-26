@@ -174,6 +174,7 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		Instructions: fmt.Sprintf("Successfully logged in as %s / %s", signalPhone, signalID),
 		CompleteParams: &bridgev2.LoginCompleteParams{
 			UserLoginID: ul.ID,
+			UserLogin:   ul,
 		},
 	}, nil
 }

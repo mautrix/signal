@@ -17,27 +17,170 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync"
+	"sync/atomic"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
-
-	"go.mau.fi/mautrix-signal/legacyprovision"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
+
+	"go.mau.fi/mautrix-signal/legacyprovision"
 )
 
+var legacyProvisionHandleID atomic.Uint32
+var loginSessions = make(map[uint32]*legacyLoginProcess)
+var loginSessionsLock sync.Mutex
+
+type legacyLoginProcess struct {
+	ID    uint32
+	Login bridgev2.LoginProcess
+	User  *bridgev2.User
+	Done  *bridgev2.UserLogin
+}
+
+func (llp *legacyLoginProcess) Delete() {
+	loginSessionsLock.Lock()
+	delete(loginSessions, llp.ID)
+	loginSessionsLock.Unlock()
+}
+
 func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
+	handleID := legacyProvisionHandleID.Add(1)
+	user := m.Matrix.Provisioning.GetUser(r)
+	defLogin := user.GetDefaultLogin()
+	if defLogin != nil && defLogin.Client != nil && defLogin.Client.IsLoggedIn() {
+		legacyprovision.JSONResponse(w, http.StatusConflict, &legacyprovision.Error{
+			Error:   "Already logged in",
+			ErrCode: "FI.MAU.ALREADY_LOGGED_IN",
+		})
+		return
+	}
+	log := zerolog.Ctx(r.Context())
+	login, err := m.Connector.CreateLogin(r.Context(), user, "qr")
+	if err != nil {
+		log.Err(err).Msg("Failed to create login")
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+			Error:   "Internal error starting login",
+			ErrCode: "M_UNKNOWN",
+		})
+		return
+	}
+	firstStep, err := login.Start(r.Context())
+	if err != nil {
+		log.Err(err).Msg("Failed to start login")
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+			Error:   "Internal error starting login",
+			ErrCode: "M_UNKNOWN",
+		})
+		return
+	} else if firstStep.Type != bridgev2.LoginStepTypeDisplayAndWait || firstStep.DisplayAndWaitParams.Type != bridgev2.LoginDisplayTypeQR {
+		log.Error().Any("first_step", firstStep).Msg("Unexpected first step")
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+			Error:   "Unexpected first login step",
+			ErrCode: "M_UNKNOWN",
+		})
+		return
+	}
+	loginSessionsLock.Lock()
+	loginSessions[handleID] = &legacyLoginProcess{
+		ID:    handleID,
+		Login: login,
+		User:  user,
+	}
+	loginSessionsLock.Unlock()
+	legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
+		Success:   true,
+		Status:    "provisioning_url_received",
+		SessionID: strconv.Itoa(int(handleID)),
+		URI:       firstStep.DisplayAndWaitParams.Data,
+	})
+}
+
+func getLoginProcess(w http.ResponseWriter, r *http.Request) *legacyLoginProcess {
+	var body legacyprovision.LinkWaitForAccountRequest
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		legacyprovision.JSONResponse(w, http.StatusBadRequest, legacyprovision.Error{
+			Success: false,
+			Error:   "Error decoding JSON body",
+			ErrCode: mautrix.MBadJSON.ErrCode,
+		})
+		return nil
+	}
+	sessionID, err := strconv.Atoi(body.SessionID)
+	if err != nil {
+		legacyprovision.JSONResponse(w, http.StatusBadRequest, legacyprovision.Error{
+			Success: false,
+			Error:   "Error decoding session ID in JSON body",
+			ErrCode: mautrix.MBadJSON.ErrCode,
+		})
+		return nil
+	}
+	process, ok := loginSessions[uint32(sessionID)]
+	user := m.Matrix.Provisioning.GetUser(r)
+	if !ok || process.User != user {
+		legacyprovision.JSONResponse(w, http.StatusNotFound, legacyprovision.Error{
+			Success: false,
+			Error:   "No session found",
+			ErrCode: mautrix.MNotFound.ErrCode,
+		})
+		return nil
+	}
+	return process
 }
 
 func legacyProvLinkWaitScan(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
+	login := getLoginProcess(w, r)
+	if login == nil {
+		return
+	}
+	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
+	if err != nil {
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+			Error:   "Failed to log in",
+			ErrCode: "M_UNKNOWN",
+		})
+		login.Delete()
+		return
+	} else if res.Type != bridgev2.LoginStepTypeComplete {
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+			Error:   "Unexpected login step",
+			ErrCode: "M_UNKNOWN",
+		})
+		login.Delete()
+		return
+	}
+	login.Done = res.CompleteParams.UserLogin
+	legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
+		Success: true,
+		Status:  "provisioning_data_received",
+	})
 }
 
 func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
+	login := getLoginProcess(w, r)
+	if login == nil {
+		return
+	}
+	if login.Done != nil {
+		legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
+			Success: true,
+			Status:  "prekeys_registered",
+			UUID:    string(login.Done.ID),
+			Number:  login.Done.Metadata.RemoteName,
+		})
+		login.Delete()
+	} else {
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+			Error:   "Login not completed",
+			ErrCode: "M_UNKNOWN",
+		})
+	}
 }
 
 func legacyProvLogout(w http.ResponseWriter, r *http.Request) {
