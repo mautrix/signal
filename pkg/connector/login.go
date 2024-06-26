@@ -26,6 +26,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
 
 func (s *SignalConnector) GetLoginFlows() []bridgev2.LoginFlow {
@@ -48,6 +49,8 @@ type QRLogin struct {
 	Main       *SignalConnector
 	cancelChan context.CancelFunc
 	ProvChan   chan signalmeow.ProvisioningResponse
+
+	ProvData *store.DeviceData
 }
 
 var _ bridgev2.LoginProcessDisplayAndWait = (*QRLogin)(nil)
@@ -59,6 +62,12 @@ func (qr *QRLogin) Cancel() {
 		}
 	}()
 }
+
+const (
+	LoginStepQR       = "fi.mau.signal.login.qr"
+	LoginStepProcess  = "fi.mau.signal.login.processing"
+	LoginStepComplete = "fi.mau.signal.login.complete"
+)
 
 func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	log := qr.Main.Bridge.Log.With().
@@ -84,7 +93,7 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeDisplayAndWait,
-		StepID:       "fi.mau.signal.login.qr",
+		StepID:       LoginStepQR,
 		Instructions: "Scan the QR code on your Signal app to log in",
 		DisplayAndWaitParams: &bridgev2.LoginDisplayAndWaitParams{
 			Type: bridgev2.LoginDisplayTypeQR,
@@ -97,25 +106,45 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	if qr.ProvChan == nil {
 		return nil, fmt.Errorf("login not started")
 	}
-	defer qr.cancelChan()
 
-	var signalID uuid.UUID
-	var signalPhone string
+	if qr.ProvData == nil {
+		return qr.qrWait(ctx)
+	} else {
+		return qr.processingWait(ctx)
+	}
+}
+
+func (qr *QRLogin) qrWait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	select {
 	case resp := <-qr.ProvChan:
 		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
+			qr.cancelChan()
 			return nil, resp.Err
 		} else if resp.State != signalmeow.StateProvisioningDataReceived {
+			qr.cancelChan()
 			return nil, fmt.Errorf("unexpected state %v", resp.State)
 		} else if resp.ProvisioningData.ACI == uuid.Nil {
+			qr.cancelChan()
 			return nil, fmt.Errorf("no signal account ID received")
 		}
-		signalID = resp.ProvisioningData.ACI
-		signalPhone = resp.ProvisioningData.Number
+		qr.ProvData = resp.ProvisioningData
+		return &bridgev2.LoginStep{
+			Type:         bridgev2.LoginStepTypeDisplayAndWait,
+			StepID:       LoginStepProcess,
+			Instructions: fmt.Sprintf("Processing login as %s...", resp.ProvisioningData.Number),
+			DisplayAndWaitParams: &bridgev2.LoginDisplayAndWaitParams{
+				Type: bridgev2.LoginDisplayTypeNothing,
+			},
+		}, nil
 	case <-ctx.Done():
+		qr.cancelChan()
 		return nil, ctx.Err()
 	}
-	newLoginID := makeUserLoginID(signalID)
+}
+
+func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, error) {
+	defer qr.cancelChan()
+	newLoginID := makeUserLoginID(qr.ProvData.ACI)
 
 	select {
 	case resp := <-qr.ProvChan:
@@ -141,10 +170,10 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 			ID: newLoginID,
 			Metadata: database.UserLoginMetadata{
 				StandardUserLoginMetadata: database.StandardUserLoginMetadata{
-					RemoteName: signalPhone,
+					RemoteName: qr.ProvData.Number,
 				},
 				Extra: map[string]any{
-					"phone": signalPhone,
+					"phone": qr.ProvData.Number,
 				},
 			},
 		}, nil)
@@ -152,8 +181,8 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 			return nil, fmt.Errorf("failed to save new login: %w", err)
 		}
 	} else {
-		ul.Metadata.Extra["phone"] = signalPhone
-		ul.Metadata.RemoteName = signalPhone
+		ul.Metadata.Extra["phone"] = qr.ProvData.Number
+		ul.Metadata.RemoteName = qr.ProvData.Number
 		err = ul.Save(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update existing login: %w", err)
@@ -170,8 +199,8 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
-		StepID:       "fi.mau.signal.login.complete",
-		Instructions: fmt.Sprintf("Successfully logged in as %s / %s", signalPhone, signalID),
+		StepID:       LoginStepComplete,
+		Instructions: fmt.Sprintf("Successfully logged in as %s / %s", qr.ProvData.Number, qr.ProvData.ACI),
 		CompleteParams: &bridgev2.LoginCompleteParams{
 			UserLoginID: ul.ID,
 			UserLogin:   ul,

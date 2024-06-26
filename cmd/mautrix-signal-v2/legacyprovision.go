@@ -30,6 +30,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 
 	"go.mau.fi/mautrix-signal/legacyprovision"
+	"go.mau.fi/mautrix-signal/pkg/connector"
 )
 
 var legacyProvisionHandleID atomic.Uint32
@@ -40,7 +41,6 @@ type legacyLoginProcess struct {
 	ID    uint32
 	Login bridgev2.LoginProcess
 	User  *bridgev2.User
-	Done  *bridgev2.UserLogin
 }
 
 func (llp *legacyLoginProcess) Delete() {
@@ -78,7 +78,7 @@ func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
 			ErrCode: "M_UNKNOWN",
 		})
 		return
-	} else if firstStep.Type != bridgev2.LoginStepTypeDisplayAndWait || firstStep.DisplayAndWaitParams.Type != bridgev2.LoginDisplayTypeQR {
+	} else if firstStep.StepID != connector.LoginStepQR || firstStep.Type != bridgev2.LoginStepTypeDisplayAndWait || firstStep.DisplayAndWaitParams.Type != bridgev2.LoginDisplayTypeQR {
 		log.Error().Any("first_step", firstStep).Msg("Unexpected first step")
 		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
 			Error:   "Unexpected first login step",
@@ -141,13 +141,15 @@ func legacyProvLinkWaitScan(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
 	if err != nil {
+		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to log in")
 		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
 			Error:   "Failed to log in",
 			ErrCode: "M_UNKNOWN",
 		})
 		login.Delete()
 		return
-	} else if res.Type != bridgev2.LoginStepTypeComplete {
+	} else if res.StepID != connector.LoginStepProcess {
+		zerolog.Ctx(r.Context()).Error().Any("first_step", res).Msg("Unexpected login step")
 		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
 			Error:   "Unexpected login step",
 			ErrCode: "M_UNKNOWN",
@@ -155,7 +157,6 @@ func legacyProvLinkWaitScan(w http.ResponseWriter, r *http.Request) {
 		login.Delete()
 		return
 	}
-	login.Done = res.CompleteParams.UserLogin
 	legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
 		Success: true,
 		Status:  "provisioning_data_received",
@@ -167,20 +168,28 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 	if login == nil {
 		return
 	}
-	if login.Done != nil {
+	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
+	if err != nil {
+		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to log in")
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+			Error:   "Failed to log in",
+			ErrCode: "M_UNKNOWN",
+		})
+	} else if res.StepID != connector.LoginStepComplete || res.Type != bridgev2.LoginStepTypeComplete {
+		zerolog.Ctx(r.Context()).Error().Any("first_step", res).Msg("Unexpected login step")
+		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+			Error:   "Unexpected login step",
+			ErrCode: "M_UNKNOWN",
+		})
+	} else {
 		legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
 			Success: true,
 			Status:  "prekeys_registered",
-			UUID:    string(login.Done.ID),
-			Number:  login.Done.Metadata.RemoteName,
-		})
-		login.Delete()
-	} else {
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
-			Error:   "Login not completed",
-			ErrCode: "M_UNKNOWN",
+			UUID:    string(res.CompleteParams.UserLogin.ID),
+			Number:  res.CompleteParams.UserLogin.Metadata.RemoteName,
 		})
 	}
+	login.Delete()
 }
 
 func legacyProvLogout(w http.ResponseWriter, r *http.Request) {
