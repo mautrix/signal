@@ -23,12 +23,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/exzerolog"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
-	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -64,6 +62,8 @@ var (
 	_ bridgev2.RemoteReactionRemove     = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteMessageRemove      = (*Bv2ChatEvent)(nil)
 	_ bridgev2.RemoteTyping             = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemotePreHandler         = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteChatInfoChange     = (*Bv2ChatEvent)(nil)
 )
 
 func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
@@ -82,6 +82,8 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 			return bridgev2.RemoteEventReaction
 		case innerEvt.Delete != nil:
 			return bridgev2.RemoteEventMessageRemove
+		case innerEvt.GetGroupV2().GetGroupChange() != nil:
+			return bridgev2.RemoteEventChatInfoChange
 		}
 	case *signalpb.EditMessage:
 		return bridgev2.RemoteEventEdit
@@ -89,6 +91,34 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 		return bridgev2.RemoteEventTyping
 	}
 	return bridgev2.RemoteEventUnknown
+}
+
+func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context) (*bridgev2.ChatInfoChange, error) {
+	dm, _ := evt.Event.(*signalpb.DataMessage)
+	gv2 := dm.GetGroupV2()
+	if gv2 == nil || gv2.GroupChange == nil {
+		return nil, fmt.Errorf("GetChatInfoChange() called for non-GroupChange event")
+	}
+	groupChange, err := evt.s.Client.DecryptGroupChange(ctx, gv2)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt group change: %w", err)
+	}
+	return evt.s.groupChangeToChatInfoChange(ctx, gv2.GetRevision(), groupChange), nil
+}
+
+func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal) {
+	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
+	if !ok || dataMsg.GroupV2 == nil {
+		return
+	}
+	portalRev, _ := database.GetNumberFromMap[uint32](portal.Metadata.Extra, "revision")
+	if evt.Info.GroupRevision > portalRev {
+		toRevision := evt.Info.GroupRevision
+		if dataMsg.GetGroupV2().GetGroupChange() != nil {
+			toRevision--
+		}
+		evt.s.catchUpGroup(ctx, portal, portalRev, toRevision, dataMsg.GetTimestamp())
+	}
 }
 
 func (evt *Bv2ChatEvent) GetTimeout() time.Duration {
@@ -104,7 +134,7 @@ func (evt *Bv2ChatEvent) GetPortalKey() networkid.PortalKey {
 }
 
 func (evt *Bv2ChatEvent) ShouldCreatePortal() bool {
-	return evt.GetType() == bridgev2.RemoteEventMessage
+	return evt.GetType() == bridgev2.RemoteEventMessage || evt.GetType() == bridgev2.RemoteEventChatInfoChange
 }
 
 func (evt *Bv2ChatEvent) AddLogContext(c zerolog.Context) zerolog.Context {
@@ -231,28 +261,11 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 			Type:  database.DisappearingTypeAfterRead,
 			Timer: time.Duration(converted.DisappearIn) * time.Second,
 		}
+		dataMsgTS := time.UnixMilli(int64(dataMsg.GetTimestamp()))
 		if evt.Info.Sender == evt.s.Client.Store.ACI {
-			disappear.DisappearAt = time.UnixMilli(int64(dataMsg.GetTimestamp())).Add(disappear.Timer)
+			disappear.DisappearAt = dataMsgTS.Add(disappear.Timer)
 		}
-		if portal.Metadata.DisappearTimer != disappear.Timer {
-			portal.Metadata.DisappearType = disappear.Type
-			portal.Metadata.DisappearTimer = disappear.Timer
-			err := portal.Save(ctx)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to save portal metadata after implicitly updating disappearing timer")
-			} else {
-				zerolog.Ctx(ctx).Debug().Dur("new_timer", portal.Metadata.DisappearTimer).Msg("Implicitly updated disappearing timer in portal")
-			}
-			_, err = portal.Bridge.Bot.SendMessage(ctx, portal.MXID, event.EventMessage, &event.Content{
-				Parsed: &event.MessageEventContent{
-					MsgType: event.MsgNotice,
-					Body:    fmt.Sprintf("Automatically enabled disappearing message timer (%s) because incoming message is disappearing", exfmt.Duration(disappear.Timer)),
-				},
-			}, time.UnixMilli(int64(dataMsg.GetTimestamp())))
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing implicitly")
-			}
-		}
+		portal.UpdateDisappearingSetting(ctx, disappear, nil, dataMsgTS, true, true)
 	}
 	return &bridgev2.ConvertedMessage{
 		ReplyTo:   replyTo,

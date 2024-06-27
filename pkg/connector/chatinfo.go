@@ -53,30 +53,7 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 		return nil, err
 	}
 	if groupID != "" {
-		groupInfo, err := s.Client.RetrieveGroupByID(ctx, groupID, 0)
-		if err != nil {
-			return nil, err
-		}
-		isDM := false
-		isSpace := false
-		members := make([]networkid.UserID, len(groupInfo.Members))
-		for i, member := range groupInfo.Members {
-			members[i] = makeUserID(member.ACI)
-		}
-		return &bridgev2.PortalInfo{
-			Name:  &groupInfo.Title,
-			Topic: &groupInfo.Description,
-			Avatar: &bridgev2.Avatar{
-				ID: makeAvatarPathID(groupInfo.AvatarPath),
-				Get: func(ctx context.Context) ([]byte, error) {
-					return s.Client.DownloadGroupAvatar(ctx, groupInfo)
-				},
-				Remove: groupInfo.AvatarPath == "",
-			},
-			Members:      members,
-			IsDirectChat: &isDM,
-			IsSpace:      &isSpace,
-		}, nil
+		return s.getGroupInfo(ctx, groupID, 0)
 	} else {
 		aci, pni := serviceIDToACIAndPNI(userID)
 		contact, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
