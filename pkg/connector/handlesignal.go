@@ -68,7 +68,10 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	switch innerEvt := evt.Event.(type) {
 	case *signalpb.DataMessage:
 		switch {
-		case innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil:
+		case innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
+			innerEvt.Payment != nil, innerEvt.GiftBadge != nil,
+			innerEvt.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT),
+			innerEvt.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
 			return bridgev2.RemoteEventMessage
 		case innerEvt.Reaction != nil:
 			if innerEvt.Reaction.GetRemove() {
