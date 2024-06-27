@@ -148,17 +148,17 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 	device, err := s.Store.DeviceByACI(ctx, aci)
 	if err != nil {
 		return fmt.Errorf("failed to get device from store: %w", err)
-	} else if device == nil {
-		return fmt.Errorf("%w: device not found in store", bridgev2.ErrNotLoggedIn)
 	}
 	sc := &SignalClient{
 		Main:      s,
 		UserLogin: login,
-		Client: &signalmeow.Client{
-			Store: device,
-		},
 	}
-	sc.Client.EventHandler = sc.handleSignalEvent
+	if device != nil {
+		sc.Client = &signalmeow.Client{
+			Store:        device,
+			EventHandler: sc.handleSignalEvent,
+		}
+	}
 	login.Client = sc
 	return nil
 }

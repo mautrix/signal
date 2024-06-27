@@ -70,6 +70,9 @@ func (s *SignalClient) GetPushConfigs() *bridgev2.PushConfig {
 }
 
 func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType bridgev2.PushType, token string) error {
+	if s.Client == nil {
+		return bridgev2.ErrNotLoggedIn
+	}
 	if pushType != bridgev2.PushTypeFCM {
 		return fmt.Errorf("unsupported push type: %s", pushType)
 	}
@@ -77,6 +80,9 @@ func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType b
 }
 
 func (s *SignalClient) LogoutRemote(ctx context.Context) {
+	if s.Client == nil {
+		return
+	}
 	err := s.Client.StopReceiveLoops()
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to stop receive loops for logout")
@@ -88,6 +94,9 @@ func (s *SignalClient) LogoutRemote(ctx context.Context) {
 }
 
 func (s *SignalClient) IsThisUser(_ context.Context, userID networkid.UserID) bool {
+	if s.Client == nil {
+		return false
+	}
 	return userID == makeUserID(s.Client.Store.ACI)
 }
 
@@ -200,6 +209,9 @@ func (s *SignalClient) Connect(ctx context.Context) error {
 }
 
 func (s *SignalClient) Disconnect() {
+	if s.Client == nil {
+		return
+	}
 	err := s.Client.StopReceiveLoops()
 	if err != nil {
 		s.UserLogin.Log.Err(err).Msg("Failed to stop receive loops")
@@ -207,6 +219,10 @@ func (s *SignalClient) Disconnect() {
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
+	if s.Client == nil {
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
+		return
+	}
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
@@ -225,5 +241,8 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
 }
 
 func (s *SignalClient) IsLoggedIn() bool {
+	if s.Client == nil {
+		return false
+	}
 	return s.Client.IsLoggedIn()
 }
