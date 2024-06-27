@@ -23,10 +23,12 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/exzerolog"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -235,13 +237,20 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 		if portal.Metadata.DisappearTimer != disappear.Timer {
 			portal.Metadata.DisappearType = disappear.Type
 			portal.Metadata.DisappearTimer = disappear.Timer
-			// TODO if the message doesn't have the DataMessage_EXPIRATION_TIMER_UPDATE,
-			//      we should send a message to the portal notifying of the implicit update
 			err := portal.Save(ctx)
 			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to save portal metadata after updating disappearing timer")
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to save portal metadata after implicitly updating disappearing timer")
 			} else {
-				zerolog.Ctx(ctx).Debug().Dur("new_timer", portal.Metadata.DisappearTimer).Msg("Updated disappearing timer in portal")
+				zerolog.Ctx(ctx).Debug().Dur("new_timer", portal.Metadata.DisappearTimer).Msg("Implicitly updated disappearing timer in portal")
+			}
+			_, err = portal.Bridge.Bot.SendMessage(ctx, portal.MXID, event.EventMessage, &event.Content{
+				Parsed: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    fmt.Sprintf("Automatically enabled disappearing message timer (%s) because incoming message is disappearing", exfmt.Duration(disappear.Timer)),
+				},
+			}, time.UnixMilli(int64(dataMsg.GetTimestamp())))
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to send notice about disappearing message timer changing implicitly")
 			}
 		}
 	}

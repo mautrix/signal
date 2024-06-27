@@ -20,10 +20,13 @@ import (
 	"context"
 	"fmt"
 	"text/template"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/id"
 
@@ -124,7 +127,19 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 		MaxFileSize:          50 * 1024 * 1024,
 		AsyncFiles:           true,
 		LocationFormat:       s.Config.LocationFormat,
-		NoUpdateDisappearing: true,
+		UpdateDisappearing: func(ctx context.Context, newTimer time.Duration) {
+			portal := ctx.Value(msgconvContextKey).(*msgconvContext).Portal
+			portal.Metadata.DisappearTimer = newTimer
+			if newTimer == 0 {
+				portal.Metadata.DisappearType = ""
+			} else {
+				portal.Metadata.DisappearType = database.DisappearingTypeAfterRead
+			}
+			err := portal.Save(ctx)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
+			}
+		},
 	}
 }
 

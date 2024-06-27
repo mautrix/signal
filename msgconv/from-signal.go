@@ -173,12 +173,16 @@ func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.C
 	if timer == 0 {
 		part.Content.Body = "Disappearing messages disabled"
 	}
-	if updatePortal && !mc.NoUpdateDisappearing {
-		portal := mc.GetData(ctx)
-		portal.ExpirationTime = timer
-		err := portal.Update(ctx)
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
+	if updatePortal {
+		if mc.UpdateDisappearing != nil {
+			mc.UpdateDisappearing(ctx, time.Duration(timer)*time.Second)
+		} else {
+			portal := mc.GetData(ctx)
+			portal.ExpirationTime = timer
+			err := portal.Update(ctx)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
+			}
 		}
 	}
 	return part

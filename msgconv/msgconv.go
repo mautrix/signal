@@ -18,6 +18,7 @@ package msgconv
 
 import (
 	"context"
+	"time"
 
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -54,7 +55,7 @@ type MessageConverter struct {
 	ConvertGIFToAPNG     bool
 	MaxFileSize          int64
 	AsyncFiles           bool
-	NoUpdateDisappearing bool
+	UpdateDisappearing   func(ctx context.Context, newTimer time.Duration)
 
 	LocationFormat string
 }
