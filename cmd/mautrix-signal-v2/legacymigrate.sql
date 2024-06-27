@@ -29,8 +29,8 @@ SELECT
     false, -- in_space
     CAST(
         CASE WHEN expiration_time = 0
-            THEN '{}'
-            ELSE '{"disappear_type": "after_read", "disappear_timer": "' || (expiration_time * 1000000000) || '"}'
+            THEN '{"revision":"' || revision || '"}'
+            ELSE '{"disappear_type": "after_read", "disappear_timer": "' || (expiration_time * 1000000000) || '","revision":"' || revision || '"}'
         END
         -- only: postgres
         AS jsonb
