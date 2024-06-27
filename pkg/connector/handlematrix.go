@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -34,20 +35,43 @@ import (
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
-func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) (signalmeow.SendResult, error) {
+func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
 	userID, groupID, err := s.parsePortalID(portalID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if groupID != "" {
-		res, err := s.Client.SendGroupMessage(ctx, groupID, content)
+		result, err := s.Client.SendGroupMessage(ctx, groupID, content)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		return res, nil
+		totalRecipients := len(result.FailedToSendTo) + len(result.SuccessfullySentTo)
+		log := zerolog.Ctx(ctx).With().
+			Int("total_recipients", totalRecipients).
+			Int("failed_to_send_to_count", len(result.FailedToSendTo)).
+			Int("successfully_sent_to_count", len(result.SuccessfullySentTo)).
+			Logger()
+		if len(result.FailedToSendTo) > 0 {
+			log.Error().Msg("Failed to send event to some members of Signal group")
+		}
+		if len(result.SuccessfullySentTo) == 0 && len(result.FailedToSendTo) == 0 {
+			log.Debug().Msg("No successes or failures - Probably sent to myself")
+		} else if len(result.SuccessfullySentTo) == 0 {
+			log.Error().Msg("Failed to send event to all members of Signal group")
+			return errors.New("failed to send to any members of Signal group")
+
+		} else if len(result.SuccessfullySentTo) < totalRecipients {
+			log.Warn().Msg("Only sent event to some members of Signal group")
+		} else {
+			log.Debug().Msg("Sent event to all members of Signal group")
+		}
+		return nil
 	} else {
 		res := s.Client.SendMessage(ctx, userID, content)
-		return &res, nil
+		if !res.WasSuccessful {
+			return res.Error
+		}
+		return nil
 	}
 }
 
@@ -64,12 +88,10 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	if err != nil {
 		return nil, err
 	}
-	res, err := s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
+	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
 	if err != nil {
 		return nil, err
 	}
-	// TODO check result
-	fmt.Println(res)
 	dbMsg := &database.Message{
 		ID:        makeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
 		SenderID:  makeUserID(s.Client.Store.ACI),
@@ -111,15 +133,13 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	if err != nil {
 		return err
 	}
-	res, err := s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{EditMessage: &signalpb.EditMessage{
+	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{EditMessage: &signalpb.EditMessage{
 		TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 		DataMessage:         converted,
 	}})
 	if err != nil {
 		return err
 	}
-	// TODO check result
-	fmt.Println(res)
 	msg.EditTarget.ID = makeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
 	msg.EditTarget.Metadata.Extra["contains_attachments"] = len(converted.Attachments) > 0
 	msg.EditTarget.Metadata.EditCount++
@@ -151,12 +171,10 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 			},
 		},
 	}
-	res, err := s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
+	err = s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
 	if err != nil {
 		return nil, err
 	}
-	// TODO check result
-	fmt.Println(res)
 	return &database.Reaction{}, nil
 }
 
@@ -177,12 +195,10 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 			},
 		},
 	}
-	res, err := s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
+	err = s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
 	if err != nil {
 		return err
 	}
-	// TODO check result
-	fmt.Println(res)
 	return nil
 }
 
@@ -201,12 +217,10 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 			},
 		},
 	}
-	res, err := s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
+	err = s.sendMessage(ctx, msg.Portal.ID, wrappedContent)
 	if err != nil {
 		return err
 	}
-	// TODO check result
-	fmt.Println(res)
 	return nil
 }
 
