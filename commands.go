@@ -74,6 +74,7 @@ func (br *SignalBridge) RegisterCommands() {
 		cmdInvite,
 		cmdListInvited,
 		cmdRevokeInvite,
+		cmdJoin,
 	)
 }
 
@@ -1158,4 +1159,61 @@ func fnCreate(ce *WrappedCommandEvent) {
 	}
 	portal.UpdateBridgeInfo(ce.Ctx)
 	ce.Reply("Successfully created Signal group %s", gid.String())
+}
+
+var cmdJoin = &commands.FullHandler{
+	Func: wrapCommand(fnJoin),
+	Name: "join",
+	Help: commands.HelpMeta{
+		Section:     HelpSectionInvites,
+		Description: "Join a group chat with an invite link.",
+		Args:        "<_invite link_>",
+	},
+	RequiresLogin: true,
+}
+
+func fnJoin(ce *WrappedCommandEvent) {
+	if len(ce.Args) == 0 {
+		ce.Reply("**Usage:** `join <invite link>`")
+		return
+	}
+	groupJoinInfo, err := ce.User.Client.GetGroupJoinInfo(ce.Ctx, ce.Args[0])
+	if err != nil {
+		ce.Reply("Failed to get GroupJoinInfo: %w", err)
+		return
+	}
+	group, err := ce.User.Client.JoinGroupWithJoinInfo(ce.Ctx, groupJoinInfo, ce.User.SignalID)
+	if err != nil {
+		ce.Reply("Failed to join group: %w", err)
+		return
+	}
+	// group != nil means the user is pending admin approval and thus cannot yet fetch group info
+	if group != nil {
+		portal := ce.User.GetPortalByChatID(groupJoinInfo.GroupIdentifier.String())
+		if portal.MXID == "" {
+			err = portal.CreateMatrixRoom(ce.Ctx, ce.User, group.Revision)
+			if err != nil {
+				ce.Reply("Failed to create portal after joining")
+				return
+			}
+		} else {
+			puppet := ce.Bridge.GetPuppetByMXID(ce.User.MXID)
+			if puppet != nil {
+				err := puppet.IntentFor(portal).EnsureJoined(ce.Ctx, portal.MXID)
+				if err != nil {
+					ce.Reply("Failed to join portal")
+					return
+				}
+			} else {
+				err := portal.MainIntent().EnsureInvited(ce.Ctx, portal.MXID, ce.User.MXID)
+				if err != nil {
+					ce.Reply("Failed to invite you")
+					return
+				}
+			}
+		}
+		ce.Reply("Created portal and invited you to it")
+	} else {
+		ce.Reply("Join request sent, awaiting admin approval")
+	}
 }
