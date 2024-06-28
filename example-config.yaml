@@ -141,7 +141,7 @@ bridge:
     caption_in_message: false
     # Format for generating URLs from location messages for sending to Signal
     # Google Maps: 'https://www.google.com/maps/place/%[1]s,%[2]s'
-    # OpenStreetMap: 'https://www.openstreetmap.org/?mlat=%[1]s&mlon=%[2]'
+    # OpenStreetMap: 'https://www.openstreetmap.org/?mlat=%[1]s&mlon=%[2]s'
     location_format: 'https://www.google.com/maps/place/%[1]s,%[2]s'
     # Whether or not created rooms should have federation enabled.
     # If false, created portal rooms will never be federated.
