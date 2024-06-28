@@ -85,7 +85,7 @@ func (mpm *msgconvPortalMethods) GetClient(ctx context.Context) *signalmeow.Clie
 func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 	mcCtx := ctx.Value(msgconvContextKey).(*msgconvContext)
 	portal := mcCtx.Portal
-	userID, groupID, _ := mcCtx.Client.parsePortalID(portal.ID)
+	userID, groupID, _ := parsePortalID(portal.ID)
 	chatID := string(groupID)
 	if chatID == "" {
 		chatID = userID.String()

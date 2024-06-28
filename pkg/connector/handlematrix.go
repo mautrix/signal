@@ -36,7 +36,7 @@ import (
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
-	userID, groupID, err := s.parsePortalID(portalID)
+	userID, groupID, err := parsePortalID(portalID)
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 }
 
 func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.MatrixTyping) error {
-	userID, _, err := s.parsePortalID(typing.Portal.ID)
+	userID, _, err := parsePortalID(typing.Portal.ID)
 	if err != nil {
 		return err
 	}

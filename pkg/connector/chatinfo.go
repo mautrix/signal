@@ -49,7 +49,7 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.PortalInfo, error) {
-	userID, groupID, err := s.parsePortalID(portal.ID)
+	userID, groupID, err := parsePortalID(portal.ID)
 	if err != nil {
 		return nil, err
 	}

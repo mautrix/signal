@@ -27,6 +27,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -42,11 +43,50 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	case *events.ReadSelf:
 		s.handleSignalReadSelf(evt)
 	case *events.Call:
+		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapCallEvent(evt))
 	case *events.ContactList:
 		s.handleSignalContactList(evt)
 	case *events.ACIFound:
 		s.handleSignalACIFound(evt)
 	}
+}
+
+func (s *SignalClient) wrapCallEvent(evt *events.Call) bridgev2.RemoteMessage {
+	return &bridgev2.SimpleRemoteEvent[*events.Call]{
+		Type: bridgev2.RemoteEventMessage,
+		LogContext: func(c zerolog.Context) zerolog.Context {
+			c = c.Stringer("sender_id", evt.Info.Sender)
+			c = c.Uint64("message_ts", evt.Timestamp)
+			return c
+		},
+		PortalKey:          s.makePortalKey(evt.Info.ChatID),
+		Data:               evt,
+		CreatePortal:       true,
+		ID:                 makeMessageID(evt.Info.Sender, evt.Timestamp),
+		Sender:             s.makeEventSender(evt.Info.Sender),
+		Timestamp:          time.UnixMilli(int64(evt.Timestamp)),
+		ConvertMessageFunc: convertCallEvent,
+	}
+}
+
+func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, data *events.Call) (*bridgev2.ConvertedMessage, error) {
+	content := &event.MessageEventContent{
+		MsgType: event.MsgNotice,
+	}
+	if data.IsRinging {
+		content.Body = "Incoming call"
+		if userID, _, _ := parsePortalID(portal.ID); !userID.IsEmpty() {
+			content.MsgType = event.MsgText
+		}
+	} else {
+		content.Body = "Call ended"
+	}
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type:    event.EventMessage,
+			Content: content,
+		}},
+	}, nil
 }
 
 type Bv2ChatEvent struct {

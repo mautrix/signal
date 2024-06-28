@@ -44,7 +44,7 @@ func parseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, err
 	return libsignalgo.ServiceIDFromString(string(userID))
 }
 
-func (s *SignalClient) parsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
+func parsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
 	if len(portalID) == 44 {
 		groupID = types.GroupIdentifier(portalID)
 	} else {
