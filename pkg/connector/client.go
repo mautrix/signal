@@ -53,6 +53,9 @@ var (
 	_ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
 	_ bridgev2.GroupCreatingNetworkAPI       = (*SignalClient)(nil)
 	_ bridgev2.ContactListingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI    = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI   = (*SignalClient)(nil)
 )
 
 var pushCfg = &bridgev2.PushConfig{

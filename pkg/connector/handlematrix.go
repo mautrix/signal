@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -286,8 +287,81 @@ func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.
 	if !userID.IsEmpty() && userID.Type == libsignalgo.ServiceIDTypeACI {
 		typingMessage := signalmeow.TypingMessage(typing.IsTyping)
 		result := s.Client.SendMessage(ctx, userID, typingMessage)
-		fmt.Println(result)
-		// TODO check result
+		if !result.WasSuccessful {
+			return result.Error
+		}
 	}
 	return nil
+}
+
+func (s *SignalClient) handleMatrixRoomMeta(ctx context.Context, portal *bridgev2.Portal, gc *signalmeow.GroupChange, postUpdatePortal func()) (bool, error) {
+	_, groupID, err := parsePortalID(portal.ID)
+	if err != nil || groupID == "" {
+		return false, err
+	}
+	rev, ok := database.GetNumberFromMap[uint32](portal.Metadata.Extra, "revision")
+	if !ok {
+		return false, fmt.Errorf("missing revision in portal metadata")
+	}
+	gc.Revision = rev + 1
+	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
+	if err != nil {
+		return false, err
+	}
+	if gc.ModifyTitle != nil {
+		portal.Name = *gc.ModifyTitle
+		portal.NameSet = true
+	}
+	if gc.ModifyDescription != nil {
+		portal.Topic = *gc.ModifyDescription
+		portal.TopicSet = true
+	}
+	if gc.ModifyAvatar != nil {
+		portal.AvatarID = makeAvatarPathID(*gc.ModifyAvatar)
+		portal.AvatarSet = true
+	}
+	if postUpdatePortal != nil {
+		postUpdatePortal()
+	}
+	portal.Metadata.Extra["revision"] = revision
+	return true, nil
+}
+
+func (s *SignalClient) HandleMatrixRoomName(ctx context.Context, msg *bridgev2.MatrixRoomName) (bool, error) {
+	return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
+		ModifyTitle: &msg.Content.Name,
+	}, nil)
+}
+
+func (s *SignalClient) HandleMatrixRoomAvatar(ctx context.Context, msg *bridgev2.MatrixRoomAvatar) (bool, error) {
+	_, groupID, err := parsePortalID(msg.Portal.ID)
+	if err != nil || groupID == "" {
+		return false, err
+	}
+	var avatarPath string
+	var avatarHash [32]byte
+	if msg.Content.URL != "" {
+		data, err := s.Main.Bridge.Bot.DownloadMedia(ctx, msg.Content.URL, nil)
+		if err != nil {
+			return false, fmt.Errorf("failed to download avatar: %w", err)
+		}
+		avatarHash = sha256.Sum256(data)
+		avatarPathPtr, err := s.Client.UploadGroupAvatar(ctx, data, groupID)
+		if err != nil {
+			return false, fmt.Errorf("failed to reupload avatar: %w", err)
+		}
+		avatarPath = *avatarPathPtr
+	}
+	return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
+		ModifyAvatar: &avatarPath,
+	}, func() {
+		msg.Portal.AvatarMXC = msg.Content.URL
+		msg.Portal.AvatarHash = avatarHash
+	})
+}
+
+func (s *SignalClient) HandleMatrixRoomTopic(ctx context.Context, msg *bridgev2.MatrixRoomTopic) (bool, error) {
+	return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
+		ModifyDescription: &msg.Content.Topic,
+	}, nil)
 }
