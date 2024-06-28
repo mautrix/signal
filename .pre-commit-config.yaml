@@ -13,6 +13,10 @@ repos:
     hooks:
       - id: go-imports
         exclude: "pb\\.go$"
+        args:
+          - "-local"
+          - "go.mau.fi/mautrix-signal"
+          - "-w"
       - id: go-vet-mod
       #- id: go-staticcheck-repo-mod
       # TODO: reenable this and fix all the problems
