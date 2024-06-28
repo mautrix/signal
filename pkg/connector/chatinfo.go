@@ -27,6 +27,7 @@ import (
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
@@ -195,7 +196,16 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 	isSpace := false
 	name := ""
 	topic := PrivateChatTopic
-	members := []networkid.UserID{makeUserID(s.Client.Store.ACI)}
+	members := &bridgev2.ChatMemberList{
+		IsFull: true,
+		Members: []bridgev2.ChatMember{
+			{
+				EventSender: s.makeEventSender(s.Client.Store.ACI),
+				Membership:  event.MembershipJoin,
+				PowerLevel:  moderatorPL,
+			},
+		},
+	}
 	if s.Main.Config.NumberInTopic && recipient.E164 != "" {
 		topic = fmt.Sprintf("%s with %s", PrivateChatTopic, recipient.E164)
 	}
@@ -215,13 +225,17 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 			}
 		} else {
 			// The other user is only present if their ACI is known
-			members = append(members, makeUserID(recipient.ACI))
+			members.Members = append(members.Members, bridgev2.ChatMember{
+				EventSender: s.makeEventSender(recipient.ACI),
+				Membership:  event.MembershipJoin,
+				PowerLevel:  moderatorPL,
+			})
 		}
 		serviceID = libsignalgo.NewACIServiceID(recipient.ACI)
 	}
 	return &bridgev2.CreateChatResponse{
 		PortalID: s.makeDMPortalKey(serviceID),
-		PortalInfo: &bridgev2.PortalInfo{
+		PortalInfo: &bridgev2.ChatInfo{
 			Name:         &name,
 			Avatar:       avatar,
 			Topic:        &topic,
