@@ -1,5 +1,24 @@
+INSERT INTO "user" (bridge_id, mxid, management_room, access_token)
+SELECT '', mxid, management_room, NULL
+FROM user_old;
+
+INSERT INTO user_login (bridge_id, user_mxid, id, space_room, metadata)
+SELECT
+    '',
+    mxid,
+    cast(uuid AS TEXT),
+    space_room,
+    CAST(
+        '{"phone":"' || phone || '","remote_name":"' || phone || '"}'
+        -- only: postgres
+        AS jsonb
+        -- only: sqlite (line commented)
+--      AS text
+    )
+FROM user_old WHERE uuid IS NOT NULL AND phone IS NOT NULL;
+
 INSERT INTO portal (
-    bridge_id, id, receiver, mxid, parent_id, parent_receiver,
+    bridge_id, id, receiver, mxid, parent_id, parent_receiver, relay_bridge_id, relay_login_id,
     name, topic, avatar_id, avatar_hash, avatar_mxc,
     name_set, avatar_set, topic_set, in_space, metadata
 )
@@ -13,6 +32,8 @@ SELECT
     mxid,
     NULL, -- parent_id
     '', -- parent_receiver
+    CASE WHEN portal_old.relay_user_id<>'' THEN '' END, -- relay_bridge_id
+    CASE WHEN portal_old.relay_user_id<>'' THEN portal_old.relay_user_id END, -- relay_login_id
     name,
     topic,
     CASE
@@ -37,7 +58,6 @@ SELECT
         -- only: sqlite (line commented)
 --      AS text
     ) -- metadata
-    -- TODO migrate relay user id
 FROM portal_old;
 
 INSERT INTO ghost (
@@ -125,25 +145,6 @@ SELECT
 --      AS text
     ) -- metadata
 FROM reaction_old;
-
-INSERT INTO "user" (bridge_id, mxid, management_room, access_token)
-SELECT '', mxid, management_room, NULL
-FROM user_old;
-
-INSERT INTO user_login (bridge_id, user_mxid, id, space_room, metadata)
-SELECT
-    '',
-    mxid,
-    cast(uuid AS TEXT),
-    space_room,
-    CAST(
-        '{"phone":"' || phone || '","remote_name":"' || phone || '"}'
-        -- only: postgres
-        AS jsonb
-        -- only: sqlite (line commented)
---      AS text
-    )
-FROM user_old WHERE uuid IS NOT NULL AND phone IS NOT NULL;
 
 INSERT INTO user_portal (
     bridge_id, user_mxid, login_id, portal_id, portal_receiver, in_space, preferred, last_read
