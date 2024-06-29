@@ -431,7 +431,7 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) {
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	receipts := convertReceipts(ctx, evt.Content.Timestamp, func(ctx context.Context, msgTS uint64) (*database.Message, error) {
-		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, makeMessageID(s.Client.Store.ACI, msgTS))
+		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, makeMessageID(s.Client.Store.ACI, msgTS))
 	})
 	s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
 }
@@ -446,7 +446,7 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) {
 		if err != nil {
 			return nil, err
 		}
-		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, makeMessageID(aciUUID, msgInfo.GetTimestamp()))
+		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, makeMessageID(aciUUID, msgInfo.GetTimestamp()))
 	})
 	s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
 }
