@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 
@@ -157,42 +156,23 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 		return nil, ctx.Err()
 	}
 
-	ul, err := qr.Main.Bridge.GetExistingUserLoginByID(ctx, newLoginID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get existing login: %w", err)
-	}
-	if ul != nil && ul.UserMXID != qr.User.MXID {
-		ul.Delete(ctx, status.BridgeState{StateEvent: status.StateLoggedOut, Error: "overridden-by-another-user"}, false)
-		ul = nil
-	}
-	if ul == nil {
-		ul, err = qr.User.NewLogin(ctx, &database.UserLogin{
-			ID: newLoginID,
-			Metadata: database.UserLoginMetadata{
-				StandardUserLoginMetadata: database.StandardUserLoginMetadata{
-					RemoteName: qr.ProvData.Number,
-				},
-				Extra: map[string]any{
-					"phone": qr.ProvData.Number,
-				},
+	ul, err := qr.User.NewLogin(ctx, &database.UserLogin{
+		ID: newLoginID,
+		Metadata: database.UserLoginMetadata{
+			StandardUserLoginMetadata: database.StandardUserLoginMetadata{
+				RemoteName: qr.ProvData.Number,
 			},
-		}, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to save new login: %w", err)
-		}
-	} else {
-		ul.Metadata.Extra["phone"] = qr.ProvData.Number
-		ul.Metadata.RemoteName = qr.ProvData.Number
-		err = ul.Save(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to update existing login: %w", err)
-		}
+			Extra: map[string]any{
+				"phone": qr.ProvData.Number,
+			},
+		},
+	}, &bridgev2.NewLoginParams{
+		DeleteOnConflict: true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user login: %w", err)
 	}
 	backgroundCtx := ul.Log.WithContext(context.Background())
-	err = qr.Main.LoadUserLogin(backgroundCtx, ul)
-	if err != nil {
-		return nil, fmt.Errorf("failed to prepare connection after login: %w", err)
-	}
 	err = ul.Client.Connect(backgroundCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect after login: %w", err)
