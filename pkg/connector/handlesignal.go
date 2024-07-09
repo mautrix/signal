@@ -386,6 +386,10 @@ func (b *Bv2Receipt) GetReceiptTargets() []networkid.MessageID {
 	return b.IDs
 }
 
+func (b *Bv2Receipt) GetReadUpTo() time.Time {
+	return time.Time{}
+}
+
 var _ bridgev2.RemoteReceipt = (*Bv2Receipt)(nil)
 
 func convertReceipts[T any](ctx context.Context, input []T, getMessageFunc func(ctx context.Context, msgID T) (*database.Message, error)) map[networkid.PortalKey]*Bv2Receipt {
