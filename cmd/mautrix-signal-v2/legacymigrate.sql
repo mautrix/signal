@@ -90,7 +90,7 @@ FROM puppet_old;
 
 INSERT INTO message (
     bridge_id, id, part_id, mxid, room_id, room_receiver,
-    sender_id, timestamp, relates_to, metadata
+    sender_id, timestamp, metadata
 )
 SELECT
     '', -- bridge_id
@@ -104,7 +104,6 @@ SELECT
     END, -- room_receiver
     cast(sender AS TEXT), -- sender_id
     timestamp * 1000000,
-    NULL, -- relates_to
     '{}' -- metadata
 FROM message_old;
 

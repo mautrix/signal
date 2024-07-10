@@ -101,9 +101,6 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	dbMsg.Metadata.Extra = map[string]any{
 		"contains_attachments": len(converted.Attachments) > 0,
 	}
-	if msg.ReplyTo != nil {
-		dbMsg.RelatesToRowID = msg.ReplyTo.RowID
-	}
 	return &bridgev2.MatrixMessageResponse{
 		DB: dbMsg,
 	}, nil
@@ -122,9 +119,9 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 		Client:    s,
 		Portal:    msg.Portal,
 	}
-	if msg.EditTarget.RelatesToRowID != 0 {
+	if msg.EditTarget.ReplyTo.MessageID != "" {
 		var err error
-		mcCtx.ReplyTo, err = s.Main.Bridge.DB.Message.GetByRowID(ctx, msg.EditTarget.RelatesToRowID)
+		mcCtx.ReplyTo, err = s.Main.Bridge.DB.Message.GetFirstOrSpecificPartByID(ctx, msg.Portal.Receiver, msg.EditTarget.ReplyTo)
 		if err != nil {
 			return fmt.Errorf("failed to get message reply target: %w", err)
 		}
