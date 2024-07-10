@@ -761,18 +761,74 @@ func (x *GroupChange) GetChangeEpoch() uint32 {
 	return 0
 }
 
+type GroupResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Group                         *Group `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
+	GroupSendEndorsementsResponse []byte `protobuf:"bytes,2,opt,name=groupSendEndorsementsResponse,proto3" json:"groupSendEndorsementsResponse,omitempty"`
+}
+
+func (x *GroupResponse) Reset() {
+	*x = GroupResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_Groups_proto_msgTypes[8]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GroupResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GroupResponse) ProtoMessage() {}
+
+func (x *GroupResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_Groups_proto_msgTypes[8]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GroupResponse.ProtoReflect.Descriptor instead.
+func (*GroupResponse) Descriptor() ([]byte, []int) {
+	return file_Groups_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GroupResponse) GetGroup() *Group {
+	if x != nil {
+		return x.Group
+	}
+	return nil
+}
+
+func (x *GroupResponse) GetGroupSendEndorsementsResponse() []byte {
+	if x != nil {
+		return x.GroupSendEndorsementsResponse
+	}
+	return nil
+}
+
 type GroupChanges struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	GroupChanges []*GroupChanges_GroupChangeState `protobuf:"bytes,1,rep,name=groupChanges,proto3" json:"groupChanges,omitempty"`
+	GroupChanges                  []*GroupChanges_GroupChangeState `protobuf:"bytes,1,rep,name=groupChanges,proto3" json:"groupChanges,omitempty"`
+	GroupSendEndorsementsResponse []byte                           `protobuf:"bytes,2,opt,name=groupSendEndorsementsResponse,proto3" json:"groupSendEndorsementsResponse,omitempty"`
 }
 
 func (x *GroupChanges) Reset() {
 	*x = GroupChanges{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[8]
+		mi := &file_Groups_proto_msgTypes[9]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -785,7 +841,7 @@ func (x *GroupChanges) String() string {
 func (*GroupChanges) ProtoMessage() {}
 
 func (x *GroupChanges) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[8]
+	mi := &file_Groups_proto_msgTypes[9]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -798,12 +854,74 @@ func (x *GroupChanges) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChanges.ProtoReflect.Descriptor instead.
 func (*GroupChanges) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{8}
+	return file_Groups_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GroupChanges) GetGroupChanges() []*GroupChanges_GroupChangeState {
 	if x != nil {
 		return x.GroupChanges
+	}
+	return nil
+}
+
+func (x *GroupChanges) GetGroupSendEndorsementsResponse() []byte {
+	if x != nil {
+		return x.GroupSendEndorsementsResponse
+	}
+	return nil
+}
+
+type GroupChangeResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	GroupChange                   *GroupChange `protobuf:"bytes,1,opt,name=groupChange,proto3" json:"groupChange,omitempty"`
+	GroupSendEndorsementsResponse []byte       `protobuf:"bytes,2,opt,name=groupSendEndorsementsResponse,proto3" json:"groupSendEndorsementsResponse,omitempty"`
+}
+
+func (x *GroupChangeResponse) Reset() {
+	*x = GroupChangeResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_Groups_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *GroupChangeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GroupChangeResponse) ProtoMessage() {}
+
+func (x *GroupChangeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_Groups_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GroupChangeResponse.ProtoReflect.Descriptor instead.
+func (*GroupChangeResponse) Descriptor() ([]byte, []int) {
+	return file_Groups_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GroupChangeResponse) GetGroupChange() *GroupChange {
+	if x != nil {
+		return x.GroupChange
+	}
+	return nil
+}
+
+func (x *GroupChangeResponse) GetGroupSendEndorsementsResponse() []byte {
+	if x != nil {
+		return x.GroupSendEndorsementsResponse
 	}
 	return nil
 }
@@ -825,7 +943,7 @@ type GroupAttributeBlob struct {
 func (x *GroupAttributeBlob) Reset() {
 	*x = GroupAttributeBlob{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[9]
+		mi := &file_Groups_proto_msgTypes[11]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -838,7 +956,7 @@ func (x *GroupAttributeBlob) String() string {
 func (*GroupAttributeBlob) ProtoMessage() {}
 
 func (x *GroupAttributeBlob) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[9]
+	mi := &file_Groups_proto_msgTypes[11]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -851,7 +969,7 @@ func (x *GroupAttributeBlob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupAttributeBlob.ProtoReflect.Descriptor instead.
 func (*GroupAttributeBlob) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{9}
+	return file_Groups_proto_rawDescGZIP(), []int{11}
 }
 
 func (m *GroupAttributeBlob) GetContent() isGroupAttributeBlob_Content {
@@ -931,7 +1049,7 @@ type GroupInviteLink struct {
 func (x *GroupInviteLink) Reset() {
 	*x = GroupInviteLink{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[10]
+		mi := &file_Groups_proto_msgTypes[12]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -944,7 +1062,7 @@ func (x *GroupInviteLink) String() string {
 func (*GroupInviteLink) ProtoMessage() {}
 
 func (x *GroupInviteLink) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[10]
+	mi := &file_Groups_proto_msgTypes[12]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -957,7 +1075,7 @@ func (x *GroupInviteLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupInviteLink.ProtoReflect.Descriptor instead.
 func (*GroupInviteLink) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10}
+	return file_Groups_proto_rawDescGZIP(), []int{12}
 }
 
 func (m *GroupInviteLink) GetContents() isGroupInviteLink_Contents {
@@ -1002,7 +1120,7 @@ type GroupJoinInfo struct {
 func (x *GroupJoinInfo) Reset() {
 	*x = GroupJoinInfo{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[11]
+		mi := &file_Groups_proto_msgTypes[13]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1015,7 +1133,7 @@ func (x *GroupJoinInfo) String() string {
 func (*GroupJoinInfo) ProtoMessage() {}
 
 func (x *GroupJoinInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[11]
+	mi := &file_Groups_proto_msgTypes[13]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1028,7 +1146,7 @@ func (x *GroupJoinInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupJoinInfo.ProtoReflect.Descriptor instead.
 func (*GroupJoinInfo) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{11}
+	return file_Groups_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GroupJoinInfo) GetPublicKey() []byte {
@@ -1098,7 +1216,7 @@ type GroupExternalCredential struct {
 func (x *GroupExternalCredential) Reset() {
 	*x = GroupExternalCredential{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[12]
+		mi := &file_Groups_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1111,7 +1229,7 @@ func (x *GroupExternalCredential) String() string {
 func (*GroupExternalCredential) ProtoMessage() {}
 
 func (x *GroupExternalCredential) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[12]
+	mi := &file_Groups_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1124,7 +1242,7 @@ func (x *GroupExternalCredential) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupExternalCredential.ProtoReflect.Descriptor instead.
 func (*GroupExternalCredential) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{12}
+	return file_Groups_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GroupExternalCredential) GetToken() string {
@@ -1168,7 +1286,7 @@ type GroupChange_Actions struct {
 func (x *GroupChange_Actions) Reset() {
 	*x = GroupChange_Actions{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[13]
+		mi := &file_Groups_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1181,7 +1299,7 @@ func (x *GroupChange_Actions) String() string {
 func (*GroupChange_Actions) ProtoMessage() {}
 
 func (x *GroupChange_Actions) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[13]
+	mi := &file_Groups_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1377,7 +1495,7 @@ type GroupChange_Actions_AddMemberAction struct {
 func (x *GroupChange_Actions_AddMemberAction) Reset() {
 	*x = GroupChange_Actions_AddMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[14]
+		mi := &file_Groups_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1390,7 +1508,7 @@ func (x *GroupChange_Actions_AddMemberAction) String() string {
 func (*GroupChange_Actions_AddMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[14]
+	mi := &file_Groups_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1431,7 +1549,7 @@ type GroupChange_Actions_DeleteMemberAction struct {
 func (x *GroupChange_Actions_DeleteMemberAction) Reset() {
 	*x = GroupChange_Actions_DeleteMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[15]
+		mi := &file_Groups_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1444,7 +1562,7 @@ func (x *GroupChange_Actions_DeleteMemberAction) String() string {
 func (*GroupChange_Actions_DeleteMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[15]
+	mi := &file_Groups_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1479,7 +1597,7 @@ type GroupChange_Actions_ModifyMemberRoleAction struct {
 func (x *GroupChange_Actions_ModifyMemberRoleAction) Reset() {
 	*x = GroupChange_Actions_ModifyMemberRoleAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[16]
+		mi := &file_Groups_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1492,7 +1610,7 @@ func (x *GroupChange_Actions_ModifyMemberRoleAction) String() string {
 func (*GroupChange_Actions_ModifyMemberRoleAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMemberRoleAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[16]
+	mi := &file_Groups_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1535,7 +1653,7 @@ type GroupChange_Actions_ModifyMemberProfileKeyAction struct {
 func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_ModifyMemberProfileKeyAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[17]
+		mi := &file_Groups_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1548,7 +1666,7 @@ func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) String() string {
 func (*GroupChange_Actions_ModifyMemberProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[17]
+	mi := &file_Groups_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1596,7 +1714,7 @@ type GroupChange_Actions_AddPendingMemberAction struct {
 func (x *GroupChange_Actions_AddPendingMemberAction) Reset() {
 	*x = GroupChange_Actions_AddPendingMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[18]
+		mi := &file_Groups_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1609,7 +1727,7 @@ func (x *GroupChange_Actions_AddPendingMemberAction) String() string {
 func (*GroupChange_Actions_AddPendingMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddPendingMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[18]
+	mi := &file_Groups_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1643,7 +1761,7 @@ type GroupChange_Actions_DeletePendingMemberAction struct {
 func (x *GroupChange_Actions_DeletePendingMemberAction) Reset() {
 	*x = GroupChange_Actions_DeletePendingMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[19]
+		mi := &file_Groups_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1656,7 +1774,7 @@ func (x *GroupChange_Actions_DeletePendingMemberAction) String() string {
 func (*GroupChange_Actions_DeletePendingMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeletePendingMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[19]
+	mi := &file_Groups_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1692,7 +1810,7 @@ type GroupChange_Actions_PromotePendingMemberAction struct {
 func (x *GroupChange_Actions_PromotePendingMemberAction) Reset() {
 	*x = GroupChange_Actions_PromotePendingMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[20]
+		mi := &file_Groups_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1705,7 +1823,7 @@ func (x *GroupChange_Actions_PromotePendingMemberAction) String() string {
 func (*GroupChange_Actions_PromotePendingMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_PromotePendingMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[20]
+	mi := &file_Groups_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1756,7 +1874,7 @@ type GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction struct {
 func (x *GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[21]
+		mi := &file_Groups_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1769,7 +1887,7 @@ func (x *GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction) String(
 func (*GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[21]
+	mi := &file_Groups_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1824,7 +1942,7 @@ type GroupChange_Actions_AddRequestingMemberAction struct {
 func (x *GroupChange_Actions_AddRequestingMemberAction) Reset() {
 	*x = GroupChange_Actions_AddRequestingMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[22]
+		mi := &file_Groups_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1837,7 +1955,7 @@ func (x *GroupChange_Actions_AddRequestingMemberAction) String() string {
 func (*GroupChange_Actions_AddRequestingMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddRequestingMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[22]
+	mi := &file_Groups_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1871,7 +1989,7 @@ type GroupChange_Actions_DeleteRequestingMemberAction struct {
 func (x *GroupChange_Actions_DeleteRequestingMemberAction) Reset() {
 	*x = GroupChange_Actions_DeleteRequestingMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[23]
+		mi := &file_Groups_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1884,7 +2002,7 @@ func (x *GroupChange_Actions_DeleteRequestingMemberAction) String() string {
 func (*GroupChange_Actions_DeleteRequestingMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteRequestingMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[23]
+	mi := &file_Groups_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1919,7 +2037,7 @@ type GroupChange_Actions_PromoteRequestingMemberAction struct {
 func (x *GroupChange_Actions_PromoteRequestingMemberAction) Reset() {
 	*x = GroupChange_Actions_PromoteRequestingMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[24]
+		mi := &file_Groups_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1932,7 +2050,7 @@ func (x *GroupChange_Actions_PromoteRequestingMemberAction) String() string {
 func (*GroupChange_Actions_PromoteRequestingMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_PromoteRequestingMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[24]
+	mi := &file_Groups_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1973,7 +2091,7 @@ type GroupChange_Actions_AddBannedMemberAction struct {
 func (x *GroupChange_Actions_AddBannedMemberAction) Reset() {
 	*x = GroupChange_Actions_AddBannedMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[25]
+		mi := &file_Groups_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1986,7 +2104,7 @@ func (x *GroupChange_Actions_AddBannedMemberAction) String() string {
 func (*GroupChange_Actions_AddBannedMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddBannedMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[25]
+	mi := &file_Groups_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2020,7 +2138,7 @@ type GroupChange_Actions_DeleteBannedMemberAction struct {
 func (x *GroupChange_Actions_DeleteBannedMemberAction) Reset() {
 	*x = GroupChange_Actions_DeleteBannedMemberAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[26]
+		mi := &file_Groups_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2033,7 +2151,7 @@ func (x *GroupChange_Actions_DeleteBannedMemberAction) String() string {
 func (*GroupChange_Actions_DeleteBannedMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteBannedMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[26]
+	mi := &file_Groups_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2067,7 +2185,7 @@ type GroupChange_Actions_ModifyTitleAction struct {
 func (x *GroupChange_Actions_ModifyTitleAction) Reset() {
 	*x = GroupChange_Actions_ModifyTitleAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[27]
+		mi := &file_Groups_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2080,7 +2198,7 @@ func (x *GroupChange_Actions_ModifyTitleAction) String() string {
 func (*GroupChange_Actions_ModifyTitleAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyTitleAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[27]
+	mi := &file_Groups_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2114,7 +2232,7 @@ type GroupChange_Actions_ModifyDescriptionAction struct {
 func (x *GroupChange_Actions_ModifyDescriptionAction) Reset() {
 	*x = GroupChange_Actions_ModifyDescriptionAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[28]
+		mi := &file_Groups_proto_msgTypes[30]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2127,7 +2245,7 @@ func (x *GroupChange_Actions_ModifyDescriptionAction) String() string {
 func (*GroupChange_Actions_ModifyDescriptionAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyDescriptionAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[28]
+	mi := &file_Groups_proto_msgTypes[30]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2161,7 +2279,7 @@ type GroupChange_Actions_ModifyAvatarAction struct {
 func (x *GroupChange_Actions_ModifyAvatarAction) Reset() {
 	*x = GroupChange_Actions_ModifyAvatarAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[29]
+		mi := &file_Groups_proto_msgTypes[31]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2174,7 +2292,7 @@ func (x *GroupChange_Actions_ModifyAvatarAction) String() string {
 func (*GroupChange_Actions_ModifyAvatarAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAvatarAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[29]
+	mi := &file_Groups_proto_msgTypes[31]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2208,7 +2326,7 @@ type GroupChange_Actions_ModifyDisappearingMessagesTimerAction struct {
 func (x *GroupChange_Actions_ModifyDisappearingMessagesTimerAction) Reset() {
 	*x = GroupChange_Actions_ModifyDisappearingMessagesTimerAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[30]
+		mi := &file_Groups_proto_msgTypes[32]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2221,7 +2339,7 @@ func (x *GroupChange_Actions_ModifyDisappearingMessagesTimerAction) String() str
 func (*GroupChange_Actions_ModifyDisappearingMessagesTimerAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyDisappearingMessagesTimerAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[30]
+	mi := &file_Groups_proto_msgTypes[32]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2255,7 +2373,7 @@ type GroupChange_Actions_ModifyAttributesAccessControlAction struct {
 func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyAttributesAccessControlAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[31]
+		mi := &file_Groups_proto_msgTypes[33]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2268,7 +2386,7 @@ func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) String() strin
 func (*GroupChange_Actions_ModifyAttributesAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[31]
+	mi := &file_Groups_proto_msgTypes[33]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2302,7 +2420,7 @@ type GroupChange_Actions_ModifyMembersAccessControlAction struct {
 func (x *GroupChange_Actions_ModifyMembersAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyMembersAccessControlAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[32]
+		mi := &file_Groups_proto_msgTypes[34]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2315,7 +2433,7 @@ func (x *GroupChange_Actions_ModifyMembersAccessControlAction) String() string {
 func (*GroupChange_Actions_ModifyMembersAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMembersAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[32]
+	mi := &file_Groups_proto_msgTypes[34]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2349,7 +2467,7 @@ type GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction struct {
 func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[33]
+		mi := &file_Groups_proto_msgTypes[35]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2362,7 +2480,7 @@ func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) String(
 func (*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[33]
+	mi := &file_Groups_proto_msgTypes[35]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2396,7 +2514,7 @@ type GroupChange_Actions_ModifyInviteLinkPasswordAction struct {
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) Reset() {
 	*x = GroupChange_Actions_ModifyInviteLinkPasswordAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[34]
+		mi := &file_Groups_proto_msgTypes[36]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2409,7 +2527,7 @@ func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) String() string {
 func (*GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[34]
+	mi := &file_Groups_proto_msgTypes[36]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2443,7 +2561,7 @@ type GroupChange_Actions_ModifyAnnouncementsOnlyAction struct {
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) Reset() {
 	*x = GroupChange_Actions_ModifyAnnouncementsOnlyAction{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[35]
+		mi := &file_Groups_proto_msgTypes[37]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2456,7 +2574,7 @@ func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) String() string {
 func (*GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[35]
+	mi := &file_Groups_proto_msgTypes[37]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2491,7 +2609,7 @@ type GroupChanges_GroupChangeState struct {
 func (x *GroupChanges_GroupChangeState) Reset() {
 	*x = GroupChanges_GroupChangeState{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[36]
+		mi := &file_Groups_proto_msgTypes[38]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2504,7 +2622,7 @@ func (x *GroupChanges_GroupChangeState) String() string {
 func (*GroupChanges_GroupChangeState) ProtoMessage() {}
 
 func (x *GroupChanges_GroupChangeState) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[36]
+	mi := &file_Groups_proto_msgTypes[38]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2517,7 +2635,7 @@ func (x *GroupChanges_GroupChangeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChanges_GroupChangeState.ProtoReflect.Descriptor instead.
 func (*GroupChanges_GroupChangeState) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{8, 0}
+	return file_Groups_proto_rawDescGZIP(), []int{9, 0}
 }
 
 func (x *GroupChanges_GroupChangeState) GetGroupChange() *GroupChange {
@@ -2546,7 +2664,7 @@ type GroupInviteLink_GroupInviteLinkContentsV1 struct {
 func (x *GroupInviteLink_GroupInviteLinkContentsV1) Reset() {
 	*x = GroupInviteLink_GroupInviteLinkContentsV1{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_Groups_proto_msgTypes[37]
+		mi := &file_Groups_proto_msgTypes[39]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2559,7 +2677,7 @@ func (x *GroupInviteLink_GroupInviteLinkContentsV1) String() string {
 func (*GroupInviteLink_GroupInviteLinkContentsV1) ProtoMessage() {}
 
 func (x *GroupInviteLink_GroupInviteLinkContentsV1) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[37]
+	mi := &file_Groups_proto_msgTypes[39]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2572,7 +2690,7 @@ func (x *GroupInviteLink_GroupInviteLinkContentsV1) ProtoReflect() protoreflect.
 
 // Deprecated: Use GroupInviteLink_GroupInviteLinkContentsV1.ProtoReflect.Descriptor instead.
 func (*GroupInviteLink_GroupInviteLinkContentsV1) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0}
+	return file_Groups_proto_rawDescGZIP(), []int{12, 0}
 }
 
 func (x *GroupInviteLink_GroupInviteLinkContentsV1) GetGroupMasterKey() []byte {
@@ -2964,71 +3082,92 @@ var file_Groups_proto_rawDesc = []byte{
 	0x69, 0x6f, 0x6e, 0x12, 0x2c, 0x0a, 0x11, 0x61, 0x6e, 0x6e, 0x6f, 0x75, 0x6e, 0x63, 0x65, 0x6d,
 	0x65, 0x6e, 0x74, 0x73, 0x4f, 0x6e, 0x6c, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x11,
 	0x61, 0x6e, 0x6e, 0x6f, 0x75, 0x6e, 0x63, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x4f, 0x6e, 0x6c,
-	0x79, 0x22, 0xbe, 0x01, 0x0a, 0x0c, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67,
-	0x65, 0x73, 0x12, 0x42, 0x0a, 0x0c, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67,
-	0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70,
-	0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x73, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61,
-	0x6e, 0x67, 0x65, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x0c, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x43,
-	0x68, 0x61, 0x6e, 0x67, 0x65, 0x73, 0x1a, 0x6a, 0x0a, 0x10, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x43,
-	0x68, 0x61, 0x6e, 0x67, 0x65, 0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x2e, 0x0a, 0x0b, 0x67, 0x72,
-	0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32,
-	0x0c, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x52, 0x0b, 0x67,
-	0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x12, 0x26, 0x0a, 0x0a, 0x67, 0x72,
-	0x6f, 0x75, 0x70, 0x53, 0x74, 0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06,
-	0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x0a, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x74, 0x61,
-	0x74, 0x65, 0x22, 0xbb, 0x01, 0x0a, 0x12, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x41, 0x74, 0x74, 0x72,
-	0x69, 0x62, 0x75, 0x74, 0x65, 0x42, 0x6c, 0x6f, 0x62, 0x12, 0x16, 0x0a, 0x05, 0x74, 0x69, 0x74,
-	0x6c, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c,
-	0x65, 0x12, 0x18, 0x0a, 0x06, 0x61, 0x76, 0x61, 0x74, 0x61, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28,
-	0x0c, 0x48, 0x00, 0x52, 0x06, 0x61, 0x76, 0x61, 0x74, 0x61, 0x72, 0x12, 0x44, 0x0a, 0x1c, 0x64,
-	0x69, 0x73, 0x61, 0x70, 0x70, 0x65, 0x61, 0x72, 0x69, 0x6e, 0x67, 0x4d, 0x65, 0x73, 0x73, 0x61,
-	0x67, 0x65, 0x73, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28,
-	0x0d, 0x48, 0x00, 0x52, 0x1c, 0x64, 0x69, 0x73, 0x61, 0x70, 0x70, 0x65, 0x61, 0x72, 0x69, 0x6e,
-	0x67, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f,
-	0x6e, 0x12, 0x22, 0x0a, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e,
-	0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x48, 0x00, 0x52, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69,
-	0x70, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x09, 0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74,
-	0x22, 0xe0, 0x01, 0x0a, 0x0f, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65,
-	0x4c, 0x69, 0x6e, 0x6b, 0x12, 0x4c, 0x0a, 0x0a, 0x76, 0x31, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e,
-	0x74, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x2a, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70,
-	0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70,
-	0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e,
-	0x74, 0x73, 0x56, 0x31, 0x48, 0x00, 0x52, 0x0a, 0x76, 0x31, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e,
-	0x74, 0x73, 0x1a, 0x73, 0x0a, 0x19, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x6e, 0x76, 0x69, 0x74,
-	0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x73, 0x56, 0x31, 0x12,
-	0x26, 0x0a, 0x0e, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x4b, 0x65,
-	0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0e, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x61,
-	0x73, 0x74, 0x65, 0x72, 0x4b, 0x65, 0x79, 0x12, 0x2e, 0x0a, 0x12, 0x69, 0x6e, 0x76, 0x69, 0x74,
-	0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x50, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x18, 0x02, 0x20,
-	0x01, 0x28, 0x0c, 0x52, 0x12, 0x69, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x50,
-	0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x42, 0x0a, 0x0a, 0x08, 0x63, 0x6f, 0x6e, 0x74, 0x65,
-	0x6e, 0x74, 0x73, 0x22, 0xbc, 0x02, 0x0a, 0x0d, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4a, 0x6f, 0x69,
-	0x6e, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x1c, 0x0a, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b,
-	0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63,
-	0x4b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01,
-	0x28, 0x0c, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x61, 0x76, 0x61,
-	0x74, 0x61, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x61, 0x76, 0x61, 0x74, 0x61,
-	0x72, 0x12, 0x20, 0x0a, 0x0b, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x43, 0x6f, 0x75, 0x6e, 0x74,
-	0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x0b, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x43, 0x6f,
-	0x75, 0x6e, 0x74, 0x12, 0x4b, 0x0a, 0x11, 0x61, 0x64, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x49, 0x6e,
-	0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1d,
-	0x2e, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e, 0x41,
-	0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65, 0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x52, 0x11, 0x61,
-	0x64, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b,
-	0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x06, 0x20, 0x01,
-	0x28, 0x0d, 0x52, 0x08, 0x72, 0x65, 0x76, 0x69, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x32, 0x0a, 0x14,
-	0x70, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x41, 0x64, 0x6d, 0x69, 0x6e, 0x41, 0x70, 0x70, 0x72,
-	0x6f, 0x76, 0x61, 0x6c, 0x18, 0x07, 0x20, 0x01, 0x28, 0x08, 0x52, 0x14, 0x70, 0x65, 0x6e, 0x64,
-	0x69, 0x6e, 0x67, 0x41, 0x64, 0x6d, 0x69, 0x6e, 0x41, 0x70, 0x70, 0x72, 0x6f, 0x76, 0x61, 0x6c,
-	0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18,
-	0x08, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69,
-	0x6f, 0x6e, 0x22, 0x2f, 0x0a, 0x17, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x45, 0x78, 0x74, 0x65, 0x72,
-	0x6e, 0x61, 0x6c, 0x43, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x12, 0x14, 0x0a,
-	0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x6f,
-	0x6b, 0x65, 0x6e, 0x42, 0x2b, 0x0a, 0x27, 0x6f, 0x72, 0x67, 0x2e, 0x73, 0x69, 0x67, 0x6e, 0x61,
-	0x6c, 0x2e, 0x73, 0x74, 0x6f, 0x72, 0x61, 0x67, 0x65, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65,
-	0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73, 0x2e, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x50, 0x01,
-	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x79, 0x22, 0x73, 0x0a, 0x0d, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e,
+	0x73, 0x65, 0x12, 0x1c, 0x0a, 0x05, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x06, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x52, 0x05, 0x67, 0x72, 0x6f, 0x75, 0x70,
+	0x12, 0x44, 0x0a, 0x1d, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x45, 0x6e, 0x64,
+	0x6f, 0x72, 0x73, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x1d, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x65,
+	0x6e, 0x64, 0x45, 0x6e, 0x64, 0x6f, 0x72, 0x73, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0x84, 0x02, 0x0a, 0x0c, 0x47, 0x72, 0x6f, 0x75, 0x70,
+	0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x73, 0x12, 0x42, 0x0a, 0x0c, 0x67, 0x72, 0x6f, 0x75, 0x70,
+	0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1e, 0x2e,
+	0x47, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x73, 0x2e, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x53, 0x74, 0x61, 0x74, 0x65, 0x52, 0x0c, 0x67,
+	0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x73, 0x12, 0x44, 0x0a, 0x1d, 0x67,
+	0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x45, 0x6e, 0x64, 0x6f, 0x72, 0x73, 0x65, 0x6d,
+	0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x0c, 0x52, 0x1d, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x45, 0x6e, 0x64,
+	0x6f, 0x72, 0x73, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73,
+	0x65, 0x1a, 0x6a, 0x0a, 0x10, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65,
+	0x53, 0x74, 0x61, 0x74, 0x65, 0x12, 0x2e, 0x0a, 0x0b, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68,
+	0x61, 0x6e, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x52, 0x0b, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x43,
+	0x68, 0x61, 0x6e, 0x67, 0x65, 0x12, 0x26, 0x0a, 0x0a, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x74,
+	0x61, 0x74, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x06, 0x2e, 0x47, 0x72, 0x6f, 0x75,
+	0x70, 0x52, 0x0a, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x74, 0x61, 0x74, 0x65, 0x22, 0x8b, 0x01,
+	0x0a, 0x13, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x2e, 0x0a, 0x0b, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x43, 0x68,
+	0x61, 0x6e, 0x67, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x47, 0x72, 0x6f,
+	0x75, 0x70, 0x43, 0x68, 0x61, 0x6e, 0x67, 0x65, 0x52, 0x0b, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x43,
+	0x68, 0x61, 0x6e, 0x67, 0x65, 0x12, 0x44, 0x0a, 0x1d, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x53, 0x65,
+	0x6e, 0x64, 0x45, 0x6e, 0x64, 0x6f, 0x72, 0x73, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x73, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x1d, 0x67, 0x72,
+	0x6f, 0x75, 0x70, 0x53, 0x65, 0x6e, 0x64, 0x45, 0x6e, 0x64, 0x6f, 0x72, 0x73, 0x65, 0x6d, 0x65,
+	0x6e, 0x74, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x22, 0xbb, 0x01, 0x0a, 0x12,
+	0x47, 0x72, 0x6f, 0x75, 0x70, 0x41, 0x74, 0x74, 0x72, 0x69, 0x62, 0x75, 0x74, 0x65, 0x42, 0x6c,
+	0x6f, 0x62, 0x12, 0x16, 0x0a, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x09, 0x48, 0x00, 0x52, 0x05, 0x74, 0x69, 0x74, 0x6c, 0x65, 0x12, 0x18, 0x0a, 0x06, 0x61, 0x76,
+	0x61, 0x74, 0x61, 0x72, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x48, 0x00, 0x52, 0x06, 0x61, 0x76,
+	0x61, 0x74, 0x61, 0x72, 0x12, 0x44, 0x0a, 0x1c, 0x64, 0x69, 0x73, 0x61, 0x70, 0x70, 0x65, 0x61,
+	0x72, 0x69, 0x6e, 0x67, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67, 0x65, 0x73, 0x44, 0x75, 0x72, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x18, 0x03, 0x20, 0x01, 0x28, 0x0d, 0x48, 0x00, 0x52, 0x1c, 0x64, 0x69,
+	0x73, 0x61, 0x70, 0x70, 0x65, 0x61, 0x72, 0x69, 0x6e, 0x67, 0x4d, 0x65, 0x73, 0x73, 0x61, 0x67,
+	0x65, 0x73, 0x44, 0x75, 0x72, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x12, 0x22, 0x0a, 0x0b, 0x64, 0x65,
+	0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x04, 0x20, 0x01, 0x28, 0x09, 0x48,
+	0x00, 0x52, 0x0b, 0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x42, 0x09,
+	0x0a, 0x07, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x22, 0xe0, 0x01, 0x0a, 0x0f, 0x47, 0x72,
+	0x6f, 0x75, 0x70, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x12, 0x4c, 0x0a,
+	0x0a, 0x76, 0x31, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x73, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0b, 0x32, 0x2a, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c,
+	0x69, 0x6e, 0x6b, 0x2e, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c,
+	0x69, 0x6e, 0x6b, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x73, 0x56, 0x31, 0x48, 0x00, 0x52,
+	0x0a, 0x76, 0x31, 0x43, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x73, 0x1a, 0x73, 0x0a, 0x19, 0x47,
+	0x72, 0x6f, 0x75, 0x70, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x43, 0x6f,
+	0x6e, 0x74, 0x65, 0x6e, 0x74, 0x73, 0x56, 0x31, 0x12, 0x26, 0x0a, 0x0e, 0x67, 0x72, 0x6f, 0x75,
+	0x70, 0x4d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x4b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c,
+	0x52, 0x0e, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x4d, 0x61, 0x73, 0x74, 0x65, 0x72, 0x4b, 0x65, 0x79,
+	0x12, 0x2e, 0x0a, 0x12, 0x69, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x50, 0x61,
+	0x73, 0x73, 0x77, 0x6f, 0x72, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x12, 0x69, 0x6e,
+	0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x50, 0x61, 0x73, 0x73, 0x77, 0x6f, 0x72, 0x64,
+	0x42, 0x0a, 0x0a, 0x08, 0x63, 0x6f, 0x6e, 0x74, 0x65, 0x6e, 0x74, 0x73, 0x22, 0xbc, 0x02, 0x0a,
+	0x0d, 0x47, 0x72, 0x6f, 0x75, 0x70, 0x4a, 0x6f, 0x69, 0x6e, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x1c,
+	0x0a, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x0c, 0x52, 0x09, 0x70, 0x75, 0x62, 0x6c, 0x69, 0x63, 0x4b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05,
+	0x74, 0x69, 0x74, 0x6c, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x74, 0x69, 0x74,
+	0x6c, 0x65, 0x12, 0x16, 0x0a, 0x06, 0x61, 0x76, 0x61, 0x74, 0x61, 0x72, 0x18, 0x03, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x06, 0x61, 0x76, 0x61, 0x74, 0x61, 0x72, 0x12, 0x20, 0x0a, 0x0b, 0x6d, 0x65,
+	0x6d, 0x62, 0x65, 0x72, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x18, 0x04, 0x20, 0x01, 0x28, 0x0d, 0x52,
+	0x0b, 0x6d, 0x65, 0x6d, 0x62, 0x65, 0x72, 0x43, 0x6f, 0x75, 0x6e, 0x74, 0x12, 0x4b, 0x0a, 0x11,
+	0x61, 0x64, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x49, 0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e,
+	0x6b, 0x18, 0x05, 0x20, 0x01, 0x28, 0x0e, 0x32, 0x1d, 0x2e, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73,
+	0x43, 0x6f, 0x6e, 0x74, 0x72, 0x6f, 0x6c, 0x2e, 0x41, 0x63, 0x63, 0x65, 0x73, 0x73, 0x52, 0x65,
+	0x71, 0x75, 0x69, 0x72, 0x65, 0x64, 0x52, 0x11, 0x61, 0x64, 0x64, 0x46, 0x72, 0x6f, 0x6d, 0x49,
+	0x6e, 0x76, 0x69, 0x74, 0x65, 0x4c, 0x69, 0x6e, 0x6b, 0x12, 0x1a, 0x0a, 0x08, 0x72, 0x65, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0d, 0x52, 0x08, 0x72, 0x65, 0x76,
+	0x69, 0x73, 0x69, 0x6f, 0x6e, 0x12, 0x32, 0x0a, 0x14, 0x70, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67,
+	0x41, 0x64, 0x6d, 0x69, 0x6e, 0x41, 0x70, 0x70, 0x72, 0x6f, 0x76, 0x61, 0x6c, 0x18, 0x07, 0x20,
+	0x01, 0x28, 0x08, 0x52, 0x14, 0x70, 0x65, 0x6e, 0x64, 0x69, 0x6e, 0x67, 0x41, 0x64, 0x6d, 0x69,
+	0x6e, 0x41, 0x70, 0x70, 0x72, 0x6f, 0x76, 0x61, 0x6c, 0x12, 0x20, 0x0a, 0x0b, 0x64, 0x65, 0x73,
+	0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x08, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b,
+	0x64, 0x65, 0x73, 0x63, 0x72, 0x69, 0x70, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x2f, 0x0a, 0x17, 0x47,
+	0x72, 0x6f, 0x75, 0x70, 0x45, 0x78, 0x74, 0x65, 0x72, 0x6e, 0x61, 0x6c, 0x43, 0x72, 0x65, 0x64,
+	0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x12, 0x14, 0x0a, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x18,
+	0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x74, 0x6f, 0x6b, 0x65, 0x6e, 0x42, 0x2b, 0x0a, 0x27,
+	0x6f, 0x72, 0x67, 0x2e, 0x73, 0x69, 0x67, 0x6e, 0x61, 0x6c, 0x2e, 0x73, 0x74, 0x6f, 0x72, 0x61,
+	0x67, 0x65, 0x73, 0x65, 0x72, 0x76, 0x69, 0x63, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x73,
+	0x2e, 0x67, 0x72, 0x6f, 0x75, 0x70, 0x73, 0x50, 0x01, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 }
 
 var (
@@ -3044,48 +3183,50 @@ func file_Groups_proto_rawDescGZIP() []byte {
 }
 
 var file_Groups_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_Groups_proto_msgTypes = make([]protoimpl.MessageInfo, 38)
+var file_Groups_proto_msgTypes = make([]protoimpl.MessageInfo, 40)
 var file_Groups_proto_goTypes = []interface{}{
-	(Member_Role)(0),                                                       // 0: Member.Role
-	(AccessControl_AccessRequired)(0),                                      // 1: AccessControl.AccessRequired
-	(*AvatarUploadAttributes)(nil),                                         // 2: AvatarUploadAttributes
-	(*Member)(nil),                                                         // 3: Member
-	(*PendingMember)(nil),                                                  // 4: PendingMember
-	(*RequestingMember)(nil),                                               // 5: RequestingMember
-	(*BannedMember)(nil),                                                   // 6: BannedMember
-	(*AccessControl)(nil),                                                  // 7: AccessControl
-	(*Group)(nil),                                                          // 8: Group
-	(*GroupChange)(nil),                                                    // 9: GroupChange
-	(*GroupChanges)(nil),                                                   // 10: GroupChanges
-	(*GroupAttributeBlob)(nil),                                             // 11: GroupAttributeBlob
-	(*GroupInviteLink)(nil),                                                // 12: GroupInviteLink
-	(*GroupJoinInfo)(nil),                                                  // 13: GroupJoinInfo
-	(*GroupExternalCredential)(nil),                                        // 14: GroupExternalCredential
-	(*GroupChange_Actions)(nil),                                            // 15: GroupChange.Actions
-	(*GroupChange_Actions_AddMemberAction)(nil),                            // 16: GroupChange.Actions.AddMemberAction
-	(*GroupChange_Actions_DeleteMemberAction)(nil),                         // 17: GroupChange.Actions.DeleteMemberAction
-	(*GroupChange_Actions_ModifyMemberRoleAction)(nil),                     // 18: GroupChange.Actions.ModifyMemberRoleAction
-	(*GroupChange_Actions_ModifyMemberProfileKeyAction)(nil),               // 19: GroupChange.Actions.ModifyMemberProfileKeyAction
-	(*GroupChange_Actions_AddPendingMemberAction)(nil),                     // 20: GroupChange.Actions.AddPendingMemberAction
-	(*GroupChange_Actions_DeletePendingMemberAction)(nil),                  // 21: GroupChange.Actions.DeletePendingMemberAction
-	(*GroupChange_Actions_PromotePendingMemberAction)(nil),                 // 22: GroupChange.Actions.PromotePendingMemberAction
-	(*GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction)(nil), // 23: GroupChange.Actions.PromotePendingPniAciMemberProfileKeyAction
-	(*GroupChange_Actions_AddRequestingMemberAction)(nil),                  // 24: GroupChange.Actions.AddRequestingMemberAction
-	(*GroupChange_Actions_DeleteRequestingMemberAction)(nil),               // 25: GroupChange.Actions.DeleteRequestingMemberAction
-	(*GroupChange_Actions_PromoteRequestingMemberAction)(nil),              // 26: GroupChange.Actions.PromoteRequestingMemberAction
-	(*GroupChange_Actions_AddBannedMemberAction)(nil),                      // 27: GroupChange.Actions.AddBannedMemberAction
-	(*GroupChange_Actions_DeleteBannedMemberAction)(nil),                   // 28: GroupChange.Actions.DeleteBannedMemberAction
-	(*GroupChange_Actions_ModifyTitleAction)(nil),                          // 29: GroupChange.Actions.ModifyTitleAction
-	(*GroupChange_Actions_ModifyDescriptionAction)(nil),                    // 30: GroupChange.Actions.ModifyDescriptionAction
-	(*GroupChange_Actions_ModifyAvatarAction)(nil),                         // 31: GroupChange.Actions.ModifyAvatarAction
-	(*GroupChange_Actions_ModifyDisappearingMessagesTimerAction)(nil),      // 32: GroupChange.Actions.ModifyDisappearingMessagesTimerAction
-	(*GroupChange_Actions_ModifyAttributesAccessControlAction)(nil),        // 33: GroupChange.Actions.ModifyAttributesAccessControlAction
-	(*GroupChange_Actions_ModifyMembersAccessControlAction)(nil),           // 34: GroupChange.Actions.ModifyMembersAccessControlAction
-	(*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction)(nil), // 35: GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
-	(*GroupChange_Actions_ModifyInviteLinkPasswordAction)(nil),             // 36: GroupChange.Actions.ModifyInviteLinkPasswordAction
-	(*GroupChange_Actions_ModifyAnnouncementsOnlyAction)(nil),              // 37: GroupChange.Actions.ModifyAnnouncementsOnlyAction
-	(*GroupChanges_GroupChangeState)(nil),                                  // 38: GroupChanges.GroupChangeState
-	(*GroupInviteLink_GroupInviteLinkContentsV1)(nil),                      // 39: GroupInviteLink.GroupInviteLinkContentsV1
+	(Member_Role)(0),                                         // 0: Member.Role
+	(AccessControl_AccessRequired)(0),                        // 1: AccessControl.AccessRequired
+	(*AvatarUploadAttributes)(nil),                           // 2: AvatarUploadAttributes
+	(*Member)(nil),                                           // 3: Member
+	(*PendingMember)(nil),                                    // 4: PendingMember
+	(*RequestingMember)(nil),                                 // 5: RequestingMember
+	(*BannedMember)(nil),                                     // 6: BannedMember
+	(*AccessControl)(nil),                                    // 7: AccessControl
+	(*Group)(nil),                                            // 8: Group
+	(*GroupChange)(nil),                                      // 9: GroupChange
+	(*GroupResponse)(nil),                                    // 10: GroupResponse
+	(*GroupChanges)(nil),                                     // 11: GroupChanges
+	(*GroupChangeResponse)(nil),                              // 12: GroupChangeResponse
+	(*GroupAttributeBlob)(nil),                               // 13: GroupAttributeBlob
+	(*GroupInviteLink)(nil),                                  // 14: GroupInviteLink
+	(*GroupJoinInfo)(nil),                                    // 15: GroupJoinInfo
+	(*GroupExternalCredential)(nil),                          // 16: GroupExternalCredential
+	(*GroupChange_Actions)(nil),                              // 17: GroupChange.Actions
+	(*GroupChange_Actions_AddMemberAction)(nil),              // 18: GroupChange.Actions.AddMemberAction
+	(*GroupChange_Actions_DeleteMemberAction)(nil),           // 19: GroupChange.Actions.DeleteMemberAction
+	(*GroupChange_Actions_ModifyMemberRoleAction)(nil),       // 20: GroupChange.Actions.ModifyMemberRoleAction
+	(*GroupChange_Actions_ModifyMemberProfileKeyAction)(nil), // 21: GroupChange.Actions.ModifyMemberProfileKeyAction
+	(*GroupChange_Actions_AddPendingMemberAction)(nil),       // 22: GroupChange.Actions.AddPendingMemberAction
+	(*GroupChange_Actions_DeletePendingMemberAction)(nil),    // 23: GroupChange.Actions.DeletePendingMemberAction
+	(*GroupChange_Actions_PromotePendingMemberAction)(nil),   // 24: GroupChange.Actions.PromotePendingMemberAction
+	(*GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction)(nil), // 25: GroupChange.Actions.PromotePendingPniAciMemberProfileKeyAction
+	(*GroupChange_Actions_AddRequestingMemberAction)(nil),                  // 26: GroupChange.Actions.AddRequestingMemberAction
+	(*GroupChange_Actions_DeleteRequestingMemberAction)(nil),               // 27: GroupChange.Actions.DeleteRequestingMemberAction
+	(*GroupChange_Actions_PromoteRequestingMemberAction)(nil),              // 28: GroupChange.Actions.PromoteRequestingMemberAction
+	(*GroupChange_Actions_AddBannedMemberAction)(nil),                      // 29: GroupChange.Actions.AddBannedMemberAction
+	(*GroupChange_Actions_DeleteBannedMemberAction)(nil),                   // 30: GroupChange.Actions.DeleteBannedMemberAction
+	(*GroupChange_Actions_ModifyTitleAction)(nil),                          // 31: GroupChange.Actions.ModifyTitleAction
+	(*GroupChange_Actions_ModifyDescriptionAction)(nil),                    // 32: GroupChange.Actions.ModifyDescriptionAction
+	(*GroupChange_Actions_ModifyAvatarAction)(nil),                         // 33: GroupChange.Actions.ModifyAvatarAction
+	(*GroupChange_Actions_ModifyDisappearingMessagesTimerAction)(nil),      // 34: GroupChange.Actions.ModifyDisappearingMessagesTimerAction
+	(*GroupChange_Actions_ModifyAttributesAccessControlAction)(nil),        // 35: GroupChange.Actions.ModifyAttributesAccessControlAction
+	(*GroupChange_Actions_ModifyMembersAccessControlAction)(nil),           // 36: GroupChange.Actions.ModifyMembersAccessControlAction
+	(*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction)(nil), // 37: GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
+	(*GroupChange_Actions_ModifyInviteLinkPasswordAction)(nil),             // 38: GroupChange.Actions.ModifyInviteLinkPasswordAction
+	(*GroupChange_Actions_ModifyAnnouncementsOnlyAction)(nil),              // 39: GroupChange.Actions.ModifyAnnouncementsOnlyAction
+	(*GroupChanges_GroupChangeState)(nil),                                  // 40: GroupChanges.GroupChangeState
+	(*GroupInviteLink_GroupInviteLinkContentsV1)(nil),                      // 41: GroupInviteLink.GroupInviteLinkContentsV1
 }
 var file_Groups_proto_depIdxs = []int32{
 	0,  // 0: Member.role:type_name -> Member.Role
@@ -3098,47 +3239,49 @@ var file_Groups_proto_depIdxs = []int32{
 	4,  // 7: Group.pendingMembers:type_name -> PendingMember
 	5,  // 8: Group.requestingMembers:type_name -> RequestingMember
 	6,  // 9: Group.bannedMembers:type_name -> BannedMember
-	38, // 10: GroupChanges.groupChanges:type_name -> GroupChanges.GroupChangeState
-	39, // 11: GroupInviteLink.v1Contents:type_name -> GroupInviteLink.GroupInviteLinkContentsV1
-	1,  // 12: GroupJoinInfo.addFromInviteLink:type_name -> AccessControl.AccessRequired
-	16, // 13: GroupChange.Actions.addMembers:type_name -> GroupChange.Actions.AddMemberAction
-	17, // 14: GroupChange.Actions.deleteMembers:type_name -> GroupChange.Actions.DeleteMemberAction
-	18, // 15: GroupChange.Actions.modifyMemberRoles:type_name -> GroupChange.Actions.ModifyMemberRoleAction
-	19, // 16: GroupChange.Actions.modifyMemberProfileKeys:type_name -> GroupChange.Actions.ModifyMemberProfileKeyAction
-	20, // 17: GroupChange.Actions.addPendingMembers:type_name -> GroupChange.Actions.AddPendingMemberAction
-	21, // 18: GroupChange.Actions.deletePendingMembers:type_name -> GroupChange.Actions.DeletePendingMemberAction
-	22, // 19: GroupChange.Actions.promotePendingMembers:type_name -> GroupChange.Actions.PromotePendingMemberAction
-	29, // 20: GroupChange.Actions.modifyTitle:type_name -> GroupChange.Actions.ModifyTitleAction
-	31, // 21: GroupChange.Actions.modifyAvatar:type_name -> GroupChange.Actions.ModifyAvatarAction
-	32, // 22: GroupChange.Actions.modifyDisappearingMessagesTimer:type_name -> GroupChange.Actions.ModifyDisappearingMessagesTimerAction
-	33, // 23: GroupChange.Actions.modifyAttributesAccess:type_name -> GroupChange.Actions.ModifyAttributesAccessControlAction
-	34, // 24: GroupChange.Actions.modifyMemberAccess:type_name -> GroupChange.Actions.ModifyMembersAccessControlAction
-	35, // 25: GroupChange.Actions.modifyAddFromInviteLinkAccess:type_name -> GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
-	24, // 26: GroupChange.Actions.addRequestingMembers:type_name -> GroupChange.Actions.AddRequestingMemberAction
-	25, // 27: GroupChange.Actions.deleteRequestingMembers:type_name -> GroupChange.Actions.DeleteRequestingMemberAction
-	26, // 28: GroupChange.Actions.promoteRequestingMembers:type_name -> GroupChange.Actions.PromoteRequestingMemberAction
-	36, // 29: GroupChange.Actions.modifyInviteLinkPassword:type_name -> GroupChange.Actions.ModifyInviteLinkPasswordAction
-	30, // 30: GroupChange.Actions.modifyDescription:type_name -> GroupChange.Actions.ModifyDescriptionAction
-	37, // 31: GroupChange.Actions.modifyAnnouncementsOnly:type_name -> GroupChange.Actions.ModifyAnnouncementsOnlyAction
-	27, // 32: GroupChange.Actions.addBannedMembers:type_name -> GroupChange.Actions.AddBannedMemberAction
-	28, // 33: GroupChange.Actions.deleteBannedMembers:type_name -> GroupChange.Actions.DeleteBannedMemberAction
-	23, // 34: GroupChange.Actions.promotePendingPniAciMembers:type_name -> GroupChange.Actions.PromotePendingPniAciMemberProfileKeyAction
-	3,  // 35: GroupChange.Actions.AddMemberAction.added:type_name -> Member
-	0,  // 36: GroupChange.Actions.ModifyMemberRoleAction.role:type_name -> Member.Role
-	4,  // 37: GroupChange.Actions.AddPendingMemberAction.added:type_name -> PendingMember
-	5,  // 38: GroupChange.Actions.AddRequestingMemberAction.added:type_name -> RequestingMember
-	0,  // 39: GroupChange.Actions.PromoteRequestingMemberAction.role:type_name -> Member.Role
-	6,  // 40: GroupChange.Actions.AddBannedMemberAction.added:type_name -> BannedMember
-	1,  // 41: GroupChange.Actions.ModifyAttributesAccessControlAction.attributesAccess:type_name -> AccessControl.AccessRequired
-	1,  // 42: GroupChange.Actions.ModifyMembersAccessControlAction.membersAccess:type_name -> AccessControl.AccessRequired
-	1,  // 43: GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction.addFromInviteLinkAccess:type_name -> AccessControl.AccessRequired
-	9,  // 44: GroupChanges.GroupChangeState.groupChange:type_name -> GroupChange
-	8,  // 45: GroupChanges.GroupChangeState.groupState:type_name -> Group
-	46, // [46:46] is the sub-list for method output_type
-	46, // [46:46] is the sub-list for method input_type
-	46, // [46:46] is the sub-list for extension type_name
-	46, // [46:46] is the sub-list for extension extendee
-	0,  // [0:46] is the sub-list for field type_name
+	8,  // 10: GroupResponse.group:type_name -> Group
+	40, // 11: GroupChanges.groupChanges:type_name -> GroupChanges.GroupChangeState
+	9,  // 12: GroupChangeResponse.groupChange:type_name -> GroupChange
+	41, // 13: GroupInviteLink.v1Contents:type_name -> GroupInviteLink.GroupInviteLinkContentsV1
+	1,  // 14: GroupJoinInfo.addFromInviteLink:type_name -> AccessControl.AccessRequired
+	18, // 15: GroupChange.Actions.addMembers:type_name -> GroupChange.Actions.AddMemberAction
+	19, // 16: GroupChange.Actions.deleteMembers:type_name -> GroupChange.Actions.DeleteMemberAction
+	20, // 17: GroupChange.Actions.modifyMemberRoles:type_name -> GroupChange.Actions.ModifyMemberRoleAction
+	21, // 18: GroupChange.Actions.modifyMemberProfileKeys:type_name -> GroupChange.Actions.ModifyMemberProfileKeyAction
+	22, // 19: GroupChange.Actions.addPendingMembers:type_name -> GroupChange.Actions.AddPendingMemberAction
+	23, // 20: GroupChange.Actions.deletePendingMembers:type_name -> GroupChange.Actions.DeletePendingMemberAction
+	24, // 21: GroupChange.Actions.promotePendingMembers:type_name -> GroupChange.Actions.PromotePendingMemberAction
+	31, // 22: GroupChange.Actions.modifyTitle:type_name -> GroupChange.Actions.ModifyTitleAction
+	33, // 23: GroupChange.Actions.modifyAvatar:type_name -> GroupChange.Actions.ModifyAvatarAction
+	34, // 24: GroupChange.Actions.modifyDisappearingMessagesTimer:type_name -> GroupChange.Actions.ModifyDisappearingMessagesTimerAction
+	35, // 25: GroupChange.Actions.modifyAttributesAccess:type_name -> GroupChange.Actions.ModifyAttributesAccessControlAction
+	36, // 26: GroupChange.Actions.modifyMemberAccess:type_name -> GroupChange.Actions.ModifyMembersAccessControlAction
+	37, // 27: GroupChange.Actions.modifyAddFromInviteLinkAccess:type_name -> GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction
+	26, // 28: GroupChange.Actions.addRequestingMembers:type_name -> GroupChange.Actions.AddRequestingMemberAction
+	27, // 29: GroupChange.Actions.deleteRequestingMembers:type_name -> GroupChange.Actions.DeleteRequestingMemberAction
+	28, // 30: GroupChange.Actions.promoteRequestingMembers:type_name -> GroupChange.Actions.PromoteRequestingMemberAction
+	38, // 31: GroupChange.Actions.modifyInviteLinkPassword:type_name -> GroupChange.Actions.ModifyInviteLinkPasswordAction
+	32, // 32: GroupChange.Actions.modifyDescription:type_name -> GroupChange.Actions.ModifyDescriptionAction
+	39, // 33: GroupChange.Actions.modifyAnnouncementsOnly:type_name -> GroupChange.Actions.ModifyAnnouncementsOnlyAction
+	29, // 34: GroupChange.Actions.addBannedMembers:type_name -> GroupChange.Actions.AddBannedMemberAction
+	30, // 35: GroupChange.Actions.deleteBannedMembers:type_name -> GroupChange.Actions.DeleteBannedMemberAction
+	25, // 36: GroupChange.Actions.promotePendingPniAciMembers:type_name -> GroupChange.Actions.PromotePendingPniAciMemberProfileKeyAction
+	3,  // 37: GroupChange.Actions.AddMemberAction.added:type_name -> Member
+	0,  // 38: GroupChange.Actions.ModifyMemberRoleAction.role:type_name -> Member.Role
+	4,  // 39: GroupChange.Actions.AddPendingMemberAction.added:type_name -> PendingMember
+	5,  // 40: GroupChange.Actions.AddRequestingMemberAction.added:type_name -> RequestingMember
+	0,  // 41: GroupChange.Actions.PromoteRequestingMemberAction.role:type_name -> Member.Role
+	6,  // 42: GroupChange.Actions.AddBannedMemberAction.added:type_name -> BannedMember
+	1,  // 43: GroupChange.Actions.ModifyAttributesAccessControlAction.attributesAccess:type_name -> AccessControl.AccessRequired
+	1,  // 44: GroupChange.Actions.ModifyMembersAccessControlAction.membersAccess:type_name -> AccessControl.AccessRequired
+	1,  // 45: GroupChange.Actions.ModifyAddFromInviteLinkAccessControlAction.addFromInviteLinkAccess:type_name -> AccessControl.AccessRequired
+	9,  // 46: GroupChanges.GroupChangeState.groupChange:type_name -> GroupChange
+	8,  // 47: GroupChanges.GroupChangeState.groupState:type_name -> Group
+	48, // [48:48] is the sub-list for method output_type
+	48, // [48:48] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_Groups_proto_init() }
@@ -3244,7 +3387,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[8].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChanges); i {
+			switch v := v.(*GroupResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3256,7 +3399,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[9].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupAttributeBlob); i {
+			switch v := v.(*GroupChanges); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3268,7 +3411,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupInviteLink); i {
+			switch v := v.(*GroupChangeResponse); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3280,7 +3423,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupJoinInfo); i {
+			switch v := v.(*GroupAttributeBlob); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3292,7 +3435,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[12].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupExternalCredential); i {
+			switch v := v.(*GroupInviteLink); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3304,7 +3447,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions); i {
+			switch v := v.(*GroupJoinInfo); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3316,7 +3459,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_AddMemberAction); i {
+			switch v := v.(*GroupExternalCredential); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3328,7 +3471,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_DeleteMemberAction); i {
+			switch v := v.(*GroupChange_Actions); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3340,7 +3483,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[16].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyMemberRoleAction); i {
+			switch v := v.(*GroupChange_Actions_AddMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3352,7 +3495,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyMemberProfileKeyAction); i {
+			switch v := v.(*GroupChange_Actions_DeleteMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3364,7 +3507,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_AddPendingMemberAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyMemberRoleAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3376,7 +3519,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_DeletePendingMemberAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyMemberProfileKeyAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3388,7 +3531,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_PromotePendingMemberAction); i {
+			switch v := v.(*GroupChange_Actions_AddPendingMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3400,7 +3543,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction); i {
+			switch v := v.(*GroupChange_Actions_DeletePendingMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3412,7 +3555,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_AddRequestingMemberAction); i {
+			switch v := v.(*GroupChange_Actions_PromotePendingMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3424,7 +3567,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_DeleteRequestingMemberAction); i {
+			switch v := v.(*GroupChange_Actions_PromotePendingPniAciMemberProfileKeyAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3436,7 +3579,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_PromoteRequestingMemberAction); i {
+			switch v := v.(*GroupChange_Actions_AddRequestingMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3448,7 +3591,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_AddBannedMemberAction); i {
+			switch v := v.(*GroupChange_Actions_DeleteRequestingMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3460,7 +3603,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_DeleteBannedMemberAction); i {
+			switch v := v.(*GroupChange_Actions_PromoteRequestingMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3472,7 +3615,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyTitleAction); i {
+			switch v := v.(*GroupChange_Actions_AddBannedMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3484,7 +3627,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyDescriptionAction); i {
+			switch v := v.(*GroupChange_Actions_DeleteBannedMemberAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3496,7 +3639,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyAvatarAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyTitleAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3508,7 +3651,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyDisappearingMessagesTimerAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyDescriptionAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3520,7 +3663,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyAttributesAccessControlAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyAvatarAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3532,7 +3675,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyMembersAccessControlAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyDisappearingMessagesTimerAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3544,7 +3687,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[33].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyAttributesAccessControlAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3556,7 +3699,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[34].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyInviteLinkPasswordAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyMembersAccessControlAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3568,7 +3711,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[35].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChange_Actions_ModifyAnnouncementsOnlyAction); i {
+			switch v := v.(*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3580,7 +3723,7 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[36].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*GroupChanges_GroupChangeState); i {
+			switch v := v.(*GroupChange_Actions_ModifyInviteLinkPasswordAction); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -3592,6 +3735,30 @@ func file_Groups_proto_init() {
 			}
 		}
 		file_Groups_proto_msgTypes[37].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GroupChange_Actions_ModifyAnnouncementsOnlyAction); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_Groups_proto_msgTypes[38].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*GroupChanges_GroupChangeState); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_Groups_proto_msgTypes[39].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*GroupInviteLink_GroupInviteLinkContentsV1); i {
 			case 0:
 				return &v.state
@@ -3604,13 +3771,13 @@ func file_Groups_proto_init() {
 			}
 		}
 	}
-	file_Groups_proto_msgTypes[9].OneofWrappers = []interface{}{
+	file_Groups_proto_msgTypes[11].OneofWrappers = []interface{}{
 		(*GroupAttributeBlob_Title)(nil),
 		(*GroupAttributeBlob_Avatar)(nil),
 		(*GroupAttributeBlob_DisappearingMessagesDuration)(nil),
 		(*GroupAttributeBlob_Description)(nil),
 	}
-	file_Groups_proto_msgTypes[10].OneofWrappers = []interface{}{
+	file_Groups_proto_msgTypes[12].OneofWrappers = []interface{}{
 		(*GroupInviteLink_V1Contents)(nil),
 	}
 	type x struct{}
@@ -3619,7 +3786,7 @@ func file_Groups_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_Groups_proto_rawDesc,
 			NumEnums:      2,
-			NumMessages:   38,
+			NumMessages:   40,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
