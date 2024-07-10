@@ -384,7 +384,7 @@ func confirmDevice(
 			"registrationId":    aciRegistrationID,
 			"pniRegistrationId": pniRegistrationID,
 			"capabilities": map[string]any{
-				"pni": true,
+				"deleteSync": true,
 			},
 		},
 		"aciSignedPreKey":       aciSignedPreKeyJson,
