@@ -14,12 +14,12 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.1
-	go.mau.fi/util v0.5.1-0.20240702170310-bd1da3c069eb
-	golang.org/x/crypto v0.24.0
-	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
-	golang.org/x/net v0.26.0
+	go.mau.fi/util v0.5.1-0.20240710154926-931b33d6d530
+	golang.org/x/crypto v0.25.0
+	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
+	golang.org/x/net v0.27.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.19.0-beta.1.0.20240712135340-7c9b8cb28773
+	maunium.net/go/mautrix v0.19.0-beta.1.0.20240712164309-85e0664cb441
 	nhooyr.io/websocket v1.8.11
 )
 
@@ -42,7 +42,7 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/yuin/goldmark v1.7.4 // indirect
 	go.mau.fi/zeroconfig v0.1.2 // indirect
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	maunium.net/go/mauflag v1.0.0 // indirect
