@@ -157,14 +157,10 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 	}
 
 	ul, err := qr.User.NewLogin(ctx, &database.UserLogin{
-		ID: newLoginID,
-		Metadata: database.UserLoginMetadata{
-			StandardUserLoginMetadata: database.StandardUserLoginMetadata{
-				RemoteName: qr.ProvData.Number,
-			},
-			Extra: map[string]any{
-				"phone": qr.ProvData.Number,
-			},
+		ID:         newLoginID,
+		RemoteName: qr.ProvData.Number,
+		Metadata: &UserLoginMetadata{
+			Phone: qr.ProvData.Number,
 		},
 	}, &bridgev2.NewLoginParams{
 		DeleteOnConflict: true,

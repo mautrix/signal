@@ -151,7 +151,7 @@ func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal)
 	if !ok || dataMsg.GroupV2 == nil {
 		return
 	}
-	portalRev, _ := database.GetNumberFromMap[uint32](portal.Metadata.Extra, "revision")
+	portalRev := portal.Metadata.(*PortalMetadata).Revision
 	if evt.Info.GroupRevision > portalRev {
 		toRevision := evt.Info.GroupRevision
 		if dataMsg.GetGroupV2().GetGroupChange() != nil {
@@ -289,10 +289,11 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 	convertedParts := make([]*bridgev2.ConvertedMessagePart, len(converted.Parts))
 	for i, part := range converted.Parts {
 		convertedParts[i] = &bridgev2.ConvertedMessagePart{
-			ID:      makeMessagePartID(i),
-			Type:    part.Type,
-			Content: part.Content,
-			Extra:   part.Extra,
+			ID:         makeMessagePartID(i),
+			Type:       part.Type,
+			Content:    part.Content,
+			Extra:      part.Extra,
+			DBMetadata: &MessageMetadata{ContainsAttachments: len(dataMsg.GetAttachments()) > 0},
 		}
 	}
 	var disappear database.DisappearingSetting
@@ -338,7 +339,7 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 		Content: lastPart.Content,
 		Extra:   lastPart.Extra,
 	})
-	convertedEdit.ModifiedParts[0].Part.Metadata.EditCount++
+	convertedEdit.ModifiedParts[0].Part.EditCount++
 	return convertedEdit, nil
 }
 

@@ -2,14 +2,15 @@ INSERT INTO "user" (bridge_id, mxid, management_room, access_token)
 SELECT '', mxid, management_room, NULL
 FROM user_old;
 
-INSERT INTO user_login (bridge_id, user_mxid, id, space_room, metadata)
+INSERT INTO user_login (bridge_id, user_mxid, id, remote_name, space_room, metadata)
 SELECT
     '',
     mxid,
     cast(uuid AS TEXT),
+    phone, -- remote_name
     space_room,
     CAST(
-        '{"phone":"' || phone || '","remote_name":"' || phone || '"}'
+        '{"phone":"' || phone || '"}'
         -- only: postgres
         AS jsonb
         -- only: sqlite (line commented)
@@ -20,7 +21,8 @@ FROM user_old WHERE uuid IS NOT NULL AND phone IS NOT NULL;
 INSERT INTO portal (
     bridge_id, id, receiver, mxid, parent_id, parent_receiver, relay_bridge_id, relay_login_id,
     name, topic, avatar_id, avatar_hash, avatar_mxc,
-    name_set, avatar_set, topic_set, in_space, metadata
+    name_set, avatar_set, topic_set, in_space,
+    room_type, disappear_type, disappear_timer, metadata
 )
 SELECT
     '', -- bridge_id
@@ -48,11 +50,11 @@ SELECT
     avatar_set,
     topic_set,
     false, -- in_space
+    CASE WHEN LENGTH(chat_id)=44 THEN '' ELSE 'dm' END, -- room_type
+    CASE WHEN expiration_time<>0 THEN 'after_read' END,
+    CASE WHEN expiration_time<>0 THEN expiration_time * 1000000000 END,
     CAST(
-        CASE WHEN expiration_time = 0
-            THEN '{"revision":"' || revision || '"}'
-            ELSE '{"disappear_type": "after_read", "disappear_timer": "' || (expiration_time * 1000000000) || '","revision":"' || revision || '"}'
-        END
+        '{"revision":' || revision || '}'
         -- only: postgres
         AS jsonb
         -- only: sqlite (line commented)
@@ -61,7 +63,9 @@ SELECT
 FROM portal_old;
 
 INSERT INTO ghost (
-    bridge_id, id, name, avatar_id, avatar_hash, avatar_mxc, name_set, avatar_set, metadata
+    bridge_id, id, name, avatar_id, avatar_hash, avatar_mxc,
+    name_set, avatar_set, contact_info_set,
+    is_bot, identifiers, metadata
 )
 SELECT
     '', -- bridge_id
@@ -76,6 +80,9 @@ SELECT
     avatar_url, -- avatar_mxc
     name_set,
     avatar_set,
+    contact_info_set,
+    false, -- is_bot
+    '[]', -- identifiers
     CAST(
         CASE
              WHEN profile_fetched_at IS NOT NULL THEN ('{"profile_fetched_at":' || profile_fetched_at || '}')
@@ -90,7 +97,7 @@ FROM puppet_old;
 
 INSERT INTO message (
     bridge_id, id, part_id, mxid, room_id, room_receiver,
-    sender_id, timestamp, metadata
+    sender_id, sender_mxid, timestamp, edit_count, metadata
 )
 SELECT
     '', -- bridge_id
@@ -103,7 +110,9 @@ SELECT
         ELSE cast(signal_receiver AS TEXT)
     END, -- room_receiver
     cast(sender AS TEXT), -- sender_id
+    '', -- sender_mxid
     timestamp * 1000000,
+    0, -- edit_count
     '{}' -- metadata
 FROM message_old;
 
@@ -120,7 +129,7 @@ SELECT
 FROM disappearing_message_old;
 
 INSERT INTO reaction (
-    bridge_id, message_id, message_part_id, sender_id, emoji_id,
+    bridge_id, message_id, message_part_id, sender_id, emoji_id, emoji,
     room_id, room_receiver, mxid, timestamp, metadata
 )
 SELECT
@@ -129,6 +138,7 @@ SELECT
     '', -- message_part_id
     cast(author AS TEXT), -- sender_id
     '', -- emoji_id
+    emoji,
     signal_chat_id, -- room_id
     CASE
         WHEN signal_receiver='00000000-0000-0000-0000-000000000000' THEN ''
@@ -136,13 +146,7 @@ SELECT
     END, -- room_receiver
     mxid,
     msg_timestamp * 1000000, -- timestamp (actual reaction timestamp not available)
-    CAST(
-        '{"emoji":"' || emoji || '"}'
-        -- only: postgres
-        AS jsonb
-        -- only: sqlite (line commented)
---      AS text
-    ) -- metadata
+    '{}' -- metadata
 FROM reaction_old;
 
 INSERT INTO user_portal (

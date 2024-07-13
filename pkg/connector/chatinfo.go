@@ -25,7 +25,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
 
@@ -192,8 +194,6 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 }
 
 func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev2.CreateChatResponse {
-	isDirectChat := true
-	isSpace := false
 	name := ""
 	topic := PrivateChatTopic
 	members := &bridgev2.ChatMemberList{
@@ -236,12 +236,11 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 	return &bridgev2.CreateChatResponse{
 		PortalID: s.makeDMPortalKey(serviceID),
 		PortalInfo: &bridgev2.ChatInfo{
-			Name:         &name,
-			Avatar:       avatar,
-			Topic:        &topic,
-			Members:      members,
-			IsDirectChat: &isDirectChat,
-			IsSpace:      &isSpace,
+			Name:    &name,
+			Avatar:  avatar,
+			Topic:   &topic,
+			Members: members,
+			Type:    ptr.Ptr(database.RoomTypeDM),
 		},
 	}
 }

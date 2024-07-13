@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/event"
@@ -94,8 +95,6 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 	if err != nil {
 		return nil, err
 	}
-	isDM := false
-	isSpace := false
 	members := &bridgev2.ChatMemberList{
 		IsFull:  true,
 		Members: make([]bridgev2.ChatMember, len(groupInfo.Members), len(groupInfo.Members)+len(groupInfo.PendingMembers)+len(groupInfo.RequestingMembers)+len(groupInfo.BannedMembers)),
@@ -153,8 +152,7 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 			Timer: time.Duration(groupInfo.DisappearingMessagesDuration) * time.Second,
 		},
 		Members:      members,
-		IsDirectChat: &isDM,
-		IsSpace:      &isSpace,
+		Type:         ptr.Ptr(database.RoomTypeDefault),
 		JoinRule:     &event.JoinRulesEventContent{JoinRule: joinRule},
 		ExtraUpdates: makeRevisionUpdater(groupInfo.Revision),
 	}, nil
@@ -176,9 +174,9 @@ func (s *SignalClient) makeGroupAvatar(meta signalmeow.GroupAvatarMeta) *bridgev
 
 func makeRevisionUpdater(rev uint32) func(ctx context.Context, portal *bridgev2.Portal) bool {
 	return func(ctx context.Context, portal *bridgev2.Portal) bool {
-		currentRev, _ := database.GetNumberFromMap[uint32](portal.Metadata.Extra, "revision")
-		if currentRev < rev {
-			portal.Metadata.Extra["revision"] = rev
+		meta := portal.Metadata.(*PortalMetadata)
+		if meta.Revision < rev {
+			meta.Revision = rev
 			return true
 		}
 		return false

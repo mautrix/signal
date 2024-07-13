@@ -97,9 +97,9 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		ID:        makeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
 		SenderID:  makeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(converted.GetTimestamp())),
-	}
-	dbMsg.Metadata.Extra = map[string]any{
-		"contains_attachments": len(converted.Attachments) > 0,
+		Metadata: &MessageMetadata{
+			ContainsAttachments: len(converted.Attachments) > 0,
+		},
 	}
 	return &bridgev2.MatrixMessageResponse{
 		DB: dbMsg,
@@ -139,8 +139,8 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 		return err
 	}
 	msg.EditTarget.ID = makeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
-	msg.EditTarget.Metadata.Extra["contains_attachments"] = len(converted.Attachments) > 0
-	msg.EditTarget.Metadata.EditCount++
+	msg.EditTarget.Metadata = &MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
+	msg.EditTarget.EditCount++
 	return nil
 }
 
@@ -186,7 +186,7 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 			Timestamp:               proto.Uint64(uint64(msg.Event.Timestamp)),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:               proto.String(msg.TargetReaction.Metadata.Emoji),
+				Emoji:               proto.String(msg.TargetReaction.Emoji),
 				Remove:              proto.Bool(true),
 				TargetAuthorAci:     proto.String(targetAuthorACI.String()),
 				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
@@ -296,11 +296,7 @@ func (s *SignalClient) handleMatrixRoomMeta(ctx context.Context, portal *bridgev
 	if err != nil || groupID == "" {
 		return false, err
 	}
-	rev, ok := database.GetNumberFromMap[uint32](portal.Metadata.Extra, "revision")
-	if !ok {
-		return false, fmt.Errorf("missing revision in portal metadata")
-	}
-	gc.Revision = rev + 1
+	gc.Revision = portal.Metadata.(*PortalMetadata).Revision + 1
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
 		return false, err
@@ -320,7 +316,7 @@ func (s *SignalClient) handleMatrixRoomMeta(ctx context.Context, portal *bridgev
 	if postUpdatePortal != nil {
 		postUpdatePortal()
 	}
-	portal.Metadata.Extra["revision"] = revision
+	portal.Metadata.(*PortalMetadata).Revision = revision
 	return true, nil
 }
 

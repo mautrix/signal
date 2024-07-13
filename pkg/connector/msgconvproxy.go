@@ -72,7 +72,7 @@ func (mpm *msgconvPortalMethods) GetSignalReply(ctx context.Context, content *ev
 		AuthorAci: proto.String(string(mcCtx.ReplyTo.SenderID)),
 		Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
 	}
-	if mcCtx.ReplyTo.Metadata.Extra["contains_attachments"] != false {
+	if mcCtx.ReplyTo.Metadata.(*MessageMetadata).ContainsAttachments {
 		quote.Attachments = make([]*signalpb.DataMessage_Quote_QuotedAttachment, 1)
 	}
 	return quote
@@ -107,9 +107,9 @@ func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 		NameSet:   portal.NameSet,
 		AvatarSet: portal.AvatarSet,
 		TopicSet:  portal.TopicSet,
-		//Revision:       portal.Metadata["revision"].(uint32),
+		Revision:  portal.Metadata.(*PortalMetadata).Revision,
 		Encrypted: true,
 		//RelayUserID:    portal.Relay.UserMXID,
-		ExpirationTime: uint32(portal.Metadata.DisappearTimer.Seconds()),
+		ExpirationTime: uint32(portal.Disappear.Timer.Seconds()),
 	}
 }

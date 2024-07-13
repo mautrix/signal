@@ -129,11 +129,11 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 		LocationFormat:       s.Config.LocationFormat,
 		UpdateDisappearing: func(ctx context.Context, newTimer time.Duration) {
 			portal := ctx.Value(msgconvContextKey).(*msgconvContext).Portal
-			portal.Metadata.DisappearTimer = newTimer
+			portal.Disappear.Timer = newTimer
 			if newTimer == 0 {
-				portal.Metadata.DisappearType = ""
+				portal.Disappear.Type = ""
 			} else {
-				portal.Metadata.DisappearType = database.DisappearingTypeAfterRead
+				portal.Disappear.Type = database.DisappearingTypeAfterRead
 			}
 			err := portal.Save(ctx)
 			if err != nil {

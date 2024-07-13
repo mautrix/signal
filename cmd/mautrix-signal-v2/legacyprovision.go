@@ -186,7 +186,7 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 			Success: true,
 			Status:  "prekeys_registered",
 			UUID:    string(res.CompleteParams.UserLogin.ID),
-			Number:  res.CompleteParams.UserLogin.Metadata.RemoteName,
+			Number:  res.CompleteParams.UserLogin.RemoteName,
 		})
 	}
 	login.Delete()
