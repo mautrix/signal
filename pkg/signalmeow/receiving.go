@@ -734,6 +734,13 @@ func (cli *Client) handleDecryptedResult(
 					log.Err(err).Msg("Sync message destination parse error")
 					return err
 				}
+				if syncSent.GetDestinationE164() != "" {
+					aci, pni := syncDestinationServiceID.ToACIAndPNI()
+					_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
+					if err != nil {
+						log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
+					}
+				}
 			}
 			if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
 				log.Warn().Msg("sync message sent destination is nil")
@@ -913,7 +920,18 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 	if err != nil {
 		return fmt.Errorf("failed to get identity for PNI %s: %w", pni, err)
 	} else if pniIdentity == nil {
-		return fmt.Errorf("identity not found for PNI %s", pni)
+		zerolog.Ctx(ctx).Debug().
+			Stringer("aci", sender.UUID).
+			Stringer("pni", pni).
+			Msg("Fetching PNI identity for signature verification as it wasn't found in store")
+		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 0)
+		if err != nil {
+			return fmt.Errorf("failed to fetch prekey for PNI %s after identity wasn't found in store: %w", pni, err)
+		} else if pniIdentity, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, pniServiceID); err != nil {
+			return fmt.Errorf("failed to get identity for PNI %s after fetching: %w", pni, err)
+		} else if pniIdentity == nil {
+			return fmt.Errorf("identity not found for PNI %s even after fetching", pni)
+		}
 	}
 	aciIdentity, err := cli.Store.IdentityKeyStore.GetIdentityKey(ctx, sender)
 	if err != nil {

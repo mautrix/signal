@@ -50,7 +50,7 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 	return s.contactToUserInfo(contact), nil
 }
 
-func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.PortalInfo, error) {
+func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
 	userID, groupID, err := parsePortalID(portal.ID)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 	if groupID != "" {
 		return s.getGroupInfo(ctx, groupID, 0)
 	} else {
-		aci, pni := serviceIDToACIAndPNI(userID)
+		aci, pni := userID.ToACIAndPNI()
 		contact, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
 		if err != nil {
 			return nil, err
@@ -250,12 +250,4 @@ func makeAvatarPathID(avatarPath string) networkid.AvatarID {
 		return ""
 	}
 	return networkid.AvatarID("path:" + avatarPath)
-}
-
-func serviceIDToACIAndPNI(serviceID libsignalgo.ServiceID) (aci, pni uuid.UUID) {
-	if serviceID.Type == libsignalgo.ServiceIDTypeACI {
-		return serviceID.UUID, uuid.Nil
-	} else {
-		return uuid.Nil, serviceID.UUID
-	}
 }

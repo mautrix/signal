@@ -81,6 +81,14 @@ func NewACIServiceID(uuid uuid.UUID) ServiceID {
 	}
 }
 
+func (s ServiceID) ToACIAndPNI() (aci, pni uuid.UUID) {
+	if s.Type == ServiceIDTypeACI {
+		return s.UUID, uuid.Nil
+	} else {
+		return uuid.Nil, s.UUID
+	}
+}
+
 func (s ServiceID) IsEmpty() bool {
 	return s.UUID == uuid.Nil
 }
