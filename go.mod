@@ -19,7 +19,7 @@ require (
 	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
 	golang.org/x/net v0.27.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.19.0-beta.1.0.20240714080619-d1905f623215
+	maunium.net/go/mautrix v0.19.0-beta.1.0.20240714114557-edf1a8d8d022
 	nhooyr.io/websocket v1.8.11
 )
 
