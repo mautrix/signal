@@ -237,7 +237,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 	}
 	if resp.Chat != nil {
 		if resp.Chat.Portal == nil {
-			resp.Chat.Portal, err = m.Bridge.GetPortalByID(r.Context(), resp.Chat.PortalID)
+			resp.Chat.Portal, err = m.Bridge.GetPortalByKey(r.Context(), resp.Chat.PortalKey)
 			if err != nil {
 				zerolog.Ctx(r.Context()).Err(err).Msg("Failed to get portal")
 				legacyprovision.JSONResponse(w, http.StatusInternalServerError, &mautrix.RespError{

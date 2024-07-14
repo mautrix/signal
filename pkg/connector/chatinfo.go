@@ -234,7 +234,7 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 		serviceID = libsignalgo.NewACIServiceID(recipient.ACI)
 	}
 	return &bridgev2.CreateChatResponse{
-		PortalID: s.makeDMPortalKey(serviceID),
+		PortalKey: s.makeDMPortalKey(serviceID),
 		PortalInfo: &bridgev2.ChatInfo{
 			Name:    &name,
 			Avatar:  avatar,

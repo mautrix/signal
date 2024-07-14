@@ -59,7 +59,7 @@ func deleteExtraPrekeys(ctx context.Context, db *dbutil.Database, selectQuery, d
 }
 
 func init() {
-	Table.Register(-1, 16, 13, "Remove extra prekeys", true, func(ctx context.Context, db *dbutil.Database) error {
+	Table.Register(-1, 16, 13, "Remove extra prekeys", dbutil.TxnModeOn, func(ctx context.Context, db *dbutil.Database) error {
 		err := deleteExtraPrekeys(ctx, db, `
 			SELECT account_id, service_id, COUNT(*), MAX(key_id) FROM signalmeow_pre_keys WHERE is_signed=false GROUP BY 1, 2
 		`, `
