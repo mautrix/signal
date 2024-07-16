@@ -1,3 +1,16 @@
+# v0.6.3 (2024-07-16)
+
+* Updated to libsignal v0.52.0.
+* Fixed bridge losing track of user phone numbers in some cases.
+* Fixed edge cases in handling new outgoing DMs started from other devices.
+* Added `sync groups` command (thanks to [@maltee1] in [#490]).
+* Fixed typo in location bridging example config
+  (thanks to [@AndrewFerr] in [#516]).
+
+[#490]: https://github.com/mautrix/signal/pull/490
+[#516]: https://github.com/mautrix/signal/pull/516
+[@AndrewFerr]: https://github.com/mautrix/signal/pull/516
+
 # v0.6.2 (2024-06-16)
 
 * Updated to libsignal v0.51.0.
