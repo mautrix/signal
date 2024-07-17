@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -38,7 +39,17 @@ var signalCaps = &bridgev2.NetworkRoomCapabilities{
 	ReactionCount: 1,
 }
 
+var signalCapsNoteToSelf *bridgev2.NetworkRoomCapabilities
+
+func init() {
+	signalCapsNoteToSelf = ptr.Clone(signalCaps)
+	signalCapsNoteToSelf.EditMaxAge = 0
+}
+
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *bridgev2.NetworkRoomCapabilities {
+	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
+		return signalCapsNoteToSelf
+	}
 	return signalCaps
 }
 
