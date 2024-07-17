@@ -215,6 +215,7 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 		name = s.Main.Config.FormatDisplayname(recipient)
 		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
 	} else {
+		members.OtherUserID = makeUserID(recipient.ACI)
 		if recipient.ACI == s.Client.Store.ACI {
 			name = NoteToSelfName
 			avatar = &bridgev2.Avatar{

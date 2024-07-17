@@ -19,7 +19,7 @@ SELECT
 FROM user_old WHERE uuid IS NOT NULL AND phone IS NOT NULL;
 
 INSERT INTO portal (
-    bridge_id, id, receiver, mxid, parent_id, parent_receiver, relay_bridge_id, relay_login_id,
+    bridge_id, id, receiver, mxid, parent_id, parent_receiver, relay_bridge_id, relay_login_id, other_user_id,
     name, topic, avatar_id, avatar_hash, avatar_mxc,
     name_set, avatar_set, topic_set, in_space,
     room_type, disappear_type, disappear_timer, metadata
@@ -36,6 +36,7 @@ SELECT
     '', -- parent_receiver
     CASE WHEN portal_old.relay_user_id<>'' THEN '' END, -- relay_bridge_id
     CASE WHEN portal_old.relay_user_id<>'' THEN portal_old.relay_user_id END, -- relay_login_id
+    CASE WHEN LENGTH(chat_id)=44 THEN NULL ELSE chat_id END, -- other_user_id
     name,
     topic,
     CASE
