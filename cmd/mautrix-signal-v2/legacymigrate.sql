@@ -21,7 +21,7 @@ FROM user_old WHERE uuid IS NOT NULL AND phone IS NOT NULL;
 INSERT INTO portal (
     bridge_id, id, receiver, mxid, parent_id, parent_receiver, relay_bridge_id, relay_login_id, other_user_id,
     name, topic, avatar_id, avatar_hash, avatar_mxc,
-    name_set, avatar_set, topic_set, in_space,
+    name_set, avatar_set, topic_set, name_is_custom, in_space,
     room_type, disappear_type, disappear_timer, metadata
 )
 SELECT
@@ -50,6 +50,7 @@ SELECT
     name_set,
     avatar_set,
     topic_set,
+    CASE WHEN LENGTH(chat_id)=44 THEN true ELSE false END, -- name_is_custom
     false, -- in_space
     CASE WHEN LENGTH(chat_id)=44 THEN '' ELSE 'dm' END, -- room_type
     CASE WHEN expiration_time<>0 THEN 'after_read' END,
