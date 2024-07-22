@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	"strings"
 
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix/bridgev2"
@@ -108,7 +109,8 @@ func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 		AvatarSet: portal.AvatarSet,
 		TopicSet:  portal.TopicSet,
 		Revision:  portal.Metadata.(*PortalMetadata).Revision,
-		Encrypted: true,
+		// Hack to prevent encryption while using the bridge as a "local bridge"
+		Encrypted: !strings.HasSuffix(portal.Bridge.Matrix.ServerName(), ".localhost"),
 		//RelayUserID:    portal.Relay.UserMXID,
 		ExpirationTime: uint32(portal.Disappear.Timer.Seconds()),
 	}
