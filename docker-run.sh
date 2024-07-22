@@ -18,7 +18,7 @@ function fixperms {
 
 if [[ ! -f /data/config.yaml ]]; then
 	if [[ "$BRIDGEV2" == "1" ]]; then
-		$BINARY_NAME -c /data/config -e
+		$BINARY_NAME -c /data/config.yaml -e
 	else
 		cp /opt/mautrix-signal/example-config.yaml /data/config.yaml
 	fi
