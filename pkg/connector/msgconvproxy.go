@@ -110,7 +110,7 @@ func (mpm *msgconvPortalMethods) GetData(ctx context.Context) *legacydb.Portal {
 		TopicSet:  portal.TopicSet,
 		Revision:  portal.Metadata.(*PortalMetadata).Revision,
 		// Hack to prevent encryption while using the bridge as a "local bridge"
-		Encrypted: strings.HasSuffix(portal.Bridge.Matrix.ServerName(), ".localhost"),
+		Encrypted: !strings.HasSuffix(portal.Bridge.Matrix.ServerName(), ".localhost"),
 		//RelayUserID:    portal.Relay.UserMXID,
 		ExpirationTime: uint32(portal.Disappear.Timer.Seconds()),
 	}
