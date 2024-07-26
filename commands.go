@@ -543,7 +543,7 @@ var cmdSync = &commands.FullHandler{
 	Help: commands.HelpMeta{
 		Section:     HelpSectionMiscellaneous,
 		Description: "Synchronize Signal bridge data",
-		Args:        "<space/portals>",
+		Args:        "<space/groups>",
 	},
 	RequiresLogin: true,
 }
