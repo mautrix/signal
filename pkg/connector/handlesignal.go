@@ -340,6 +340,7 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 		Extra:   lastPart.Extra,
 	})
 	convertedEdit.ModifiedParts[0].Part.EditCount++
+	convertedEdit.ModifiedParts[0].Part.ID = makeMessageID(evt.Info.Sender, editMsg.GetDataMessage().GetTimestamp())
 	return convertedEdit, nil
 }
 
