@@ -196,6 +196,7 @@ typedef enum {
   SignalErrorCodeSvrRestoreFailed = 151,
   SignalErrorCodeAppExpired = 160,
   SignalErrorCodeDeviceDeregistered = 161,
+  SignalErrorCodeBackupValidation = 170,
 } SignalErrorCode;
 
 /**
@@ -375,6 +376,8 @@ typedef struct {
   SignalOwnedBuffer bytes;
   SignalOwnedBufferOfusize lengths;
 } SignalBytestringArray;
+
+typedef SignalBytestringArray SignalStringArray;
 
 typedef struct {
   const unsigned char *base;
@@ -660,8 +663,6 @@ typedef struct {
 
 typedef SignalFfiChatListenerStruct SignalFfiMakeChatListenerStruct;
 
-typedef SignalBytestringArray SignalStringArray;
-
 typedef int (*SignalRead)(void *ctx, uint8_t *buf, size_t buf_len, size_t *amount_read);
 
 typedef int (*SignalSkip)(void *ctx, uint64_t amount);
@@ -759,6 +760,8 @@ uint32_t signal_error_get_type(const SignalFfiError *err);
 SignalFfiError *signal_error_get_retry_after_seconds(const SignalFfiError *err, uint32_t *out);
 
 SignalFfiError *signal_error_get_tries_remaining(const SignalFfiError *err, uint32_t *out);
+
+SignalFfiError *signal_error_get_unknown_fields(const SignalFfiError *err, SignalStringArray *out);
 
 void signal_error_free(SignalFfiError *err);
 
@@ -1524,6 +1527,8 @@ SignalFfiError *signal_create_otp_from_base64(const char **out, const char *user
 
 SignalFfiError *signal_svr3_backup(SignalCPromiseOwnedBufferOfc_uchar *promise, const SignalTokioAsyncContext *async_runtime, const SignalConnectionManager *connection_manager, SignalBorrowedBuffer secret, const char *password, uint32_t max_tries, const char *username, const char *enclave_password);
 
+SignalFfiError *signal_svr3_migrate(SignalCPromiseOwnedBufferOfc_uchar *promise, const SignalTokioAsyncContext *async_runtime, const SignalConnectionManager *connection_manager, SignalBorrowedBuffer secret, const char *password, uint32_t max_tries, const char *username, const char *enclave_password);
+
 SignalFfiError *signal_svr3_restore(SignalCPromiseOwnedBufferOfc_uchar *promise, const SignalTokioAsyncContext *async_runtime, const SignalConnectionManager *connection_manager, const char *password, SignalBorrowedBuffer share_set, const char *username, const char *enclave_password);
 
 SignalFfiError *signal_svr3_remove(SignalCPromisebool *promise, const SignalTokioAsyncContext *async_runtime, const SignalConnectionManager *connection_manager, const char *username, const char *enclave_password);
@@ -1560,7 +1565,7 @@ SignalFfiError *signal_http_request_new_without_body(SignalHttpRequest **out, co
 
 SignalFfiError *signal_http_request_add_header(const SignalHttpRequest *request, const char *name, const char *value);
 
-SignalFfiError *signal_chat_service_new(SignalChat **out, const SignalConnectionManager *connection_manager, const char *username, const char *password);
+SignalFfiError *signal_chat_service_new(SignalChat **out, const SignalConnectionManager *connection_manager, const char *username, const char *password, bool receive_stories);
 
 SignalFfiError *signal_chat_service_disconnect(SignalCPromisebool *promise, const SignalTokioAsyncContext *async_runtime, const SignalChat *chat);
 
@@ -1747,6 +1752,8 @@ SignalFfiError *signal_testing_error_on_return_io(SignalCPromiseRawPointer *prom
 SignalFfiError *signal_testing_return_string_array(SignalStringArray *out);
 
 SignalFfiError *signal_testing_process_bytestring_array(SignalBytestringArray *out, SignalBorrowedSliceOfBuffers input);
+
+SignalFfiError *signal_testing_input_stream_read_into_zero_length_slice(SignalOwnedBuffer *out, const SignalInputStream *caps_alphabet_input);
 
 SignalFfiError *signal_testing_cdsi_lookup_response_convert(SignalCPromiseFfiCdsiLookupResponse *promise, const SignalTokioAsyncContext *async_runtime);
 
