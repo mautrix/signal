@@ -13,13 +13,13 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/stretchr/testify v1.9.0
-	github.com/tidwall/gjson v1.17.1
-	go.mau.fi/util v0.6.1-0.20240719175439-20a6073e1dd4
+	github.com/tidwall/gjson v1.17.3
+	go.mau.fi/util v0.6.1-0.20240722085753-2d7945696c9b
 	golang.org/x/crypto v0.25.0
-	golang.org/x/exp v0.0.0-20240707233637-46b078467d37
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/net v0.27.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.19.1-0.20240722162239-edb026c8a35c
+	maunium.net/go/mautrix v0.19.1-0.20240730133608-779f61ac9c69
 	nhooyr.io/websocket v1.8.11
 )
 

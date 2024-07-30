@@ -202,7 +202,7 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 			{
 				EventSender: s.makeEventSender(s.Client.Store.ACI),
 				Membership:  event.MembershipJoin,
-				PowerLevel:  moderatorPL,
+				PowerLevel:  &moderatorPL,
 			},
 		},
 	}
@@ -229,7 +229,7 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 			members.Members = append(members.Members, bridgev2.ChatMember{
 				EventSender: s.makeEventSender(recipient.ACI),
 				Membership:  event.MembershipJoin,
-				PowerLevel:  moderatorPL,
+				PowerLevel:  &moderatorPL,
 			})
 		}
 		serviceID = libsignalgo.NewACIServiceID(recipient.ACI)

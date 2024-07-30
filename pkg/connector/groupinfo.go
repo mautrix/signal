@@ -34,14 +34,14 @@ import (
 var defaultPL = 0
 var moderatorPL = 50
 
-func roleToPL(role signalmeow.GroupMemberRole) int {
+func roleToPL(role signalmeow.GroupMemberRole) *int {
 	switch role {
 	case signalmeow.GroupMember_ADMINISTRATOR:
-		return moderatorPL
+		return &moderatorPL
 	case signalmeow.GroupMember_DEFAULT:
 		fallthrough
 	default:
-		return defaultPL
+		return &defaultPL
 	}
 }
 
