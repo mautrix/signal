@@ -25,11 +25,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
@@ -343,4 +345,108 @@ func (s *SignalClient) HandleMatrixRoomTopic(ctx context.Context, msg *bridgev2.
 	return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
 		ModifyDescription: &msg.Content.Topic,
 	}, nil)
+}
+
+func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2.MatrixMembershipChange) (bool, error) {
+	var targetIntent bridgev2.MatrixAPI
+	var targetSignalID uuid.UUID
+	var err error
+	if msg.TargetGhost != nil {
+		targetIntent = msg.TargetGhost.Intent
+		targetSignalID, err = signalid.ParseUserID(msg.TargetGhost.ID)
+		if err != nil {
+			return false, fmt.Errorf("failed to parse target ghost signal id: %w", err)
+		}
+	} else if msg.TargetUserLogin != nil {
+		targetSignalID, err = signalid.ParseUserLoginID(msg.TargetUserLogin.ID)
+		if err != nil {
+			return false, fmt.Errorf("failed to parse target user signal id: %w", err)
+		}
+		targetIntent = msg.TargetUserLogin.User.DoublePuppet(ctx)
+		if targetIntent == nil {
+			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(msg.TargetUserLogin.ID))
+			if err != nil {
+				return false, fmt.Errorf("failed to get ghost for user: %w", err)
+			}
+			targetIntent = ghost.Intent
+		}
+	}
+	gc := &signalmeow.GroupChange{}
+	role := signalmeow.GroupMember_DEFAULT
+	toMembership := msg.Type.GetTo()
+	if toMembership == event.MembershipBan {
+		gc.AddBannedMembers = []*signalmeow.BannedMember{{
+			ServiceID: libsignalgo.NewACIServiceID(targetSignalID),
+			Timestamp: uint64(time.Now().UnixMilli()),
+		}}
+	}
+	if toMembership == event.MembershipInvite || msg.Type == bridgev2.AcceptKnock {
+		levels, err := msg.Portal.Bridge.Matrix.GetPowerLevels(ctx, msg.Portal.MXID)
+		if err != nil {
+			log.Err(err).Msg("Couldn't get power levels")
+			if levels.GetUserLevel(targetIntent.GetMXID()) >= 50 {
+				role = signalmeow.GroupMember_ADMINISTRATOR
+			}
+		}
+	}
+	switch msg.Type {
+	case bridgev2.AcceptInvite:
+		gc.PromotePendingMembers = []*signalmeow.PromotePendingMember{&signalmeow.PromotePendingMember{
+			ACI: targetSignalID,
+		}}
+	case bridgev2.RevokeInvite, bridgev2.RejectInvite, bridgev2.BanInvited:
+		deletePendingMember := libsignalgo.NewACIServiceID(targetSignalID)
+		gc.DeletePendingMembers = []*libsignalgo.ServiceID{&deletePendingMember}
+	case bridgev2.Leave, bridgev2.Kick:
+		gc.DeleteMembers = []*uuid.UUID{&targetSignalID}
+	case bridgev2.Invite:
+		gc.AddMembers = []*signalmeow.AddMember{{
+			GroupMember: signalmeow.GroupMember{
+				ACI:  targetSignalID,
+				Role: role,
+			},
+		}}
+	// TODO: joining and knocking requires a way to obtain the invite link
+	// because the joining/knocking member doesn't have the GroupMasterKey yet
+	// case bridgev2.Join:
+	// 	gc.AddMembers = []*signalmeow.AddMember{{
+	// 		GroupMember: signalmeow.GroupMember{
+	// 			ACI:  targetSignalID,
+	// 			Role: role,
+	// 		},
+	// 		JoinFromInviteLink: true,
+	// 	}}
+	// case bridgev2.Knock:
+	// 	gc.AddRequestingMembers = []*signalmeow.RequestingMember{{
+	// 		ACI:       targetSignalID,
+	// 		Timestamp: uint64(time.Now().UnixMilli()),
+	// 	}}
+	case bridgev2.AcceptKnock:
+		gc.PromoteRequestingMembers = []*signalmeow.RoleMember{{
+			ACI:  targetSignalID,
+			Role: role,
+		}}
+	case bridgev2.RetractKnock, bridgev2.RejectKnock, bridgev2.BanKnocked:
+		gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID}
+	case bridgev2.Unban:
+		unbanUser := libsignalgo.NewACIServiceID(targetSignalID)
+		gc.DeleteBannedMembers = []*libsignalgo.ServiceID{&unbanUser}
+	}
+	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil || groupID == "" {
+		return false, err
+	}
+	gc.Revision = msg.Portal.Metadata.(*signalid.PortalMetadata).Revision + 1
+	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
+	if err != nil {
+		return false, err
+	}
+	if msg.Type == bridgev2.Invite {
+		err = targetIntent.EnsureJoined(ctx, msg.Portal.MXID)
+		if err != nil {
+			return false, err
+		}
+	}
+	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
+	return true, nil
 }
