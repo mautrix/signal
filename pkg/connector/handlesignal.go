@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -485,19 +486,60 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 	log := s.UserLogin.Log.With().Str("action", "handle contact list").Logger()
 	ctx := log.WithContext(context.TODO())
 	for _, contact := range evt.Contacts {
-		if contact.ACI != uuid.Nil {
-			fullContact, err := s.Client.ContactByACI(ctx, contact.ACI)
-			if err != nil {
-				log.Err(err).Msg("Failed to get full contact info from store")
-				continue
-			}
-			fullContact.ContactAvatar = contact.ContactAvatar
-			ghost, err := s.Main.Bridge.GetGhostByID(ctx, makeUserID(contact.ACI))
-			if err != nil {
-				log.Err(err).Msg("Failed to get ghost to update contact info")
-				continue
-			}
-			ghost.UpdateInfo(ctx, s.contactToUserInfo(contact))
+		if contact.ACI == uuid.Nil {
+			continue
+		}
+		fullContact, err := s.Client.ContactByACI(ctx, contact.ACI)
+		if err != nil {
+			log.Err(err).Msg("Failed to get full contact info from store")
+			continue
+		}
+		fullContact.ContactAvatar = contact.ContactAvatar
+		ghost, err := s.Main.Bridge.GetGhostByID(ctx, makeUserID(contact.ACI))
+		if err != nil {
+			log.Err(err).Msg("Failed to get ghost to update contact info")
+			continue
+		}
+		ghost.UpdateInfo(ctx, s.contactToUserInfo(contact))
+		if contact.ACI == s.Client.Store.ACI {
+			s.updateRemoteProfile(ctx, true)
+		}
+	}
+}
+
+func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool) {
+	var err error
+	if s.Ghost == nil {
+		s.Ghost, err = s.Main.Bridge.GetGhostByID(ctx, makeUserID(s.Client.Store.ACI))
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get ghost for remote profile update")
+			return
+		}
+	}
+	changed := false
+	if s.UserLogin.RemoteProfile.Name != s.Ghost.Name {
+		s.UserLogin.RemoteProfile.Name = s.Ghost.Name
+		changed = true
+	}
+	if s.UserLogin.RemoteProfile.Avatar != s.Ghost.AvatarMXC {
+		s.UserLogin.RemoteProfile.Avatar = s.Ghost.AvatarMXC
+		changed = true
+	}
+	if len(s.Ghost.Identifiers) > 0 && strings.HasPrefix(s.Ghost.Identifiers[0], "tel:") {
+		phone := strings.TrimPrefix(s.Ghost.Identifiers[0], "tel:")
+		if s.UserLogin.RemoteProfile.Phone != phone {
+			s.UserLogin.RemoteProfile.Phone = phone
+			changed = true
+		}
+	}
+	if changed {
+		err = s.UserLogin.Save(ctx)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save updated remote profile")
+		}
+		if resendState {
+			// TODO this has potential race conditions
+			s.UserLogin.BridgeState.Send(s.UserLogin.BridgeState.GetPrevUnsent())
 		}
 	}
 }

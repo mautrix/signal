@@ -29,10 +29,8 @@ func (s *SignalConnector) GetDBMetaTypes() database.MetaTypes {
 		Message: func() any {
 			return &MessageMetadata{}
 		},
-		Reaction: nil,
-		UserLogin: func() any {
-			return &UserLoginMetadata{}
-		},
+		Reaction:  nil,
+		UserLogin: nil,
 	}
 }
 
@@ -42,8 +40,4 @@ type PortalMetadata struct {
 
 type MessageMetadata struct {
 	ContainsAttachments bool `json:"contains_attachments,omitempty"`
-}
-
-type UserLoginMetadata struct {
-	Phone string `json:"phone"`
 }

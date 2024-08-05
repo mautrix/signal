@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 
@@ -159,7 +160,7 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 	ul, err := qr.User.NewLogin(ctx, &database.UserLogin{
 		ID:         newLoginID,
 		RemoteName: qr.ProvData.Number,
-		Metadata: &UserLoginMetadata{
+		RemoteProfile: status.RemoteProfile{
 			Phone: qr.ProvData.Number,
 		},
 	}, &bridgev2.NewLoginParams{

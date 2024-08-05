@@ -18,6 +18,7 @@ type SignalClient struct {
 	Main      *SignalConnector
 	UserLogin *bridgev2.UserLogin
 	Client    *signalmeow.Client
+	Ghost     *bridgev2.Ghost
 }
 
 var signalCaps = &bridgev2.NetworkRoomCapabilities{
@@ -218,6 +219,11 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 }
 
 func (s *SignalClient) Connect(ctx context.Context) error {
+	if s.Client == nil {
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
+		return nil
+	}
+	s.updateRemoteProfile(ctx, false)
 	s.tryConnect(ctx, 0)
 	return nil
 }
@@ -233,10 +239,6 @@ func (s *SignalClient) Disconnect() {
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
-	if s.Client == nil {
-		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
-		return
-	}
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
