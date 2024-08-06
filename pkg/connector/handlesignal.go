@@ -30,6 +30,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
 
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
@@ -63,7 +64,7 @@ func (s *SignalClient) wrapCallEvent(evt *events.Call) bridgev2.RemoteMessage {
 		PortalKey:          s.makePortalKey(evt.Info.ChatID),
 		Data:               evt,
 		CreatePortal:       true,
-		ID:                 makeMessageID(evt.Info.Sender, evt.Timestamp),
+		ID:                 signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp),
 		Sender:             s.makeEventSender(evt.Info.Sender),
 		Timestamp:          time.UnixMilli(int64(evt.Timestamp)),
 		ConvertMessageFunc: convertCallEvent,
@@ -76,7 +77,7 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 	}
 	if data.IsRinging {
 		content.Body = "Incoming call"
-		if userID, _, _ := parsePortalID(portal.ID); !userID.IsEmpty() {
+		if userID, _, _ := signalid.ParsePortalID(portal.ID); !userID.IsEmpty() {
 			content.MsgType = event.MsgText
 		}
 	} else {
@@ -152,7 +153,7 @@ func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal)
 	if !ok || dataMsg.GroupV2 == nil {
 		return
 	}
-	portalRev := portal.Metadata.(*PortalMetadata).Revision
+	portalRev := portal.Metadata.(*signalid.PortalMetadata).Revision
 	if evt.Info.GroupRevision > portalRev {
 		toRevision := evt.Info.GroupRevision
 		if dataMsg.GetGroupV2().GetGroupChange() != nil {
@@ -206,7 +207,7 @@ func (evt *Bv2ChatEvent) GetID() networkid.MessageID {
 	if ts == 0 {
 		panic(fmt.Errorf("GetID() called for non-DataMessage event"))
 	}
-	return makeMessageID(evt.Info.Sender, ts)
+	return signalid.MakeMessageID(evt.Info.Sender, ts)
 }
 
 func (evt *Bv2ChatEvent) getDataMsgTimestamp() uint64 {
@@ -251,7 +252,7 @@ func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
 	if targetAuthorACI != "" {
 		targetAuthorUUID, _ = uuid.Parse(targetAuthorACI)
 	}
-	return makeMessageID(targetAuthorUUID, targetSentTS)
+	return signalid.MakeMessageID(targetAuthorUUID, targetSentTS)
 }
 
 func (evt *Bv2ChatEvent) GetReactionEmoji() (string, networkid.EmojiID) {
@@ -267,82 +268,35 @@ func (evt *Bv2ChatEvent) GetRemovedEmojiID() networkid.EmojiID {
 }
 
 func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI) (*bridgev2.ConvertedMessage, error) {
-	mcCtx := &msgconvContext{
-		Connector: evt.s.Main,
-		Intent:    intent,
-		Client:    evt.s,
-		Portal:    portal,
-	}
-	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
 	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
 	if !ok {
 		return nil, fmt.Errorf("ConvertMessage() called for non-DataMessage event")
 	}
-	converted := evt.s.Main.MsgConv.ToMatrix(ctx, dataMsg)
-	converted.MergeCaption()
-	var replyTo *networkid.MessageOptionalPartID
-	if dataMsg.GetQuote() != nil {
-		quoteAuthor, _ := uuid.Parse(dataMsg.Quote.GetAuthorAci())
-		replyTo = &networkid.MessageOptionalPartID{
-			MessageID: makeMessageID(quoteAuthor, dataMsg.Quote.GetId()),
-		}
-	}
-	convertedParts := make([]*bridgev2.ConvertedMessagePart, len(converted.Parts))
-	for i, part := range converted.Parts {
-		convertedParts[i] = &bridgev2.ConvertedMessagePart{
-			ID:         makeMessagePartID(i),
-			Type:       part.Type,
-			Content:    part.Content,
-			Extra:      part.Extra,
-			DBMetadata: &MessageMetadata{ContainsAttachments: len(dataMsg.GetAttachments()) > 0},
-		}
-	}
-	var disappear database.DisappearingSetting
-	if converted.DisappearIn != 0 {
-		disappear = database.DisappearingSetting{
-			Type:  database.DisappearingTypeAfterRead,
-			Timer: time.Duration(converted.DisappearIn) * time.Second,
-		}
-		dataMsgTS := time.UnixMilli(int64(dataMsg.GetTimestamp()))
+	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, intent, dataMsg)
+	if converted.Disappear.Type != "" {
+		evtTS := evt.GetTimestamp()
+		portal.UpdateDisappearingSetting(ctx, converted.Disappear, nil, evtTS, true, true)
 		if evt.Info.Sender == evt.s.Client.Store.ACI {
-			disappear.DisappearAt = dataMsgTS.Add(disappear.Timer)
+			converted.Disappear.DisappearAt = evtTS.Add(converted.Disappear.Timer)
 		}
-		portal.UpdateDisappearingSetting(ctx, disappear, nil, dataMsgTS, true, true)
 	}
-	return &bridgev2.ConvertedMessage{
-		ReplyTo:   replyTo,
-		Parts:     convertedParts,
-		Disappear: disappear,
-	}, nil
+	return converted, nil
 }
 
 func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, existing []*database.Message) (*bridgev2.ConvertedEdit, error) {
-	mcCtx := &msgconvContext{
-		Connector: evt.s.Main,
-		Intent:    intent,
-		Client:    evt.s,
-		Portal:    portal,
-	}
-	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
 	editMsg, ok := evt.Event.(*signalpb.EditMessage)
 	if !ok {
 		return nil, fmt.Errorf("ConvertEdit() called for non-EditMessage event")
 	}
 	// TODO tell converter about existing parts to avoid reupload?
-	converted := evt.s.Main.MsgConv.ToMatrix(ctx, editMsg.GetDataMessage())
-	converted.MergeCaption()
-	convertedEdit := &bridgev2.ConvertedEdit{}
+	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, intent, editMsg.GetDataMessage())
 	// TODO can anything other than the text be edited?
-	lastPart := converted.Parts[len(converted.Parts)-1]
-	convertedEdit.ModifiedParts = append(convertedEdit.ModifiedParts, &bridgev2.ConvertedEditPart{
-		Part:    existing[len(existing)-1],
-		Type:    lastPart.Type,
-		Content: lastPart.Content,
-		Extra:   lastPart.Extra,
-	})
-	convertedEdit.ModifiedParts[0].Part.EditCount++
-	convertedEdit.ModifiedParts[0].Part.ID = makeMessageID(evt.Info.Sender, editMsg.GetDataMessage().GetTimestamp())
-	return convertedEdit, nil
+	editPart := converted.Parts[len(converted.Parts)-1].ToEditPart(existing[len(existing)-1])
+	editPart.Part.EditCount++
+	editPart.Part.ID = signalid.MakeMessageID(evt.Info.Sender, editMsg.GetDataMessage().GetTimestamp())
+	return &bridgev2.ConvertedEdit{
+		ModifiedParts: []*bridgev2.ConvertedEditPart{editPart},
+	}, nil
 }
 
 type Bv2Receipt struct {
@@ -438,7 +392,7 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) {
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	receipts := convertReceipts(ctx, evt.Content.Timestamp, func(ctx context.Context, msgTS uint64) (*database.Message, error) {
-		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, makeMessageID(s.Client.Store.ACI, msgTS))
+		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(s.Client.Store.ACI, msgTS))
 	})
 	s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
 }
@@ -453,7 +407,7 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) {
 		if err != nil {
 			return nil, err
 		}
-		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, makeMessageID(aciUUID, msgInfo.GetTimestamp()))
+		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(aciUUID, msgInfo.GetTimestamp()))
 	})
 	s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
 }
@@ -495,7 +449,7 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			continue
 		}
 		fullContact.ContactAvatar = contact.ContactAvatar
-		ghost, err := s.Main.Bridge.GetGhostByID(ctx, makeUserID(contact.ACI))
+		ghost, err := s.Main.Bridge.GetGhostByID(ctx, signalid.MakeUserID(contact.ACI))
 		if err != nil {
 			log.Err(err).Msg("Failed to get ghost to update contact info")
 			continue
@@ -510,7 +464,7 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool) {
 	var err error
 	if s.Ghost == nil {
-		s.Ghost, err = s.Main.Bridge.GetGhostByID(ctx, makeUserID(s.Client.Store.ACI))
+		s.Ghost, err = s.Main.Bridge.GetGhostByID(ctx, signalid.MakeUserID(s.Client.Store.ACI))
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to get ghost for remote profile update")
 			return

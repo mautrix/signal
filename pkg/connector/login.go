@@ -25,6 +25,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
@@ -144,7 +145,7 @@ func (qr *QRLogin) qrWait(ctx context.Context) (*bridgev2.LoginStep, error) {
 
 func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	defer qr.cancelChan()
-	newLoginID := makeUserLoginID(qr.ProvData.ACI)
+	newLoginID := signalid.MakeUserLoginID(qr.ProvData.ACI)
 
 	select {
 	case resp := <-qr.ProvChan:

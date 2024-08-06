@@ -10,8 +10,8 @@ import (
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
-	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
-	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
+	"go.mau.fi/mautrix-signal/pkg/msgconv/matrixfmt"
+	"go.mau.fi/mautrix-signal/pkg/msgconv/signalfmt"
 )
 
 var formatParams = &matrixfmt.HTMLParser{

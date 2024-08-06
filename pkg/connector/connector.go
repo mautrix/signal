@@ -20,19 +20,12 @@ import (
 	"context"
 	"fmt"
 	"text/template"
-	"time"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
 	"maunium.net/go/mautrix/bridgev2"
-	"maunium.net/go/mautrix/bridgev2/database"
-	"maunium.net/go/mautrix/bridgev2/networkid"
-	"maunium.net/go/mautrix/id"
 
-	"go.mau.fi/mautrix-signal/msgconv"
-	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
-	"go.mau.fi/mautrix-signal/msgconv/signalfmt"
+	"go.mau.fi/mautrix-signal/pkg/msgconv"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
@@ -82,65 +75,7 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 	}
 	s.Store = store.NewStore(bridge.DB.Database, dbutil.ZeroLogger(bridge.Log.With().Str("db_section", "signalmeow").Logger()))
 	s.Bridge = bridge
-	s.MsgConv = &msgconv.MessageConverter{
-		PortalMethods: &msgconvPortalMethods{},
-		SignalFmtParams: &signalfmt.FormatParams{
-			GetUserInfo: func(ctx context.Context, uuid uuid.UUID) signalfmt.UserInfo {
-				ghost, err := s.Bridge.GetGhostByID(ctx, makeUserID(uuid))
-				if err != nil {
-					// TODO log?
-					return signalfmt.UserInfo{}
-				}
-				userInfo := signalfmt.UserInfo{
-					MXID: ghost.Intent.GetMXID(),
-					Name: ghost.Name,
-				}
-				userLogin := s.Bridge.GetCachedUserLoginByID(networkid.UserLoginID(uuid.String()))
-				if userLogin != nil {
-					userInfo.MXID = userLogin.UserMXID
-					// TODO find matrix user displayname?
-				}
-				return userInfo
-			},
-		},
-		MatrixFmtParams: &matrixfmt.HTMLParser{
-			GetUUIDFromMXID: func(ctx context.Context, userID id.UserID) uuid.UUID {
-				parsed, ok := s.Bridge.Matrix.ParseGhostMXID(userID)
-				if ok {
-					u, _ := uuid.Parse(string(parsed))
-					return u
-				}
-				user, _ := s.Bridge.GetExistingUserByMXID(ctx, userID)
-				// TODO log errors?
-				if user != nil {
-					preferredLogin, _, _ := ctx.Value(msgconvContextKey).(*msgconvContext).Portal.FindPreferredLogin(ctx, user, true)
-					if preferredLogin != nil {
-						u, _ := uuid.Parse(string(preferredLogin.ID))
-						return u
-					}
-				}
-				return uuid.Nil
-			},
-		},
-		ConvertVoiceMessages: true,
-		ConvertGIFToAPNG:     true,
-		MaxFileSize:          50 * 1024 * 1024,
-		AsyncFiles:           true,
-		LocationFormat:       s.Config.LocationFormat,
-		UpdateDisappearing: func(ctx context.Context, newTimer time.Duration) {
-			portal := ctx.Value(msgconvContextKey).(*msgconvContext).Portal
-			portal.Disappear.Timer = newTimer
-			if newTimer == 0 {
-				portal.Disappear.Type = ""
-			} else {
-				portal.Disappear.Type = database.DisappearingTypeAfterRead
-			}
-			err := portal.Save(ctx)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
-			}
-		},
-	}
+	s.MsgConv = msgconv.NewMessageConverter(bridge, s.Config.LocationFormat)
 }
 
 func (s *SignalConnector) SetMaxFileSize(maxSize int64) {

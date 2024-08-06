@@ -1,5 +1,5 @@
 // mautrix-signal - A Matrix-Signal puppeting bridge.
-// Copyright (C) 2023 Tulir Asokan
+// Copyright (C) 2024 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -14,27 +14,12 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-package upgrades
+package signalid
 
-import (
-	"context"
-	"embed"
-	"errors"
+type PortalMetadata struct {
+	Revision uint32 `json:"revision"`
+}
 
-	"go.mau.fi/util/dbutil"
-)
-
-var Table dbutil.UpgradeTable
-
-//go:embed *.sql
-var rawUpgrades embed.FS
-
-func init() {
-	Table.Register(-1, 12, 0, "Unsupported version", dbutil.TxnModeOff, func(ctx context.Context, database *dbutil.Database) error {
-		return errors.New("please upgrade to mautrix-signal v0.4.3 before upgrading to a newer version")
-	})
-	Table.Register(1, 13, 0, "Jump to version 13", dbutil.TxnModeOff, func(ctx context.Context, database *dbutil.Database) error {
-		return nil
-	})
-	Table.RegisterFS(rawUpgrades)
+type MessageMetadata struct {
+	ContainsAttachments bool `json:"contains_attachments,omitempty"`
 }

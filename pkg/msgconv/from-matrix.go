@@ -18,35 +18,37 @@ package msgconv
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"go.mau.fi/util/exerrors"
 	"go.mau.fi/util/exmime"
 	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/variationselector"
 	"golang.org/x/exp/constraints"
 	"google.golang.org/protobuf/proto"
+	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/event"
 
-	"go.mau.fi/mautrix-signal/msgconv/matrixfmt"
+	"go.mau.fi/mautrix-signal/pkg/msgconv/matrixfmt"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
-var (
-	ErrUnsupportedMsgType  = errors.New("unsupported msgtype")
-	ErrMediaDownloadFailed = errors.New("failed to download media")
-	ErrMediaDecryptFailed  = errors.New("failed to decrypt media")
-	ErrMediaConvertFailed  = errors.New("failed to convert")
-	ErrMediaUploadFailed   = errors.New("failed to upload media")
-	ErrInvalidGeoURI       = errors.New("invalid `geo:` URI in message")
-)
-
-func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, content *event.MessageEventContent, relaybotFormatted bool) (*signalpb.DataMessage, error) {
+func (mc *MessageConverter) ToSignal(
+	ctx context.Context,
+	client *signalmeow.Client,
+	portal *bridgev2.Portal,
+	evt *event.Event,
+	content *event.MessageEventContent,
+	relaybotFormatted bool,
+	replyTo *database.Message,
+) (*signalpb.DataMessage, error) {
+	ctx = context.WithValue(ctx, contextKeyClient, client)
+	ctx = context.WithValue(ctx, contextKeyPortal, portal)
 	if evt.Type == event.EventSticker {
 		content.MsgType = event.MessageType(event.EventSticker.Type)
 	}
@@ -59,11 +61,23 @@ func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, cont
 	}
 	dm := &signalpb.DataMessage{
 		Timestamp: &ts,
-		Quote:     mc.GetSignalReply(ctx, content),
-		Preview:   mc.convertURLPreviewToSignal(ctx, evt),
+		Preview:   mc.convertURLPreviewToSignal(ctx, content),
 	}
-	if expirationTime := mc.GetData(ctx).ExpirationTime; expirationTime != 0 {
-		dm.ExpireTimer = proto.Uint32(uint32(expirationTime))
+	if replyTo != nil {
+		authorACI, messageID, err := signalid.ParseMessageID(replyTo.ID)
+		if err == nil {
+			dm.Quote = &signalpb.DataMessage_Quote{
+				Id:        proto.Uint64(messageID),
+				AuthorAci: proto.String(authorACI.String()),
+				Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
+			}
+			if replyTo.Metadata.(*signalid.MessageMetadata).ContainsAttachments {
+				dm.Quote.Attachments = make([]*signalpb.DataMessage_Quote_QuotedAttachment, 1)
+			}
+		}
+	}
+	if portal.Disappear.Timer > 0 {
+		dm.ExpireTimer = proto.Uint32(uint32(portal.Disappear.Timer.Seconds()))
 	}
 	if content.MsgType == event.MsgEmote && !relaybotFormatted {
 		content.Body = "/me " + content.Body
@@ -113,13 +127,13 @@ func (mc *MessageConverter) ToSignal(ctx context.Context, evt *event.Event, cont
 	case event.MsgLocation:
 		lat, lon, err := parseGeoURI(content.GeoURI)
 		if err != nil {
-			log.Err(err).Msg("Invalid geo URI")
+			zerolog.Ctx(ctx).Err(err).Msg("Invalid geo URI")
 			return nil, err
 		}
 		locationString := fmt.Sprintf(mc.LocationFormat, lat, lon)
 		dm.Body = &locationString
 	default:
-		return nil, fmt.Errorf("%w %s", ErrUnsupportedMsgType, content.MsgType)
+		return nil, fmt.Errorf("%w %s", bridgev2.ErrUnsupportedMessageType, content.MsgType)
 	}
 	return dm, nil
 }
@@ -133,44 +147,33 @@ func maybeInt[T constraints.Integer](v T) *T {
 
 func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.Event, content *event.MessageEventContent) (*signalpb.AttachmentPointer, error) {
 	log := zerolog.Ctx(ctx)
-	mxc := content.URL
-	if content.File != nil {
-		mxc = content.File.URL
-	}
-	data, err := mc.DownloadMatrixMedia(ctx, mxc)
+	data, err := mc.Bridge.Bot.DownloadMedia(ctx, content.URL, content.File)
 	if err != nil {
-		return nil, exerrors.NewDualError(ErrMediaDownloadFailed, err)
-	}
-	if content.File != nil {
-		err = content.File.DecryptInPlace(data)
-		if err != nil {
-			return nil, exerrors.NewDualError(ErrMediaDecryptFailed, err)
-		}
+		return nil, fmt.Errorf("%w: %w", bridgev2.ErrMediaDownloadFailed, err)
 	}
 	fileName := content.Body
 	if content.FileName != "" {
 		fileName = content.FileName
 	}
-	_, isVoice := evt.Content.Raw["org.matrix.msc3245.voice"]
 	mime := content.GetInfo().MimeType
-	if isVoice {
+	if content.MSC3245Voice != nil && ffmpeg.Supported() {
 		data, err = ffmpeg.ConvertBytes(ctx, data, ".m4a", []string{}, []string{"-c:a", "aac"}, mime)
 		if err != nil {
 			return nil, err
 		}
 		mime = "audio/aac"
 		fileName += ".m4a"
-	} else if evt.Type == event.EventSticker && mime != "image/webp" && mime != "image/png" && mime != "image/apng" {
+	} else if evt.Type == event.EventSticker {
 		switch mime {
 		case "image/webp", "image/png", "image/apng":
 			// allowed
 		case "image/gif":
-			if !mc.ConvertGIFToAPNG {
+			if !ffmpeg.Supported() {
 				return nil, fmt.Errorf("converting gif stickers is not supported")
 			}
 			data, err = ffmpeg.ConvertBytes(ctx, data, ".apng", []string{}, []string{}, mime)
 			if err != nil {
-				return nil, fmt.Errorf("%w gif to apng: %w", ErrMediaConvertFailed, err)
+				return nil, fmt.Errorf("%w (gif to apng): %w", bridgev2.ErrMediaConvertFailed, err)
 			}
 			fileName += ".apng"
 			mime = "image/apng"
@@ -178,12 +181,12 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 			return nil, fmt.Errorf("unsupported content type for sticker %s", mime)
 		}
 	}
-	att, err := mc.GetClient(ctx).UploadAttachment(ctx, data)
+	att, err := getClient(ctx).UploadAttachment(ctx, data)
 	if err != nil {
 		log.Err(err).Msg("Failed to upload file")
-		return nil, exerrors.NewDualError(ErrMediaUploadFailed, err)
+		return nil, fmt.Errorf("%w: %w", bridgev2.ErrMediaReuploadFailed, err)
 	}
-	if isVoice {
+	if content.MSC3245Voice != nil && mime == "audio/aac" {
 		att.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
 	}
 	att.ContentType = proto.String(mime)

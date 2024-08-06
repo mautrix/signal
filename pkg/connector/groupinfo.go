@@ -27,6 +27,7 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
@@ -174,7 +175,7 @@ func (s *SignalClient) makeGroupAvatar(meta signalmeow.GroupAvatarMeta) *bridgev
 
 func makeRevisionUpdater(rev uint32) func(ctx context.Context, portal *bridgev2.Portal) bool {
 	return func(ctx context.Context, portal *bridgev2.Portal) bool {
-		meta := portal.Metadata.(*PortalMetadata)
+		meta := portal.Metadata.(*signalid.PortalMetadata)
 		if meta.Revision < rev {
 			meta.Revision = rev
 			return true

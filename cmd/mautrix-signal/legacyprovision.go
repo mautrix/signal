@@ -28,8 +28,8 @@ import (
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/id"
 
-	"go.mau.fi/mautrix-signal/legacyprovision"
 	"go.mau.fi/mautrix-signal/pkg/connector"
 )
 
@@ -54,7 +54,7 @@ func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
 	user := m.Matrix.Provisioning.GetUser(r)
 	defLogin := user.GetDefaultLogin()
 	if defLogin != nil && defLogin.Client != nil && defLogin.Client.IsLoggedIn() {
-		legacyprovision.JSONResponse(w, http.StatusConflict, &legacyprovision.Error{
+		JSONResponse(w, http.StatusConflict, &Error{
 			Error:   "Already logged in",
 			ErrCode: "FI.MAU.ALREADY_LOGGED_IN",
 		})
@@ -64,7 +64,7 @@ func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
 	login, err := m.Connector.CreateLogin(r.Context(), user, "qr")
 	if err != nil {
 		log.Err(err).Msg("Failed to create login")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, &Error{
 			Error:   "Internal error starting login",
 			ErrCode: "M_UNKNOWN",
 		})
@@ -73,14 +73,14 @@ func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
 	firstStep, err := login.Start(r.Context())
 	if err != nil {
 		log.Err(err).Msg("Failed to start login")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, &Error{
 			Error:   "Internal error starting login",
 			ErrCode: "M_UNKNOWN",
 		})
 		return
 	} else if firstStep.StepID != connector.LoginStepQR || firstStep.Type != bridgev2.LoginStepTypeDisplayAndWait || firstStep.DisplayAndWaitParams.Type != bridgev2.LoginDisplayTypeQR {
 		log.Error().Any("first_step", firstStep).Msg("Unexpected first step")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, &Error{
 			Error:   "Unexpected first login step",
 			ErrCode: "M_UNKNOWN",
 		})
@@ -93,7 +93,7 @@ func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
 		User:  user,
 	}
 	loginSessionsLock.Unlock()
-	legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
+	JSONResponse(w, http.StatusOK, Response{
 		Success:   true,
 		Status:    "provisioning_url_received",
 		SessionID: strconv.Itoa(int(handleID)),
@@ -102,10 +102,10 @@ func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
 }
 
 func getLoginProcess(w http.ResponseWriter, r *http.Request) *legacyLoginProcess {
-	var body legacyprovision.LinkWaitForAccountRequest
+	var body LinkWaitForAccountRequest
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		legacyprovision.JSONResponse(w, http.StatusBadRequest, legacyprovision.Error{
+		JSONResponse(w, http.StatusBadRequest, Error{
 			Success: false,
 			Error:   "Error decoding JSON body",
 			ErrCode: mautrix.MBadJSON.ErrCode,
@@ -114,7 +114,7 @@ func getLoginProcess(w http.ResponseWriter, r *http.Request) *legacyLoginProcess
 	}
 	sessionID, err := strconv.Atoi(body.SessionID)
 	if err != nil {
-		legacyprovision.JSONResponse(w, http.StatusBadRequest, legacyprovision.Error{
+		JSONResponse(w, http.StatusBadRequest, Error{
 			Success: false,
 			Error:   "Error decoding session ID in JSON body",
 			ErrCode: mautrix.MBadJSON.ErrCode,
@@ -124,7 +124,7 @@ func getLoginProcess(w http.ResponseWriter, r *http.Request) *legacyLoginProcess
 	process, ok := loginSessions[uint32(sessionID)]
 	user := m.Matrix.Provisioning.GetUser(r)
 	if !ok || process.User != user {
-		legacyprovision.JSONResponse(w, http.StatusNotFound, legacyprovision.Error{
+		JSONResponse(w, http.StatusNotFound, Error{
 			Success: false,
 			Error:   "No session found",
 			ErrCode: mautrix.MNotFound.ErrCode,
@@ -142,7 +142,7 @@ func legacyProvLinkWaitScan(w http.ResponseWriter, r *http.Request) {
 	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
 	if err != nil {
 		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to log in")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, Error{
 			Error:   "Failed to log in",
 			ErrCode: "M_UNKNOWN",
 		})
@@ -150,14 +150,14 @@ func legacyProvLinkWaitScan(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if res.StepID != connector.LoginStepProcess {
 		zerolog.Ctx(r.Context()).Error().Any("first_step", res).Msg("Unexpected login step")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, Error{
 			Error:   "Unexpected login step",
 			ErrCode: "M_UNKNOWN",
 		})
 		login.Delete()
 		return
 	}
-	legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
+	JSONResponse(w, http.StatusOK, Response{
 		Success: true,
 		Status:  "provisioning_data_received",
 	})
@@ -171,18 +171,18 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
 	if err != nil {
 		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to log in")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, Error{
 			Error:   "Failed to log in",
 			ErrCode: "M_UNKNOWN",
 		})
 	} else if res.StepID != connector.LoginStepComplete || res.Type != bridgev2.LoginStepTypeComplete {
 		zerolog.Ctx(r.Context()).Error().Any("first_step", res).Msg("Unexpected login step")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, Error{
 			Error:   "Unexpected login step",
 			ErrCode: "M_UNKNOWN",
 		})
 	} else {
-		legacyprovision.JSONResponse(w, http.StatusOK, legacyprovision.Response{
+		JSONResponse(w, http.StatusOK, Response{
 			Success: true,
 			Status:  "prekeys_registered",
 			UUID:    string(res.CompleteParams.UserLogin.ID),
@@ -194,7 +194,7 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 
 func legacyProvLogout(w http.ResponseWriter, r *http.Request) {
 	// No-op for backwards compatibility
-	legacyprovision.JSONResponse(w, http.StatusOK, nil)
+	JSONResponse(w, http.StatusOK, nil)
 }
 
 func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, create bool) {
@@ -206,21 +206,21 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 	resp, err := api.ResolveIdentifier(r.Context(), mux.Vars(r)["phonenum"], create)
 	if err != nil {
 		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to resolve identifier")
-		legacyprovision.JSONResponse(w, http.StatusInternalServerError, &legacyprovision.Error{
+		JSONResponse(w, http.StatusInternalServerError, &Error{
 			Error:   fmt.Sprintf("Failed to resolve identifier: %v", err),
 			ErrCode: "M_UNKNOWN",
 		})
 		return
 	} else if resp == nil {
-		legacyprovision.JSONResponse(w, http.StatusNotFound, &legacyprovision.Error{
+		JSONResponse(w, http.StatusNotFound, &Error{
 			ErrCode: mautrix.MNotFound.ErrCode,
 			Error:   "User not found on Signal",
 		})
 		return
 	}
 	status := http.StatusOK
-	apiResp := &legacyprovision.ResolveIdentifierResponse{
-		ChatID: legacyprovision.ResolveIdentifierResponseChatID{
+	apiResp := &ResolveIdentifierResponse{
+		ChatID: ResolveIdentifierResponseChatID{
 			UUID:   string(resp.UserID),
 			Number: "",
 		},
@@ -229,7 +229,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 		if resp.UserInfo != nil {
 			resp.Ghost.UpdateInfo(r.Context(), resp.UserInfo)
 		}
-		apiResp.OtherUser = &legacyprovision.ResolveIdentifierResponseOtherUser{
+		apiResp.OtherUser = &ResolveIdentifierResponseOtherUser{
 			MXID:        resp.Ghost.Intent.GetMXID(),
 			DisplayName: resp.Ghost.Name,
 			AvatarURL:   resp.Ghost.AvatarMXC.ParseOrIgnore(),
@@ -240,7 +240,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 			resp.Chat.Portal, err = m.Bridge.GetPortalByKey(r.Context(), resp.Chat.PortalKey)
 			if err != nil {
 				zerolog.Ctx(r.Context()).Err(err).Msg("Failed to get portal")
-				legacyprovision.JSONResponse(w, http.StatusInternalServerError, &mautrix.RespError{
+				JSONResponse(w, http.StatusInternalServerError, &mautrix.RespError{
 					Err:     "Failed to get portal",
 					ErrCode: "M_UNKNOWN",
 				})
@@ -253,7 +253,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 			err = resp.Chat.Portal.CreateMatrixRoom(r.Context(), login, resp.Chat.PortalInfo)
 			if err != nil {
 				zerolog.Ctx(r.Context()).Err(err).Msg("Failed to create portal room")
-				legacyprovision.JSONResponse(w, http.StatusInternalServerError, &mautrix.RespError{
+				JSONResponse(w, http.StatusInternalServerError, &mautrix.RespError{
 					Err:     "Failed to create portal room",
 					ErrCode: "M_UNKNOWN",
 				})
@@ -262,7 +262,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 		}
 		apiResp.RoomID = resp.Chat.Portal.MXID
 	}
-	legacyprovision.JSONResponse(w, status, &legacyprovision.Response{
+	JSONResponse(w, status, &Response{
 		Success:                   true,
 		Status:                    "ok",
 		ResolveIdentifierResponse: apiResp,
@@ -275,4 +275,72 @@ func legacyProvResolveIdentifier(w http.ResponseWriter, r *http.Request) {
 
 func legacyProvPM(w http.ResponseWriter, r *http.Request) {
 	legacyResolveIdentifierOrStartChat(w, r, true)
+}
+
+func JSONResponse(w http.ResponseWriter, status int, response any) {
+	w.Header().Add("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+type Error struct {
+	Success bool   `json:"success"`
+	Error   string `json:"error"`
+	ErrCode string `json:"errcode"`
+}
+
+type Response struct {
+	Success bool   `json:"success"`
+	Status  string `json:"status"`
+
+	// For response in LinkNew
+	SessionID string `json:"session_id,omitempty"`
+	URI       string `json:"uri,omitempty"`
+
+	// For response in LinkWaitForAccount
+	UUID   string `json:"uuid,omitempty"`
+	Number string `json:"number,omitempty"`
+
+	// For response in ResolveIdentifier
+	*ResolveIdentifierResponse
+}
+
+type WhoAmIResponse struct {
+	Permissions int                   `json:"permissions"`
+	MXID        string                `json:"mxid"`
+	Signal      *WhoAmIResponseSignal `json:"signal,omitempty"`
+}
+
+type WhoAmIResponseSignal struct {
+	Number string `json:"number"`
+	UUID   string `json:"uuid"`
+	Name   string `json:"name"`
+	Ok     bool   `json:"ok"`
+}
+
+type ResolveIdentifierResponse struct {
+	RoomID      id.RoomID                           `json:"room_id"`
+	ChatID      ResolveIdentifierResponseChatID     `json:"chat_id"`
+	JustCreated bool                                `json:"just_created"`
+	OtherUser   *ResolveIdentifierResponseOtherUser `json:"other_user,omitempty"`
+}
+
+type ResolveIdentifierResponseChatID struct {
+	UUID   string `json:"uuid"`
+	Number string `json:"number"`
+}
+
+type ResolveIdentifierResponseOtherUser struct {
+	MXID        id.UserID     `json:"mxid"`
+	DisplayName string        `json:"displayname"`
+	AvatarURL   id.ContentURI `json:"avatar_url"`
+}
+
+type LinkWaitForScanRequest struct {
+	SessionID string `json:"session_id"`
+}
+
+type LinkWaitForAccountRequest struct {
+	SessionID  string `json:"session_id"`
+	DeviceName string `json:"device_name"` // TODO this seems to not be used anywhere
 }

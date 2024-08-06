@@ -17,70 +17,13 @@
 package connector
 
 import (
-	"fmt"
-	"strconv"
-	"strings"
-
 	"github.com/google/uuid"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 )
-
-func parseUserID(userID networkid.UserID) (uuid.UUID, error) {
-	serviceID, err := parseUserIDAsServiceID(userID)
-	if err != nil {
-		return uuid.Nil, err
-	} else if serviceID.Type != libsignalgo.ServiceIDTypeACI {
-		return uuid.Nil, fmt.Errorf("invalid user ID: expected ACI type")
-	} else {
-		return serviceID.UUID, nil
-	}
-}
-
-func parseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {
-	return libsignalgo.ServiceIDFromString(string(userID))
-}
-
-func parsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
-	if len(portalID) == 44 {
-		groupID = types.GroupIdentifier(portalID)
-	} else {
-		userID, err = libsignalgo.ServiceIDFromString(string(portalID))
-	}
-	return
-}
-
-func parseMessageID(messageID networkid.MessageID) (sender uuid.UUID, timestamp uint64, err error) {
-	parts := strings.Split(string(messageID), "|")
-	if len(parts) != 2 {
-		err = fmt.Errorf("invalid message ID: expected two pipe-separated parts")
-		return
-	}
-	sender, err = uuid.Parse(parts[0])
-	if err != nil {
-		return
-	}
-	timestamp, err = strconv.ParseUint(parts[1], 10, 64)
-	return
-}
-
-func makeGroupPortalID(groupID types.GroupIdentifier) networkid.PortalID {
-	return networkid.PortalID(groupID)
-}
-
-func makeGroupPortalKey(groupID types.GroupIdentifier) networkid.PortalKey {
-	return networkid.PortalKey{
-		ID:       makeGroupPortalID(groupID),
-		Receiver: "",
-	}
-}
-
-func makeDMPortalID(serviceID libsignalgo.ServiceID) networkid.PortalID {
-	return networkid.PortalID(serviceID.String())
-}
 
 func (s *SignalClient) makePortalKey(chatID string) networkid.PortalKey {
 	key := networkid.PortalKey{ID: networkid.PortalID(chatID)}
@@ -93,38 +36,15 @@ func (s *SignalClient) makePortalKey(chatID string) networkid.PortalKey {
 
 func (s *SignalClient) makeDMPortalKey(serviceID libsignalgo.ServiceID) networkid.PortalKey {
 	return networkid.PortalKey{
-		ID:       makeDMPortalID(serviceID),
+		ID:       signalid.MakeDMPortalID(serviceID),
 		Receiver: s.UserLogin.ID,
 	}
-}
-
-func makeMessageID(sender uuid.UUID, timestamp uint64) networkid.MessageID {
-	return networkid.MessageID(fmt.Sprintf("%s|%d", sender, timestamp))
-}
-
-func makeUserID(user uuid.UUID) networkid.UserID {
-	return networkid.UserID(user.String())
-}
-
-func makeUserIDFromServiceID(user libsignalgo.ServiceID) networkid.UserID {
-	return networkid.UserID(user.String())
-}
-
-func makeUserLoginID(user uuid.UUID) networkid.UserLoginID {
-	return networkid.UserLoginID(user.String())
 }
 
 func (s *SignalClient) makeEventSender(sender uuid.UUID) bridgev2.EventSender {
 	return bridgev2.EventSender{
 		IsFromMe:    sender == s.Client.Store.ACI,
-		SenderLogin: makeUserLoginID(sender),
-		Sender:      makeUserID(sender),
+		SenderLogin: signalid.MakeUserLoginID(sender),
+		Sender:      signalid.MakeUserID(sender),
 	}
-}
-
-func makeMessagePartID(index int) networkid.PartID {
-	if index == 0 {
-		return ""
-	}
-	return networkid.PartID(strconv.Itoa(index))
 }

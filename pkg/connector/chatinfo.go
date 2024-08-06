@@ -32,6 +32,7 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -39,7 +40,7 @@ const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
 func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
-	userID, err := parseUserID(ghost.ID)
+	userID, err := signalid.ParseUserID(ghost.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +52,7 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
-	userID, groupID, err := parsePortalID(portal.ID)
+	userID, groupID, err := signalid.ParsePortalID(portal.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -143,19 +144,19 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 
 	// createChat is a no-op: chats don't need to be created, and we always return chat info
 	if aci != uuid.Nil {
-		ghost, err := s.Main.Bridge.GetGhostByID(ctx, makeUserID(aci))
+		ghost, err := s.Main.Bridge.GetGhostByID(ctx, signalid.MakeUserID(aci))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ghost: %w", err)
 		}
 		return &bridgev2.ResolveIdentifierResponse{
-			UserID:   makeUserID(aci),
+			UserID:   signalid.MakeUserID(aci),
 			UserInfo: s.contactToUserInfo(recipient),
 			Ghost:    ghost,
 			Chat:     s.makeCreateDMResponse(recipient),
 		}, nil
 	} else {
 		return &bridgev2.ResolveIdentifierResponse{
-			UserID:   makeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni)),
+			UserID:   signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni)),
 			UserInfo: s.contactToUserInfo(recipient),
 			Chat:     s.makeCreateDMResponse(recipient),
 		}, nil
@@ -179,14 +180,14 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 			Chat:     s.makeCreateDMResponse(recipient),
 		}
 		if recipient.ACI != uuid.Nil {
-			recipientResp.UserID = makeUserID(recipient.ACI)
+			recipientResp.UserID = signalid.MakeUserID(recipient.ACI)
 			ghost, err := s.Main.Bridge.GetGhostByID(ctx, recipientResp.UserID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get ghost for %s: %w", recipient.ACI, err)
 			}
 			recipientResp.Ghost = ghost
 		} else {
-			recipientResp.UserID = makeUserIDFromServiceID(libsignalgo.NewPNIServiceID(recipient.PNI))
+			recipientResp.UserID = signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(recipient.PNI))
 		}
 		resp[i] = recipientResp
 	}
@@ -215,7 +216,7 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 		name = s.Main.Config.FormatDisplayname(recipient)
 		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
 	} else {
-		members.OtherUserID = makeUserID(recipient.ACI)
+		members.OtherUserID = signalid.MakeUserID(recipient.ACI)
 		if recipient.ACI == s.Client.Store.ACI {
 			name = NoteToSelfName
 			avatar = &bridgev2.Avatar{

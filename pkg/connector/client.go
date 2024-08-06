@@ -11,6 +11,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
@@ -112,7 +113,7 @@ func (s *SignalClient) IsThisUser(_ context.Context, userID networkid.UserID) bo
 	if s.Client == nil {
 		return false
 	}
-	return userID == makeUserID(s.Client.Store.ACI)
+	return userID == signalid.MakeUserID(s.Client.Store.ACI)
 }
 
 func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnectionStatus) {

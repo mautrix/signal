@@ -48,3 +48,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	maunium.net/go/mauflag v1.0.0 // indirect
 )
+
+//replace maunium.net/go/mautrix => ../mautrix-go
+//replace go.mau.fi/util => ../../Go/go-util

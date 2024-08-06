@@ -32,12 +32,13 @@ import (
 	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
-	userID, groupID, err := parsePortalID(portalID)
+	userID, groupID, err := signalid.ParsePortalID(portalID)
 	if err != nil {
 		return err
 	}
@@ -77,15 +78,7 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 }
 
 func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
-	mcCtx := &msgconvContext{
-		Connector: s.Main,
-		Intent:    nil,
-		Client:    s,
-		Portal:    msg.Portal,
-		ReplyTo:   msg.ReplyTo,
-	}
-	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
-	converted, err := s.Main.MsgConv.ToSignal(ctx, msg.Event, msg.Content, msg.OrigSender != nil)
+	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, msg.ReplyTo)
 	if err != nil {
 		return nil, err
 	}
@@ -94,10 +87,10 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		return nil, err
 	}
 	dbMsg := &database.Message{
-		ID:        makeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
-		SenderID:  makeUserID(s.Client.Store.ACI),
+		ID:        signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
+		SenderID:  signalid.MakeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(converted.GetTimestamp())),
-		Metadata: &MessageMetadata{
+		Metadata: &signalid.MessageMetadata{
 			ContainsAttachments: len(converted.Attachments) > 0,
 		},
 	}
@@ -107,27 +100,20 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 }
 
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
-	_, targetSentTimestamp, err := parseMessageID(msg.EditTarget.ID)
+	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.EditTarget.ID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
-	} else if msg.EditTarget.SenderID != makeUserID(s.Client.Store.ACI) {
+	} else if msg.EditTarget.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
 		return fmt.Errorf("cannot edit other people's messages")
 	}
-	mcCtx := &msgconvContext{
-		Connector: s.Main,
-		Intent:    nil,
-		Client:    s,
-		Portal:    msg.Portal,
-	}
+	var replyTo *database.Message
 	if msg.EditTarget.ReplyTo.MessageID != "" {
-		var err error
-		mcCtx.ReplyTo, err = s.Main.Bridge.DB.Message.GetFirstOrSpecificPartByID(ctx, msg.Portal.Receiver, msg.EditTarget.ReplyTo)
+		replyTo, err = s.Main.Bridge.DB.Message.GetFirstOrSpecificPartByID(ctx, msg.Portal.Receiver, msg.EditTarget.ReplyTo)
 		if err != nil {
 			return fmt.Errorf("failed to get message reply target: %w", err)
 		}
 	}
-	ctx = context.WithValue(ctx, msgconvContextKey, mcCtx)
-	converted, err := s.Main.MsgConv.ToSignal(ctx, msg.Event, msg.Content, msg.OrigSender != nil)
+	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, replyTo)
 	if err != nil {
 		return err
 	}
@@ -138,22 +124,22 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	if err != nil {
 		return err
 	}
-	msg.EditTarget.ID = makeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
-	msg.EditTarget.Metadata = &MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
+	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
+	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
 	msg.EditTarget.EditCount++
 	return nil
 }
 
 func (s *SignalClient) PreHandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (bridgev2.MatrixReactionPreResponse, error) {
 	return bridgev2.MatrixReactionPreResponse{
-		SenderID: makeUserID(s.Client.Store.ACI),
+		SenderID: signalid.MakeUserID(s.Client.Store.ACI),
 		EmojiID:  "",
 		Emoji:    variationselector.FullyQualify(msg.Content.RelatesTo.Key),
 	}, nil
 }
 
 func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.MatrixReaction) (reaction *database.Reaction, err error) {
-	targetAuthorACI, targetSentTimestamp, err := parseMessageID(msg.TargetMessage.ID)
+	targetAuthorACI, targetSentTimestamp, err := signalid.ParseMessageID(msg.TargetMessage.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target message ID: %w", err)
 	}
@@ -177,7 +163,7 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 }
 
 func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *bridgev2.MatrixReactionRemove) error {
-	targetAuthorACI, targetSentTimestamp, err := parseMessageID(msg.TargetReaction.MessageID)
+	targetAuthorACI, targetSentTimestamp, err := signalid.ParseMessageID(msg.TargetReaction.MessageID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
 	}
@@ -201,10 +187,10 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 }
 
 func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridgev2.MatrixMessageRemove) error {
-	_, targetSentTimestamp, err := parseMessageID(msg.TargetMessage.ID)
+	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.TargetMessage.ID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
-	} else if msg.TargetMessage.SenderID != makeUserID(s.Client.Store.ACI) {
+	} else if msg.TargetMessage.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
 		return fmt.Errorf("cannot delete other people's messages")
 	}
 	wrappedContent := &signalpb.Content{
@@ -237,7 +223,7 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 	}
 	messagesToRead := map[uuid.UUID][]uint64{}
 	for _, msg := range dbMessages {
-		userID, timestamp, err := parseMessageID(msg.ID)
+		userID, timestamp, err := signalid.ParseMessageID(msg.ID)
 		if err != nil {
 			return fmt.Errorf("failed to parse message ID %q: %w", msg.ID, err)
 		}
@@ -275,7 +261,7 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 }
 
 func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.MatrixTyping) error {
-	userID, _, err := parsePortalID(typing.Portal.ID)
+	userID, _, err := signalid.ParsePortalID(typing.Portal.ID)
 	if err != nil {
 		return err
 	}
@@ -292,11 +278,11 @@ func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.
 }
 
 func (s *SignalClient) handleMatrixRoomMeta(ctx context.Context, portal *bridgev2.Portal, gc *signalmeow.GroupChange, postUpdatePortal func()) (bool, error) {
-	_, groupID, err := parsePortalID(portal.ID)
+	_, groupID, err := signalid.ParsePortalID(portal.ID)
 	if err != nil || groupID == "" {
 		return false, err
 	}
-	gc.Revision = portal.Metadata.(*PortalMetadata).Revision + 1
+	gc.Revision = portal.Metadata.(*signalid.PortalMetadata).Revision + 1
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
 		return false, err
@@ -316,7 +302,7 @@ func (s *SignalClient) handleMatrixRoomMeta(ctx context.Context, portal *bridgev
 	if postUpdatePortal != nil {
 		postUpdatePortal()
 	}
-	portal.Metadata.(*PortalMetadata).Revision = revision
+	portal.Metadata.(*signalid.PortalMetadata).Revision = revision
 	return true, nil
 }
 
@@ -327,7 +313,7 @@ func (s *SignalClient) HandleMatrixRoomName(ctx context.Context, msg *bridgev2.M
 }
 
 func (s *SignalClient) HandleMatrixRoomAvatar(ctx context.Context, msg *bridgev2.MatrixRoomAvatar) (bool, error) {
-	_, groupID, err := parsePortalID(msg.Portal.ID)
+	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
 	if err != nil || groupID == "" {
 		return false, err
 	}

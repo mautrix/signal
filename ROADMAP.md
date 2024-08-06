@@ -1,17 +1,17 @@
 # Features & roadmap
 
 * Matrix → Signal
-  * [ ] Message content
+  * [x] Message content
     * [x] Text
     * [x] Formatting
     * [x] Mentions
-    * [ ] Media
+    * [x] Media
       * [x] Images
       * [x] Audio files
       * [x] Voice messages
       * [x] Files
       * [x] Gifs
-      * [ ] Locations
+      * [x] Locations
       * [x] Stickers
   * [x] Message edits
   * [x] Message reactions
@@ -22,9 +22,9 @@
     * [x] Topic
   * [ ] Membership actions
     * [ ] Join (accepting invites)
-    * [x] Invite
-    * [x] Leave
-    * [x] Kick/Ban/Unban
+    * [ ] Invite
+    * [ ] Leave
+    * [ ] Kick/Ban/Unban
   * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
@@ -70,5 +70,5 @@
     * [x] When receiving message
   * [x] Linking as secondary device
   * [ ] Registering as primary device
-  * [x] Private chat/group creation by inviting Matrix puppet of Signal user to new room
+  * [ ] Private chat/group creation by inviting Matrix puppet of Signal user to new room
   * [x] Option to use own Matrix account for messages sent from other Signal clients

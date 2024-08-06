@@ -18,26 +18,20 @@ package connector
 
 import (
 	"maunium.net/go/mautrix/bridgev2/database"
+
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 )
 
 func (s *SignalConnector) GetDBMetaTypes() database.MetaTypes {
 	return database.MetaTypes{
 		Portal: func() any {
-			return &PortalMetadata{}
+			return &signalid.PortalMetadata{}
 		},
 		Ghost: nil,
 		Message: func() any {
-			return &MessageMetadata{}
+			return &signalid.MessageMetadata{}
 		},
 		Reaction:  nil,
 		UserLogin: nil,
 	}
-}
-
-type PortalMetadata struct {
-	Revision uint32 `json:"revision"`
-}
-
-type MessageMetadata struct {
-	ContainsAttachments bool `json:"contains_attachments,omitempty"`
 }
