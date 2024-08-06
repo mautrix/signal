@@ -1001,7 +1001,6 @@ func (cli *Client) handle410(ctx context.Context, recipient libsignalgo.ServiceI
 
 // We got rate limited.
 // We ~~will~~ could try sending a "pushChallenge" response, but if that doesn't work we just gotta wait.
-// TODO: explore captcha response
 func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceID, response *signalpb.WebSocketResponseMessage) error {
 	log := zerolog.Ctx(ctx)
 	// Decode json body
@@ -1012,7 +1011,6 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 		log.Err(err).Msg("Unmarshal error")
 		return err
 	}
-
 	// Sample response:
 	//id:25 status:428 message:"Precondition Required" headers:"Retry-After:86400"
 	//headers:"Content-Type:application/json" headers:"Content-Length:88"
@@ -1031,6 +1029,13 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 	if retryAfterSeconds > 0 {
 		log.Warn().Uint64("retry_after_seconds", retryAfterSeconds).Msg("Got rate limited")
 	}
+
+	token := body["token"]
+	s, ok := token.(string)
+	if ok {
+		cli.ChallengeToken = s
+	}
+
 	// TODO: responding to a pushChallenge this way doesn't work, server just returns 422
 	// Luckily challenges seem rare when sending with sealed sender
 	//if body["options"] != nil {
@@ -1060,5 +1065,62 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 	//		}
 	//	}
 	//}
+	return ErrCaptchaChallengeRequired
+}
+
+var ErrCaptchaChallengeRequired = errors.New("captcha challenge required")
+
+type ChallengeType string
+
+const (
+	ChallengeTypeCaptcha ChallengeType = "captcha"
+	ChallengeTypePush    ChallengeType = "rateLimitPushChallenge"
+)
+
+type SubmitChallengePayload struct {
+	Type    ChallengeType `json:"type"`
+	Token   string        `json:"token"`
+	Captcha string        `json:"captcha,omitempty"`
+}
+
+func (cli *Client) SubmitRateLimitRecaptchaChallenge(ctx context.Context, captcha string) error {
+	log := zerolog.Ctx(ctx).With().
+		Str("action", "submit rate limit recaptcha challenge").
+		Logger()
+	if cli.ChallengeToken == "" {
+		return fmt.Errorf("no pending challenge")
+	}
+	payload, err := json.Marshal(SubmitChallengePayload{
+		Type:    ChallengeTypeCaptcha,
+		Token:   cli.ChallengeToken,
+		Captcha: captcha,
+	})
+	if err != nil {
+		log.Err(err).Msg("Error marshalling request")
+		return err
+	}
+	username, password := cli.Store.BasicAuthCreds()
+	request := web.CreateWSRequest(http.MethodPut, "/v1/challenge", payload, &username, &password)
+	response, err := cli.AuthedWS.SendRequest(ctx, request)
+	if err != nil {
+		log.Err(err).Msg("Error sending request")
+		return err
+	}
+	responseCode := *response.Status
+	log.Debug().Uint32("Response Code", responseCode).Msg("Sent recaptcha challenge")
+	if responseCode == 428 {
+		return fmt.Errorf("Error submitting captcha challenge. Your captcha may have expired")
+	}
+	if responseCode != http.StatusOK && responseCode != http.StatusAccepted && responseCode != http.StatusNoContent && responseCode != http.StatusMultiStatus {
+		var body map[string]interface{}
+		err = json.Unmarshal(response.Body, &body)
+		if err != nil {
+			log.Err(err).Msg("Error unmarshalling message body")
+			return err
+		}
+		return fmt.Errorf("failed to submit captcha challenge. response code: %d, message: %s", responseCode, body["message"])
+	} else {
+		cli.ChallengeToken = ""
+	}
 	return nil
 }

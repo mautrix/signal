@@ -30,6 +30,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/msgconv"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 var (
@@ -114,6 +115,9 @@ func (portal *Portal) sendErrorMessage(ctx context.Context, evt *event.Event, er
 	msg := fmt.Sprintf("\u26a0 Your %s %s bridged: %v", msgType, certainty, err)
 	if errors.Is(err, errMessageTakingLong) {
 		msg = fmt.Sprintf("\u26a0 Bridging your %s is taking longer than usual", msgType)
+	}
+	if errors.Is(err, signalmeow.ErrCaptchaChallengeRequired) {
+		msg = "\u26a0 You have been rate limited. Follow the instructions at https://docs.mau.fi/bridges/go/signal/captcha.html on how to complete a captcha challenge."
 	}
 	content := &event.MessageEventContent{
 		MsgType: event.MsgNotice,
