@@ -11,7 +11,7 @@ ARG DBG=0
 RUN ./build-rust.sh
 
 # -- Build mautrix-signal (with Go) --
-FROM golang:1-alpine3.19 AS go-builder
+FROM golang:1-alpine3.20 AS go-builder
 RUN apk add --no-cache git ca-certificates build-base olm-dev
 
 WORKDIR /build
@@ -20,9 +20,10 @@ COPY *.go go.* *.yaml *.sh ./
 COPY pkg/signalmeow/. pkg/signalmeow/.
 COPY pkg/libsignalgo/* pkg/libsignalgo/
 COPY pkg/libsignalgo/resources/. pkg/libsignalgo/resources/.
-COPY config/. config/.
-COPY database/. database/.
-COPY msgconv/. msgconv/.
+COPY pkg/msgconv/. pkg/msgconv/.
+COPY pkg/signalid/. pkg/signalid/.
+COPY pkg/connector/. pkg/connector/.
+COPY cmd/. cmd/.
 COPY .git .git
 
 ARG DBG=0
@@ -38,15 +39,14 @@ EOF
 RUN ./build-go.sh
 
 # -- Run mautrix-signal --
-FROM alpine:3.19
+FROM alpine:3.20
 
 ENV UID=1337 \
     GID=1337
 
-RUN apk add --no-cache ffmpeg su-exec ca-certificates bash jq curl yq olm
+RUN apk add --no-cache ffmpeg su-exec ca-certificates bash jq curl yq-go olm
 
 COPY --from=go-builder /build/mautrix-signal /usr/bin/mautrix-signal
-COPY --from=go-builder /build/example-config.yaml /opt/mautrix-signal/example-config.yaml
 COPY --from=go-builder /build/docker-run.sh /docker-run.sh
 COPY --from=go-builder /go/bin/dlv /usr/bin/dlv
 VOLUME /data
