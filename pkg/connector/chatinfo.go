@@ -106,35 +106,45 @@ func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.Use
 }
 
 func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
-	number, err := bridgev2.CleanPhoneNumber(number)
-	if err != nil {
-		return nil, err
-	}
-	e164Number, err := strconv.ParseUint(strings.TrimPrefix(number, "+"), 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing phone number: %w", err)
-	}
-	e164String := fmt.Sprintf("+%d", e164Number)
 	var aci, pni uuid.UUID
+	var e164Number uint64
 	var recipient *types.Recipient
-	if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {
-		return nil, fmt.Errorf("error looking up number in local contact list: %w", err)
-	} else if recipient != nil {
-		aci = recipient.ACI
-		pni = recipient.PNI
-	} else if resp, err := s.Client.LookupPhone(ctx, e164Number); err != nil {
-		return nil, fmt.Errorf("error looking up number on server: %w", err)
-	} else {
-		aci = resp[e164Number].ACI
-		pni = resp[e164Number].PNI
-		if aci == uuid.Nil && pni == uuid.Nil {
-			return nil, nil
-		}
-		recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
+	serviceID, err := libsignalgo.ServiceIDFromString(number)
+	if err != nil {
+		number, err = bridgev2.CleanPhoneNumber(number)
 		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
+			return nil, err
 		}
-		aci, pni = recipient.ACI, recipient.PNI
+		e164Number, err = strconv.ParseUint(strings.TrimPrefix(number, "+"), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing phone number: %w", err)
+		}
+		e164String := fmt.Sprintf("+%d", e164Number)
+		if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {
+			return nil, fmt.Errorf("error looking up number in local contact list: %w", err)
+		} else if recipient != nil {
+			aci = recipient.ACI
+			pni = recipient.PNI
+		} else if resp, err := s.Client.LookupPhone(ctx, e164Number); err != nil {
+			return nil, fmt.Errorf("error looking up number on server: %w", err)
+		} else {
+			aci = resp[e164Number].ACI
+			pni = resp[e164Number].PNI
+			if aci == uuid.Nil && pni == uuid.Nil {
+				return nil, nil
+			}
+			recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
+			}
+			aci, pni = recipient.ACI, recipient.PNI
+		}
+	} else {
+		aci, pni = serviceID.ToACIAndPNI()
+		recipient, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
+		if err != nil {
+			return nil, fmt.Errorf("error loading recipient: %w", err)
+		}
 	}
 	zerolog.Ctx(ctx).Debug().
 		Uint64("e164", e164Number).
