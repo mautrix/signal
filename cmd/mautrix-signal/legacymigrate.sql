@@ -128,7 +128,8 @@ SELECT
     'after_read', -- type
     expiration_seconds * 1000000000, -- timer
     CASE WHEN expiration_ts IS NOT NULL THEN expiration_ts * 1000000000 END -- disappear_at
-FROM disappearing_message_old;
+FROM disappearing_message_old
+WHERE expiration_ts < 9000000000;
 
 INSERT INTO reaction (
     bridge_id, message_id, message_part_id, sender_id, emoji_id, emoji,
