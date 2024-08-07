@@ -35,7 +35,7 @@ SELECT
     NULL, -- parent_id
     '', -- parent_receiver
     CASE WHEN portal_old.relay_user_id<>'' THEN '' END, -- relay_bridge_id
-    CASE WHEN portal_old.relay_user_id<>'' THEN portal_old.relay_user_id END, -- relay_login_id
+    CASE WHEN portal_old.relay_user_id<>'' THEN (SELECT id FROM user_login WHERE user_mxid=portal_old.relay_user_id) END, -- relay_login_id
     CASE WHEN LENGTH(chat_id)=44 THEN NULL ELSE chat_id END, -- other_user_id
     name,
     topic,
