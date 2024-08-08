@@ -47,4 +47,4 @@ require (
 
 //replace maunium.net/go/mautrix => ../mautrix-go
 //replace go.mau.fi/util => ../../Go/go-util
-replace maunium.net/go/mautrix => github.com/maltee1/mautrix-go v0.0.0-20240808193435-264b3853ebfc
+replace maunium.net/go/mautrix => github.com/maltee1/mautrix-go v0.0.0-20240808204140-9598e29d1124

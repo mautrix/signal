@@ -40,14 +40,11 @@ func ParseUserID(userID networkid.UserID) (uuid.UUID, error) {
 }
 
 func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
-	serviceID, err := ParseUserLoginIDAsServiceID(userLoginID)
+	userID, err := ParseUserLoginID(userLoginID)
 	if err != nil {
 		return uuid.Nil, err
-	} else if serviceID.Type != libsignalgo.ServiceIDTypeACI {
-		return uuid.Nil, fmt.Errorf("invalid user ID: expected ACI type")
-	} else {
-		return serviceID.UUID, nil
 	}
+	return userID, nil
 }
 
 func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {

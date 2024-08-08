@@ -373,14 +373,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	}
 	gc := &signalmeow.GroupChange{}
 	role := signalmeow.GroupMember_DEFAULT
-	toMembership := msg.Type.GetTo()
-	if toMembership == event.MembershipBan {
-		gc.AddBannedMembers = []*signalmeow.BannedMember{{
-			ServiceID: libsignalgo.NewACIServiceID(targetSignalID),
-			Timestamp: uint64(time.Now().UnixMilli()),
-		}}
-	}
-	if toMembership == event.MembershipInvite || msg.Type == bridgev2.AcceptKnock {
+	if msg.Type.To == event.MembershipInvite || msg.Type == bridgev2.AcceptKnock {
 		levels, err := msg.Portal.Bridge.Matrix.GetPowerLevels(ctx, msg.Portal.MXID)
 		if err != nil {
 			log.Err(err).Msg("Couldn't get power levels")
@@ -391,10 +384,10 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	}
 	switch msg.Type {
 	case bridgev2.AcceptInvite:
-		gc.PromotePendingMembers = []*signalmeow.PromotePendingMember{&signalmeow.PromotePendingMember{
+		gc.PromotePendingMembers = []*signalmeow.PromotePendingMember{{
 			ACI: targetSignalID,
 		}}
-	case bridgev2.RevokeInvite, bridgev2.RejectInvite, bridgev2.BanInvited:
+	case bridgev2.RevokeInvite, bridgev2.RejectInvite:
 		deletePendingMember := libsignalgo.NewACIServiceID(targetSignalID)
 		gc.DeletePendingMembers = []*libsignalgo.ServiceID{&deletePendingMember}
 	case bridgev2.Leave, bridgev2.Kick:
@@ -426,11 +419,28 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 			ACI:  targetSignalID,
 			Role: role,
 		}}
-	case bridgev2.RetractKnock, bridgev2.RejectKnock, bridgev2.BanKnocked:
+	case bridgev2.RetractKnock, bridgev2.RejectKnock:
 		gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID}
+	case bridgev2.BanKnocked, bridgev2.BanInvited, bridgev2.BanJoined, bridgev2.Ban:
+		gc.AddBannedMembers = []*signalmeow.BannedMember{{
+			ServiceID: libsignalgo.NewACIServiceID(targetSignalID),
+			Timestamp: uint64(time.Now().UnixMilli()),
+		}}
+		switch msg.Type {
+		case bridgev2.BanJoined:
+			gc.DeleteMembers = []*uuid.UUID{&targetSignalID}
+		case bridgev2.BanInvited:
+			deletePendingMember := libsignalgo.NewACIServiceID(targetSignalID)
+			gc.DeletePendingMembers = []*libsignalgo.ServiceID{&deletePendingMember}
+		case bridgev2.BanKnocked:
+			gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID}
+		}
 	case bridgev2.Unban:
 		unbanUser := libsignalgo.NewACIServiceID(targetSignalID)
 		gc.DeleteBannedMembers = []*libsignalgo.ServiceID{&unbanUser}
+	default:
+		log.Debug().Msg("unsupported membership change")
+		return false, nil
 	}
 	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
 	if err != nil || groupID == "" {
