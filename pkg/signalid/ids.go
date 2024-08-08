@@ -39,8 +39,23 @@ func ParseUserID(userID networkid.UserID) (uuid.UUID, error) {
 	}
 }
 
+func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
+	serviceID, err := ParseUserLoginIDAsServiceID(userLoginID)
+	if err != nil {
+		return uuid.Nil, err
+	} else if serviceID.Type != libsignalgo.ServiceIDTypeACI {
+		return uuid.Nil, fmt.Errorf("invalid user ID: expected ACI type")
+	} else {
+		return serviceID.UUID, nil
+	}
+}
+
 func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {
 	return libsignalgo.ServiceIDFromString(string(userID))
+}
+
+func ParseUserLoginIDAsServiceID(userLoginID networkid.UserLoginID) (libsignalgo.ServiceID, error) {
+	return libsignalgo.ServiceIDFromString(string(userLoginID))
 }
 
 func ParsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {

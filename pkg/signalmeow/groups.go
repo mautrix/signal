@@ -154,7 +154,7 @@ type RequestingMember struct {
 	Timestamp  uint64
 }
 
-type PromotePendingMembers struct {
+type PromotePendingMember struct {
 	ACI        uuid.UUID
 	ProfileKey libsignalgo.ProfileKey
 }
@@ -178,7 +178,7 @@ type BannedMember struct {
 type GroupChange struct {
 	groupMasterKey types.SerializedGroupMasterKey
 
-	SourceACI                          uuid.UUID
+	SourceServiceID                    libsignalgo.ServiceID
 	Revision                           uint32
 	AddMembers                         []*AddMember
 	DeleteMembers                      []*uuid.UUID
@@ -186,7 +186,7 @@ type GroupChange struct {
 	ModifyMemberProfileKeys            []*ProfileKeyMember
 	AddPendingMembers                  []*PendingMember
 	DeletePendingMembers               []*libsignalgo.ServiceID
-	PromotePendingMembers              []*GroupMember
+	PromotePendingMembers              []*PromotePendingMember
 	ModifyTitle                        *string
 	ModifyAvatar                       *string
 	ModifyDisappearingMessagesDuration *uint32
@@ -862,9 +862,9 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		return nil, fmt.Errorf("wrong serviceid kind: expected aci, got pni")
 	}
 	decryptedGroupChange := &GroupChange{
-		groupMasterKey: groupMasterKey,
-		Revision:       encryptedActions.Revision,
-		SourceACI:      sourceServiceID.UUID,
+		groupMasterKey:  groupMasterKey,
+		Revision:        encryptedActions.Revision,
+		SourceServiceID: sourceServiceID,
 	}
 
 	if encryptedActions.ModifyTitle != nil {
@@ -992,7 +992,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		if err != nil {
 			return nil, err
 		}
-		decryptedGroupChange.PromotePendingMembers = append(decryptedGroupChange.PromotePendingMembers, &GroupMember{
+		decryptedGroupChange.PromotePendingMembers = append(decryptedGroupChange.PromotePendingMembers, &PromotePendingMember{
 			ACI:        *aci,
 			ProfileKey: *profileKey,
 		})
