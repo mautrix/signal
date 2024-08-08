@@ -168,7 +168,8 @@ SELECT
     false, -- preferred
     CASE WHEN last_read_ts = 0 THEN NULL ELSE last_read_ts * 1000000 END -- last_read
 FROM user_portal_old
-LEFT JOIN user_old ON user_old.mxid = user_portal_old.user_mxid;
+LEFT JOIN user_old ON user_old.mxid = user_portal_old.user_mxid
+WHERE user_old.uuid IS NOT NULL;
 
 DROP TABLE disappearing_message_old;
 DROP TABLE reaction_old;
