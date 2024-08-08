@@ -105,6 +105,13 @@ func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.Use
 	return ui
 }
 
+var _ bridgev2.IdentifierValidatingNetwork = (*SignalConnector)(nil)
+
+func (s *SignalConnector) ValidateUserID(id networkid.UserID) bool {
+	_, err := signalid.ParseUserIDAsServiceID(id)
+	return err == nil
+}
+
 func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
 	var aci, pni uuid.UUID
 	var e164Number uint64
