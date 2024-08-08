@@ -20,6 +20,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
@@ -120,11 +121,18 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		}
 	}
 	for _, member := range groupInfo.PendingMembers {
-		if member.ServiceID.Type != libsignalgo.ServiceIDTypeACI {
-			continue
+		var aci uuid.UUID
+		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
+			if err != nil {
+				continue
+			}
+			aci = device.ACI
+		} else {
+			aci = member.ServiceID.UUID
 		}
 		members.Members = append(members.Members, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ServiceID.UUID),
+			EventSender: s.makeEventSender(aci),
 			PowerLevel:  roleToPL(member.Role),
 			Membership:  event.MembershipInvite,
 		})
@@ -136,11 +144,18 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		})
 	}
 	for _, member := range groupInfo.BannedMembers {
-		if member.ServiceID.Type != libsignalgo.ServiceIDTypeACI {
-			continue
+		var aci uuid.UUID
+		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
+			if err != nil {
+				continue
+			}
+			aci = device.ACI
+		} else {
+			aci = member.ServiceID.UUID
 		}
 		members.Members = append(members.Members, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ServiceID.UUID),
+			EventSender: s.makeEventSender(aci),
 			Membership:  event.MembershipBan,
 		})
 	}
@@ -246,18 +261,36 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		if member.ServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			continue
 		}
+		var aci uuid.UUID
+		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
+			if err != nil {
+				continue
+			}
+			aci = device.ACI
+		} else {
+			aci = member.ServiceID.UUID
+		}
+
 		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ServiceID.UUID),
+			EventSender: s.makeEventSender(aci),
 			PowerLevel:  roleToPL(member.Role),
 			Membership:  event.MembershipInvite,
 		})
 	}
 	for _, memberServiceID := range groupChange.DeletePendingMembers {
-		if memberServiceID.Type != libsignalgo.ServiceIDTypeACI {
-			continue
+		var aci uuid.UUID
+		if memberServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, memberServiceID.UUID)
+			if err != nil {
+				continue
+			}
+			aci = device.ACI
+		} else {
+			aci = memberServiceID.UUID
 		}
 		mc = append(mc, bridgev2.ChatMember{
-			EventSender:    s.makeEventSender(memberServiceID.UUID),
+			EventSender:    s.makeEventSender(aci),
 			Membership:     event.MembershipLeave,
 			PrevMembership: event.MembershipInvite,
 		})
@@ -276,11 +309,18 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		})
 	}
 	for _, member := range groupChange.AddBannedMembers {
-		if member.ServiceID.Type != libsignalgo.ServiceIDTypeACI {
-			continue
+		var aci uuid.UUID
+		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
+			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
+			if err != nil {
+				continue
+			}
+			aci = device.ACI
+		} else {
+			aci = member.ServiceID.UUID
 		}
 		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ServiceID.UUID),
+			EventSender: s.makeEventSender(aci),
 			Membership:  event.MembershipBan,
 		})
 	}
