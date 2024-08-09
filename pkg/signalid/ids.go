@@ -40,7 +40,7 @@ func ParseUserID(userID networkid.UserID) (uuid.UUID, error) {
 }
 
 func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
-	userID, err := ParseUserLoginID(userLoginID)
+	userID, err := uuid.Parse(string(userLoginID))
 	if err != nil {
 		return uuid.Nil, err
 	}
