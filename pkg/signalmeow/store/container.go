@@ -40,7 +40,7 @@ FROM signalmeow_device
 `
 
 const getDeviceQuery = getAllDevicesQuery + " WHERE aci_uuid=$1"
-const deviceByPNIQuery = getAllDevicesQuery + "Where pni_uuid=$1"
+const deviceByPNIQuery = getAllDevicesQuery + "WHERE pni_uuid=$1"
 
 func (c *Container) Upgrade(ctx context.Context) error {
 	return c.db.Upgrade(ctx)
