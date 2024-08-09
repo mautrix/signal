@@ -25,7 +25,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix/bridgev2"
@@ -380,6 +379,10 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 			targetIntent = ghost.Intent
 		}
 	}
+	log := zerolog.Ctx(ctx).With().
+		Str("From Membership", string(msg.Type.From)).
+		Str("To Membership", string(msg.Type.To)).
+		Logger()
 	gc := &signalmeow.GroupChange{}
 	role := signalmeow.GroupMember_DEFAULT
 	if msg.Type.To == event.MembershipInvite || msg.Type == bridgev2.AcceptKnock {
