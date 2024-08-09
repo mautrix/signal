@@ -1,8 +1,10 @@
 # v0.7.0 (unreleased)
 
-* Updated to libsignal v0.54.0.
+* Updated to libsignal v0.55.0.
 * Rewrote bridge using bridgev2 architecture.
-  * It is recommended to check the config file after upgrading.
+  * It is recommended to check the config file after upgrading. If you have
+    prevented the bridge from writing to the config, you should update it
+    manually.
 
 # v0.6.3 (2024-07-16)
 
