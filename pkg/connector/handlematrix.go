@@ -351,6 +351,15 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	var targetIntent bridgev2.MatrixAPI
 	var targetSignalID uuid.UUID
 	var err error
+	if msg.Portal.RoomType == database.RoomTypeDM {
+		//TODO: this probably needs to revert some changes and clean up the portal on leaves
+		switch msg.Type {
+		case bridgev2.Invite:
+			return false, fmt.Errorf("cannot invite additional user to dm")
+		default:
+			return false, nil
+		}
+	}
 	if msg.TargetGhost != nil {
 		targetIntent = msg.TargetGhost.Intent
 		targetSignalID, err = signalid.ParseUserID(msg.TargetGhost.ID)
@@ -421,7 +430,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 		}}
 	case bridgev2.RetractKnock, bridgev2.RejectKnock:
 		gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID}
-	case bridgev2.BanKnocked, bridgev2.BanInvited, bridgev2.BanJoined, bridgev2.Ban:
+	case bridgev2.BanKnocked, bridgev2.BanInvited, bridgev2.BanJoined, bridgev2.BanLeft:
 		gc.AddBannedMembers = []*signalmeow.BannedMember{{
 			ServiceID: libsignalgo.NewACIServiceID(targetSignalID),
 			Timestamp: uint64(time.Now().UnixMilli()),

@@ -44,10 +44,3 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	maunium.net/go/mauflag v1.0.0 // indirect
 )
-<<<<<<< HEAD
-=======
-
-//replace maunium.net/go/mautrix => ../mautrix-go
-//replace go.mau.fi/util => ../../Go/go-util
-replace maunium.net/go/mautrix => github.com/maltee1/mautrix-go v0.0.0-20240808204140-9598e29d1124
->>>>>>> aec8c02 (fixes)
