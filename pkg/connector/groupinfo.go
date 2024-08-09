@@ -345,7 +345,9 @@ func (s *SignalClient) catchUpGroup(ctx context.Context, portal *bridgev2.Portal
 		for _, gc := range groupChanges {
 			log.Debug().Uint32("current_rev", gc.GroupChange.Revision).Msg("Processing group change")
 			chatInfoChange := s.groupChangeToChatInfoChange(ctx, gc.GroupChange.Revision, gc.GroupChange)
-			portal.ProcessChatInfoChange(ctx, s.makeEventSender(gc.GroupChange.SourceACI), s.UserLogin, chatInfoChange, time.UnixMilli(int64(ts)))
+			if gc.GroupChange.SourceServiceID.Type == libsignalgo.ServiceIDTypeACI {
+				portal.ProcessChatInfoChange(ctx, s.makeEventSender(gc.GroupChange.SourceServiceID.UUID), s.UserLogin, chatInfoChange, time.UnixMilli(int64(ts)))
+			}
 			if gc.GroupChange.Revision == toRevision {
 				break
 			}
