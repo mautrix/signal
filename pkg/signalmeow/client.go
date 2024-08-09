@@ -40,6 +40,7 @@ type Client struct {
 	ProfileCache           *ProfileCache
 	GroupCallCache         *map[string]bool
 	LastContactRequestTime time.Time
+	SyncContactsOnConnect  bool
 
 	encryptionLock sync.Mutex
 

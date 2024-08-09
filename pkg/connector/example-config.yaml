@@ -7,6 +7,8 @@
 displayname_template: '{{or .ProfileName .PhoneNumber "Unknown user"}}'
 # Should avatars from the user's contact list be used? This is not safe on multi-user instances.
 use_contact_avatars: false
+# Should the bridge request the user's contact list from the phone on startup?
+sync_contacts_on_startup: true
 # Should the bridge sync ghost user info even if profile fetching fails? This is not safe on multi-user instances.
 use_outdated_profiles: false
 # Should the Signal user's phone number be included in the room topic in private chat portal rooms?

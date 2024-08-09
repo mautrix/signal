@@ -188,7 +188,9 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			case <-initialConnectChan:
 				log.Info().Msg("Both websockets connected, sending contacts sync request")
 				// TODO hacky
-				cli.SendContactSyncRequest(ctx)
+				if cli.SyncContactsOnConnect {
+					cli.SendContactSyncRequest(ctx)
+				}
 				if cli.Store.MasterKey == nil {
 					cli.SendStorageMasterKeyRequest(ctx)
 				}

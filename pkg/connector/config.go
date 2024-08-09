@@ -31,13 +31,14 @@ import (
 var ExampleConfig string
 
 type SignalConfig struct {
-	DisplaynameTemplate string              `yaml:"displayname_template"`
-	UseContactAvatars   bool                `yaml:"use_contact_avatars"`
-	UseOutdatedProfiles bool                `yaml:"use_outdated_profiles"`
-	NumberInTopic       bool                `yaml:"number_in_topic"`
-	DeviceName          string              `yaml:"device_name"`
-	NoteToSelfAvatar    id.ContentURIString `yaml:"note_to_self_avatar"`
-	LocationFormat      string              `yaml:"location_format"`
+	DisplaynameTemplate   string              `yaml:"displayname_template"`
+	UseContactAvatars     bool                `yaml:"use_contact_avatars"`
+	SyncContactsOnStartup bool                `yaml:"sync_contacts_on_startup"`
+	UseOutdatedProfiles   bool                `yaml:"use_outdated_profiles"`
+	NumberInTopic         bool                `yaml:"number_in_topic"`
+	DeviceName            string              `yaml:"device_name"`
+	NoteToSelfAvatar      id.ContentURIString `yaml:"note_to_self_avatar"`
+	LocationFormat        string              `yaml:"location_format"`
 
 	displaynameTemplate *template.Template `yaml:"-"`
 }
@@ -74,6 +75,7 @@ func (c *SignalConfig) FormatDisplayname(contact *types.Recipient) string {
 func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Str, "displayname_template")
 	helper.Copy(up.Bool, "use_contact_avatars")
+	helper.Copy(up.Bool, "sync_contacts_on_startup")
 	helper.Copy(up.Bool, "use_outdated_profiles")
 	helper.Copy(up.Bool, "number_in_topic")
 	helper.Copy(up.Str, "device_name")
