@@ -51,10 +51,6 @@ func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, err
 	return libsignalgo.ServiceIDFromString(string(userID))
 }
 
-func ParseUserLoginIDAsServiceID(userLoginID networkid.UserLoginID) (libsignalgo.ServiceID, error) {
-	return libsignalgo.ServiceIDFromString(string(userLoginID))
-}
-
 func ParsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
 	if len(portalID) == 44 {
 		groupID = types.GroupIdentifier(portalID)
