@@ -22,9 +22,9 @@
     * [x] Topic
   * [ ] Membership actions
     * [ ] Join (accepting invites)
-    * [ ] Invite
-    * [ ] Leave
-    * [ ] Kick/Ban/Unban
+    * [x] Invite
+    * [x] Leave
+    * [x] Kick/Ban/Unban
   * [x] Group permissions
   * [x] Typing notifications
   * [x] Read receipts
@@ -70,5 +70,5 @@
     * [x] When receiving message
   * [x] Linking as secondary device
   * [ ] Registering as primary device
-  * [ ] Private chat/group creation by inviting Matrix puppet of Signal user to new room
+  * [x] Private chat/group creation by inviting Matrix puppet of Signal user to new room
   * [x] Option to use own Matrix account for messages sent from other Signal clients
