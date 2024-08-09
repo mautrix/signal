@@ -17,7 +17,7 @@
 package signalid
 
 type PortalMetadata struct {
-	Revision uint32 `json:"revision"`
+	Revision uint32 `json:"revision,omitempty"`
 }
 
 type MessageMetadata struct {
