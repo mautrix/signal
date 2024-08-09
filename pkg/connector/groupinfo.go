@@ -124,7 +124,7 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		var aci uuid.UUID
 		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
 			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
-			if err != nil {
+			if err != nil || device == nil {
 				continue
 			}
 			aci = device.ACI
@@ -147,7 +147,7 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		var aci uuid.UUID
 		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
 			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
-			if err != nil {
+			if err != nil || device == nil {
 				continue
 			}
 			aci = device.ACI
@@ -264,7 +264,7 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		var aci uuid.UUID
 		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
 			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
-			if err != nil {
+			if err != nil || device == nil {
 				continue
 			}
 			aci = device.ACI
@@ -282,7 +282,7 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		var aci uuid.UUID
 		if memberServiceID.Type == libsignalgo.ServiceIDTypePNI {
 			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, memberServiceID.UUID)
-			if err != nil {
+			if err != nil || device == nil {
 				continue
 			}
 			aci = device.ACI
@@ -312,7 +312,7 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		var aci uuid.UUID
 		if member.ServiceID.Type == libsignalgo.ServiceIDTypePNI {
 			device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, member.ServiceID.UUID)
-			if err != nil {
+			if err != nil || device == nil {
 				continue
 			}
 			aci = device.ACI
