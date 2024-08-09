@@ -40,7 +40,7 @@ func ParseUserID(userID networkid.UserID) (uuid.UUID, error) {
 }
 
 func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
-	userID, err := ParseUserLoginID(userLoginID)
+	userID, err := uuid.Parse(string(userLoginID))
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -49,10 +49,6 @@ func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
 
 func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {
 	return libsignalgo.ServiceIDFromString(string(userID))
-}
-
-func ParseUserLoginIDAsServiceID(userLoginID networkid.UserLoginID) (libsignalgo.ServiceID, error) {
-	return libsignalgo.ServiceIDFromString(string(userLoginID))
 }
 
 func ParsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
