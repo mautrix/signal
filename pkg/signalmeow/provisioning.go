@@ -85,9 +85,9 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 	go func() {
 		defer close(c)
 
-		ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
-		ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketProvisioningPath)
+		ws, resp, err := web.OpenWebsocket(timeoutCtx, web.WebsocketProvisioningPath)
 		if err != nil {
 			log.Err(err).Any("resp", resp).Msg("error opening provisioning websocket")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -96,7 +96,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 		provisioningCipher := NewProvisioningCipher()
 
-		provisioningURL, err := startProvisioning(ctx, ws, provisioningCipher)
+		provisioningURL, err := startProvisioning(timeoutCtx, ws, provisioningCipher)
 		if err != nil {
 			log.Err(err).Msg("startProvisioning error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -104,7 +104,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		}
 		c <- ProvisioningResponse{State: StateProvisioningURLReceived, ProvisioningURL: provisioningURL, Err: err}
 
-		provisioningMessage, err := continueProvisioning(ctx, ws, provisioningCipher)
+		provisioningMessage, err := continueProvisioning(timeoutCtx, ws, provisioningCipher)
 		if err != nil {
 			log.Err(err).Msg("continueProvisioning error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
