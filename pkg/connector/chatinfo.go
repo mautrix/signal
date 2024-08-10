@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/ptr"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -120,11 +121,11 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 	if err != nil {
 		number, err = bridgev2.CleanPhoneNumber(number)
 		if err != nil {
-			return nil, err
+			return nil, bridgev2.WrapRespErr(err, mautrix.MInvalidParam)
 		}
 		e164Number, err = strconv.ParseUint(strings.TrimPrefix(number, "+"), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("error parsing phone number: %w", err)
+			return nil, bridgev2.WrapRespErr(fmt.Errorf("error parsing phone number: %w", err), mautrix.MInvalidParam)
 		}
 		e164String := fmt.Sprintf("+%d", e164Number)
 		if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {

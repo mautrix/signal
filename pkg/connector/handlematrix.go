@@ -85,7 +85,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	}
 	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
 	if err != nil {
-		return nil, err
+		return nil, bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
 	dbMsg := &database.Message{
 		ID:        signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
@@ -123,7 +123,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 		DataMessage:         converted,
 	}})
 	if err != nil {
-		return err
+		return bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
 	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
 	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
