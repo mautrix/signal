@@ -388,6 +388,9 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 	converted.Content.Body = sticker.GetEmoji()
 	converted.Type = event.EventSticker
 	converted.Content.MsgType = ""
+	if converted.Extra == nil {
+		converted.Extra = map[string]any{}
+	}
 	// TODO fetch full pack metadata like the old bridge did?
 	converted.Extra["fi.mau.signal.sticker"] = map[string]any{
 		"id":    sticker.GetStickerId(),
