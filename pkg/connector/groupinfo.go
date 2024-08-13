@@ -315,6 +315,13 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 			PrevMembership: event.MembershipInvite,
 		})
 	}
+	for _, member := range groupChange.PromoteRequestingMembers {
+		mc = append(mc, bridgev2.ChatMember{
+			EventSender:    s.makeEventSender(member.ACI),
+			Membership:     event.MembershipJoin,
+			PrevMembership: event.MembershipKnock,
+		})
+	}
 	if len(mc) > 0 || pls != nil {
 		ic.MemberChanges = &bridgev2.ChatMemberList{Members: mc, PowerLevels: pls}
 	}
