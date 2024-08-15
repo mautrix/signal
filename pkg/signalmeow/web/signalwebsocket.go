@@ -300,7 +300,7 @@ func (s *SignalWebsocket) connectLoop(
 						loopCancel(err)
 						return
 					}
-					log.Debug().Msg("Sent keepalive")
+					log.Trace().Msg("Sent keepalive")
 				case <-loopCtx.Done():
 					return
 				}
