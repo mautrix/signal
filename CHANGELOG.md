@@ -1,5 +1,6 @@
 # v0.7.0 (unreleased)
 
+* Bumped minimum Go version to 1.22.
 * Updated to libsignal v0.55.0.
 * Rewrote bridge using bridgev2 architecture.
   * It is recommended to check the config file after upgrading. If you have
