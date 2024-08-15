@@ -10,13 +10,13 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
-	go.mau.fi/util v0.6.1-0.20240811184504-b00aa5c5af3a
+	go.mau.fi/util v0.6.1-0.20240815104112-77362c9b05dd
 	golang.org/x/crypto v0.26.0
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
 	golang.org/x/net v0.28.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.19.1-0.20240811184947-e13771ff615e
-	nhooyr.io/websocket v1.8.11
+	maunium.net/go/mautrix v0.19.1-0.20240815104211-9e031496a01c
+	nhooyr.io/websocket v1.8.17
 )
 
 require (
@@ -28,7 +28,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
-	github.com/petermattis/goid v0.0.0-20240716203034-badd1c0974d6 // indirect
+	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/xid v1.5.0 // indirect
