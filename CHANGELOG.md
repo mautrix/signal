@@ -1,4 +1,4 @@
-# v0.7.0 (unreleased)
+# v0.7.0 (2024-08-16)
 
 * Bumped minimum Go version to 1.22.
 * Updated to libsignal v0.55.0.
