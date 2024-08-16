@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -45,6 +46,15 @@ func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
 		return uuid.Nil, err
 	}
 	return userID, nil
+}
+
+func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (uuid.UUID, error) {
+	if userLogin, ok := ghostOrUserLogin.(*bridgev2.UserLogin); ok {
+		return ParseUserLoginID(userLogin.ID)
+	} else {
+		ghost, _ := ghostOrUserLogin.(*bridgev2.Ghost)
+		return ParseUserID(ghost.ID)
+	}
 }
 
 func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {

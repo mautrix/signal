@@ -359,20 +359,17 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 			return false, nil
 		}
 	}
-	if msg.TargetGhost != nil {
-		targetIntent = msg.TargetGhost.Intent
-		targetSignalID, err = signalid.ParseUserID(msg.TargetGhost.ID)
-		if err != nil {
-			return false, fmt.Errorf("failed to parse target ghost signal id: %w", err)
-		}
-	} else if msg.TargetUserLogin != nil {
-		targetSignalID, err = signalid.ParseUserLoginID(msg.TargetUserLogin.ID)
-		if err != nil {
-			return false, fmt.Errorf("failed to parse target user signal id: %w", err)
-		}
-		targetIntent = msg.TargetUserLogin.User.DoublePuppet(ctx)
+	targetSignalID, err = signalid.ParseGhostOrUserLoginID(msg.Target)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse target signal id: %w", err)
+	}
+	if ghost, ok := msg.Target.(*bridgev2.Ghost); ok {
+		targetIntent = ghost.Intent
+	} else {
+		userLogin, _ := msg.Target.(*bridgev2.UserLogin)
+		targetIntent = userLogin.User.DoublePuppet(ctx)
 		if targetIntent == nil {
-			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(msg.TargetUserLogin.ID))
+			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(userLogin.ID))
 			if err != nil {
 				return false, fmt.Errorf("failed to get ghost for user: %w", err)
 			}
@@ -389,7 +386,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 		levels, err := msg.Portal.Bridge.Matrix.GetPowerLevels(ctx, msg.Portal.MXID)
 		if err != nil {
 			log.Err(err).Msg("Couldn't get power levels")
-			if levels.GetUserLevel(targetIntent.GetMXID()) >= 50 {
+			if levels.GetUserLevel(targetIntent.GetMXID()) >= moderatorPL {
 				role = signalmeow.GroupMember_ADMINISTRATOR
 			}
 		}
@@ -468,6 +465,70 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 		if err != nil {
 			return false, err
 		}
+	}
+	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
+	return true, nil
+}
+
+func plToRole(pl int) signalmeow.GroupMemberRole {
+	if pl >= moderatorPL {
+		return signalmeow.GroupMember_ADMINISTRATOR
+	} else {
+		return signalmeow.GroupMember_DEFAULT
+	}
+}
+
+func hasAdminChanged(plc *bridgev2.SinglePowerLevelChange) bool {
+	if plc == nil {
+		return false
+	}
+	return (plc.NewLevel < moderatorPL) != (plc.OrigLevel < moderatorPL)
+}
+
+func (s *SignalClient) HandleMatrixPowerLevels(ctx context.Context, msg *bridgev2.MatrixPowerLevelChange) (bool, error) {
+	if msg.Portal.RoomType == database.RoomTypeDM {
+		return false, nil
+	}
+	log := zerolog.Ctx(ctx)
+	gc := &signalmeow.GroupChange{}
+	for _, plc := range msg.Users {
+		if !hasAdminChanged(&plc.SinglePowerLevelChange) {
+			continue
+		}
+		aci, err := signalid.ParseGhostOrUserLoginID(plc.Target)
+		if err != nil {
+			log.Err(err).Msg("Couldn't parse user id")
+		}
+		gc.ModifyMemberRoles = append(gc.ModifyMemberRoles, &signalmeow.RoleMember{
+			ACI:  aci,
+			Role: plToRole(plc.NewLevel),
+		})
+	}
+	if hasAdminChanged(msg.EventsDefault) {
+		announcementsOnly := msg.EventsDefault.NewLevel >= moderatorPL
+		gc.ModifyAnnouncementsOnly = &announcementsOnly
+	}
+	if hasAdminChanged(msg.StateDefault) {
+		attributesAccess := signalmeow.AccessControl_MEMBER
+		if msg.StateDefault.NewLevel >= moderatorPL {
+			attributesAccess = signalmeow.AccessControl_ADMINISTRATOR
+		}
+		gc.ModifyAttributesAccess = &attributesAccess
+	}
+	if hasAdminChanged(msg.Invite) {
+		memberAccess := signalmeow.AccessControl_MEMBER
+		if msg.Invite.NewLevel >= moderatorPL {
+			memberAccess = signalmeow.AccessControl_ADMINISTRATOR
+		}
+		gc.ModifyMemberAccess = &memberAccess
+	}
+	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil || groupID == "" {
+		return false, err
+	}
+	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
+	if err != nil {
+		return false, err
 	}
 	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
 	return true, nil
