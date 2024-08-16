@@ -6,6 +6,8 @@
   * It is recommended to check the config file after upgrading. If you have
     prevented the bridge from writing to the config, you should update it
     manually.
+  * Thanks to [@maltee1] for reimplementing Matrix -> Signal membership
+    handling in the rewrite.
 
 # v0.6.3 (2024-07-16)
 
