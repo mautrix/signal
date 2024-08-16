@@ -49,11 +49,13 @@ func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
 }
 
 func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (uuid.UUID, error) {
-	if userLogin, ok := ghostOrUserLogin.(*bridgev2.UserLogin); ok {
-		return ParseUserLoginID(userLogin.ID)
-	} else {
-		ghost, _ := ghostOrUserLogin.(*bridgev2.Ghost)
-		return ParseUserID(ghost.ID)
+	switch ghostOrUserLogin := ghostOrUserLogin.(type) {
+	case *bridgev2.UserLogin:
+		return ParseUserLoginID(ghostOrUserLogin.ID)
+	case *bridgev2.Ghost:
+		return ParseUserID(ghostOrUserLogin.ID)
+	default:
+		return uuid.Nil, fmt.Errorf("cannot parse ID: unknown type: %T", ghostOrUserLogin)
 	}
 }
 

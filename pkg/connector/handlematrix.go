@@ -363,18 +363,20 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	if err != nil {
 		return false, fmt.Errorf("failed to parse target signal id: %w", err)
 	}
-	if ghost, ok := msg.Target.(*bridgev2.Ghost); ok {
-		targetIntent = ghost.Intent
-	} else {
-		userLogin, _ := msg.Target.(*bridgev2.UserLogin)
-		targetIntent = userLogin.User.DoublePuppet(ctx)
+	switch target := msg.Target.(type) {
+	case *bridgev2.Ghost:
+		targetIntent = target.Intent
+	case *bridgev2.UserLogin:
+		targetIntent = target.User.DoublePuppet(ctx)
 		if targetIntent == nil {
-			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(userLogin.ID))
+			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(target.ID))
 			if err != nil {
 				return false, fmt.Errorf("failed to get ghost for user: %w", err)
 			}
 			targetIntent = ghost.Intent
 		}
+	default:
+		return false, fmt.Errorf("cannot get target intent: unknown type: %T", target)
 	}
 	log := zerolog.Ctx(ctx).With().
 		Str("From Membership", string(msg.Type.From)).
@@ -478,6 +480,16 @@ func plToRole(pl int) signalmeow.GroupMemberRole {
 	}
 }
 
+func plToAccessControl(pl int) *signalmeow.AccessControl {
+	var accessControl signalmeow.AccessControl
+	if pl >= moderatorPL {
+		accessControl = signalmeow.AccessControl_ADMINISTRATOR
+	} else {
+		accessControl = signalmeow.AccessControl_MEMBER
+	}
+	return &accessControl
+}
+
 func hasAdminChanged(plc *bridgev2.SinglePowerLevelChange) bool {
 	if plc == nil {
 		return false
@@ -509,18 +521,10 @@ func (s *SignalClient) HandleMatrixPowerLevels(ctx context.Context, msg *bridgev
 		gc.ModifyAnnouncementsOnly = &announcementsOnly
 	}
 	if hasAdminChanged(msg.StateDefault) {
-		attributesAccess := signalmeow.AccessControl_MEMBER
-		if msg.StateDefault.NewLevel >= moderatorPL {
-			attributesAccess = signalmeow.AccessControl_ADMINISTRATOR
-		}
-		gc.ModifyAttributesAccess = &attributesAccess
+		gc.ModifyAttributesAccess = plToAccessControl(msg.StateDefault.NewLevel)
 	}
 	if hasAdminChanged(msg.Invite) {
-		memberAccess := signalmeow.AccessControl_MEMBER
-		if msg.Invite.NewLevel >= moderatorPL {
-			memberAccess = signalmeow.AccessControl_ADMINISTRATOR
-		}
-		gc.ModifyMemberAccess = &memberAccess
+		gc.ModifyMemberAccess = plToAccessControl(msg.Invite.NewLevel)
 	}
 	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
 	if err != nil || groupID == "" {
