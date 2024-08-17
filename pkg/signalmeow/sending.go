@@ -296,8 +296,8 @@ type FailedSendResult struct {
 }
 type SendMessageResult struct {
 	WasSuccessful bool
-	*SuccessfulSendResult
-	*FailedSendResult
+	SuccessfulSendResult
+	FailedSendResult
 }
 type GroupMessageSendResult struct {
 	SuccessfullySentTo []SuccessfulSendResult
@@ -717,21 +717,21 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	// Treat needs PNI signature as "this is a message request" and don't send receipts/typing
 	if needsPNISignature && (content.TypingMessage != nil || content.ReceiptMessage != nil) {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
-		res := &SuccessfulSendResult{Recipient: recipientID}
+		res := SuccessfulSendResult{Recipient: recipientID}
 		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
 			// Still send sync messages for read receipts
-			cli.sendSyncCopy(ctx, content, messageTimestamp, res)
+			cli.sendSyncCopy(ctx, content, messageTimestamp, &res)
 		}
 		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
 	}
 
 	isDeliveryReceipt := content.ReceiptMessage != nil && content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_DELIVERY
 	if recipientID == cli.Store.ACIServiceID() && !isDeliveryReceipt {
-		res := &SuccessfulSendResult{
+		res := SuccessfulSendResult{
 			Recipient:    recipientID,
 			Unidentified: false,
 		}
-		ok := cli.sendSyncCopy(ctx, content, messageTimestamp, res)
+		ok := cli.sendSyncCopy(ctx, content, messageTimestamp, &res)
 		return SendMessageResult{
 			WasSuccessful:        ok,
 			SuccessfulSendResult: res,
@@ -743,7 +743,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	if err != nil {
 		return SendMessageResult{
 			WasSuccessful: false,
-			FailedSendResult: &FailedSendResult{
+			FailedSendResult: FailedSendResult{
 				Recipient: recipientID,
 				Error:     err,
 			},
@@ -751,7 +751,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	}
 	result := SendMessageResult{
 		WasSuccessful: true,
-		SuccessfulSendResult: &SuccessfulSendResult{
+		SuccessfulSendResult: SuccessfulSendResult{
 			Recipient:    recipientID,
 			Unidentified: sentUnidentified,
 		},
@@ -768,7 +768,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		}
 	}
 
-	cli.sendSyncCopy(ctx, content, messageTimestamp, result.SuccessfulSendResult)
+	cli.sendSyncCopy(ctx, content, messageTimestamp, &result.SuccessfulSendResult)
 
 	return result
 }

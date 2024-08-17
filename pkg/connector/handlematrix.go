@@ -247,7 +247,7 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 		result := s.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(destination), signalmeow.ReadReceptMessageForTimestamps(messages))
 		cancel()
 		if !result.WasSuccessful {
-			zerolog.Ctx(ctx).Err(result.FailedSendResult.Error).
+			zerolog.Ctx(ctx).Err(result.Error).
 				Stringer("destination", destination).
 				Uints64("message_ids", messages).
 				Msg("Failed to send read receipt to Signal")
