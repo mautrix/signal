@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
+	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/id"
 
@@ -188,8 +190,18 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 			UUID:    string(res.CompleteParams.UserLogin.ID),
 			Number:  res.CompleteParams.UserLogin.RemoteName,
 		})
+		go handleLoginComplete(r.Context(), login.User, res.CompleteParams.UserLogin)
 	}
 	login.Delete()
+}
+
+func handleLoginComplete(ctx context.Context, user *bridgev2.User, newLogin *bridgev2.UserLogin) {
+	allLogins := user.GetCachedUserLogins()
+	for _, login := range allLogins {
+		if login.ID != newLogin.ID {
+			login.Delete(ctx, status.BridgeState{StateEvent: status.StateLoggedOut, Reason: "LOGIN_OVERRIDDEN"}, bridgev2.DeleteOpts{})
+		}
+	}
 }
 
 func legacyProvLogout(w http.ResponseWriter, r *http.Request) {
