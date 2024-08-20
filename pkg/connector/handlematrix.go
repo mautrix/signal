@@ -472,3 +472,50 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
 	return true, nil
 }
+
+func joinRuleToAccessControl(ctx context.Context, joinRule event.JoinRule) signalmeow.AccessControl {
+	log := zerolog.Ctx(ctx).With().
+		Str("JoinRule", string(joinRule)).
+		Logger()
+	var addFromInviteLinkAccess signalmeow.AccessControl
+	switch joinRule {
+	case event.JoinRuleInvite:
+		addFromInviteLinkAccess = signalmeow.AccessControl_UNSATISFIABLE
+	case event.JoinRuleKnock, event.JoinRuleKnockRestricted:
+		addFromInviteLinkAccess = signalmeow.AccessControl_ADMINISTRATOR
+	case event.JoinRulePublic, event.JoinRuleRestricted:
+		addFromInviteLinkAccess = signalmeow.AccessControl_ANY
+	default:
+		log.Debug().Msg("unknown join rule")
+		addFromInviteLinkAccess = signalmeow.AccessControl_UNSATISFIABLE
+	}
+	return addFromInviteLinkAccess
+}
+
+func (s *SignalClient) HandleMatrixJoinRules(ctx context.Context, msg *bridgev2.MatrixJoinRule) (bool, error) {
+	log := zerolog.Ctx(ctx).With().
+		Str("From JoinRule", string(msg.PrevContent.JoinRule)).
+		Str("To JoinRule", string(msg.Content.JoinRule)).
+		Logger()
+	if msg.Portal.RoomType == database.RoomTypeDM {
+		log.Info().Msg("Ignoring Join Rule Change for DM")
+		return false, nil
+	}
+	newAddFromInviteLinkAccess := joinRuleToAccessControl(ctx, msg.Content.JoinRule)
+	oldAddFromInviteLinkAccess := joinRuleToAccessControl(ctx, msg.PrevContent.JoinRule)
+	if newAddFromInviteLinkAccess == oldAddFromInviteLinkAccess {
+		log.Debug().Msg("join rule change does not hange access control")
+		return false, nil
+	}
+	gc := &signalmeow.GroupChange{ModifyAddFromInviteLinkAccess: &newAddFromInviteLinkAccess}
+	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil || groupID == "" {
+		return false, err
+	}
+	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
+	if err != nil {
+		return false, err
+	}
+	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
+	return true, nil
+}
