@@ -359,25 +359,24 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 			return false, nil
 		}
 	}
-	if msg.TargetGhost != nil {
-		targetIntent = msg.TargetGhost.Intent
-		targetSignalID, err = signalid.ParseUserID(msg.TargetGhost.ID)
-		if err != nil {
-			return false, fmt.Errorf("failed to parse target ghost signal id: %w", err)
-		}
-	} else if msg.TargetUserLogin != nil {
-		targetSignalID, err = signalid.ParseUserLoginID(msg.TargetUserLogin.ID)
-		if err != nil {
-			return false, fmt.Errorf("failed to parse target user signal id: %w", err)
-		}
-		targetIntent = msg.TargetUserLogin.User.DoublePuppet(ctx)
+	targetSignalID, err = signalid.ParseGhostOrUserLoginID(msg.Target)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse target signal id: %w", err)
+	}
+	switch target := msg.Target.(type) {
+	case *bridgev2.Ghost:
+		targetIntent = target.Intent
+	case *bridgev2.UserLogin:
+		targetIntent = target.User.DoublePuppet(ctx)
 		if targetIntent == nil {
-			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(msg.TargetUserLogin.ID))
+			ghost, err := s.Main.Bridge.GetGhostByID(ctx, networkid.UserID(target.ID))
 			if err != nil {
 				return false, fmt.Errorf("failed to get ghost for user: %w", err)
 			}
 			targetIntent = ghost.Intent
 		}
+	default:
+		return false, fmt.Errorf("cannot get target intent: unknown type: %T", target)
 	}
 	log := zerolog.Ctx(ctx).With().
 		Str("From Membership", string(msg.Type.From)).
@@ -389,7 +388,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 		levels, err := msg.Portal.Bridge.Matrix.GetPowerLevels(ctx, msg.Portal.MXID)
 		if err != nil {
 			log.Err(err).Msg("Couldn't get power levels")
-			if levels.GetUserLevel(targetIntent.GetMXID()) >= 50 {
+			if levels.GetUserLevel(targetIntent.GetMXID()) >= moderatorPL {
 				role = signalmeow.GroupMember_ADMINISTRATOR
 			}
 		}
@@ -468,6 +467,72 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 		if err != nil {
 			return false, err
 		}
+	}
+	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
+	return true, nil
+}
+
+func plToRole(pl int) signalmeow.GroupMemberRole {
+	if pl >= moderatorPL {
+		return signalmeow.GroupMember_ADMINISTRATOR
+	} else {
+		return signalmeow.GroupMember_DEFAULT
+	}
+}
+
+func plToAccessControl(pl int) *signalmeow.AccessControl {
+	var accessControl signalmeow.AccessControl
+	if pl >= moderatorPL {
+		accessControl = signalmeow.AccessControl_ADMINISTRATOR
+	} else {
+		accessControl = signalmeow.AccessControl_MEMBER
+	}
+	return &accessControl
+}
+
+func hasAdminChanged(plc *bridgev2.SinglePowerLevelChange) bool {
+	if plc == nil {
+		return false
+	}
+	return (plc.NewLevel < moderatorPL) != (plc.OrigLevel < moderatorPL)
+}
+
+func (s *SignalClient) HandleMatrixPowerLevels(ctx context.Context, msg *bridgev2.MatrixPowerLevelChange) (bool, error) {
+	if msg.Portal.RoomType == database.RoomTypeDM {
+		return false, nil
+	}
+	log := zerolog.Ctx(ctx)
+	gc := &signalmeow.GroupChange{}
+	for _, plc := range msg.Users {
+		if !hasAdminChanged(&plc.SinglePowerLevelChange) {
+			continue
+		}
+		aci, err := signalid.ParseGhostOrUserLoginID(plc.Target)
+		if err != nil {
+			log.Err(err).Msg("Couldn't parse user id")
+		}
+		gc.ModifyMemberRoles = append(gc.ModifyMemberRoles, &signalmeow.RoleMember{
+			ACI:  aci,
+			Role: plToRole(plc.NewLevel),
+		})
+	}
+	if hasAdminChanged(msg.EventsDefault) {
+		announcementsOnly := msg.EventsDefault.NewLevel >= moderatorPL
+		gc.ModifyAnnouncementsOnly = &announcementsOnly
+	}
+	if hasAdminChanged(msg.StateDefault) {
+		gc.ModifyAttributesAccess = plToAccessControl(msg.StateDefault.NewLevel)
+	}
+	if hasAdminChanged(msg.Invite) {
+		gc.ModifyMemberAccess = plToAccessControl(msg.Invite.NewLevel)
+	}
+	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil || groupID == "" {
+		return false, err
+	}
+	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
+	if err != nil {
+		return false, err
 	}
 	msg.Portal.Metadata.(*signalid.PortalMetadata).Revision = revision
 	return true, nil
