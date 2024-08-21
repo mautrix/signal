@@ -27,7 +27,9 @@ func (s *SignalConnector) GetDBMetaTypes() database.MetaTypes {
 		Portal: func() any {
 			return &signalid.PortalMetadata{}
 		},
-		Ghost: nil,
+		Ghost: func() any {
+			return &signalid.GhostMetadata{}
+		},
 		Message: func() any {
 			return &signalid.MessageMetadata{}
 		},

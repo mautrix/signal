@@ -16,10 +16,18 @@
 
 package signalid
 
+import (
+	"go.mau.fi/util/jsontime"
+)
+
 type PortalMetadata struct {
 	Revision uint32 `json:"revision,omitempty"`
 }
 
 type MessageMetadata struct {
 	ContainsAttachments bool `json:"contains_attachments,omitempty"`
+}
+
+type GhostMetadata struct {
+	ProfileFetchedAt jsontime.UnixMilli `json:"profile_fetched_at"`
 }

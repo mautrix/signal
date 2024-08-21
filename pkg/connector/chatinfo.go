@@ -49,6 +49,10 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 	if err != nil {
 		return nil, err
 	}
+	meta := ghost.Metadata.(*signalid.GhostMetadata)
+	if !s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt) {
+		return nil, nil
+	}
 	return s.contactToUserInfo(contact), nil
 }
 
@@ -74,6 +78,14 @@ func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.Use
 	ui := &bridgev2.UserInfo{
 		IsBot:       &isBot,
 		Identifiers: []string{},
+		ExtraUpdates: func(ctx context.Context, ghost *bridgev2.Ghost) (changed bool) {
+			meta := ghost.Metadata.(*signalid.GhostMetadata)
+			if meta.ProfileFetchedAt.Before(contact.Profile.FetchedAt) {
+				changed = meta.ProfileFetchedAt.IsZero() && !contact.Profile.FetchedAt.IsZero()
+				meta.ProfileFetchedAt.Time = contact.Profile.FetchedAt
+			}
+			return false
+		},
 	}
 	if contact.E164 != "" {
 		ui.Identifiers = append(ui.Identifiers, "tel:"+contact.E164)
