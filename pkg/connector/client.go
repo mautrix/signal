@@ -69,6 +69,7 @@ var (
 	_ bridgev2.RoomNameHandlingNetworkAPI    = (*SignalClient)(nil)
 	_ bridgev2.RoomAvatarHandlingNetworkAPI  = (*SignalClient)(nil)
 	_ bridgev2.RoomTopicHandlingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.JoinRulesHandlingNetworkAPI   = (*SignalClient)(nil)
 )
 
 var pushCfg = &bridgev2.PushConfig{
