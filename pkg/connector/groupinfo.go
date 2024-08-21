@@ -238,7 +238,22 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 			Membership:  event.MembershipJoin,
 		})
 	}
+	bannedMembers := make(map[libsignalgo.ServiceID]bool)
+	for _, member := range groupChange.AddBannedMembers {
+		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
+		if aci == nil {
+			continue
+		}
+		bannedMembers[member.ServiceID] = true
+		mc = append(mc, bridgev2.ChatMember{
+			EventSender: s.makeEventSender(*aci),
+			Membership:  event.MembershipBan,
+		})
+	}
 	for _, memberACI := range groupChange.DeleteMembers {
+		if bannedMembers[libsignalgo.NewACIServiceID(*memberACI)] {
+			continue
+		}
 		mc = append(mc, bridgev2.ChatMember{
 			EventSender:    s.makeEventSender(*memberACI),
 			Membership:     event.MembershipLeave,
@@ -257,6 +272,9 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		})
 	}
 	for _, memberServiceID := range groupChange.DeletePendingMembers {
+		if bannedMembers[*memberServiceID] {
+			continue
+		}
 		aci := s.maybeResolvePNItoACI(ctx, memberServiceID)
 		if aci == nil {
 			continue
@@ -274,20 +292,13 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		})
 	}
 	for _, memberACI := range groupChange.DeleteRequestingMembers {
+		if bannedMembers[libsignalgo.NewACIServiceID(*memberACI)] {
+			continue
+		}
 		mc = append(mc, bridgev2.ChatMember{
 			EventSender:    s.makeEventSender(*memberACI),
 			Membership:     event.MembershipLeave,
 			PrevMembership: event.MembershipKnock,
-		})
-	}
-	for _, member := range groupChange.AddBannedMembers {
-		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
-		if aci == nil {
-			continue
-		}
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(*aci),
-			Membership:  event.MembershipBan,
 		})
 	}
 	for _, memberServiceID := range groupChange.DeleteBannedMembers {
