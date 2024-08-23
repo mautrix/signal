@@ -22,7 +22,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -82,11 +81,7 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 
 	profile, err := cli.RetrieveProfileByID(ctx, aci)
 	if err != nil {
-		logLevel := zerolog.ErrorLevel
-		if errors.Is(err, errProfileKeyNotFound) {
-			logLevel = zerolog.DebugLevel
-		}
-		log.WithLevel(logLevel).Err(err).Msg("Failed to fetch profile")
+		log.Debug().Err(err).Msg("Failed to fetch profile")
 		// Continue to return contact without profile
 	}
 	return cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
