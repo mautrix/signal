@@ -10,12 +10,12 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
-	go.mau.fi/util v0.7.1-0.20240827112829-84c63841c264
+	go.mau.fi/util v0.7.1-0.20240901193650-bf007b10eaf6
 	golang.org/x/crypto v0.26.0
-	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
+	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
 	golang.org/x/net v0.28.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.20.1-0.20240827191023-f56905a27645
+	maunium.net/go/mautrix v0.20.1-0.20240902092346-6f1a3878c452
 	nhooyr.io/websocket v1.8.17
 )
 
@@ -32,7 +32,7 @@ require (
 	github.com/petermattis/goid v0.0.0-20240813172612-4fcff4a6cae7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
-	github.com/rs/xid v1.5.0 // indirect
+	github.com/rs/xid v1.6.0 // indirect
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
