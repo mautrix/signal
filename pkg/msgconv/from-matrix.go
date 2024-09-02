@@ -157,12 +157,12 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	}
 	mime := content.GetInfo().MimeType
 	if content.MSC3245Voice != nil && ffmpeg.Supported() {
-		data, err = ffmpeg.ConvertBytes(ctx, data, ".m4a", []string{}, []string{"-c:a", "aac"}, mime)
+		data, err = ffmpeg.ConvertBytes(ctx, data, ".aac", []string{}, []string{"-c:a", "aac"}, mime)
 		if err != nil {
 			return nil, err
 		}
 		mime = "audio/aac"
-		fileName += ".m4a"
+		fileName += ".aac"
 	} else if evt.Type == event.EventSticker {
 		switch mime {
 		case "image/webp", "image/png", "image/apng":
