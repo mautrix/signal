@@ -330,6 +330,31 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 	return provisioningMessage, err
 }
 
+var signalCapabilities = map[string]any{
+	"deleteSync": true,
+}
+
+var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))
+
+func (cli *Client) RegisterCapabilities(ctx context.Context) error {
+	username, password := cli.Store.BasicAuthCreds()
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, "/v1/devices/capabilities", &web.HTTPReqOpt{
+		Body:        signalCapabilitiesBody,
+		Username:    &username,
+		Password:    &password,
+		ContentType: web.ContentTypeJSON,
+	})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		return err
+	} else if resp.StatusCode >= 400 {
+		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func confirmDevice(
 	ctx context.Context,
 	username string,
@@ -383,9 +408,7 @@ func confirmDevice(
 			"name":              encryptedDeviceName,
 			"registrationId":    aciRegistrationID,
 			"pniRegistrationId": pniRegistrationID,
-			"capabilities": map[string]any{
-				"deleteSync": true,
-			},
+			"capabilities":      signalCapabilities,
 		},
 		"aciSignedPreKey":       aciSignedPreKeyJson,
 		"pniSignedPreKey":       pniSignedPreKeyJson,

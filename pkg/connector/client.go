@@ -240,6 +240,12 @@ func (s *SignalClient) Disconnect() {
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
+	err := s.Client.RegisterCapabilities(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
+	} else {
+		zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
+	}
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
