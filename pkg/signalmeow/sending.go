@@ -797,7 +797,7 @@ func (cli *Client) sendContent(
 		Logger()
 	ctx = log.WithContext(ctx)
 	printContentFieldString(ctx, content, "Outgoing message")
-	log.Trace().Any("raw_content", content).Msg("Raw data of outgoing message")
+	log.Trace().Any("raw_content", content).Stringer("recipient", recipient).Msg("Raw data of outgoing message")
 
 	// If it's a data message, add our profile key
 	if content.DataMessage != nil {

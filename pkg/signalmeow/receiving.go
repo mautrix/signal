@@ -643,10 +643,10 @@ func (cli *Client) handleDecryptedResult(
 	}
 
 	content := result.Content
-	log.Trace().Any("raw_data", content).Msg("Raw event data")
 
 	name, _ := result.SenderAddress.Name()
 	deviceId, _ := result.SenderAddress.DeviceID()
+	log.Trace().Any("raw_data", content).Str("sender", name).Uint("sender_device", deviceId).Msg("Raw event data")
 	newLog := log.With().
 		Str("sender_name", name).
 		Uint("sender_device_id", deviceId).
