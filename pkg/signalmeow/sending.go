@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exfmt"
+	"go.mau.fi/util/ptr"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -327,9 +328,10 @@ func syncMessageFromGroupDataMessage(dataMessage *signalpb.DataMessage, results 
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				Message:            dataMessage,
-				Timestamp:          dataMessage.Timestamp,
-				UnidentifiedStatus: unidentifiedStatuses,
+				Message:                  dataMessage,
+				Timestamp:                dataMessage.Timestamp,
+				UnidentifiedStatus:       unidentifiedStatuses,
+				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
 			},
 		},
 	}
@@ -345,9 +347,10 @@ func syncMessageFromGroupEditMessage(editMessage *signalpb.EditMessage, results 
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				EditMessage:        editMessage,
-				Timestamp:          editMessage.GetDataMessage().Timestamp,
-				UnidentifiedStatus: unidentifiedStatuses,
+				EditMessage:              editMessage,
+				Timestamp:                editMessage.GetDataMessage().Timestamp,
+				UnidentifiedStatus:       unidentifiedStatuses,
+				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
 			},
 		},
 	}
@@ -357,10 +360,11 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				Message:              dataMessage,
-				DestinationE164:      result.RecipientE164,
-				DestinationServiceId: proto.String(result.Recipient.String()),
-				Timestamp:            dataMessage.Timestamp,
+				Message:                  dataMessage,
+				DestinationE164:          result.RecipientE164,
+				DestinationServiceId:     proto.String(result.Recipient.String()),
+				Timestamp:                dataMessage.Timestamp,
+				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
 						DestinationServiceId:   proto.String(result.Recipient.String()),
@@ -377,10 +381,11 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 	return &signalpb.Content{
 		SyncMessage: &signalpb.SyncMessage{
 			Sent: &signalpb.SyncMessage_Sent{
-				EditMessage:          editMessage,
-				DestinationE164:      result.RecipientE164,
-				DestinationServiceId: proto.String(result.Recipient.String()),
-				Timestamp:            editMessage.DataMessage.Timestamp,
+				EditMessage:              editMessage,
+				DestinationE164:          result.RecipientE164,
+				DestinationServiceId:     proto.String(result.Recipient.String()),
+				Timestamp:                editMessage.DataMessage.Timestamp,
+				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
 						DestinationServiceId:   proto.String(result.Recipient.String()),
