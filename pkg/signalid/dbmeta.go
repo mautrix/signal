@@ -21,7 +21,8 @@ import (
 )
 
 type PortalMetadata struct {
-	Revision uint32 `json:"revision,omitempty"`
+	Revision               uint32 `json:"revision,omitempty"`
+	ExpirationTimerVersion uint32 `json:"expiration_timer_version,omitempty"`
 }
 
 type MessageMetadata struct {

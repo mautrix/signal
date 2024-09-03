@@ -78,6 +78,10 @@ func (mc *MessageConverter) ToSignal(
 	}
 	if portal.Disappear.Timer > 0 {
 		dm.ExpireTimer = proto.Uint32(uint32(portal.Disappear.Timer.Seconds()))
+		timerVersion := portal.Metadata.(*signalid.PortalMetadata).ExpirationTimerVersion
+		if timerVersion > 0 {
+			dm.ExpireTimerVersion = &timerVersion
+		}
 	}
 	if content.MsgType == event.MsgEmote && !relaybotFormatted {
 		content.Body = "/me " + content.Body

@@ -2163,6 +2163,7 @@ type DataMessage struct {
 	GroupV2                 *GroupContextV2              `protobuf:"bytes,15,opt,name=groupV2" json:"groupV2,omitempty"`
 	Flags                   *uint32                      `protobuf:"varint,4,opt,name=flags" json:"flags,omitempty"`
 	ExpireTimer             *uint32                      `protobuf:"varint,5,opt,name=expireTimer" json:"expireTimer,omitempty"`
+	ExpireTimerVersion      *uint32                      `protobuf:"varint,23,opt,name=expireTimerVersion" json:"expireTimerVersion,omitempty"`
 	ProfileKey              []byte                       `protobuf:"bytes,6,opt,name=profileKey" json:"profileKey,omitempty"`
 	Timestamp               *uint64                      `protobuf:"varint,7,opt,name=timestamp" json:"timestamp,omitempty"`
 	Quote                   *DataMessage_Quote           `protobuf:"bytes,8,opt,name=quote" json:"quote,omitempty"`
@@ -2243,6 +2244,13 @@ func (x *DataMessage) GetFlags() uint32 {
 func (x *DataMessage) GetExpireTimer() uint32 {
 	if x != nil && x.ExpireTimer != nil {
 		return *x.ExpireTimer
+	}
+	return 0
+}
+
+func (x *DataMessage) GetExpireTimerVersion() uint32 {
+	if x != nil && x.ExpireTimerVersion != nil {
+		return *x.ExpireTimerVersion
 	}
 	return 0
 }
@@ -3464,16 +3472,17 @@ type ContactDetails struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Number        *string                `protobuf:"bytes,1,opt,name=number" json:"number,omitempty"`
-	Aci           *string                `protobuf:"bytes,9,opt,name=aci" json:"aci,omitempty"`
-	Name          *string                `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	Avatar        *ContactDetails_Avatar `protobuf:"bytes,3,opt,name=avatar" json:"avatar,omitempty"`
-	Color         *string                `protobuf:"bytes,4,opt,name=color" json:"color,omitempty"`
-	Verified      *Verified              `protobuf:"bytes,5,opt,name=verified" json:"verified,omitempty"`
-	ProfileKey    []byte                 `protobuf:"bytes,6,opt,name=profileKey" json:"profileKey,omitempty"`
-	ExpireTimer   *uint32                `protobuf:"varint,8,opt,name=expireTimer" json:"expireTimer,omitempty"`
-	InboxPosition *uint32                `protobuf:"varint,10,opt,name=inboxPosition" json:"inboxPosition,omitempty"`
-	Archived      *bool                  `protobuf:"varint,11,opt,name=archived" json:"archived,omitempty"`
+	Number             *string                `protobuf:"bytes,1,opt,name=number" json:"number,omitempty"`
+	Aci                *string                `protobuf:"bytes,9,opt,name=aci" json:"aci,omitempty"`
+	Name               *string                `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
+	Avatar             *ContactDetails_Avatar `protobuf:"bytes,3,opt,name=avatar" json:"avatar,omitempty"`
+	Color              *string                `protobuf:"bytes,4,opt,name=color" json:"color,omitempty"`
+	Verified           *Verified              `protobuf:"bytes,5,opt,name=verified" json:"verified,omitempty"`
+	ProfileKey         []byte                 `protobuf:"bytes,6,opt,name=profileKey" json:"profileKey,omitempty"`
+	ExpireTimer        *uint32                `protobuf:"varint,8,opt,name=expireTimer" json:"expireTimer,omitempty"`
+	ExpireTimerVersion *uint32                `protobuf:"varint,12,opt,name=expireTimerVersion" json:"expireTimerVersion,omitempty"`
+	InboxPosition      *uint32                `protobuf:"varint,10,opt,name=inboxPosition" json:"inboxPosition,omitempty"`
+	Archived           *bool                  `protobuf:"varint,11,opt,name=archived" json:"archived,omitempty"`
 }
 
 func (x *ContactDetails) Reset() {
@@ -3560,6 +3569,13 @@ func (x *ContactDetails) GetProfileKey() []byte {
 func (x *ContactDetails) GetExpireTimer() uint32 {
 	if x != nil && x.ExpireTimer != nil {
 		return *x.ExpireTimer
+	}
+	return 0
+}
+
+func (x *ContactDetails) GetExpireTimerVersion() uint32 {
+	if x != nil && x.ExpireTimerVersion != nil {
+		return *x.ExpireTimerVersion
 	}
 	return 0
 }
