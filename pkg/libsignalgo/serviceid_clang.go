@@ -1,4 +1,4 @@
-//go:build darwin || android
+//go:build darwin || android || ios
 
 package libsignalgo
 
