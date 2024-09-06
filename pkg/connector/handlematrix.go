@@ -83,12 +83,14 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	if err != nil {
 		return nil, err
 	}
+	msgID := signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
+	msg.AddPendingToIgnore(networkid.TransactionID(msgID))
 	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
 	if err != nil {
 		return nil, bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
 	dbMsg := &database.Message{
-		ID:        signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp()),
+		ID:        msgID,
 		SenderID:  signalid.MakeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(converted.GetTimestamp())),
 		Metadata: &signalid.MessageMetadata{
@@ -96,7 +98,8 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		},
 	}
 	return &bridgev2.MatrixMessageResponse{
-		DB: dbMsg,
+		DB:            dbMsg,
+		RemovePending: networkid.TransactionID(msgID),
 	}, nil
 }
 
