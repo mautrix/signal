@@ -134,7 +134,7 @@ func SendHTTPRequest(ctx context.Context, method string, path string, opt *HTTPR
 		Logger()
 	ctx = log.WithContext(ctx)
 
-	req, err := http.NewRequestWithContext(ctx, method, urlStr, bytes.NewBuffer(opt.Body))
+	req, err := http.NewRequestWithContext(ctx, method, urlStr, bytes.NewReader(opt.Body))
 	if err != nil {
 		log.Err(err).Msg("Error creating request")
 		return nil, err
