@@ -28,6 +28,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/bridgev2/simplevent"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/signalid"
@@ -40,6 +41,7 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	case *events.ChatEvent:
 		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s})
 	case *events.DecryptionError:
+		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapDecryptionError(evt))
 	case *events.Receipt:
 		s.handleSignalReceipt(evt)
 	case *events.ReadSelf:
@@ -54,19 +56,22 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 }
 
 func (s *SignalClient) wrapCallEvent(evt *events.Call) bridgev2.RemoteMessage {
-	return &bridgev2.SimpleRemoteEvent[*events.Call]{
-		Type: bridgev2.RemoteEventMessage,
-		LogContext: func(c zerolog.Context) zerolog.Context {
-			c = c.Stringer("sender_id", evt.Info.Sender)
-			c = c.Uint64("message_ts", evt.Timestamp)
-			return c
+	return &simplevent.Message[*events.Call]{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventMessage,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				c = c.Stringer("sender_id", evt.Info.Sender)
+				c = c.Uint64("message_ts", evt.Timestamp)
+				return c
+			},
+			PortalKey:    s.makePortalKey(evt.Info.ChatID),
+			CreatePortal: true,
+			Sender:       s.makeEventSender(evt.Info.Sender),
+			Timestamp:    time.UnixMilli(int64(evt.Timestamp)),
 		},
-		PortalKey:          s.makePortalKey(evt.Info.ChatID),
-		Data:               evt,
-		CreatePortal:       true,
-		ID:                 signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp),
-		Sender:             s.makeEventSender(evt.Info.Sender),
-		Timestamp:          time.UnixMilli(int64(evt.Timestamp)),
+		Data: evt,
+		ID:   signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp),
+
 		ConvertMessageFunc: convertCallEvent,
 	}
 }
@@ -87,6 +92,38 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 		Parts: []*bridgev2.ConvertedMessagePart{{
 			Type:    event.EventMessage,
 			Content: content,
+		}},
+	}, nil
+}
+
+func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2.RemoteMessage {
+	return &simplevent.Message[*events.DecryptionError]{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventMessage,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				c = c.Stringer("sender_id", evt.Sender)
+				return c
+			},
+			PortalKey:    s.makePortalKey(evt.Sender.String()),
+			CreatePortal: true,
+			Sender:       s.makeEventSender(evt.Sender),
+			Timestamp:    time.UnixMilli(int64(evt.Timestamp)),
+		},
+		Data: evt,
+		ID:   "decrypterr|" + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
+
+		ConvertMessageFunc: convertDecryptionError,
+	}
+}
+
+func convertDecryptionError(_ context.Context, _ *bridgev2.Portal, _ bridgev2.MatrixAPI, _ *events.DecryptionError) (*bridgev2.ConvertedMessage, error) {
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    "Message couldn't be decrypted. It may have been in this chat or a group chat. Please check your Signal app.",
+			},
 		}},
 	}, nil
 }

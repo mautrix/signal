@@ -276,6 +276,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
 	log.Trace().
 		Uint64("timestamp", envelope.GetTimestamp()).
+		Uint64("server_timestamp", envelope.GetServerTimestamp()).
 		Str("destination_service_id", envelope.GetDestinationServiceId()).
 		Str("source_service_id", envelope.GetSourceServiceId()).
 		Uint32("source_device_id", envelope.GetSourceDevice()).
@@ -286,7 +287,7 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 
 	result := cli.decryptEnvelope(ctx, envelope)
 
-	err = cli.handleDecryptedResult(ctx, result, destinationServiceID)
+	err = cli.handleDecryptedResult(ctx, result, destinationServiceID, envelope.GetServerTimestamp())
 	if err != nil {
 		log.Err(err).Msg("handleDecryptedResult error")
 		return nil, err
@@ -613,6 +614,7 @@ func (cli *Client) handleDecryptedResult(
 	ctx context.Context,
 	result DecryptionResult,
 	destinationServiceID libsignalgo.ServiceID,
+	serverTimestamp uint64,
 ) error {
 	log := zerolog.Ctx(ctx)
 	if result.Content == nil {
@@ -623,19 +625,20 @@ func (cli *Client) handleDecryptedResult(
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {
-		log.Err(result.Err).Bool("urgent", result.Urgent).Msg("Decryption error")
 		theirServiceID, err := result.SenderAddress.NameServiceID()
 		if err != nil {
 			log.Err(err).Msg("Name error handling decryption error")
 		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
 		}
+		log.Err(result.Err).Stringer("sender", theirServiceID).Bool("urgent", result.Urgent).Msg("Decryption error")
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
 		if result.Urgent {
 			cli.handleEvent(&events.DecryptionError{
-				Sender: theirServiceID.UUID,
-				Err:    result.Err,
+				Sender:    theirServiceID.UUID,
+				Err:       result.Err,
+				Timestamp: serverTimestamp,
 			})
 		}
 		// Intentionally not returning here. In most cases there's nothing besides the error so

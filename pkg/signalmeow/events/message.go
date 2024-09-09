@@ -49,8 +49,9 @@ type ChatEvent struct {
 }
 
 type DecryptionError struct {
-	Sender uuid.UUID
-	Err    error
+	Sender    uuid.UUID
+	Err       error
+	Timestamp uint64
 }
 
 type Receipt struct {
