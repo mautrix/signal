@@ -110,7 +110,8 @@ func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2
 			Timestamp:    time.UnixMilli(int64(evt.Timestamp)),
 		},
 		Data: evt,
-		ID:   "decrypterr|" + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
+		// TODO use main message id and edit it if it later becomes decryptable?
+		ID: "decrypterr|" + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
 
 		ConvertMessageFunc: convertDecryptionError,
 	}

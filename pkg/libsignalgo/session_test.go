@@ -294,7 +294,7 @@ func TestSealedSenderSession(t *testing.T) {
 		ciphertext,
 		recipientAddress,
 		trustRoot.GetPublicKey(),
-		time.UnixMilli(31335),
+		31335,
 		bobStore,
 		bobStore,
 		bobStore,

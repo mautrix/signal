@@ -24,7 +24,6 @@ import "C"
 import (
 	"context"
 	"runtime"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -113,7 +112,7 @@ func SealedSenderDecrypt(
 	ciphertext []byte,
 	localAddress *SealedSenderAddress,
 	trustRoot *PublicKey,
-	timestamp time.Time,
+	timestamp uint64,
 	sessionStore SessionStore,
 	identityStore IdentityKeyStore,
 	preKeyStore PreKeyStore,
@@ -134,7 +133,7 @@ func SealedSenderDecrypt(
 		&senderDeviceID,
 		BytesToBuffer(ciphertext),
 		trustRoot.ptr,
-		C.uint64_t(timestamp.UnixMilli()),
+		C.uint64_t(timestamp),
 		C.CString(localAddress.E164),
 		C.CString(localAddress.UUID.String()),
 		C.uint32_t(localAddress.DeviceID),
