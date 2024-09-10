@@ -607,18 +607,21 @@ func (cli *Client) handleDecryptedResult(
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {
+		logEvt := log.Err(result.Err).
+			Bool("urgent", envelope.GetUrgent()).
+			Uint64("server_ts", envelope.GetServerTimestamp()).
+			Uint64("client_ts", envelope.GetTimestamp())
+		if result.SenderAddress == nil {
+			logEvt.Msg("Decryption error with unknown sender")
+			return nil
+		}
 		theirServiceID, err := result.SenderAddress.NameServiceID()
 		if err != nil {
 			log.Err(err).Msg("Name error handling decryption error")
 		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
 		}
-		log.Err(result.Err).
-			Stringer("sender", theirServiceID).
-			Bool("urgent", envelope.GetUrgent()).
-			Uint64("server_ts", envelope.GetServerTimestamp()).
-			Uint64("client_ts", envelope.GetTimestamp()).
-			Msg("Decryption error")
+		logEvt.Stringer("sender", theirServiceID).Msg("Decryption error with known sender")
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
 		if envelope.GetUrgent() {
