@@ -229,7 +229,7 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 	for _, msg := range dbMessages {
 		userID, timestamp, err := signalid.ParseMessageID(msg.ID)
 		if err != nil {
-			return fmt.Errorf("failed to parse message ID %q: %w", msg.ID, err)
+			continue
 		}
 		messagesToRead[userID] = append(messagesToRead[userID], timestamp)
 	}
