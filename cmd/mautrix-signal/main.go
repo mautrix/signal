@@ -40,7 +40,7 @@ var m = mxmain.BridgeMain{
 	Description: "A Matrix-Signal puppeting bridge.",
 	Version:     "0.7.0",
 
-	Connector: connector.NewConnector(),
+	Connector: &connector.SignalConnector{},
 }
 
 func main() {

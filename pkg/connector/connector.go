@@ -34,17 +34,11 @@ type SignalConnector struct {
 	MsgConv *msgconv.MessageConverter
 	Store   *store.Container
 	Bridge  *bridgev2.Bridge
-	Config  *SignalConfig
+	Config  SignalConfig
 }
 
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
 var _ bridgev2.MaxFileSizeingNetwork = (*SignalConnector)(nil)
-
-func NewConnector() *SignalConnector {
-	return &SignalConnector{
-		Config: &SignalConfig{},
-	}
-}
 
 var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 	DisappearingMessages: true,

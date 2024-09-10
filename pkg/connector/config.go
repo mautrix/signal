@@ -84,5 +84,5 @@ func upgradeConfig(helper up.Helper) {
 }
 
 func (s *SignalConnector) GetConfig() (string, any, up.Upgrader) {
-	return ExampleConfig, s.Config, up.SimpleUpgrader(upgradeConfig)
+	return ExampleConfig, &s.Config, up.SimpleUpgrader(upgradeConfig)
 }
