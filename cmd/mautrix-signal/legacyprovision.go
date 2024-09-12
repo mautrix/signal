@@ -215,7 +215,8 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	api := login.Client.(bridgev2.IdentifierResolvingNetworkAPI)
-	resp, err := api.ResolveIdentifier(r.Context(), mux.Vars(r)["phonenum"], create)
+	phonenum := mux.Vars(r)["phonenum"]
+	resp, err := api.ResolveIdentifier(r.Context(), phonenum, create)
 	if err != nil {
 		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to resolve identifier")
 		JSONResponse(w, http.StatusInternalServerError, &Error{
@@ -234,7 +235,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 	apiResp := &ResolveIdentifierResponse{
 		ChatID: ResolveIdentifierResponseChatID{
 			UUID:   string(resp.UserID),
-			Number: "",
+			Number: phonenum,
 		},
 	}
 	if resp.Ghost != nil {
