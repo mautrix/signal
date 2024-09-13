@@ -65,6 +65,13 @@ func TestParse_HTML(t *testing.T) {
 			Length: 5,
 			Value:  signalfmt.StyleBold,
 		}}},
+		{name: "UnnecessaryWhitespace", in: "<strong>  Hello  </strong>, World!", out: "Hello, World!", ent: signalfmt.BodyRangeList{{
+			Start:  0,
+			Length: 5,
+			Value:  signalfmt.StyleBold,
+		}}},
+		{name: "UnnecessaryWhitespaceParagraph", in: "<p>  Hello  </p>", out: "Hello"},
+		{name: "EmptyParagraph", in: "<p>Hello</p><p>   </p>", out: "Hello"},
 		{
 			name: "MultiBasic",
 			in:   "<strong><em>Hell</em>o</strong>, <del>Wo<span data-mx-spoiler>rld</span></del><code>!</code>",

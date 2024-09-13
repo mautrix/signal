@@ -81,22 +81,26 @@ func (es *EntityString) TrimSpace() *EntityString {
 		return nil
 	}
 	DebugLog("TRIMSPACE %q %+v\n", es.String, es.Entities)
-	var cutEnd, cutStart int
-	for cutStart = 0; cutStart < len(es.String); cutStart++ {
+	cutStart := 0
+	for ; cutStart < len(es.String); cutStart++ {
 		switch es.String[cutStart] {
 		case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xA0:
 			continue
 		}
 		break
 	}
-	for cutEnd = len(es.String) - 1; cutEnd >= 0; cutEnd-- {
-		switch es.String[cutEnd] {
+	cutEnd := len(es.String)
+	for ; cutEnd > cutStart; cutEnd-- {
+		switch es.String[cutEnd-1] {
 		case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xA0:
 			continue
 		}
 		break
 	}
-	cutEnd++
+	if cutEnd == cutStart {
+		DebugLog("  -> EMPTY\n")
+		return NewEntityString("")
+	}
 	if cutStart == 0 && cutEnd == len(es.String) {
 		DebugLog("  -> NOOP\n")
 		return es
