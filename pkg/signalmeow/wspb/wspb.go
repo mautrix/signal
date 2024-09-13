@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/coder/websocket"
 	"google.golang.org/protobuf/proto"
-	"nhooyr.io/websocket"
 )
 
 // Read reads a protobuf message from c into v.
