@@ -1,6 +1,8 @@
 module go.mau.fi/mautrix-signal
 
-go 1.22
+go 1.22.0
+
+toolchain go1.23.1
 
 require (
 	github.com/emersion/go-vcard v0.0.0-20230815062825-8fda7d206ec9
@@ -10,12 +12,12 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
-	go.mau.fi/util v0.7.1-0.20240904173517-ca3b3fe376c2
-	golang.org/x/crypto v0.26.0
-	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948
-	golang.org/x/net v0.28.0
+	go.mau.fi/util v0.7.1-0.20240913091524-7617daa66719
+	golang.org/x/crypto v0.27.0
+	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
+	golang.org/x/net v0.29.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.20.1-0.20240906105454-33d724bf4c78
+	maunium.net/go/mautrix v0.20.1-0.20240913091647-96e68fb485d2
 	nhooyr.io/websocket v1.8.17
 )
 
