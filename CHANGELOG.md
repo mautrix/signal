@@ -1,3 +1,15 @@
+# v0.7.1 (unreleased)
+
+* Updated to libsignal v0.57.1.
+* Added support for Matrix->Signal power level bridging (thanks to [@maltee1] in [#531])
+* Changed voice message conversion to convert to aac instead of m4a,
+  because Signal iOS doesn't appear to like ffmpeg's m4a files.
+* Fixed outgoing sync messages not including disappearing start timestamp,
+  which would cause native clients to disappear messages at the wrong time.
+* Re-added notices about decryption errors.
+
+[#531]: https://github.com/mautrix/signal/pull/531
+
 # v0.7.0 (2024-08-16)
 
 * Bumped minimum Go version to 1.22.
