@@ -23,6 +23,7 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -71,6 +72,14 @@ func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]b
 	body, err := io.ReadAll(bodyReader)
 	if err != nil {
 		return nil, err
+	}
+	if resp.StatusCode > 400 {
+		if json.Valid(body) && len(body) < 4096 {
+			zerolog.Ctx(ctx).Debug().RawJSON("response_data", body).Msg("Failed download response json")
+		} else if len(body) < 1024 {
+			zerolog.Ctx(ctx).Debug().Bytes("response_data", body).Msg("Failed download response data")
+		}
+		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
 	return decryptAttachment(body, a.Key, a.Digest, *a.Size)

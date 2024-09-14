@@ -243,7 +243,10 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTP
 	if err != nil {
 		return nil, err
 	}
-	log.Debug().Msg("Received Attachment HTTP response")
+	log.Debug().
+		Int("status_code", resp.StatusCode).
+		Int64("content_length", resp.ContentLength).
+		Msg("Received Attachment HTTP response")
 
 	return resp, err
 }
