@@ -90,13 +90,6 @@ func MakeGroupPortalID(groupID types.GroupIdentifier) networkid.PortalID {
 	return networkid.PortalID(groupID)
 }
 
-func MakeGroupPortalKey(groupID types.GroupIdentifier) networkid.PortalKey {
-	return networkid.PortalKey{
-		ID:       MakeGroupPortalID(groupID),
-		Receiver: "",
-	}
-}
-
 func MakeDMPortalID(serviceID libsignalgo.ServiceID) networkid.PortalID {
 	return networkid.PortalID(serviceID.String())
 }

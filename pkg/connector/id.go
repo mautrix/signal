@@ -28,7 +28,7 @@ import (
 func (s *SignalClient) makePortalKey(chatID string) networkid.PortalKey {
 	key := networkid.PortalKey{ID: networkid.PortalID(chatID)}
 	// For non-group chats, add receiver
-	if len(chatID) != 44 {
+	if s.Main.Bridge.Config.SplitPortals || len(chatID) != 44 {
 		key.Receiver = s.UserLogin.ID
 	}
 	return key
