@@ -744,9 +744,9 @@ func (cli *Client) handleDecryptedResult(
 				log.Warn().Msg("sync message sent destination is nil")
 			} else if content.SyncMessage.Sent.Message != nil {
 				// TODO handle expiration start ts, and maybe the sync message ts?
-				cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, syncDestinationServiceID)
+				cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
 			} else if content.SyncMessage.Sent.EditMessage != nil {
-				cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID)
+				cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
 			}
 		}
 		if content.SyncMessage.Contacts != nil {
@@ -794,9 +794,9 @@ func (cli *Client) handleDecryptedResult(
 
 	var sendDeliveryReceipt bool
 	if content.DataMessage != nil {
-		sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID)
+		sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
 	} else if content.EditMessage != nil {
-		sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID)
+		sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
 	}
 	if sendDeliveryReceipt {
 		// TODO send delivery receipts after actually bridging instead of here
@@ -814,8 +814,9 @@ func (cli *Client) handleDecryptedResult(
 		}
 		cli.handleEvent(&events.ChatEvent{
 			Info: events.MessageInfo{
-				Sender: theirServiceID.UUID,
-				ChatID: groupOrUserID(groupID, theirServiceID),
+				Sender:          theirServiceID.UUID,
+				ChatID:          groupOrUserID(groupID, theirServiceID),
+				ServerTimestamp: envelope.GetServerTimestamp(),
 			},
 			Event: content.TypingMessage,
 		})
@@ -825,8 +826,9 @@ func (cli *Client) handleDecryptedResult(
 	if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
 		cli.handleEvent(&events.Call{
 			Info: events.MessageInfo{
-				Sender: theirServiceID.UUID,
-				ChatID: theirServiceID.String(),
+				Sender:          theirServiceID.UUID,
+				ChatID:          theirServiceID.String(),
+				ServerTimestamp: envelope.GetServerTimestamp(),
 			},
 			IsRinging: content.CallMessage.Offer != nil,
 		})
@@ -954,7 +956,7 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 	return nil
 }
 
-func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID) bool {
+func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID, serverTimestamp uint64) bool {
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var groupID types.GroupIdentifier
 	var groupRevision uint32
@@ -972,16 +974,17 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 	}
 	cli.handleEvent(&events.ChatEvent{
 		Info: events.MessageInfo{
-			Sender:        messageSenderACI,
-			ChatID:        groupOrUserID(groupID, chatRecipient),
-			GroupRevision: groupRevision,
+			Sender:          messageSenderACI,
+			ChatID:          groupOrUserID(groupID, chatRecipient),
+			GroupRevision:   groupRevision,
+			ServerTimestamp: serverTimestamp,
 		},
 		Event: editMessage,
 	})
 	return true
 }
 
-func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID) bool {
+func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID, serverTimestamp uint64) bool {
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
@@ -1009,9 +1012,10 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 	}
 
 	evtInfo := events.MessageInfo{
-		Sender:        messageSenderACI,
-		ChatID:        groupOrUserID(groupID, chatRecipient),
-		GroupRevision: groupRevision,
+		Sender:          messageSenderACI,
+		ChatID:          groupOrUserID(groupID, chatRecipient),
+		GroupRevision:   groupRevision,
+		ServerTimestamp: serverTimestamp,
 	}
 	// Hacky special case for group calls to cache the state
 	if dataMessage.GroupCallUpdate != nil {
