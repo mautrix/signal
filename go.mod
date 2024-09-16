@@ -13,12 +13,12 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.3
-	go.mau.fi/util v0.7.1-0.20240913091524-7617daa66719
+	go.mau.fi/util v0.8.0
 	golang.org/x/crypto v0.27.0
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0
 	golang.org/x/net v0.29.0
 	google.golang.org/protobuf v1.34.2
-	maunium.net/go/mautrix v0.20.1-0.20240914113211-d86913bd5c51
+	maunium.net/go/mautrix v0.21.0
 )
 
 require (
