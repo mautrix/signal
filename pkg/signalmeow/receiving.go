@@ -624,7 +624,7 @@ func (cli *Client) handleDecryptedResult(
 		logEvt.Stringer("sender", theirServiceID).Msg("Decryption error with known sender")
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
-		if envelope.GetUrgent() {
+		if envelope.GetUrgent() && !strings.Contains(result.Err.Error(), "message with old counter") {
 			cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
 				Err:       result.Err,
