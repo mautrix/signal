@@ -440,6 +440,11 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	if err != nil {
 		return result, fmt.Errorf("failed to get sender certificate: %w", err)
 	}
+	contentHint, err := usmc.GetContentHint()
+	if err != nil {
+		return result, fmt.Errorf("failed to get content hint: %w", err)
+	}
+	result.ContentHint = signalpb.UnidentifiedSenderMessage_Message_ContentHint(contentHint)
 	senderUUID, err := senderCertificate.GetSenderUUID()
 	if err != nil {
 		return result, fmt.Errorf("failed to get sender UUID: %w", err)
@@ -609,6 +614,7 @@ func (cli *Client) handleDecryptedResult(
 	if result.Err != nil {
 		logEvt := log.Err(result.Err).
 			Bool("urgent", envelope.GetUrgent()).
+			Stringer("content_hint", result.ContentHint).
 			Uint64("server_ts", envelope.GetServerTimestamp()).
 			Uint64("client_ts", envelope.GetTimestamp())
 		if result.SenderAddress == nil {
@@ -624,7 +630,9 @@ func (cli *Client) handleDecryptedResult(
 		logEvt.Stringer("sender", theirServiceID).Msg("Decryption error with known sender")
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
-		if envelope.GetUrgent() && !strings.Contains(result.Err.Error(), "message with old counter") {
+		if envelope.GetUrgent() &&
+			result.ContentHint != signalpb.UnidentifiedSenderMessage_Message_IMPLICIT &&
+			!strings.Contains(result.Err.Error(), "message with old counter") {
 			cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
 				Err:       result.Err,
@@ -1046,6 +1054,7 @@ func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps
 type DecryptionResult struct {
 	SenderAddress *libsignalgo.Address
 	Content       *signalpb.Content
+	ContentHint   signalpb.UnidentifiedSenderMessage_Message_ContentHint
 	SealedSender  bool
 	Err           error
 }
