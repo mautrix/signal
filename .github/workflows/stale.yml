@@ -25,5 +25,5 @@ jobs:
       - name: Log processed threads
         run: |
           if [ '${{ steps.lock.outputs.issues }}' ]; then
-            echo "Issues:" && echo '${{ steps.lock.outputs.issues }}' | jq .
+            echo "Issues:" && echo '${{ steps.lock.outputs.issues }}' | jq -r '.[] | "https://github.com/\(.owner)/\(.repo)/issues/\(.issue_number)"'
           fi
