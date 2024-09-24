@@ -42,7 +42,7 @@ func NewSealedSenderAddress(e164 string, uuid uuid.UUID, deviceID uint32) *Seale
 	}
 }
 
-func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, forAddress *Address, fromSenderCert *SenderCertificate, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
+func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, contentHint UnidentifiedSenderMessageContentHint, forAddress *Address, fromSenderCert *SenderCertificate, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
 	ciphertextMessage, err := Encrypt(ctx, message, forAddress, sessionStore, identityStore)
 	if err != nil {
 		return nil, err
@@ -51,7 +51,7 @@ func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, forAddres
 	usmc, err := NewUnidentifiedSenderMessageContent(
 		ciphertextMessage,
 		fromSenderCert,
-		UnidentifiedSenderMessageContentHintDefault,
+		contentHint,
 		nil,
 	)
 	if err != nil {

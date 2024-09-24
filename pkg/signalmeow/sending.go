@@ -83,7 +83,7 @@ type MyMessage struct {
 }
 
 type MyMessages struct {
-	Timestamp int64       `json:"timestamp"`
+	Timestamp uint64      `json:"timestamp"`
 	Online    bool        `json:"online"`
 	Urgent    bool        `json:"urgent"`
 	Messages  []MyMessage `json:"messages"`
@@ -212,7 +212,7 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalg
 		var envelopeType int
 		var encryptedPayload []byte
 		if unauthenticated {
-			envelopeType, encryptedPayload, err = cli.buildSSMessageToSend(ctx, recipientAddress, paddedMessage)
+			envelopeType, encryptedPayload, err = cli.buildSSMessageToSend(ctx, recipientAddress, paddedMessage, getContentHint(content))
 		} else {
 			envelopeType, encryptedPayload, err = cli.buildAuthedMessageToSend(ctx, recipientAddress, paddedMessage)
 		}
@@ -264,7 +264,7 @@ func (cli *Client) buildAuthedMessageToSend(ctx context.Context, recipientAddres
 	return envelopeType, encryptedPayload, nil
 }
 
-func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
+func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte, contentHint libsignalgo.UnidentifiedSenderMessageContentHint) (envelopeType int, encryptedPayload []byte, err error) {
 	cert, err := cli.senderCertificate(ctx)
 	if err != nil {
 		return 0, nil, err
@@ -272,6 +272,7 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 	encryptedPayload, err = libsignalgo.SealedSenderEncryptPlaintext(
 		ctx,
 		paddedMessage,
+		contentHint,
 		recipientAddress,
 		cert,
 		cli.Store.ACISessionStore,
@@ -782,6 +783,29 @@ func currentMessageTimestamp() uint64 {
 	return uint64(time.Now().UnixMilli())
 }
 
+func isSyncMessageUrgent(content *signalpb.SyncMessage) bool {
+	return content.Sent != nil || content.Request != nil
+}
+
+func isUrgent(content *signalpb.Content) bool {
+	return content.DataMessage != nil ||
+		content.CallMessage != nil ||
+		content.StoryMessage != nil ||
+		content.EditMessage != nil ||
+		(content.SyncMessage != nil && isSyncMessageUrgent(content.SyncMessage))
+}
+
+func getContentHint(content *signalpb.Content) libsignalgo.UnidentifiedSenderMessageContentHint {
+	if content.DataMessage != nil || content.EditMessage != nil {
+		// TODO add support for resending before setting this
+		//return libsignalgo.UnidentifiedSenderMessageContentHintResendable
+	}
+	if content.TypingMessage != nil || content.ReceiptMessage != nil {
+		return libsignalgo.UnidentifiedSenderMessageContentHintImplicit
+	}
+	return libsignalgo.UnidentifiedSenderMessageContentHintDefault
+}
+
 func (cli *Client) sendContent(
 	ctx context.Context,
 	recipient libsignalgo.ServiceID,
@@ -845,9 +869,9 @@ func (cli *Client) sendContent(
 	}
 
 	outgoingMessages := MyMessages{
-		Timestamp: int64(messageTimestamp),
+		Timestamp: messageTimestamp,
 		Online:    false,
-		Urgent:    true,
+		Urgent:    isUrgent(content),
 		Messages:  messages,
 	}
 	jsonBytes, err := json.Marshal(outgoingMessages)
