@@ -18,6 +18,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: dessant/lock-threads@v5
+        id: lock
         with:
           issue-inactive-days: 90
           process-only: issues
+      - name: Log processed threads
+        run: |
+          if [ '${{ steps.lock.outputs.issues }}' ]; then
+            echo "Issues:" && echo '${{ steps.lock.outputs.issues }}' | jq .
+          fi
