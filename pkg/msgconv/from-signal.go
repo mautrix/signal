@@ -28,7 +28,6 @@ import (
 	"github.com/emersion/go-vcard"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/exfmt"
 	"go.mau.fi/util/exmime"
 	"go.mau.fi/util/ffmpeg"
 	"maunium.net/go/mautrix/bridgev2"
@@ -153,14 +152,8 @@ func (mc *MessageConverter) ToMatrix(
 
 func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.Context, timer uint32, timerVersion *uint32, updatePortal bool) *bridgev2.ConvertedMessagePart {
 	part := &bridgev2.ConvertedMessagePart{
-		Type: event.EventMessage,
-		Content: &event.MessageEventContent{
-			MsgType: event.MsgNotice,
-			Body:    fmt.Sprintf("Disappearing messages set to %s", exfmt.Duration(time.Duration(timer)*time.Second)),
-		},
-	}
-	if timer == 0 {
-		part.Content.Body = "Disappearing messages disabled"
+		Type:    event.EventMessage,
+		Content: bridgev2.DisappearingMessageNotice(time.Duration(timer)*time.Second, false),
 	}
 	if updatePortal {
 		portal := getPortal(ctx)
