@@ -190,7 +190,7 @@ func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
 			UUID:    string(res.CompleteParams.UserLogin.ID),
 			Number:  res.CompleteParams.UserLogin.RemoteName,
 		})
-		go handleLoginComplete(r.Context(), login.User, res.CompleteParams.UserLogin)
+		go handleLoginComplete(context.WithoutCancel(r.Context()), login.User, res.CompleteParams.UserLogin)
 	}
 	login.Delete()
 }
