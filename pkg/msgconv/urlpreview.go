@@ -78,13 +78,6 @@ func (mc *MessageConverter) convertURLPreviewToSignal(ctx context.Context, conte
 				zerolog.Ctx(ctx).Err(err).Int("preview_index", i).Msg("Failed to download URL preview image")
 				continue
 			}
-			if preview.ImageEncryption != nil {
-				err = preview.ImageEncryption.DecryptInPlace(data)
-				if err != nil {
-					zerolog.Ctx(ctx).Err(err).Int("preview_index", i).Msg("Failed to decrypt URL preview image")
-					continue
-				}
-			}
 			uploaded, err := getClient(ctx).UploadAttachment(ctx, data)
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).Int("preview_index", i).Msg("Failed to reupload URL preview image")
