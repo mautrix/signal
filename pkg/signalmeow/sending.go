@@ -41,16 +41,27 @@ import (
 
 // Sending
 
-func (cli *Client) senderCertificate(ctx context.Context) (*libsignalgo.SenderCertificate, error) {
-	if cli.SenderCertificate != nil {
-		expiry, err := cli.SenderCertificate.GetExpiration()
+func (cli *Client) senderCertificate(ctx context.Context, e164 bool) (*libsignalgo.SenderCertificate, error) {
+	cached := cli.SenderCertificateNoE164
+	if e164 {
+		cached = cli.SenderCertificateWithE164
+	}
+	setCache := func(val *libsignalgo.SenderCertificate) {
+		if e164 {
+			cli.SenderCertificateWithE164 = val
+		} else {
+			cli.SenderCertificateNoE164 = val
+		}
+	}
+	if cached != nil {
+		expiry, err := cached.GetExpiration()
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to check sender certificate expiry")
 		} else if time.Until(expiry) < 1*exfmt.Day {
 			zerolog.Ctx(ctx).Debug().Msg("Sender certificate expired, fetching new one")
-			cli.SenderCertificate = nil
+			setCache(nil)
 		} else {
-			return cli.SenderCertificate, nil
+			return cached, nil
 		}
 	}
 
@@ -61,7 +72,11 @@ func (cli *Client) senderCertificate(ctx context.Context) (*libsignalgo.SenderCe
 
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v1/certificate/delivery", opts)
+	var query string
+	if !e164 {
+		query = "?includeE164=false"
+	}
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v1/certificate/delivery"+query, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +86,7 @@ func (cli *Client) senderCertificate(ctx context.Context) (*libsignalgo.SenderCe
 	}
 
 	cert, err := libsignalgo.DeserializeSenderCertificate(r.Certificate)
-	cli.SenderCertificate = cert
+	setCache(cert)
 	return cert, err
 }
 
@@ -164,7 +179,7 @@ func (cli *Client) howManyOtherDevicesDoWeHave(ctx context.Context) int {
 	return otherDevices
 }
 
-func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalgo.ServiceID, content *signalpb.Content, unauthenticated bool) ([]MyMessage, error) {
+func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalgo.ServiceID, content *signalpb.Content, unauthenticated, isGroup bool) ([]MyMessage, error) {
 	// We need to prevent multiple encryption operations from happening at once, or else ratchets can race
 	cli.encryptionLock.Lock()
 	defer cli.encryptionLock.Unlock()
@@ -212,7 +227,10 @@ func (cli *Client) buildMessagesToSend(ctx context.Context, recipient libsignalg
 		var envelopeType int
 		var encryptedPayload []byte
 		if unauthenticated {
-			envelopeType, encryptedPayload, err = cli.buildSSMessageToSend(ctx, recipientAddress, paddedMessage, getContentHint(content))
+			includeE164 := !isGroup && cli.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY
+			envelopeType, encryptedPayload, err = cli.buildSSMessageToSend(
+				ctx, recipientAddress, paddedMessage, getContentHint(content), includeE164,
+			)
 		} else {
 			envelopeType, encryptedPayload, err = cli.buildAuthedMessageToSend(ctx, recipientAddress, paddedMessage)
 		}
@@ -264,8 +282,8 @@ func (cli *Client) buildAuthedMessageToSend(ctx context.Context, recipientAddres
 	return envelopeType, encryptedPayload, nil
 }
 
-func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte, contentHint libsignalgo.UnidentifiedSenderMessageContentHint) (envelopeType int, encryptedPayload []byte, err error) {
-	cert, err := cli.senderCertificate(ctx)
+func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte, contentHint libsignalgo.UnidentifiedSenderMessageContentHint, includeE164 bool) (envelopeType int, encryptedPayload []byte, err error) {
+	cert, err := cli.senderCertificate(ctx, includeE164)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -444,7 +462,7 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
 			},
 		},
-	}, 0, false)
+	}, 0, false, false)
 	if err != nil {
 		log.Err(err).Msg("Failed to send contact sync request message to myself")
 		return err
@@ -464,7 +482,7 @@ func (cli *Client) SendStorageMasterKeyRequest(ctx context.Context) error {
 				Type: signalpb.SyncMessage_Request_KEYS.Enum(),
 			},
 		},
-	}, 0, false)
+	}, 0, false, false)
 	if err != nil {
 		log.Err(err).Msg("Failed to send key sync request message to myself")
 		return err
@@ -617,7 +635,7 @@ func (cli *Client) sendToGroup(ctx context.Context, recipients []*libsignalgo.Se
 		}
 		log := zerolog.Ctx(ctx).With().Stringer("member", *recipient).Logger()
 		ctx := log.WithContext(ctx)
-		sentUnidentified, err := cli.sendContent(ctx, *recipient, messageTimestamp, content, 0, true)
+		sentUnidentified, err := cli.sendContent(ctx, *recipient, messageTimestamp, content, 0, true, true)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
 				Recipient: *recipient,
@@ -641,7 +659,7 @@ func (cli *Client) sendToGroup(ctx context.Context, recipients []*libsignalgo.Se
 		} else if content.GetEditMessage() != nil {
 			syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
 		}
-		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true)
+		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true, true)
 		if selfSendErr != nil {
 			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 		}
@@ -670,7 +688,7 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.Recipient)
 		}
 		if syncContent != nil {
-			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true)
+			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true, false)
 			if selfSendErr != nil {
 				zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 			} else {
@@ -745,7 +763,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	}
 
 	// Send to the recipient
-	sentUnidentified, err := cli.sendContent(ctx, recipientID, messageTimestamp, content, 0, true)
+	sentUnidentified, err := cli.sendContent(ctx, recipientID, messageTimestamp, content, 0, true, false)
 	if err != nil {
 		return SendMessageResult{
 			WasSuccessful: false,
@@ -813,6 +831,7 @@ func (cli *Client) sendContent(
 	content *signalpb.Content,
 	retryCount int,
 	useUnidentifiedSender bool,
+	isGroup bool,
 ) (sentUnidentified bool, err error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send content").
@@ -862,7 +881,7 @@ func (cli *Client) sendContent(
 	}
 
 	var messages []MyMessage
-	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender)
+	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender, isGroup)
 	if err != nil {
 		log.Err(err).Msg("Error building messages to send")
 		return false, err
@@ -931,7 +950,7 @@ func (cli *Client) sendContent(
 			return false, err
 		}
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, sentUnidentified)
+		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, sentUnidentified, isGroup)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
@@ -939,7 +958,7 @@ func (cli *Client) sendContent(
 	} else if *response.Status == 401 && useUnidentifiedSender {
 		log.Debug().Msg("Retrying send without sealed sender")
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, false)
+		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, false, isGroup)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err

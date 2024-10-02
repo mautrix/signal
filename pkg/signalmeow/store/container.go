@@ -9,8 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/dbutil"
+	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store/upgrades"
 )
 
@@ -35,7 +37,7 @@ const getAllDevicesQuery = `
 SELECT
 	aci_uuid, aci_identity_key_pair, registration_id,
 	pni_uuid, pni_identity_key_pair, pni_registration_id,
-	device_id, number, password, master_key
+	device_id, number, password, master_key, account_record
 FROM signalmeow_device
 `
 
@@ -48,12 +50,13 @@ func (c *Container) Upgrade(ctx context.Context) error {
 
 func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	var device Device
-	var aciIdentityKeyPair, pniIdentityKeyPair []byte
+	var aciIdentityKeyPair, pniIdentityKeyPair, accountRecordBytes []byte
 
 	err := row.Scan(
 		&device.ACI, &aciIdentityKeyPair, &device.ACIRegistrationID,
 		&device.PNI, &pniIdentityKeyPair, &device.PNIRegistrationID,
 		&device.DeviceID, &device.Number, &device.Password, &device.MasterKey,
+		&accountRecordBytes,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan session: %w", err)
@@ -69,6 +72,13 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 
 	if len(device.MasterKey) == 0 {
 		device.MasterKey = nil
+	}
+	if len(accountRecordBytes) > 0 {
+		device.AccountRecord = &signalpb.AccountRecord{}
+		err = proto.Unmarshal(accountRecordBytes, device.AccountRecord)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal account record: %w", err)
+		}
 	}
 	baseStore := &sqlStore{Container: c, AccountID: device.ACI}
 	aciStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.ACIServiceID()}
@@ -137,9 +147,9 @@ const (
 		INSERT INTO signalmeow_device (
 			aci_uuid, aci_identity_key_pair, registration_id,
 			pni_uuid, pni_identity_key_pair, pni_registration_id,
-			device_id, number, password, master_key
+			device_id, number, password, master_key, account_record
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (aci_uuid) DO UPDATE SET
 			aci_identity_key_pair=excluded.aci_identity_key_pair,
 			registration_id=excluded.registration_id,
@@ -149,7 +159,8 @@ const (
 			device_id=excluded.device_id,
 			number=excluded.number,
 			password=excluded.password,
-			master_key=excluded.master_key
+			master_key=excluded.master_key,
+			account_record=excluded.account_record
 	`
 	deleteDeviceQuery = `DELETE FROM signalmeow_device WHERE aci_uuid=$1`
 )
@@ -172,10 +183,18 @@ func (c *Container) PutDevice(ctx context.Context, device *DeviceData) error {
 		zerolog.Ctx(ctx).Err(err).Msg("failed to serialize pni identity key pair")
 		return err
 	}
+	var accountRecordBytes []byte
+	if device.AccountRecord != nil {
+		accountRecordBytes, err = proto.Marshal(device.AccountRecord)
+		if err != nil {
+			return fmt.Errorf("failed to marshal account record: %w", err)
+		}
+	}
 	_, err = c.db.Exec(ctx, insertDeviceQuery,
 		device.ACI, aciIdentityKeyPair, device.ACIRegistrationID,
 		device.PNI, pniIdentityKeyPair, device.PNIRegistrationID,
 		device.DeviceID, device.Number, device.Password, device.MasterKey,
+		accountRecordBytes,
 	)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("failed to insert device")

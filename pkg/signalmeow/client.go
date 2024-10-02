@@ -34,13 +34,14 @@ import (
 type Client struct {
 	Store *store.Device
 
-	SenderCertificate      *libsignalgo.SenderCertificate
-	GroupCredentials       *GroupCredentials
-	GroupCache             *GroupCache
-	ProfileCache           *ProfileCache
-	GroupCallCache         *map[string]bool
-	LastContactRequestTime time.Time
-	SyncContactsOnConnect  bool
+	SenderCertificateWithE164 *libsignalgo.SenderCertificate
+	SenderCertificateNoE164   *libsignalgo.SenderCertificate
+	GroupCredentials          *GroupCredentials
+	GroupCache                *GroupCache
+	ProfileCache              *ProfileCache
+	GroupCallCache            *map[string]bool
+	LastContactRequestTime    time.Time
+	SyncContactsOnConnect     bool
 
 	encryptionLock sync.Mutex
 

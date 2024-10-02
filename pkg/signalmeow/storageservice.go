@@ -102,7 +102,13 @@ func (cli *Client) SyncStorage(ctx context.Context) {
 			}
 		case *signalpb.StorageRecord_Account:
 			log.Trace().Any("account_record", data.Account).Msg("Found account record")
-			// There's probably some useful data here
+			cli.Store.AccountRecord = data.Account
+			err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
+			if err != nil {
+				log.Err(err).Msg("Failed to save device after receiving account record")
+			} else {
+				log.Debug().Msg("Saved device after receiving account record")
+			}
 		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
 			// irrelevant data
 		default:

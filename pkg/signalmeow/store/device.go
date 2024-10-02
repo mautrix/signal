@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
 type sqlStore struct {
@@ -35,6 +36,7 @@ type DeviceData struct {
 	Number             string
 	Password           string
 	MasterKey          []byte
+	AccountRecord      *signalpb.AccountRecord
 }
 
 func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {
