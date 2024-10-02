@@ -40,7 +40,8 @@ type MessageInfo struct {
 	Sender uuid.UUID
 	ChatID string
 
-	GroupRevision uint32
+	GroupRevision   uint32
+	ServerTimestamp uint64
 }
 
 type ChatEvent struct {
