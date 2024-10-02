@@ -17,6 +17,7 @@
 package signalmeow
 
 import (
+	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
@@ -281,25 +282,19 @@ func decryptBytes(key []byte, encryptedText []byte) ([]byte, error) {
 	}
 	nonce := encryptedText[:NONCE_LENGTH]
 	ciphertext := encryptedText[NONCE_LENGTH:]
-	padded, err := AesgcmDecrypt(key, nonce, ciphertext, []byte{})
+	decrypted, err := AesgcmDecrypt(key, nonce, ciphertext, []byte{})
 	if err != nil {
 		return nil, err
 	}
-	paddedLength := len(padded)
-	plaintextLength := 0
-	for i := paddedLength - 1; i >= 0; i-- {
-		if padded[i] != byte(0) {
-			plaintextLength = i + 1
-			break
-		}
-	}
-	returnString := padded[:plaintextLength]
-	return returnString, nil
+	return decrypted, nil
 }
 
 func decryptString(key *libsignalgo.ProfileKey, encryptedText []byte) (string, error) {
 	data, err := decryptBytes(key[:], encryptedText)
-	return string(data), err
+	if err != nil {
+		return "", err
+	}
+	return string(bytes.TrimRight(data, "\x00")), nil
 }
 
 func encryptString(key libsignalgo.ProfileKey, plaintext string, paddedLength int) ([]byte, error) {
