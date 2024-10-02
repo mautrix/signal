@@ -1467,18 +1467,15 @@ type SyncMessage_CallLinkUpdate_Type int32
 
 const (
 	SyncMessage_CallLinkUpdate_UPDATE SyncMessage_CallLinkUpdate_Type = 0
-	SyncMessage_CallLinkUpdate_DELETE SyncMessage_CallLinkUpdate_Type = 1
 )
 
 // Enum value maps for SyncMessage_CallLinkUpdate_Type.
 var (
 	SyncMessage_CallLinkUpdate_Type_name = map[int32]string{
 		0: "UPDATE",
-		1: "DELETE",
 	}
 	SyncMessage_CallLinkUpdate_Type_value = map[string]int32{
 		"UPDATE": 0,
-		"DELETE": 1,
 	}
 )
 

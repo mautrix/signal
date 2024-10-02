@@ -630,7 +630,7 @@ message SyncMessage {
   message CallLinkUpdate {
     enum Type {
       UPDATE = 0;
-      DELETE = 1;
+      reserved 1; // was DELETE, superseded by storage service
     }
 
     optional bytes rootKey      = 1;
@@ -819,17 +819,17 @@ message GroupDetails {
     optional string e164  = 2;
   }
 
-  optional bytes  id            = 1;
-  optional string name          = 2;
-  repeated string membersE164   = 3;
-  repeated Member members       = 9;
-  optional Avatar avatar        = 4;
-  optional bool   active        = 5 [default = true];
-  optional uint32 expireTimer   = 6;
-  optional string color         = 7;
-  optional bool   blocked       = 8;
-  optional uint32 inboxPosition = 10;
-  optional bool   archived      = 11;
+  optional bytes  id                 = 1;
+  optional string name               = 2;
+  repeated string membersE164        = 3;
+  repeated Member members            = 9;
+  optional Avatar avatar             = 4;
+  optional bool   active             = 5 [default = true];
+  optional uint32 expireTimer        = 6;
+  optional string color              = 7;
+  optional bool   blocked            = 8;
+  optional uint32 inboxPosition      = 10;
+  optional bool   archived           = 11;
 }
 
 message PaymentAddress {

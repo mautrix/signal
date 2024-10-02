@@ -85,6 +85,7 @@ const (
 	ManifestRecord_Identifier_GROUPV2                 ManifestRecord_Identifier_Type = 3
 	ManifestRecord_Identifier_ACCOUNT                 ManifestRecord_Identifier_Type = 4
 	ManifestRecord_Identifier_STORY_DISTRIBUTION_LIST ManifestRecord_Identifier_Type = 5
+	ManifestRecord_Identifier_CALL_LINK               ManifestRecord_Identifier_Type = 7
 )
 
 // Enum value maps for ManifestRecord_Identifier_Type.
@@ -96,6 +97,7 @@ var (
 		3: "GROUPV2",
 		4: "ACCOUNT",
 		5: "STORY_DISTRIBUTION_LIST",
+		7: "CALL_LINK",
 	}
 	ManifestRecord_Identifier_Type_value = map[string]int32{
 		"UNKNOWN":                 0,
@@ -104,6 +106,7 @@ var (
 		"GROUPV2":                 3,
 		"ACCOUNT":                 4,
 		"STORY_DISTRIBUTION_LIST": 5,
+		"CALL_LINK":               7,
 	}
 )
 
@@ -698,6 +701,7 @@ type StorageRecord struct {
 	//	*StorageRecord_GroupV2
 	//	*StorageRecord_Account
 	//	*StorageRecord_StoryDistributionList
+	//	*StorageRecord_CallLink
 	Record isStorageRecord_Record `protobuf_oneof:"record"`
 }
 
@@ -775,6 +779,13 @@ func (x *StorageRecord) GetStoryDistributionList() *StoryDistributionListRecord 
 	return nil
 }
 
+func (x *StorageRecord) GetCallLink() *CallLinkRecord {
+	if x, ok := x.GetRecord().(*StorageRecord_CallLink); ok {
+		return x.CallLink
+	}
+	return nil
+}
+
 type isStorageRecord_Record interface {
 	isStorageRecord_Record()
 }
@@ -799,6 +810,10 @@ type StorageRecord_StoryDistributionList struct {
 	StoryDistributionList *StoryDistributionListRecord `protobuf:"bytes,5,opt,name=storyDistributionList,proto3,oneof"`
 }
 
+type StorageRecord_CallLink struct {
+	CallLink *CallLinkRecord `protobuf:"bytes,7,opt,name=callLink,proto3,oneof"`
+}
+
 func (*StorageRecord_Contact) isStorageRecord_Record() {}
 
 func (*StorageRecord_GroupV1) isStorageRecord_Record() {}
@@ -808,6 +823,8 @@ func (*StorageRecord_GroupV2) isStorageRecord_Record() {}
 func (*StorageRecord_Account) isStorageRecord_Record() {}
 
 func (*StorageRecord_StoryDistributionList) isStorageRecord_Record() {}
+
+func (*StorageRecord_CallLink) isStorageRecord_Record() {}
 
 type ContactRecord struct {
 	state         protoimpl.MessageState
@@ -1667,6 +1684,69 @@ func (x *StoryDistributionListRecord) GetIsBlockList() bool {
 	return false
 }
 
+type CallLinkRecord struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	RootKey              []byte `protobuf:"bytes,1,opt,name=rootKey,proto3" json:"rootKey,omitempty"`
+	AdminPasskey         []byte `protobuf:"bytes,2,opt,name=adminPasskey,proto3" json:"adminPasskey,omitempty"`
+	DeletedAtTimestampMs uint64 `protobuf:"varint,3,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"`
+}
+
+func (x *CallLinkRecord) Reset() {
+	*x = CallLinkRecord{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_StorageService_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *CallLinkRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CallLinkRecord) ProtoMessage() {}
+
+func (x *CallLinkRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CallLinkRecord.ProtoReflect.Descriptor instead.
+func (*CallLinkRecord) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *CallLinkRecord) GetRootKey() []byte {
+	if x != nil {
+		return x.RootKey
+	}
+	return nil
+}
+
+func (x *CallLinkRecord) GetAdminPasskey() []byte {
+	if x != nil {
+		return x.AdminPasskey
+	}
+	return nil
+}
+
+func (x *CallLinkRecord) GetDeletedAtTimestampMs() uint64 {
+	if x != nil {
+		return x.DeletedAtTimestampMs
+	}
+	return 0
+}
+
 type ManifestRecord_Identifier struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -1679,7 +1759,7 @@ type ManifestRecord_Identifier struct {
 func (x *ManifestRecord_Identifier) Reset() {
 	*x = ManifestRecord_Identifier{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_StorageService_proto_msgTypes[13]
+		mi := &file_StorageService_proto_msgTypes[14]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1692,7 +1772,7 @@ func (x *ManifestRecord_Identifier) String() string {
 func (*ManifestRecord_Identifier) ProtoMessage() {}
 
 func (x *ManifestRecord_Identifier) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[13]
+	mi := &file_StorageService_proto_msgTypes[14]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1734,7 +1814,7 @@ type ContactRecord_Name struct {
 func (x *ContactRecord_Name) Reset() {
 	*x = ContactRecord_Name{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_StorageService_proto_msgTypes[14]
+		mi := &file_StorageService_proto_msgTypes[15]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1747,7 +1827,7 @@ func (x *ContactRecord_Name) String() string {
 func (*ContactRecord_Name) ProtoMessage() {}
 
 func (x *ContactRecord_Name) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_StorageService_proto_msgTypes[15]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1793,7 +1873,7 @@ type AccountRecord_PinnedConversation struct {
 func (x *AccountRecord_PinnedConversation) Reset() {
 	*x = AccountRecord_PinnedConversation{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_StorageService_proto_msgTypes[15]
+		mi := &file_StorageService_proto_msgTypes[16]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1806,7 +1886,7 @@ func (x *AccountRecord_PinnedConversation) String() string {
 func (*AccountRecord_PinnedConversation) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_StorageService_proto_msgTypes[16]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1887,7 +1967,7 @@ type AccountRecord_UsernameLink struct {
 func (x *AccountRecord_UsernameLink) Reset() {
 	*x = AccountRecord_UsernameLink{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_StorageService_proto_msgTypes[16]
+		mi := &file_StorageService_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1900,7 +1980,7 @@ func (x *AccountRecord_UsernameLink) String() string {
 func (*AccountRecord_UsernameLink) ProtoMessage() {}
 
 func (x *AccountRecord_UsernameLink) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_StorageService_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1949,7 +2029,7 @@ type AccountRecord_PinnedConversation_Contact struct {
 func (x *AccountRecord_PinnedConversation_Contact) Reset() {
 	*x = AccountRecord_PinnedConversation_Contact{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_StorageService_proto_msgTypes[17]
+		mi := &file_StorageService_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1962,7 +2042,7 @@ func (x *AccountRecord_PinnedConversation_Contact) String() string {
 func (*AccountRecord_PinnedConversation_Contact) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_StorageService_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2010,7 +2090,7 @@ func file_StorageService_proto_rawDescGZIP() []byte {
 }
 
 var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_StorageService_proto_goTypes = []any{
 	(OptionalBool)(0),                                // 0: signalservice.OptionalBool
 	(ManifestRecord_Identifier_Type)(0),              // 1: signalservice.ManifestRecord.Identifier.Type
@@ -2031,38 +2111,40 @@ var file_StorageService_proto_goTypes = []any{
 	(*Payments)(nil),                                 // 16: signalservice.Payments
 	(*AccountRecord)(nil),                            // 17: signalservice.AccountRecord
 	(*StoryDistributionListRecord)(nil),              // 18: signalservice.StoryDistributionListRecord
-	(*ManifestRecord_Identifier)(nil),                // 19: signalservice.ManifestRecord.Identifier
-	(*ContactRecord_Name)(nil),                       // 20: signalservice.ContactRecord.Name
-	(*AccountRecord_PinnedConversation)(nil),         // 21: signalservice.AccountRecord.PinnedConversation
-	(*AccountRecord_UsernameLink)(nil),               // 22: signalservice.AccountRecord.UsernameLink
-	(*AccountRecord_PinnedConversation_Contact)(nil), // 23: signalservice.AccountRecord.PinnedConversation.Contact
+	(*CallLinkRecord)(nil),                           // 19: signalservice.CallLinkRecord
+	(*ManifestRecord_Identifier)(nil),                // 20: signalservice.ManifestRecord.Identifier
+	(*ContactRecord_Name)(nil),                       // 21: signalservice.ContactRecord.Name
+	(*AccountRecord_PinnedConversation)(nil),         // 22: signalservice.AccountRecord.PinnedConversation
+	(*AccountRecord_UsernameLink)(nil),               // 23: signalservice.AccountRecord.UsernameLink
+	(*AccountRecord_PinnedConversation_Contact)(nil), // 24: signalservice.AccountRecord.PinnedConversation.Contact
 }
 var file_StorageService_proto_depIdxs = []int32{
 	7,  // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
 	6,  // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
 	7,  // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
-	19, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
+	20, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
 	13, // 4: signalservice.StorageRecord.contact:type_name -> signalservice.ContactRecord
 	14, // 5: signalservice.StorageRecord.groupV1:type_name -> signalservice.GroupV1Record
 	15, // 6: signalservice.StorageRecord.groupV2:type_name -> signalservice.GroupV2Record
 	17, // 7: signalservice.StorageRecord.account:type_name -> signalservice.AccountRecord
 	18, // 8: signalservice.StorageRecord.storyDistributionList:type_name -> signalservice.StoryDistributionListRecord
-	2,  // 9: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
-	20, // 10: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
-	3,  // 11: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
-	4,  // 12: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
-	21, // 13: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
-	16, // 14: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
-	0,  // 15: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
-	22, // 16: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
-	1,  // 17: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
-	23, // 18: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	5,  // 19: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	19, // 9: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
+	2,  // 10: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
+	21, // 11: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
+	3,  // 12: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
+	4,  // 13: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
+	22, // 14: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
+	16, // 15: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
+	0,  // 16: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
+	23, // 17: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
+	1,  // 18: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
+	24, // 19: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
+	5,  // 20: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_StorageService_proto_init() }
@@ -2228,7 +2310,7 @@ func file_StorageService_proto_init() {
 			}
 		}
 		file_StorageService_proto_msgTypes[13].Exporter = func(v any, i int) any {
-			switch v := v.(*ManifestRecord_Identifier); i {
+			switch v := v.(*CallLinkRecord); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2240,7 +2322,7 @@ func file_StorageService_proto_init() {
 			}
 		}
 		file_StorageService_proto_msgTypes[14].Exporter = func(v any, i int) any {
-			switch v := v.(*ContactRecord_Name); i {
+			switch v := v.(*ManifestRecord_Identifier); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2252,7 +2334,7 @@ func file_StorageService_proto_init() {
 			}
 		}
 		file_StorageService_proto_msgTypes[15].Exporter = func(v any, i int) any {
-			switch v := v.(*AccountRecord_PinnedConversation); i {
+			switch v := v.(*ContactRecord_Name); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2264,7 +2346,7 @@ func file_StorageService_proto_init() {
 			}
 		}
 		file_StorageService_proto_msgTypes[16].Exporter = func(v any, i int) any {
-			switch v := v.(*AccountRecord_UsernameLink); i {
+			switch v := v.(*AccountRecord_PinnedConversation); i {
 			case 0:
 				return &v.state
 			case 1:
@@ -2276,6 +2358,18 @@ func file_StorageService_proto_init() {
 			}
 		}
 		file_StorageService_proto_msgTypes[17].Exporter = func(v any, i int) any {
+			switch v := v.(*AccountRecord_UsernameLink); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_StorageService_proto_msgTypes[18].Exporter = func(v any, i int) any {
 			switch v := v.(*AccountRecord_PinnedConversation_Contact); i {
 			case 0:
 				return &v.state
@@ -2294,8 +2388,9 @@ func file_StorageService_proto_init() {
 		(*StorageRecord_GroupV2)(nil),
 		(*StorageRecord_Account)(nil),
 		(*StorageRecord_StoryDistributionList)(nil),
+		(*StorageRecord_CallLink)(nil),
 	}
-	file_StorageService_proto_msgTypes[15].OneofWrappers = []any{
+	file_StorageService_proto_msgTypes[16].OneofWrappers = []any{
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
@@ -2306,7 +2401,7 @@ func file_StorageService_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_StorageService_proto_rawDesc,
 			NumEnums:      6,
-			NumMessages:   18,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
