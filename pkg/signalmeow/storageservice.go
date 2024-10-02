@@ -40,7 +40,8 @@ import (
 )
 
 func (cli *Client) SyncStorage(ctx context.Context) {
-	log := zerolog.Ctx(ctx).With().Str("action", "sync storage").Logger()
+	log := cli.Log.With().Str("action", "sync storage").Logger()
+	ctx = log.WithContext(ctx)
 	// TODO only fetch changed entries
 	update, err := cli.FetchStorage(ctx, cli.Store.MasterKey, 0, nil)
 	if err != nil {
@@ -112,7 +113,7 @@ func (cli *Client) SyncStorage(ctx context.Context) {
 		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
 			// irrelevant data
 		default:
-			log.Warn().Str("type", fmt.Sprintf("%T", data)).Msg("Unknown storage record type")
+			log.Warn().Type("type", data).Str("item_id", record.StorageID).Msg("Unknown storage record type")
 		}
 	}
 }

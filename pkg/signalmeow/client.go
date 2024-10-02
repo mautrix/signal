@@ -33,6 +33,7 @@ import (
 
 type Client struct {
 	Store *store.Device
+	Log   zerolog.Logger
 
 	SenderCertificateWithE164 *libsignalgo.SenderCertificate
 	SenderCertificateNoE164   *libsignalgo.SenderCertificate

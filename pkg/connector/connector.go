@@ -100,6 +100,7 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 	if device != nil {
 		sc.Client = &signalmeow.Client{
 			Store:        device,
+			Log:          sc.UserLogin.Log.With().Str("component", "signalmeow").Logger(),
 			EventHandler: sc.handleSignalEvent,
 
 			SyncContactsOnConnect: s.Config.SyncContactsOnStartup,
