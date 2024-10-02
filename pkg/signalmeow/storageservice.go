@@ -252,29 +252,44 @@ func (cli *Client) fetchStorageRecords(ctx context.Context, storageKey []byte, i
 		}
 		items = append(items, itemChunk...)
 	}
-	records := make([]*DecryptedStorageRecord, len(items))
+	records := make([]*DecryptedStorageRecord, 0, len(items))
+	log := zerolog.Ctx(ctx)
 	for i, encryptedItem := range items {
 		base64Key := base64.StdEncoding.EncodeToString(encryptedItem.GetKey())
+		itemType, ok := inputRecords[base64Key]
+		if !ok {
+			log.Warn().Int("item_index", i).Str("item_key", base64Key).Msg("Received unexpected storage item")
+			continue
+		}
 		itemKey := deriveStorageItemKey(storageKey, base64Key)
 		decryptedItemBytes, err := decryptBytes(itemKey, encryptedItem.GetValue())
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decrypt storage item #%d (%s): %w", i+1, base64Key, err)
+			log.Warn().Err(err).
+				Stringer("item_type", itemType).
+				Int("item_index", i).
+				Str("item_key", base64Key).
+				Msg("Failed to decrypt storage item")
+			continue
 		}
 		var decryptedItem signalpb.StorageRecord
 		err = proto.Unmarshal(decryptedItemBytes, &decryptedItem)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to unmarshal decrypted storage item #%d (%s): %w", i+1, base64Key, err)
-		}
-		itemType, ok := inputRecords[base64Key]
-		if !ok {
-			return nil, nil, fmt.Errorf("received unexpected storage item at index #%d: %s", i+1, base64Key)
+			logEvt := log.Warn().Err(err).
+				Stringer("item_type", itemType).
+				Int("item_index", i).
+				Str("item_key", base64Key)
+			if log.GetLevel() == zerolog.TraceLevel {
+				logEvt.Str("item_data", base64.StdEncoding.EncodeToString(decryptedItemBytes))
+			}
+			logEvt.Msg("Failed to unmarshal storage item")
+			continue
 		}
 		delete(inputRecords, base64Key)
-		records[i] = &DecryptedStorageRecord{
+		records = append(records, &DecryptedStorageRecord{
 			ItemType:      itemType,
 			StorageID:     base64Key,
 			StorageRecord: &decryptedItem,
-		}
+		})
 	}
 	missingKeys := maps.Keys(inputRecords)
 	return records, missingKeys, nil
