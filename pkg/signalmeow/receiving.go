@@ -836,6 +836,8 @@ func (cli *Client) handleDecryptedResult(
 				Sender: theirServiceID.UUID,
 				ChatID: theirServiceID.String(),
 			},
+			// CallMessage doesn't have its own timestamp, use one from the envelope
+			Timestamp: envelope.GetTimestamp(),
 			IsRinging: content.CallMessage.Offer != nil,
 		})
 	}
