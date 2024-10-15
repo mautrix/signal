@@ -237,8 +237,8 @@ func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *
 			HonorificSuffix: name.GetSuffix(),
 		})
 	}
-	if name.GetDisplayName() != "" {
-		card.SetValue(vcard.FieldFormattedName, name.GetDisplayName())
+	if name.GetNickname() != "" {
+		card.SetValue(vcard.FieldNickname, name.GetNickname())
 	}
 	if contact.GetOrganization() != "" {
 		card.SetValue(vcard.FieldOrganization, contact.GetOrganization())
@@ -320,7 +320,7 @@ func (mc *MessageConverter) convertContactToMatrix(ctx context.Context, contact 
 		}
 	}
 	data := buf.Bytes()
-	displayName := contact.GetName().GetDisplayName()
+	displayName := contact.GetName().GetNickname()
 	if displayName == "" {
 		displayName = contact.GetName().GetGivenName()
 		if contact.GetName().GetFamilyName() != "" {
