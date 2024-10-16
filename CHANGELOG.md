@@ -1,3 +1,14 @@
+# v0.7.2 (unreleased)
+
+* Updated to libsignal v0.58.3.
+* Fixed spurious decryption error notices for Signal messages when the
+  websocket reconnects and receives old already-bridged messages.
+* Fixed signalmeow not respecting account settings for choosing sender
+  certificate.
+* Fixed bugs in storage service decryption, which could cause issues with
+  missing contact names among other things.
+* Fixed call start notices only working once per direct chat.
+
 # v0.7.1 (2024-09-16)
 
 * Updated to libsignal v0.57.1.
@@ -22,6 +33,8 @@
     manually.
   * Thanks to [@maltee1] for reimplementing Matrix -> Signal membership
     handling in the rewrite.
+  * If you are still somehow using a pre-v0.5.0 versions, upgrading to v0.6.3
+    is required before upgrading to v0.7.0 or higher.
 
 # v0.6.3 (2024-07-16)
 
