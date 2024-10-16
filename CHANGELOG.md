@@ -1,4 +1,4 @@
-# v0.7.2 (unreleased)
+# v0.7.2 (2024-10-16)
 
 * Updated to libsignal v0.58.3.
 * Fixed spurious decryption error notices for Signal messages when the
