@@ -149,7 +149,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	encryptedWithMAC := appendMAC(keys[32:], encrypted)
 
 	// Get upload attributes from Signal server
-	attributesPath := "/v3/attachments/form/upload"
+	attributesPath := "/v4/attachments/form/upload"
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
 	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, attributesPath, opts)
