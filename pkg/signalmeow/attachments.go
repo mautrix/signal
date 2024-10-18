@@ -23,6 +23,7 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -105,7 +106,7 @@ func decryptAttachment(body, key, digest []byte, size uint32) ([]byte, error) {
 	return decrypted[:size], nil
 }
 
-type attachmentV3UploadAttributes struct {
+type attachmentV4UploadAttributes struct {
 	Cdn                  uint32            `json:"cdn"`
 	Key                  string            `json:"key"`
 	Headers              map[string]string `json:"headers"`
@@ -154,48 +155,25 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
 	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, attributesPath, opts)
 	if err != nil {
-		log.Err(err).Msg("Error sending request fetching upload attributes")
-		return nil, err
+		log.Err(err).Msg("Failed to request upload attributes")
+		return nil, fmt.Errorf("failed to request upload attributes: %w", err)
 	}
-	var uploadAttributes attachmentV3UploadAttributes
+	var uploadAttributes attachmentV4UploadAttributes
 	err = web.DecodeHTTPResponseBody(ctx, &uploadAttributes, resp)
 	if err != nil {
-		log.Err(err).Msg("Error decoding response body fetching upload attributes")
-		return nil, err
+		log.Err(err).Msg("Failed to decode upload attributes")
+		return nil, fmt.Errorf("failed to decode upload attributes: %w", err)
 	}
-
-	// Allocate attachment on CDN
-	resp, err = web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
-		OverrideURL: uploadAttributes.SignedUploadLocation,
-		ContentType: web.ContentTypeOctetStream,
-		Headers:     uploadAttributes.Headers,
-		Username:    &username,
-		Password:    &password,
-	})
+	if uploadAttributes.Cdn == 3 {
+		log.Trace().Msg("Using TUS upload")
+		err = cli.uploadAttachmentTUS(ctx, uploadAttributes, encryptedWithMAC, username, password)
+	} else {
+		log.Trace().Msg("Using legacy upload")
+		err = cli.uploadAttachmentLegacy(ctx, uploadAttributes, encryptedWithMAC, username, password)
+	}
 	if err != nil {
-		log.Err(err).Msg("Error sending request allocating attachment")
+		log.Err(err).Msg("Failed to upload attachment")
 		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Error().Int("status_code", resp.StatusCode).Msg("Error allocating attachment")
-		return nil, fmt.Errorf("error allocating attachment: %s", resp.Status)
-	}
-
-	// Upload attachment to CDN
-	resp, err = web.SendHTTPRequest(ctx, http.MethodPut, "", &web.HTTPReqOpt{
-		OverrideURL: resp.Header.Get("Location"),
-		Body:        encryptedWithMAC,
-		ContentType: web.ContentTypeOctetStream,
-		Username:    &username,
-		Password:    &password,
-	})
-	if err != nil {
-		log.Err(err).Msg("Error sending request uploading attachment")
-		return nil, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		log.Error().Int("status_code", resp.StatusCode).Msg("Error uploading attachment")
-		return nil, fmt.Errorf("error uploading attachment: %s", resp.Status)
 	}
 
 	digest := sha256.Sum256(encryptedWithMAC)
@@ -211,6 +189,71 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 
 	return attachmentPointer, nil
+}
+
+func (cli *Client) uploadAttachmentLegacy(
+	ctx context.Context,
+	uploadAttributes attachmentV4UploadAttributes,
+	encryptedWithMAC []byte,
+	username string,
+	password string,
+) error {
+	// Allocate attachment on CDN
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
+		OverrideURL: uploadAttributes.SignedUploadLocation,
+		ContentType: web.ContentTypeOctetStream,
+		Headers:     uploadAttributes.Headers,
+		Username:    &username,
+		Password:    &password,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send allocate request: %w", err)
+	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("allocate request returned HTTP %d", resp.StatusCode)
+	}
+
+	// Upload attachment to CDN
+	resp, err = web.SendHTTPRequest(ctx, http.MethodPut, "", &web.HTTPReqOpt{
+		OverrideURL: resp.Header.Get("Location"),
+		Body:        encryptedWithMAC,
+		ContentType: web.ContentTypeOctetStream,
+		Username:    &username,
+		Password:    &password,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to send upload request: %w", err)
+	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("upload request returned HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (cli *Client) uploadAttachmentTUS(
+	ctx context.Context,
+	uploadAttributes attachmentV4UploadAttributes,
+	encryptedWithMAC []byte,
+	username string,
+	password string,
+) error {
+	uploadAttributes.Headers["Tus-Resumable"] = "1.0.0"
+	uploadAttributes.Headers["Upload-Length"] = fmt.Sprintf("%d", len(encryptedWithMAC))
+	uploadAttributes.Headers["Upload-Metadata"] = "filename " + base64.StdEncoding.EncodeToString([]byte(uploadAttributes.Key))
+
+	resp, err := web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
+		OverrideURL: uploadAttributes.SignedUploadLocation,
+		Body:        encryptedWithMAC,
+		ContentType: web.ContentTypeOffsetOctetStream,
+		Headers:     uploadAttributes.Headers,
+		Username:    &username,
+		Password:    &password,
+	})
+	// TODO actually support resuming on error
+	if err != nil {
+		return fmt.Errorf("failed to send upload request: %w", err)
+	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("upload request returned HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier) (*string, error) {

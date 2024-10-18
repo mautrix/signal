@@ -95,9 +95,10 @@ func init() {
 type ContentType string
 
 const (
-	ContentTypeJSON        ContentType = "application/json"
-	ContentTypeProtobuf    ContentType = "application/x-protobuf"
-	ContentTypeOctetStream ContentType = "application/octet-stream"
+	ContentTypeJSON              ContentType = "application/json"
+	ContentTypeProtobuf          ContentType = "application/x-protobuf"
+	ContentTypeOctetStream       ContentType = "application/octet-stream"
+	ContentTypeOffsetOctetStream ContentType = "application/offset+octet-stream"
 )
 
 type HTTPReqOpt struct {
