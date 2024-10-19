@@ -1025,7 +1025,7 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 	}
 	// Hacky special case for group calls to cache the state
 	if dataMessage.GroupCallUpdate != nil {
-		isRinging := cli.UpdateActiveCalls(groupID, *dataMessage.GroupCallUpdate.EraId)
+		isRinging := cli.UpdateActiveCalls(groupID, dataMessage.GroupCallUpdate.GetEraId())
 		cli.handleEvent(&events.Call{
 			Info:      evtInfo,
 			Timestamp: dataMessage.GetTimestamp(),
