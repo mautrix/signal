@@ -135,15 +135,16 @@ type Bv2ChatEvent struct {
 }
 
 var (
-	_ bridgev2.RemoteMessage            = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteEdit               = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteEventWithTimestamp = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteReaction           = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteReactionRemove     = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteMessageRemove      = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteTyping             = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemotePreHandler         = (*Bv2ChatEvent)(nil)
-	_ bridgev2.RemoteChatInfoChange     = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteMessage              = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteEdit                 = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteEventWithTimestamp   = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteReaction             = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteReactionRemove       = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteMessageRemove        = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteTyping               = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemotePreHandler           = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteChatInfoChange       = (*Bv2ChatEvent)(nil)
+	_ bridgev2.RemoteEventWithStreamOrder = (*Bv2ChatEvent)(nil)
 )
 
 func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
@@ -335,6 +336,10 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 	return &bridgev2.ConvertedEdit{
 		ModifiedParts: []*bridgev2.ConvertedEditPart{editPart},
 	}, nil
+}
+
+func (evt *Bv2ChatEvent) GetStreamOrder() int64 {
+	return int64(evt.Info.ServerTimestamp)
 }
 
 type Bv2Receipt struct {
