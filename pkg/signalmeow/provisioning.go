@@ -164,6 +164,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			DeviceID:           deviceId,
 			Number:             *provisioningMessage.Number,
 			Password:           password,
+			MasterKey:          provisioningMessage.GetMasterKey(),
 		}
 
 		// Store the provisioning data

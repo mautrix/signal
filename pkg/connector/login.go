@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -174,6 +175,10 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 	err = ul.Client.Connect(backgroundCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect after login: %w", err)
+	}
+	if signalClient := ul.Client.(*SignalClient).Client; signalClient.Store.MasterKey != nil {
+		zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
+		go signalClient.SyncStorage(ctx)
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
