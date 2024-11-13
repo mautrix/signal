@@ -15,6 +15,20 @@ SPDX-License-Identifier: AGPL-3.0-only
 #include <stdint.h>
 #include <stdlib.h>
 
+#define SignalSVR_KEY_LEN 32
+
+#define SignalBACKUP_KEY_LEN 32
+
+#define SignalLOCAL_BACKUP_METADATA_KEY_LEN 32
+
+#define SignalMEDIA_ID_LEN 15
+
+#define SignalMEDIA_ENCRYPTION_KEY_LEN (32 + 32)
+
+#define SignalBackupKey_MASTER_KEY_LEN SignalSVR_KEY_LEN
+
+#define SignalBackupId_LEN 16
+
 /**
  * The encoded length of a [`FourCC`], in bytes.
  */
@@ -1399,7 +1413,7 @@ SignalFfiError *signal_backup_auth_credential_request_context_get_request(Signal
 
 SignalFfiError *signal_backup_auth_credential_request_check_valid_contents(SignalBorrowedBuffer request_bytes);
 
-SignalFfiError *signal_backup_auth_credential_request_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request_bytes, uint64_t redemption_time, uint8_t backup_level, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
+SignalFfiError *signal_backup_auth_credential_request_issue_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer request_bytes, uint64_t redemption_time, uint8_t backup_level, uint8_t credential_type, SignalBorrowedBuffer params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
 
 SignalFfiError *signal_backup_auth_credential_response_check_valid_contents(SignalBorrowedBuffer response_bytes);
 
@@ -1410,6 +1424,8 @@ SignalFfiError *signal_backup_auth_credential_check_valid_contents(SignalBorrowe
 SignalFfiError *signal_backup_auth_credential_get_backup_id(uint8_t (*out)[16], SignalBorrowedBuffer credential_bytes);
 
 SignalFfiError *signal_backup_auth_credential_get_backup_level(uint8_t *out, SignalBorrowedBuffer credential_bytes);
+
+SignalFfiError *signal_backup_auth_credential_get_type(uint8_t *out, SignalBorrowedBuffer credential_bytes);
 
 SignalFfiError *signal_backup_auth_credential_present_deterministic(SignalOwnedBuffer *out, SignalBorrowedBuffer credential_bytes, SignalBorrowedBuffer server_params_bytes, const uint8_t (*randomness)[SignalRANDOMNESS_LEN]);
 
@@ -1449,8 +1465,6 @@ SignalFfiError *signal_group_send_full_token_get_expiration(uint64_t *out, Signa
 
 SignalFfiError *signal_group_send_full_token_verify(SignalBorrowedBuffer token, SignalBorrowedBuffer user_ids, uint64_t now, SignalBorrowedBuffer key_pair);
 
-SignalFfiError *signal_verify_signature(bool *out, SignalBorrowedBuffer cert_pem, SignalBorrowedBuffer body, SignalBorrowedBuffer signature, uint64_t current_timestamp);
-
 SignalFfiError *signal_connection_manager_destroy(SignalConnectionManager *p);
 
 SignalFfiError *signal_connection_manager_new(SignalConnectionManager **out, uint8_t environment, const char *user_agent);
@@ -1458,6 +1472,8 @@ SignalFfiError *signal_connection_manager_new(SignalConnectionManager **out, uin
 SignalFfiError *signal_connection_manager_set_proxy(const SignalConnectionManager *connection_manager, const char *host, int32_t port);
 
 SignalFfiError *signal_connection_manager_clear_proxy(const SignalConnectionManager *connection_manager);
+
+SignalFfiError *signal_connection_manager_set_censorship_circumvention_enabled(const SignalConnectionManager *connection_manager, bool enabled);
 
 SignalFfiError *signal_connection_manager_on_network_change(const SignalConnectionManager *connection_manager);
 
@@ -1561,6 +1577,22 @@ SignalFfiError *signal_pin_verify_local_hash(bool *out, const char *encoded_hash
 
 SignalFfiError *signal_account_entropy_pool_generate(const char **out);
 
+SignalFfiError *signal_account_entropy_pool_derive_svr_key(uint8_t (*out)[SignalSVR_KEY_LEN], const char *account_entropy);
+
+SignalFfiError *signal_account_entropy_pool_derive_backup_key(uint8_t (*out)[SignalBACKUP_KEY_LEN], const char *account_entropy);
+
+SignalFfiError *signal_backup_key_derive_backup_id(uint8_t (*out)[16], const uint8_t (*backup_key)[SignalBACKUP_KEY_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci);
+
+SignalFfiError *signal_backup_key_derive_ec_key(SignalPrivateKey **out, const uint8_t (*backup_key)[SignalBACKUP_KEY_LEN], const SignalServiceIdFixedWidthBinaryBytes *aci);
+
+SignalFfiError *signal_backup_key_derive_local_backup_metadata_key(uint8_t (*out)[SignalLOCAL_BACKUP_METADATA_KEY_LEN], const uint8_t (*backup_key)[SignalBACKUP_KEY_LEN]);
+
+SignalFfiError *signal_backup_key_derive_media_id(uint8_t (*out)[SignalMEDIA_ID_LEN], const uint8_t (*backup_key)[SignalBACKUP_KEY_LEN], const char *media_name);
+
+SignalFfiError *signal_backup_key_derive_media_encryption_key(uint8_t (*out)[SignalMEDIA_ENCRYPTION_KEY_LEN], const uint8_t (*backup_key)[SignalBACKUP_KEY_LEN], const uint8_t (*media_id)[SignalMEDIA_ID_LEN]);
+
+SignalFfiError *signal_backup_key_derive_thumbnail_transit_encryption_key(uint8_t (*out)[SignalMEDIA_ENCRYPTION_KEY_LEN], const uint8_t (*backup_key)[SignalBACKUP_KEY_LEN], const uint8_t (*media_id)[SignalMEDIA_ID_LEN]);
+
 SignalFfiError *signal_svr2_client_new(SignalSgxClientState **out, SignalBorrowedBuffer mrenclave, SignalBorrowedBuffer attestation_msg, uint64_t current_timestamp);
 
 SignalFfiError *signal_incremental_mac_destroy(SignalIncrementalMac *p);
@@ -1585,7 +1617,15 @@ SignalFfiError *signal_message_backup_key_destroy(SignalMessageBackupKey *p);
 
 SignalFfiError *signal_message_backup_validation_outcome_destroy(SignalMessageBackupValidationOutcome *p);
 
-SignalFfiError *signal_message_backup_key_new(SignalMessageBackupKey **out, const uint8_t (*master_key)[32], const SignalServiceIdFixedWidthBinaryBytes *aci);
+SignalFfiError *signal_message_backup_key_from_master_key(SignalMessageBackupKey **out, const uint8_t (*master_key)[32], const SignalServiceIdFixedWidthBinaryBytes *aci);
+
+SignalFfiError *signal_message_backup_key_from_account_entropy_pool(SignalMessageBackupKey **out, const char *account_entropy, const SignalServiceIdFixedWidthBinaryBytes *aci);
+
+SignalFfiError *signal_message_backup_key_from_backup_key_and_backup_id(SignalMessageBackupKey **out, const uint8_t (*backup_key)[32], const uint8_t (*backup_id)[16]);
+
+SignalFfiError *signal_message_backup_key_get_hmac_key(uint8_t (*out)[32], const SignalMessageBackupKey *key);
+
+SignalFfiError *signal_message_backup_key_get_aes_key(uint8_t (*out)[32], const SignalMessageBackupKey *key);
 
 SignalFfiError *signal_message_backup_validation_outcome_get_error_message(const char **out, const SignalMessageBackupValidationOutcome *outcome);
 
