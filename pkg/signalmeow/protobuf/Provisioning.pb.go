@@ -201,7 +201,10 @@ type ProvisionMessage struct {
 	ProfileKey            []byte  `protobuf:"bytes,6,opt,name=profileKey" json:"profileKey,omitempty"`
 	ReadReceipts          *bool   `protobuf:"varint,7,opt,name=readReceipts" json:"readReceipts,omitempty"`
 	ProvisioningVersion   *uint32 `protobuf:"varint,9,opt,name=provisioningVersion" json:"provisioningVersion,omitempty"`
-	MasterKey             []byte  `protobuf:"bytes,13,opt,name=masterKey" json:"masterKey,omitempty"` // NEXT ID: 14
+	MasterKey             []byte  `protobuf:"bytes,13,opt,name=masterKey" json:"masterKey,omitempty"`
+	EphemeralBackupKey    []byte  `protobuf:"bytes,14,opt,name=ephemeralBackupKey" json:"ephemeralBackupKey,omitempty"` // 32 bytes
+	AccountEntropyPool    *string `protobuf:"bytes,15,opt,name=accountEntropyPool" json:"accountEntropyPool,omitempty"`
+	MediaRootBackupKey    []byte  `protobuf:"bytes,16,opt,name=mediaRootBackupKey" json:"mediaRootBackupKey,omitempty"` // 32-bytes
 }
 
 func (x *ProvisionMessage) Reset() {
@@ -321,6 +324,27 @@ func (x *ProvisionMessage) GetProvisioningVersion() uint32 {
 func (x *ProvisionMessage) GetMasterKey() []byte {
 	if x != nil {
 		return x.MasterKey
+	}
+	return nil
+}
+
+func (x *ProvisionMessage) GetEphemeralBackupKey() []byte {
+	if x != nil {
+		return x.EphemeralBackupKey
+	}
+	return nil
+}
+
+func (x *ProvisionMessage) GetAccountEntropyPool() string {
+	if x != nil && x.AccountEntropyPool != nil {
+		return *x.AccountEntropyPool
+	}
+	return ""
+}
+
+func (x *ProvisionMessage) GetMediaRootBackupKey() []byte {
+	if x != nil {
+		return x.MediaRootBackupKey
 	}
 	return nil
 }
