@@ -252,7 +252,8 @@ func (cli *Client) uploadAttachmentTUS(
 		return fmt.Errorf("failed to send upload request: %w", err)
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		zerolog.Ctx(ctx).Debug().
-			Any("headers", uploadAttributes.Headers).
+			Any("request_headers", uploadAttributes.Headers).
+			Any("response_headers", resp.Header).
 			Str("location", uploadAttributes.SignedUploadLocation).
 			Msg("TUS upload failed")
 		return fmt.Errorf("upload request returned HTTP %d", resp.StatusCode)
