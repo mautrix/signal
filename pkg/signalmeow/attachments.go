@@ -166,7 +166,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 	if uploadAttributes.Cdn == 3 {
 		log.Trace().Msg("Using TUS upload")
-		err = cli.uploadAttachmentTUS(ctx, uploadAttributes, encryptedWithMAC, username, password)
+		err = cli.uploadAttachmentTUS(ctx, uploadAttributes, encryptedWithMAC)
 	} else {
 		log.Trace().Msg("Using legacy upload")
 		err = cli.uploadAttachmentLegacy(ctx, uploadAttributes, encryptedWithMAC, username, password)
@@ -232,8 +232,6 @@ func (cli *Client) uploadAttachmentTUS(
 	ctx context.Context,
 	uploadAttributes attachmentV4UploadAttributes,
 	encryptedWithMAC []byte,
-	username string,
-	password string,
 ) error {
 	uploadAttributes.Headers["Tus-Resumable"] = "1.0.0"
 	uploadAttributes.Headers["Upload-Length"] = fmt.Sprintf("%d", len(encryptedWithMAC))
@@ -244,8 +242,6 @@ func (cli *Client) uploadAttachmentTUS(
 		Body:        encryptedWithMAC,
 		ContentType: web.ContentTypeOffsetOctetStream,
 		Headers:     uploadAttributes.Headers,
-		Username:    &username,
-		Password:    &password,
 	})
 	// TODO actually support resuming on error
 	if err != nil {
