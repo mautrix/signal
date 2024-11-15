@@ -1,3 +1,8 @@
+# v0.7.3 (unreleased)
+
+* Updated libsignal to v0.62.0.
+* Added basic support for Signal's new file upload protocol.
+
 # v0.7.2 (2024-10-16)
 
 * Updated to libsignal v0.58.3.

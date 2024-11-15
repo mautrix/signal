@@ -29,7 +29,7 @@ type FFILogger struct{}
 
 func (FFILogger) Enabled(target string, level libsignalgo.LogLevel) bool { return true }
 
-func (FFILogger) Log(target string, level libsignalgo.LogLevel, file string, line uint, message string) {
+func (FFILogger) Log(level libsignalgo.LogLevel, file string, line uint, message string) {
 	var evt *zerolog.Event
 	switch level {
 	case libsignalgo.LogLevelError:
@@ -47,7 +47,6 @@ func (FFILogger) Log(target string, level libsignalgo.LogLevel, file string, lin
 	}
 
 	evt.Str("component", "libsignal").
-		Str("target", target).
 		Str("file", file).
 		Uint("line", line).
 		Msg(message)
