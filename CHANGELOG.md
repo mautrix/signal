@@ -1,7 +1,11 @@
-# v0.7.3 (unreleased)
+# v0.7.3 (2024-11-16)
 
 * Updated libsignal to v0.62.0.
+  * Note for bridges running in systemd: the new version of libsignal may be
+    incompatible with the `MemoryDenyWriteExecute=true` option (see [#750]).
 * Added basic support for Signal's new file upload protocol.
+
+[#750]: https://github.com/mautrix/signal/issues/570
 
 # v0.7.2 (2024-10-16)
 
