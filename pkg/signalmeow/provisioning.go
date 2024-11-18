@@ -166,6 +166,14 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			Password:           password,
 			MasterKey:          provisioningMessage.GetMasterKey(),
 		}
+		if provisioningMessage.GetMasterKey() == nil && provisioningMessage.GetAccountEntropyPool() != "" {
+			data.MasterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
+			if err != nil {
+				log.Err(err).Msg("Failed to derive master key from account entropy pool")
+			} else {
+				log.Debug().Msg("Derived master key from account entropy pool")
+			}
+		}
 
 		// Store the provisioning data
 		err = deviceStore.PutDevice(ctx, data)
@@ -334,6 +342,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 var signalCapabilities = map[string]any{
 	"deleteSync":               true,
 	"versionedExpirationTimer": true,
+	"ssre2":                    true,
 }
 
 var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))

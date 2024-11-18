@@ -61,6 +61,8 @@ message ManifestRecord {
            uint32     sourceDevice = 3;
   repeated Identifier identifiers  = 2;
   // Next ID: 4
+
+  optional bytes recordIkm = 4; // Copied manually from Signal Desktop
 }
 
 message StorageRecord {

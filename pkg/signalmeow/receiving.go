@@ -17,6 +17,7 @@
 package signalmeow
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -718,7 +719,23 @@ func (cli *Client) handleDecryptedResult(
 	// TODO: handle more sync messages
 	if content.SyncMessage != nil {
 		if content.SyncMessage.Keys != nil {
+			aep := libsignalgo.AccountEntropyPool(content.SyncMessage.Keys.GetAccountEntropyPool())
 			cli.Store.MasterKey = content.SyncMessage.Keys.GetMaster()
+			if aep != "" {
+				aepMasterKey, err := aep.DeriveSVRKey()
+				if err != nil {
+					log.Err(err).Msg("Failed to derive master key from account entropy pool")
+				} else if cli.Store.MasterKey == nil {
+					cli.Store.MasterKey = aepMasterKey
+					log.Debug().Msg("Derived master key from account entropy pool (no master key in sync message)")
+				} else if !bytes.Equal(aepMasterKey, cli.Store.MasterKey) {
+					log.Warn().Msg("Derived master key doesn't match one in sync message")
+				} else {
+					log.Debug().Msg("Derived master key matches one in sync message")
+				}
+			} else {
+				log.Debug().Msg("No account entropy pool in sync message")
+			}
 			err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
 			if err != nil {
 				log.Err(err).Msg("Failed to save device after receiving master key")

@@ -547,6 +547,8 @@ message SyncMessage {
     // @deprecated
     optional bytes storageService = 1;
     optional bytes master         = 2;
+    optional string accountEntropyPool = 3; // Copied manually from Signal Desktop
+    optional bytes mediaRootBackupKey = 4; // Copied manually from Signal Desktop
   }
 
   message MessageRequestResponse {

@@ -29,6 +29,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exerrors"
+	"golang.org/x/crypto/hkdf"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
@@ -146,7 +147,7 @@ func (cli *Client) FetchStorage(ctx context.Context, masterKey []byte, currentVe
 		}
 		delete(newKeys, key)
 	}
-	newRecords, missingKeys, err := cli.fetchStorageRecords(ctx, storageKey, newKeys)
+	newRecords, missingKeys, err := cli.fetchStorageRecords(ctx, storageKey, manifest.GetRecordIkm(), newKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -178,10 +179,20 @@ func deriveStorageManifestKey(storageKey []byte, version uint64) []byte {
 	return h.Sum(nil)
 }
 
-func deriveStorageItemKey(storageKey []byte, itemID string) []byte {
-	h := hmac.New(sha256.New, storageKey)
-	exerrors.Must(fmt.Fprintf(h, "Item_%s", itemID))
-	return h.Sum(nil)
+const storageServiceItemKeyInfoPrefix = "20240801_SIGNAL_STORAGE_SERVICE_ITEM_"
+const storageServiceItemKeyLen = 32
+
+func deriveStorageItemKey(storageKey, recordIKM []byte, itemID string) []byte {
+	if recordIKM == nil {
+		h := hmac.New(sha256.New, storageKey)
+		exerrors.Must(fmt.Fprintf(h, "Item_%s", itemID))
+		return h.Sum(nil)
+	} else {
+		h := hkdf.New(sha256.New, recordIKM, []byte{}, append([]byte(storageServiceItemKeyInfoPrefix), itemID...))
+		out := make([]byte, storageServiceItemKeyLen)
+		exerrors.Must(io.ReadFull(h, out))
+		return out
+	}
 }
 
 // MaxReadStorageRecords is the maximum number of storage records to fetch at once
@@ -231,7 +242,12 @@ func (cli *Client) fetchStorageManifest(ctx context.Context, storageKey []byte, 
 	}
 }
 
-func (cli *Client) fetchStorageRecords(ctx context.Context, storageKey []byte, inputRecords map[string]signalpb.ManifestRecord_Identifier_Type) ([]*DecryptedStorageRecord, []string, error) {
+func (cli *Client) fetchStorageRecords(
+	ctx context.Context,
+	storageKey []byte,
+	recordIKM []byte,
+	inputRecords map[string]signalpb.ManifestRecord_Identifier_Type,
+) ([]*DecryptedStorageRecord, []string, error) {
 	recordKeys := make([][]byte, 0, len(inputRecords))
 	for key := range inputRecords {
 		decoded, err := base64.StdEncoding.DecodeString(key)
@@ -262,7 +278,7 @@ func (cli *Client) fetchStorageRecords(ctx context.Context, storageKey []byte, i
 			log.Warn().Int("item_index", i).Str("item_key", base64Key).Msg("Received unexpected storage item")
 			continue
 		}
-		itemKey := deriveStorageItemKey(storageKey, base64Key)
+		itemKey := deriveStorageItemKey(storageKey, recordIKM, base64Key)
 		decryptedItemBytes, err := decryptBytes(itemKey, encryptedItem.GetValue())
 		if err != nil {
 			log.Warn().Err(err).
