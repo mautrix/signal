@@ -623,8 +623,8 @@ type ManifestRecord struct {
 
 	Version      uint64                       `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	SourceDevice uint32                       `protobuf:"varint,3,opt,name=sourceDevice,proto3" json:"sourceDevice,omitempty"`
-	Identifiers  []*ManifestRecord_Identifier `protobuf:"bytes,2,rep,name=identifiers,proto3" json:"identifiers,omitempty"`   // Next ID: 4
-	RecordIkm    []byte                       `protobuf:"bytes,4,opt,name=recordIkm,proto3,oneof" json:"recordIkm,omitempty"` // Copied manually from Signal Desktop
+	Identifiers  []*ManifestRecord_Identifier `protobuf:"bytes,2,rep,name=identifiers,proto3" json:"identifiers,omitempty"`
+	RecordIkm    []byte                       `protobuf:"bytes,4,opt,name=recordIkm,proto3" json:"recordIkm,omitempty"` // Next ID: 5
 }
 
 func (x *ManifestRecord) Reset() {
@@ -2138,7 +2138,6 @@ func file_StorageService_proto_init() {
 	if File_StorageService_proto != nil {
 		return
 	}
-	file_StorageService_proto_msgTypes[5].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[6].OneofWrappers = []any{
 		(*StorageRecord_Contact)(nil),
 		(*StorageRecord_GroupV1)(nil),

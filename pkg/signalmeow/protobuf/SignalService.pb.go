@@ -6243,10 +6243,11 @@ type SyncMessage_Keys struct {
 	unknownFields protoimpl.UnknownFields
 
 	// @deprecated
-	StorageService     []byte  `protobuf:"bytes,1,opt,name=storageService" json:"storageService,omitempty"`
+	StorageService []byte `protobuf:"bytes,1,opt,name=storageService" json:"storageService,omitempty"`
+	// @deprecated
 	Master             []byte  `protobuf:"bytes,2,opt,name=master" json:"master,omitempty"`
-	AccountEntropyPool *string `protobuf:"bytes,3,opt,name=accountEntropyPool" json:"accountEntropyPool,omitempty"` // Copied manually from Signal Desktop
-	MediaRootBackupKey []byte  `protobuf:"bytes,4,opt,name=mediaRootBackupKey" json:"mediaRootBackupKey,omitempty"` // Copied manually from Signal Desktop
+	AccountEntropyPool *string `protobuf:"bytes,3,opt,name=accountEntropyPool" json:"accountEntropyPool,omitempty"`
+	MediaRootBackupKey []byte  `protobuf:"bytes,4,opt,name=mediaRootBackupKey" json:"mediaRootBackupKey,omitempty"`
 }
 
 func (x *SyncMessage_Keys) Reset() {

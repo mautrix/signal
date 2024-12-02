@@ -86,28 +86,28 @@ func (ProvisioningVersion) EnumDescriptor() ([]byte, []int) {
 	return file_Provisioning_proto_rawDescGZIP(), []int{0}
 }
 
-type ProvisioningUuid struct {
+type ProvisioningAddress struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Uuid *string `protobuf:"bytes,1,opt,name=uuid" json:"uuid,omitempty"`
+	Address *string `protobuf:"bytes,1,opt,name=address" json:"address,omitempty"`
 }
 
-func (x *ProvisioningUuid) Reset() {
-	*x = ProvisioningUuid{}
+func (x *ProvisioningAddress) Reset() {
+	*x = ProvisioningAddress{}
 	mi := &file_Provisioning_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ProvisioningUuid) String() string {
+func (x *ProvisioningAddress) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ProvisioningUuid) ProtoMessage() {}
+func (*ProvisioningAddress) ProtoMessage() {}
 
-func (x *ProvisioningUuid) ProtoReflect() protoreflect.Message {
+func (x *ProvisioningAddress) ProtoReflect() protoreflect.Message {
 	mi := &file_Provisioning_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -119,14 +119,14 @@ func (x *ProvisioningUuid) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProvisioningUuid.ProtoReflect.Descriptor instead.
-func (*ProvisioningUuid) Descriptor() ([]byte, []int) {
+// Deprecated: Use ProvisioningAddress.ProtoReflect.Descriptor instead.
+func (*ProvisioningAddress) Descriptor() ([]byte, []int) {
 	return file_Provisioning_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ProvisioningUuid) GetUuid() string {
-	if x != nil && x.Uuid != nil {
-		return *x.Uuid
+func (x *ProvisioningAddress) GetAddress() string {
+	if x != nil && x.Address != nil {
+		return *x.Address
 	}
 	return ""
 }
@@ -369,10 +369,10 @@ func file_Provisioning_proto_rawDescGZIP() []byte {
 var file_Provisioning_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_Provisioning_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_Provisioning_proto_goTypes = []any{
-	(ProvisioningVersion)(0),  // 0: signalservice.ProvisioningVersion
-	(*ProvisioningUuid)(nil),  // 1: signalservice.ProvisioningUuid
-	(*ProvisionEnvelope)(nil), // 2: signalservice.ProvisionEnvelope
-	(*ProvisionMessage)(nil),  // 3: signalservice.ProvisionMessage
+	(ProvisioningVersion)(0),    // 0: signalservice.ProvisioningVersion
+	(*ProvisioningAddress)(nil), // 1: signalservice.ProvisioningAddress
+	(*ProvisionEnvelope)(nil),   // 2: signalservice.ProvisionEnvelope
+	(*ProvisionMessage)(nil),    // 3: signalservice.ProvisionMessage
 }
 var file_Provisioning_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type

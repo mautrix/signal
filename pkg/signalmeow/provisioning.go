@@ -279,7 +279,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		return "", fmt.Errorf("unexpected websocket message: %v", msg)
 	}
 
-	var provisioningBody signalpb.ProvisioningUuid
+	var provisioningBody signalpb.ProvisioningAddress
 	err = proto.Unmarshal(msg.GetRequest().GetBody(), &provisioningBody)
 	if err != nil {
 		return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
@@ -289,8 +289,9 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		Scheme: "sgnl",
 		Host:   "linkdevice",
 		RawQuery: url.Values{
-			"uuid":    []string{provisioningBody.GetUuid()},
-			"pub_key": []string{base64.StdEncoding.EncodeToString(exerrors.Must(pubKey.Serialize()))},
+			"uuid":         []string{provisioningBody.GetAddress()},
+			"pub_key":      []string{base64.StdEncoding.EncodeToString(exerrors.Must(pubKey.Serialize()))},
+			"capabilities": []string{""}, // Will contain "backup" in the future
 		}.Encode(),
 	}).String()
 
