@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
         exclude_types: [markdown]
@@ -22,7 +22,7 @@ repos:
       # TODO: reenable this and fix all the problems
 
   - repo: https://github.com/beeper/pre-commit-go
-    rev: v0.3.1
+    rev: v0.4.2
     hooks:
       - id: zerolog-ban-msgf
       - id: zerolog-use-stringer
