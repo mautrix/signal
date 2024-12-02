@@ -219,14 +219,13 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 	}
 }
 
-func (s *SignalClient) Connect(ctx context.Context) error {
+func (s *SignalClient) Connect(ctx context.Context) {
 	if s.Client == nil {
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
-		return nil
+		return
 	}
 	s.updateRemoteProfile(ctx, false)
 	s.tryConnect(ctx, 0)
-	return nil
 }
 
 func (s *SignalClient) Disconnect() {

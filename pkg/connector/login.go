@@ -172,10 +172,7 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 		return nil, fmt.Errorf("failed to create user login: %w", err)
 	}
 	backgroundCtx := ul.Log.WithContext(context.Background())
-	err = ul.Client.Connect(backgroundCtx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect after login: %w", err)
-	}
+	ul.Client.Connect(backgroundCtx)
 	if signalClient := ul.Client.(*SignalClient).Client; signalClient.Store.MasterKey != nil {
 		zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
 		go signalClient.SyncStorage(ctx)
