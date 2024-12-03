@@ -659,7 +659,10 @@ func (cli *Client) handleDecryptedResult(
 		Logger()
 	log = &newLog
 	ctx = log.WithContext(ctx)
-	log.Debug().Msg("Decrypted message")
+	log.Debug().
+		Uint64("server_ts", envelope.GetServerTimestamp()).
+		Uint64("client_ts", envelope.GetTimestamp()).
+		Msg("Decrypted message")
 	printContentFieldString(ctx, content, "Decrypted content fields")
 
 	// If there's a sender key distribution message, process it
