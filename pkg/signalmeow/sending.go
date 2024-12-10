@@ -747,11 +747,11 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 			cli.sendSyncCopy(ctx, content, messageTimestamp, &res)
 		}
 		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
-	} else if content.TypingMessage != nil && !cli.Store.DeviceData.AccountRecord.GetTypingIndicators() {
+	} else if content.TypingMessage != nil && cli.Store.DeviceData.AccountRecord != nil && !cli.Store.DeviceData.AccountRecord.GetTypingIndicators() {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing message as typing indicators are disabled")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
-	} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ && !cli.Store.DeviceData.AccountRecord.GetReadReceipts() {
+	} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ && cli.Store.DeviceData.AccountRecord != nil && !cli.Store.DeviceData.AccountRecord.GetReadReceipts() {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending receipt message as read receipts are disabled")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		// Still send sync messages for read receipts

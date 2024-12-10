@@ -175,7 +175,7 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 	ul.Client.Connect(backgroundCtx)
 	if signalClient := ul.Client.(*SignalClient).Client; signalClient.Store.MasterKey != nil {
 		zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
-		go signalClient.SyncStorage(ctx)
+		go signalClient.SyncStorage(backgroundCtx)
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
