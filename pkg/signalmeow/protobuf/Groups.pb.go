@@ -1230,6 +1230,7 @@ type GroupChange_Actions struct {
 	unknownFields protoimpl.UnknownFields
 
 	SourceServiceId                 []byte                                                            `protobuf:"bytes,1,opt,name=sourceServiceId,proto3" json:"sourceServiceId,omitempty"`
+	GroupId                         []byte                                                            `protobuf:"bytes,25,opt,name=groupId,proto3" json:"groupId,omitempty"` // Only set when receiving from server
 	Revision                        uint32                                                            `protobuf:"varint,2,opt,name=revision,proto3" json:"revision,omitempty"`
 	AddMembers                      []*GroupChange_Actions_AddMemberAction                            `protobuf:"bytes,3,rep,name=addMembers,proto3" json:"addMembers,omitempty"`
 	DeleteMembers                   []*GroupChange_Actions_DeleteMemberAction                         `protobuf:"bytes,4,rep,name=deleteMembers,proto3" json:"deleteMembers,omitempty"`
@@ -1288,6 +1289,13 @@ func (*GroupChange_Actions) Descriptor() ([]byte, []int) {
 func (x *GroupChange_Actions) GetSourceServiceId() []byte {
 	if x != nil {
 		return x.SourceServiceId
+	}
+	return nil
+}
+
+func (x *GroupChange_Actions) GetGroupId() []byte {
+	if x != nil {
+		return x.GroupId
 	}
 	return nil
 }
