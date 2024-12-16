@@ -1,3 +1,10 @@
+# v0.7.4 (2024-12-16)
+
+* Fixed syncing server-side storage after Signal login.
+* Added support for new SSRE2 method of receiving the server-side storage key.
+* Updated libsignal to v0.64.1.
+* Updated Docker image to Alpine 3.21.
+
 # v0.7.3 (2024-11-16)
 
 * Updated libsignal to v0.62.0.
