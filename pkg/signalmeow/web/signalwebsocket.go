@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -262,9 +263,12 @@ func (s *SignalWebsocket) connectLoop(
 
 		responseChannels := make(map[uint64]chan *signalpb.WebSocketResponseMessage)
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
+		var wg sync.WaitGroup
+		wg.Add(3)
 
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
+			defer wg.Done()
 			err := readLoop(loopCtx, ws, incomingRequestChan, responseChannels)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
@@ -276,6 +280,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
+			defer wg.Done()
 			err := writeLoop(loopCtx, ws, s.sendChannel, responseChannels)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
@@ -287,6 +292,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Ping loop (send a keepalive Ping every 30s)
 		go func() {
+			defer wg.Done()
 			ticker := time.NewTicker(30 * time.Second)
 			defer ticker.Stop()
 
@@ -352,6 +358,7 @@ func (s *SignalWebsocket) connectLoop(
 			close(responseChannel)
 		}
 		loopCancel(nil)
+		wg.Wait()
 		log.Debug().Msg("Finished websocket cleanup")
 		if errorCount > 500 {
 			// Something is really wrong, we better panic.
