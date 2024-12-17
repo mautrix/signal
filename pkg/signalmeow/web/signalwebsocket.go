@@ -186,6 +186,7 @@ func (s *SignalWebsocket) connectLoop(
 	backoff := initialBackoff
 	retrying := false
 	errorCount := 0
+	isFirstConnect := true
 	for {
 		if retrying {
 			if backoff > maxBackoff {
@@ -194,11 +195,14 @@ func (s *SignalWebsocket) connectLoop(
 			log.Warn().Dur("backoff", backoff).Msg("Failed to connect, waiting to retry...")
 			time.Sleep(backoff)
 			backoff += backoffIncrement
+		} else if !isFirstConnect {
+			time.Sleep(1 * time.Second)
 		}
 		if ctx.Err() != nil {
 			log.Info().Msg("ctx done, stopping connection loop")
 			return
 		}
+		isFirstConnect = false
 
 		ws, resp, err := OpenWebsocket(ctx, s.path)
 		if resp != nil {
