@@ -134,6 +134,7 @@ func (s *SignalWebsocket) connectLoop(
 		cancel()
 	}()
 
+	const initialBackoff = 2 * time.Second
 	const backoffIncrement = 5 * time.Second
 	const maxBackoff = 60 * time.Second
 
@@ -181,7 +182,7 @@ func (s *SignalWebsocket) connectLoop(
 
 	// Main connection loop - if there's a problem with anything just
 	// kill everything (including the websocket) and build it all up again
-	backoff := backoffIncrement
+	backoff := initialBackoff
 	retrying := false
 	errorCount := 0
 	for {
@@ -257,14 +258,14 @@ func (s *SignalWebsocket) connectLoop(
 		}
 		s.ws = ws
 		retrying = false
-		backoff = backoffIncrement
+		backoff = initialBackoff
 
 		responseChannels := make(map[uint64]chan *signalpb.WebSocketResponseMessage)
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
 
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
-			err := readLoop(loopCtx, ws, incomingRequestChan, &responseChannels)
+			err := readLoop(loopCtx, ws, incomingRequestChan, responseChannels)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in readLoop: %w", err)
@@ -275,7 +276,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
-			err := writeLoop(loopCtx, ws, s.sendChannel, &responseChannels)
+			err := writeLoop(loopCtx, ws, s.sendChannel, responseChannels)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in writeLoop: %w", err)
@@ -346,7 +347,7 @@ func (s *SignalWebsocket) connectLoop(
 		log.Info().Msg("Read or write loop exited")
 
 		// Clean up
-		ws.Close(200, "Done")
+		ws.Close(websocket.StatusGoingAway, "Going away")
 		for _, responseChannel := range responseChannels {
 			close(responseChannel)
 		}
@@ -365,7 +366,7 @@ func readLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	incomingRequestChan chan *signalpb.WebSocketRequestMessage,
-	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
+	responseChannels map[uint64]chan *signalpb.WebSocketResponseMessage,
 ) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_read_loop").
@@ -380,8 +381,7 @@ func readLoop(
 		if err != nil {
 			if err == context.Canceled {
 				log.Info().Msg("readLoop context canceled")
-			}
-			if strings.Contains(err.Error(), "StatusNormalClosure") {
+			} else if websocket.CloseStatus(err) == websocket.StatusNormalClosure {
 				log.Info().Msg("readLoop received StatusNormalClosure")
 				return nil
 			}
@@ -406,7 +406,7 @@ func readLoop(
 			if msg.Response.Id == nil {
 				log.Fatal().Msg("Received response with no id")
 			}
-			responseChannel, ok := (*responseChannels)[*msg.Response.Id]
+			responseChannel, ok := responseChannels[*msg.Response.Id]
 			if !ok {
 				log.Warn().
 					Uint64("response_id", *msg.Response.Id).
@@ -418,7 +418,7 @@ func readLoop(
 				Uint32("response_status", *msg.Response.Status).
 				Msg("Received WS response")
 			responseChannel <- msg.Response
-			delete(*responseChannels, *msg.Response.Id)
+			delete(responseChannels, *msg.Response.Id)
 			log.Debug().
 				Uint64("response_id", *msg.Response.Id).
 				Msg("Deleted response channel for ID")
@@ -445,7 +445,7 @@ func writeLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	sendChannel chan SignalWebsocketSendMessage,
-	responseChannels *(map[uint64]chan *signalpb.WebSocketResponseMessage),
+	responseChannels map[uint64]chan *signalpb.WebSocketResponseMessage,
 ) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_write_loop").
@@ -459,7 +459,7 @@ func writeLoop(
 			return nil
 		case request, ok := <-sendChannel:
 			if !ok {
-				return errors.New("Send channel closed")
+				return errors.New("send channel closed")
 			}
 			if request.RequestMessage != nil && request.ResponseChannel != nil {
 				msgType := signalpb.WebSocketMessage_REQUEST
@@ -468,15 +468,15 @@ func writeLoop(
 					Request: request.RequestMessage,
 				}
 				request.RequestMessage.Id = &i
-				(*responseChannels)[i] = request.ResponseChannel
+				responseChannels[i] = request.ResponseChannel
 				path := *request.RequestMessage.Path
 				if len(path) > 30 {
 					path = path[:40]
 				}
-				if request.RequestTime != (time.Time{}) {
+				if !request.RequestTime.IsZero() {
 					elapsed := time.Since(request.RequestTime)
 					if elapsed > 1*time.Minute {
-						return fmt.Errorf("Took too long, not sending (elapsed: %v)", elapsed)
+						return fmt.Errorf("request too old (%v), not sending", elapsed)
 					} else if elapsed > 10*time.Second {
 						log.Warn().
 							Uint64("request_id", i).
