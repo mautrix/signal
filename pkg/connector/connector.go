@@ -69,7 +69,9 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 	}
 	s.Store = store.NewStore(bridge.DB.Database, dbutil.ZeroLogger(bridge.Log.With().Str("db_section", "signalmeow").Logger()))
 	s.Bridge = bridge
-	s.MsgConv = msgconv.NewMessageConverter(bridge, s.Config.LocationFormat)
+	s.MsgConv = msgconv.NewMessageConverter(bridge)
+	s.MsgConv.LocationFormat = s.Config.LocationFormat
+	s.MsgConv.DisappearViewOnce = s.Config.DisappearViewOnce
 }
 
 func (s *SignalConnector) SetMaxFileSize(maxSize int64) {

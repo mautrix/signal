@@ -44,11 +44,12 @@ type MessageConverter struct {
 	SignalFmtParams *signalfmt.FormatParams
 	MatrixFmtParams *matrixfmt.HTMLParser
 
-	MaxFileSize    int64
-	LocationFormat string
+	MaxFileSize       int64
+	LocationFormat    string
+	DisappearViewOnce bool
 }
 
-func NewMessageConverter(br *bridgev2.Bridge, locationFormat string) *MessageConverter {
+func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {
 	return &MessageConverter{
 		Bridge: br,
 		SignalFmtParams: &signalfmt.FormatParams{
@@ -89,8 +90,7 @@ func NewMessageConverter(br *bridgev2.Bridge, locationFormat string) *MessageCon
 				return uuid.Nil
 			},
 		},
-		MaxFileSize:    50 * 1024 * 1024,
-		LocationFormat: locationFormat,
+		MaxFileSize: 50 * 1024 * 1024,
 	}
 }
 

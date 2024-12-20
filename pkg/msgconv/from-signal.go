@@ -68,6 +68,8 @@ func CanConvertSignal(dm *signalpb.DataMessage) bool {
 	return calculateLength(dm) > 0
 }
 
+const ViewOnceDisappearTimer = 5 * time.Minute
+
 func (mc *MessageConverter) ToMatrix(
 	ctx context.Context,
 	client *signalmeow.Client,
@@ -127,6 +129,17 @@ func (mc *MessageConverter) ToMatrix(
 			Content: &event.MessageEventContent{
 				MsgType: event.MsgNotice,
 				Body:    "The bridge does not support this message type yet.",
+			},
+		})
+	}
+	if dm.GetIsViewOnce() && mc.DisappearViewOnce && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > ViewOnceDisappearTimer) {
+		cm.Disappear.Type = database.DisappearingTypeAfterRead
+		cm.Disappear.Timer = ViewOnceDisappearTimer
+		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgText,
+				Body:    "This is a view-once message. It will disappear in 5 minutes.",
 			},
 		})
 	}

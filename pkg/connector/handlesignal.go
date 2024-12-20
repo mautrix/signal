@@ -314,7 +314,9 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, intent, dataMsg)
 	if converted.Disappear.Type != "" {
 		evtTS := evt.GetTimestamp()
-		portal.UpdateDisappearingSetting(ctx, converted.Disappear, nil, evtTS, true, true)
+		if !dataMsg.GetIsViewOnce() {
+			portal.UpdateDisappearingSetting(ctx, converted.Disappear, nil, evtTS, true, true)
+		}
 		if evt.Info.Sender == evt.s.Client.Store.ACI {
 			converted.Disappear.DisappearAt = evtTS.Add(converted.Disappear.Timer)
 		}

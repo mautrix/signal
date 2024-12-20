@@ -39,6 +39,7 @@ type SignalConfig struct {
 	DeviceName            string              `yaml:"device_name"`
 	NoteToSelfAvatar      id.ContentURIString `yaml:"note_to_self_avatar"`
 	LocationFormat        string              `yaml:"location_format"`
+	DisappearViewOnce     bool                `yaml:"disappear_view_once"`
 
 	displaynameTemplate *template.Template `yaml:"-"`
 }
@@ -81,6 +82,7 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Str, "device_name")
 	helper.Copy(up.Str, "note_to_self_avatar")
 	helper.Copy(up.Str, "location_format")
+	helper.Copy(up.Bool, "disappear_view_once")
 }
 
 func (s *SignalConnector) GetConfig() (string, any, up.Upgrader) {
