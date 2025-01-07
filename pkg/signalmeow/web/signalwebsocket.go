@@ -195,8 +195,8 @@ func (s *SignalWebsocket) connectLoop(
 			log.Warn().Dur("backoff", backoff).Msg("Failed to connect, waiting to retry...")
 			time.Sleep(backoff)
 			backoff += backoffIncrement
-		} else if !isFirstConnect {
-			time.Sleep(1 * time.Second)
+		} else if !isFirstConnect && s.basicAuth != nil {
+			time.Sleep(initialBackoff)
 		}
 		if ctx.Err() != nil {
 			log.Info().Msg("ctx done, stopping connection loop")
@@ -300,6 +300,7 @@ func (s *SignalWebsocket) connectLoop(
 			ticker := time.NewTicker(30 * time.Second)
 			defer ticker.Stop()
 
+			pingTimeoutCount := 0
 			for {
 				select {
 				case <-ticker.C:
@@ -307,11 +308,20 @@ func (s *SignalWebsocket) connectLoop(
 					err := ws.Ping(pingCtx)
 					cancel()
 					if err != nil {
+						pingTimeoutCount++
 						log.Err(err).Msg("Error pinging")
-						loopCancel(err)
-						return
+						if pingTimeoutCount >= 5 {
+							log.Warn().Msg("Ping timeout count exceeded, closing websocket")
+							err = ws.Close(websocket.StatusNormalClosure, "Ping timeout")
+							if err != nil {
+								log.Err(err).Msg("Error closing websocket after ping timeout")
+							}
+							return
+						}
+					} else {
+						pingTimeoutCount = 0
+						log.Trace().Msg("Sent keepalive")
 					}
-					log.Trace().Msg("Sent keepalive")
 				case <-loopCtx.Done():
 					return
 				}
