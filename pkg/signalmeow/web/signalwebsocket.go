@@ -309,7 +309,7 @@ func (s *SignalWebsocket) connectLoop(
 					cancel()
 					if err != nil {
 						pingTimeoutCount++
-						log.Err(err).Msg("Error pinging")
+						log.Err(err).Msg("Failed to send ping")
 						if pingTimeoutCount >= 5 {
 							log.Warn().Msg("Ping timeout count exceeded, closing websocket")
 							err = ws.Close(websocket.StatusNormalClosure, "Ping timeout")
@@ -318,8 +318,10 @@ func (s *SignalWebsocket) connectLoop(
 							}
 							return
 						}
-					} else {
+					} else if pingTimeoutCount > 0 {
 						pingTimeoutCount = 0
+						log.Debug().Msg("Recovered from ping error")
+					} else {
 						log.Trace().Msg("Sent keepalive")
 					}
 				case <-loopCtx.Done():
