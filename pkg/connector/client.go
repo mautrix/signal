@@ -1,3 +1,19 @@
+// mautrix-signal - A Matrix-Signal puppeting bridge.
+// Copyright (C) 2024 Tulir Asokan
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
 package connector
 
 import (
@@ -6,7 +22,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -20,39 +35,6 @@ type SignalClient struct {
 	UserLogin *bridgev2.UserLogin
 	Client    *signalmeow.Client
 	Ghost     *bridgev2.Ghost
-}
-
-var signalCaps = &bridgev2.NetworkRoomCapabilities{
-	FormattedText:    true,
-	UserMentions:     true,
-	LocationMessages: true,
-	Captions:         true,
-	Replies:          true,
-	Edits:            true,
-	EditMaxCount:     10,
-	EditMaxAge:       24 * time.Hour,
-	Deletes:          true,
-	DeleteMaxAge:     24 * time.Hour,
-	DefaultFileRestriction: &bridgev2.FileRestriction{
-		MaxSize: 100 * 1024 * 1024,
-	},
-	ReadReceipts:  true,
-	Reactions:     true,
-	ReactionCount: 1,
-}
-
-var signalCapsNoteToSelf *bridgev2.NetworkRoomCapabilities
-
-func init() {
-	signalCapsNoteToSelf = ptr.Clone(signalCaps)
-	signalCapsNoteToSelf.EditMaxAge = 0
-}
-
-func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *bridgev2.NetworkRoomCapabilities {
-	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
-		return signalCapsNoteToSelf
-	}
-	return signalCaps
 }
 
 var (

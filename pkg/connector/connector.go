@@ -40,15 +40,6 @@ type SignalConnector struct {
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
 var _ bridgev2.MaxFileSizeingNetwork = (*SignalConnector)(nil)
 
-var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
-	DisappearingMessages: true,
-	AggressiveUpdateInfo: true,
-}
-
-func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities {
-	return signalGeneralCaps
-}
-
 func (s *SignalConnector) GetName() bridgev2.BridgeName {
 	return bridgev2.BridgeName{
 		DisplayName:      "Signal",
