@@ -37,7 +37,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_01_10"
+	base := "fi.mau.signal.capabilities.2025_01_10-2"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -45,6 +45,7 @@ func capID() string {
 }
 
 const MaxFileSize = 100 * 1024 * 1024
+const MaxTextLength = 2000
 
 var signalCaps = &event.RoomFeatures{
 	ID: capID(),
@@ -74,9 +75,11 @@ var signalCaps = &event.RoomFeatures{
 				"image/png":  event.CapLevelFullySupported,
 				"image/jpeg": event.CapLevelFullySupported,
 			},
-			MaxWidth:  4096,
-			MaxHeight: 4096,
-			MaxSize:   MaxFileSize,
+			MaxWidth:         4096,
+			MaxHeight:        4096,
+			MaxSize:          MaxFileSize,
+			Caption:          event.CapLevelFullySupported,
+			MaxCaptionLength: MaxTextLength,
 		},
 		event.MsgVideo: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
@@ -84,7 +87,9 @@ var signalCaps = &event.RoomFeatures{
 				"video/ogg":  event.CapLevelFullySupported,
 				"video/webm": event.CapLevelFullySupported,
 			},
-			MaxSize: MaxFileSize,
+			MaxSize:          MaxFileSize,
+			Caption:          event.CapLevelFullySupported,
+			MaxCaptionLength: MaxTextLength,
 		},
 		event.MsgAudio: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
@@ -97,7 +102,9 @@ var signalCaps = &event.RoomFeatures{
 			MimeTypes: map[string]event.CapabilitySupportLevel{
 				"*/*": event.CapLevelFullySupported,
 			},
-			MaxSize: MaxFileSize,
+			MaxSize:          MaxFileSize,
+			Caption:          event.CapLevelFullySupported,
+			MaxCaptionLength: MaxTextLength,
 		},
 		event.CapMsgSticker: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
@@ -119,6 +126,7 @@ var signalCaps = &event.RoomFeatures{
 			MaxDuration: ptr.Ptr(jsontime.S(1 * time.Hour)),
 		},
 	},
+	MaxTextLength:        MaxTextLength, // TODO support arbitrary sized text messages with files
 	LocationMessage:      event.CapLevelPartialSupport,
 	Poll:                 event.CapLevelRejected,
 	Thread:               event.CapLevelUnsupported,
@@ -162,5 +170,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 1
+	return 1, 2
 }
