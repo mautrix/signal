@@ -9,3 +9,4 @@ do
 		--go_opt=embed_raw=true \
 		$file
 done
+pre-commit run -a

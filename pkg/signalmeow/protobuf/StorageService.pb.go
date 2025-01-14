@@ -1323,8 +1323,9 @@ type AccountRecord struct {
 	Username                        string                               `protobuf:"bytes,33,opt,name=username,proto3" json:"username,omitempty"`
 	HasCompletedUsernameOnboarding  bool                                 `protobuf:"varint,34,opt,name=hasCompletedUsernameOnboarding,proto3" json:"hasCompletedUsernameOnboarding,omitempty"`
 	UsernameLink                    *AccountRecord_UsernameLink          `protobuf:"bytes,35,opt,name=usernameLink,proto3" json:"usernameLink,omitempty"`
-	BackupsSubscriberId             []byte                               `protobuf:"bytes,36,opt,name=backupsSubscriberId,proto3" json:"backupsSubscriberId,omitempty"`
-	BackupsSubscriberCurrencyCode   string                               `protobuf:"bytes,37,opt,name=backupsSubscriberCurrencyCode,proto3" json:"backupsSubscriberCurrencyCode,omitempty"`
+	HasBackup                       *bool                                `protobuf:"varint,39,opt,name=hasBackup,proto3,oneof" json:"hasBackup,omitempty"`   // Set to true after backups are enabled and one is uploaded.
+	BackupTier                      *uint64                              `protobuf:"varint,40,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"` // See zkgroup for integer particular values
+	BackupSubscriberData            *AccountRecord_IAPSubscriberData     `protobuf:"bytes,41,opt,name=backupSubscriberData,proto3" json:"backupSubscriberData,omitempty"`
 	unknownFields                   protoimpl.UnknownFields
 	sizeCache                       protoimpl.SizeCache
 }
@@ -1583,18 +1584,25 @@ func (x *AccountRecord) GetUsernameLink() *AccountRecord_UsernameLink {
 	return nil
 }
 
-func (x *AccountRecord) GetBackupsSubscriberId() []byte {
-	if x != nil {
-		return x.BackupsSubscriberId
+func (x *AccountRecord) GetHasBackup() bool {
+	if x != nil && x.HasBackup != nil {
+		return *x.HasBackup
 	}
-	return nil
+	return false
 }
 
-func (x *AccountRecord) GetBackupsSubscriberCurrencyCode() string {
-	if x != nil {
-		return x.BackupsSubscriberCurrencyCode
+func (x *AccountRecord) GetBackupTier() uint64 {
+	if x != nil && x.BackupTier != nil {
+		return *x.BackupTier
 	}
-	return ""
+	return 0
+}
+
+func (x *AccountRecord) GetBackupSubscriberData() *AccountRecord_IAPSubscriberData {
+	if x != nil {
+		return x.BackupSubscriberData
+	}
+	return nil
 }
 
 type StoryDistributionListRecord struct {
@@ -2005,6 +2013,100 @@ func (x *AccountRecord_UsernameLink) GetColor() AccountRecord_UsernameLink_Color
 	return AccountRecord_UsernameLink_UNKNOWN
 }
 
+type AccountRecord_IAPSubscriberData struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	SubscriberId []byte                 `protobuf:"bytes,1,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
+	// Types that are valid to be assigned to IapSubscriptionId:
+	//
+	//	*AccountRecord_IAPSubscriberData_PurchaseToken
+	//	*AccountRecord_IAPSubscriberData_OriginalTransactionId
+	IapSubscriptionId isAccountRecord_IAPSubscriberData_IapSubscriptionId `protobuf_oneof:"iapSubscriptionId"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AccountRecord_IAPSubscriberData) Reset() {
+	*x = AccountRecord_IAPSubscriberData{}
+	mi := &file_StorageService_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountRecord_IAPSubscriberData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountRecord_IAPSubscriberData) ProtoMessage() {}
+
+func (x *AccountRecord_IAPSubscriberData) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountRecord_IAPSubscriberData.ProtoReflect.Descriptor instead.
+func (*AccountRecord_IAPSubscriberData) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{11, 2}
+}
+
+func (x *AccountRecord_IAPSubscriberData) GetSubscriberId() []byte {
+	if x != nil {
+		return x.SubscriberId
+	}
+	return nil
+}
+
+func (x *AccountRecord_IAPSubscriberData) GetIapSubscriptionId() isAccountRecord_IAPSubscriberData_IapSubscriptionId {
+	if x != nil {
+		return x.IapSubscriptionId
+	}
+	return nil
+}
+
+func (x *AccountRecord_IAPSubscriberData) GetPurchaseToken() string {
+	if x != nil {
+		if x, ok := x.IapSubscriptionId.(*AccountRecord_IAPSubscriberData_PurchaseToken); ok {
+			return x.PurchaseToken
+		}
+	}
+	return ""
+}
+
+func (x *AccountRecord_IAPSubscriberData) GetOriginalTransactionId() uint64 {
+	if x != nil {
+		if x, ok := x.IapSubscriptionId.(*AccountRecord_IAPSubscriberData_OriginalTransactionId); ok {
+			return x.OriginalTransactionId
+		}
+	}
+	return 0
+}
+
+type isAccountRecord_IAPSubscriberData_IapSubscriptionId interface {
+	isAccountRecord_IAPSubscriberData_IapSubscriptionId()
+}
+
+type AccountRecord_IAPSubscriberData_PurchaseToken struct {
+	// Identifies an Android Play Store IAP subscription.
+	PurchaseToken string `protobuf:"bytes,2,opt,name=purchaseToken,proto3,oneof"`
+}
+
+type AccountRecord_IAPSubscriberData_OriginalTransactionId struct {
+	// Identifies an iOS App Store IAP subscription.
+	OriginalTransactionId uint64 `protobuf:"varint,3,opt,name=originalTransactionId,proto3,oneof"`
+}
+
+func (*AccountRecord_IAPSubscriberData_PurchaseToken) isAccountRecord_IAPSubscriberData_IapSubscriptionId() {
+}
+
+func (*AccountRecord_IAPSubscriberData_OriginalTransactionId) isAccountRecord_IAPSubscriberData_IapSubscriptionId() {
+}
+
 type AccountRecord_PinnedConversation_Contact struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ServiceId     string                 `protobuf:"bytes,1,opt,name=serviceId,proto3" json:"serviceId,omitempty"`
@@ -2015,7 +2117,7 @@ type AccountRecord_PinnedConversation_Contact struct {
 
 func (x *AccountRecord_PinnedConversation_Contact) Reset() {
 	*x = AccountRecord_PinnedConversation_Contact{}
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_StorageService_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2027,7 +2129,7 @@ func (x *AccountRecord_PinnedConversation_Contact) String() string {
 func (*AccountRecord_PinnedConversation_Contact) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_StorageService_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2075,7 +2177,7 @@ func file_StorageService_proto_rawDescGZIP() []byte {
 }
 
 var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_StorageService_proto_goTypes = []any{
 	(OptionalBool)(0),                                // 0: signalservice.OptionalBool
 	(ManifestRecord_Identifier_Type)(0),              // 1: signalservice.ManifestRecord.Identifier.Type
@@ -2101,7 +2203,8 @@ var file_StorageService_proto_goTypes = []any{
 	(*ContactRecord_Name)(nil),                       // 21: signalservice.ContactRecord.Name
 	(*AccountRecord_PinnedConversation)(nil),         // 22: signalservice.AccountRecord.PinnedConversation
 	(*AccountRecord_UsernameLink)(nil),               // 23: signalservice.AccountRecord.UsernameLink
-	(*AccountRecord_PinnedConversation_Contact)(nil), // 24: signalservice.AccountRecord.PinnedConversation.Contact
+	(*AccountRecord_IAPSubscriberData)(nil),          // 24: signalservice.AccountRecord.IAPSubscriberData
+	(*AccountRecord_PinnedConversation_Contact)(nil), // 25: signalservice.AccountRecord.PinnedConversation.Contact
 }
 var file_StorageService_proto_depIdxs = []int32{
 	7,  // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
@@ -2122,14 +2225,15 @@ var file_StorageService_proto_depIdxs = []int32{
 	16, // 15: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
 	0,  // 16: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
 	23, // 17: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
-	1,  // 18: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
-	24, // 19: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	5,  // 20: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	21, // [21:21] is the sub-list for method output_type
-	21, // [21:21] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	24, // 18: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
+	1,  // 19: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
+	25, // 20: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
+	5,  // 21: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_StorageService_proto_init() }
@@ -2145,10 +2249,15 @@ func file_StorageService_proto_init() {
 		(*StorageRecord_StoryDistributionList)(nil),
 		(*StorageRecord_CallLink)(nil),
 	}
+	file_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[16].OneofWrappers = []any{
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
+	}
+	file_StorageService_proto_msgTypes[18].OneofWrappers = []any{
+		(*AccountRecord_IAPSubscriberData_PurchaseToken)(nil),
+		(*AccountRecord_IAPSubscriberData_OriginalTransactionId)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -2156,7 +2265,7 @@ func file_StorageService_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_StorageService_proto_rawDesc,
 			NumEnums:      6,
-			NumMessages:   19,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
