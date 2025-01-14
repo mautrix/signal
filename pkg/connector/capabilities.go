@@ -37,7 +37,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_01_10-2"
+	base := "fi.mau.signal.capabilities.2025_01_14"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -124,6 +124,14 @@ var signalCaps = &event.RoomFeatures{
 			Caption:     event.CapLevelDropped,
 			MaxSize:     MaxFileSize,
 			MaxDuration: ptr.Ptr(jsontime.S(1 * time.Hour)),
+		},
+		event.CapMsgGIF: {
+			MimeTypes: map[string]event.CapabilitySupportLevel{
+				"image/gif": event.CapLevelFullySupported,
+				"video/mp4": event.CapLevelFullySupported,
+			},
+			Caption: event.CapLevelFullySupported,
+			MaxSize: MaxFileSize,
 		},
 	},
 	MaxTextLength:        MaxTextLength, // TODO support arbitrary sized text messages with files

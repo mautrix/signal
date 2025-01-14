@@ -193,6 +193,9 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	if content.MSC3245Voice != nil && mime == "audio/aac" {
 		att.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
 	}
+	if content.Info.MauGIF {
+		att.Flags = proto.Uint32(uint32(compatFlagGIF))
+	}
 	att.ContentType = proto.String(mime)
 	att.FileName = &fileName
 	att.Height = maybeInt(uint32(content.Info.Height))
