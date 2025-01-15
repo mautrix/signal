@@ -111,7 +111,7 @@ func (cli *Client) doContactDiscovery(ctx context.Context, req *signalpb.CDSClie
 		Path:   path.Join("v1", ProdContactDiscoveryMrenclave, "discovery"),
 	}).String()
 	log.Trace().Msg("Connecting to contact discovery websocket")
-	ws, _, err := web.OpenWebsocketURL(ctx, addr)
+	ws, _, err := web.OpenWebsocket(ctx, addr)
 	if err != nil {
 		var closeErr websocket.CloseError
 		if errors.As(err, &closeErr) && closeErr.Code == rateLimitCloseCode {

@@ -84,12 +84,7 @@ func (cli *Client) ConnectAuthedWS(ctx context.Context, requestHandler web.Reque
 		Str("username", username).
 		Logger()
 	ctx = log.WithContext(ctx)
-	username = url.QueryEscape(username)
-	password = url.QueryEscape(password)
-	path := web.WebsocketPath +
-		"?login=" + username +
-		"&password=" + password
-	authedWS := web.NewSignalWebsocket(path, &username, &password)
+	authedWS := web.NewSignalWebsocket(url.UserPassword(username, password))
 	statusChan := authedWS.Connect(ctx, &requestHandler)
 	cli.AuthedWS = authedWS
 	return statusChan, nil
@@ -104,7 +99,7 @@ func (cli *Client) ConnectUnauthedWS(ctx context.Context) (chan web.SignalWebsoc
 		Str("websocket_type", "unauthed").
 		Logger()
 	ctx = log.WithContext(ctx)
-	unauthedWS := web.NewSignalWebsocket(web.WebsocketPath, nil, nil)
+	unauthedWS := web.NewSignalWebsocket(nil)
 	statusChan := unauthedWS.Connect(ctx, nil)
 	cli.UnauthedWS = unauthedWS
 	return statusChan, nil

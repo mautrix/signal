@@ -87,7 +87,11 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 
 		timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 		defer cancel()
-		ws, resp, err := web.OpenWebsocket(timeoutCtx, web.WebsocketProvisioningPath)
+		ws, resp, err := web.OpenWebsocket(timeoutCtx, (&url.URL{
+			Scheme: "wss",
+			Host:   web.APIHostname,
+			Path:   web.WebsocketProvisioningPath,
+		}).String())
 		if err != nil {
 			log.Err(err).Any("resp", resp).Msg("error opening provisioning websocket")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -388,7 +392,11 @@ func confirmDevice(
 		return nil, fmt.Errorf("failed to encrypt device name: %w", err)
 	}
 
-	ws, resp, err := web.OpenWebsocket(ctx, web.WebsocketPath)
+	ws, resp, err := web.OpenWebsocket(ctx, (&url.URL{
+		Scheme: "wss",
+		Host:   web.APIHostname,
+		Path:   web.WebsocketPath,
+	}).String())
 	if err != nil {
 		log.Err(err).Any("resp", resp).Msg("error opening websocket")
 		return nil, err

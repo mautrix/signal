@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -43,20 +44,13 @@ type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage)
 
 type SignalWebsocket struct {
 	ws            *websocket.Conn
-	path          string
-	basicAuth     *string
+	basicAuth     *url.Userinfo
 	sendChannel   chan SignalWebsocketSendMessage
 	statusChannel chan SignalWebsocketConnectionStatus
 }
 
-func NewSignalWebsocket(path string, username *string, password *string) *SignalWebsocket {
-	var basicAuth *string
-	if username != nil && password != nil {
-		b := base64.StdEncoding.EncodeToString([]byte(*username + ":" + *password))
-		basicAuth = &b
-	}
+func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
 	return &SignalWebsocket{
-		path:          path,
 		basicAuth:     basicAuth,
 		sendChannel:   make(chan SignalWebsocketSendMessage),
 		statusChannel: make(chan SignalWebsocketConnectionStatus),
@@ -187,6 +181,12 @@ func (s *SignalWebsocket) connectLoop(
 	retrying := false
 	errorCount := 0
 	isFirstConnect := true
+	wsURL := (&url.URL{
+		Scheme: "wss",
+		Host:   APIHostname,
+		Path:   WebsocketPath,
+		User:   s.basicAuth,
+	}).String()
 	for {
 		if retrying {
 			if backoff > maxBackoff {
@@ -204,7 +204,7 @@ func (s *SignalWebsocket) connectLoop(
 		}
 		isFirstConnect = false
 
-		ws, resp, err := OpenWebsocket(ctx, s.path)
+		ws, resp, err := OpenWebsocket(ctx, wsURL)
 		if resp != nil {
 			if resp.StatusCode != 101 {
 				// Server didn't want to open websocket
@@ -555,7 +555,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 	retryCount int,
 ) (*signalpb.WebSocketResponseMessage, error) {
 	if s.basicAuth != nil {
-		request.Headers = append(request.Headers, "authorization:Basic "+*s.basicAuth)
+		request.Headers = append(request.Headers, "authorization:Basic "+s.basicAuth.String())
 	}
 	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
 	if s.sendChannel == nil {
@@ -590,11 +590,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 	return response, nil
 }
 
-func OpenWebsocket(ctx context.Context, path string) (*websocket.Conn, *http.Response, error) {
-	return OpenWebsocketURL(ctx, "wss://"+APIHostname+path)
-}
-
-func OpenWebsocketURL(ctx context.Context, url string) (*websocket.Conn, *http.Response, error) {
+func OpenWebsocket(ctx context.Context, url string) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
 		HTTPClient: SignalHTTPClient,
 		HTTPHeader: make(http.Header, 2),
