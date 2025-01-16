@@ -73,7 +73,7 @@ func (cli *Client) IsConnected() bool {
 	return cli.AuthedWS.IsConnected() && cli.UnauthedWS.IsConnected()
 }
 
-func (cli *Client) ConnectAuthedWS(ctx context.Context, requestHandler web.RequestHandlerFunc) (chan web.SignalWebsocketConnectionStatus, error) {
+func (cli *Client) connectAuthedWS(ctx context.Context, requestHandler web.RequestHandlerFunc) (chan web.SignalWebsocketConnectionStatus, error) {
 	if cli.AuthedWS != nil {
 		return nil, errors.New("authed websocket already connected")
 	}
@@ -90,7 +90,7 @@ func (cli *Client) ConnectAuthedWS(ctx context.Context, requestHandler web.Reque
 	return statusChan, nil
 }
 
-func (cli *Client) ConnectUnauthedWS(ctx context.Context) (chan web.SignalWebsocketConnectionStatus, error) {
+func (cli *Client) connectUnauthedWS(ctx context.Context) (chan web.SignalWebsocketConnectionStatus, error) {
 	if cli.UnauthedWS != nil {
 		return nil, errors.New("unauthed websocket already connected")
 	}

@@ -35,6 +35,7 @@ func (*ReadSelf) isSignalEvent()        {}
 func (*Call) isSignalEvent()            {}
 func (*ContactList) isSignalEvent()     {}
 func (*ACIFound) isSignalEvent()        {}
+func (*QueueEmpty) isSignalEvent()      {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -78,3 +79,5 @@ type ACIFound struct {
 	PNI libsignalgo.ServiceID
 	ACI libsignalgo.ServiceID
 }
+
+type QueueEmpty struct{}

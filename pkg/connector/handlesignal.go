@@ -52,6 +52,10 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 		s.handleSignalContactList(evt)
 	case *events.ACIFound:
 		s.handleSignalACIFound(evt)
+	case *events.QueueEmpty:
+		s.queueEmptyWaiter.Set()
+	default:
+		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}
 }
 

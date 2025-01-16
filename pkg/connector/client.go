@@ -22,12 +22,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 type SignalClient struct {
@@ -35,6 +37,8 @@ type SignalClient struct {
 	UserLogin *bridgev2.UserLogin
 	Client    *signalmeow.Client
 	Ghost     *bridgev2.Ghost
+
+	queueEmptyWaiter *exsync.Event
 }
 
 var (
@@ -51,6 +55,7 @@ var (
 	_ bridgev2.RoomNameHandlingNetworkAPI    = (*SignalClient)(nil)
 	_ bridgev2.RoomAvatarHandlingNetworkAPI  = (*SignalClient)(nil)
 	_ bridgev2.RoomTopicHandlingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.BackgroundSyncingNetworkAPI   = (*SignalClient)(nil)
 )
 
 var pushCfg = &bridgev2.PushConfig{
@@ -208,6 +213,43 @@ func (s *SignalClient) Connect(ctx context.Context) {
 	}
 	s.updateRemoteProfile(ctx, false)
 	s.tryConnect(ctx, 0)
+}
+
+func (s *SignalClient) ConnectBackground(ctx context.Context) error {
+	s.queueEmptyWaiter.Clear()
+	ch, err := s.Client.StartAuthedWS(ctx)
+	if err != nil {
+		return err
+	}
+	defer s.Disconnect()
+	log := zerolog.Ctx(ctx)
+	queueEmpty := s.queueEmptyWaiter.GetChan()
+	for {
+		select {
+		case status := <-ch:
+			switch status.Event {
+			case web.SignalWebsocketConnectionEventConnected:
+				log.Info().Msg("Authed websocket connected")
+			case web.SignalWebsocketConnectionEventDisconnected:
+				log.Err(status.Err).Msg("Authed websocket disconnected")
+				return fmt.Errorf("authed websocket disconnected: %w", status.Err)
+			case web.SignalWebsocketConnectionEventLoggedOut:
+				log.Err(status.Err).Msg("Authed websocket logged out")
+				return fmt.Errorf("authed websocket logged out: %w", status.Err)
+			case web.SignalWebsocketConnectionEventError:
+				log.Err(status.Err).Msg("Authed websocket error")
+				return fmt.Errorf("authed websocket errored: %w", status.Err)
+			case web.SignalWebsocketConnectionEventCleanShutdown:
+				log.Info().Msg("Authed websocket clean shutdown")
+			}
+		case <-ctx.Done():
+			log.Warn().Msg("Context finished before queue empty event")
+			return ctx.Err()
+		case <-queueEmpty:
+			log.Info().Msg("Received queue empty event")
+			return nil
+		}
+	}
 }
 
 func (s *SignalClient) Disconnect() {

@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
+	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridgev2"
 
 	"go.mau.fi/mautrix-signal/pkg/msgconv"
@@ -89,6 +90,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 	sc := &SignalClient{
 		Main:      s,
 		UserLogin: login,
+
+		queueEmptyWaiter: exsync.NewEvent(),
 	}
 	if device != nil {
 		sc.Client = &signalmeow.Client{

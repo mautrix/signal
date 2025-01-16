@@ -68,17 +68,29 @@ type SignalConnectionStatus struct {
 	Err   error
 }
 
+func (cli *Client) StartAuthedWS(ctx context.Context) (chan web.SignalWebsocketConnectionStatus, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	cli.WSCancel = cancel
+	authChan, err := cli.connectAuthedWS(ctx, cli.incomingRequestHandler)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	zerolog.Ctx(ctx).Info().Msg("Authed websocket connecting")
+	return authChan, nil
+}
+
 func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnectionStatus, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start receive loops").Logger()
 	ctx, cancel := context.WithCancel(log.WithContext(ctx))
 	cli.WSCancel = cancel
-	authChan, err := cli.ConnectAuthedWS(ctx, cli.incomingRequestHandler)
+	authChan, err := cli.connectAuthedWS(ctx, cli.incomingRequestHandler)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 	log.Info().Msg("Authed websocket connecting")
-	unauthChan, err := cli.ConnectUnauthedWS(ctx)
+	unauthChan, err := cli.connectUnauthedWS(ctx)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -257,6 +269,7 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 		return cli.incomingAPIMessageHandler(ctx, req)
 	} else if *req.Verb == http.MethodPut && *req.Path == "/api/v1/queue/empty" {
 		log.Trace().Msg("Received queue empty")
+		cli.handleEvent(&events.QueueEmpty{})
 	} else {
 		log.Warn().Any("req", req).Msg("Unknown websocket request message")
 	}
