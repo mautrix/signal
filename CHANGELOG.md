@@ -1,3 +1,11 @@
+# v0.7.5 (2025-01-16)
+
+* Added support for bridging mp4 gifs in both directions.
+* Added support for signaling supported features to clients using the
+  `com.beeper.room_features` state event.
+* Updated Signal websocket authentication method.
+* Fixed some cases where websocket would get stuck after a ping timeout.
+
 # v0.7.4 (2024-12-16)
 
 * Fixed syncing server-side storage after Signal login.

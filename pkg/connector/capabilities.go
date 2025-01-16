@@ -37,7 +37,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_01_14"
+	base := "fi.mau.signal.capabilities.2025_01_16"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -74,6 +74,8 @@ var signalCaps = &event.RoomFeatures{
 				"image/gif":  event.CapLevelFullySupported,
 				"image/png":  event.CapLevelFullySupported,
 				"image/jpeg": event.CapLevelFullySupported,
+				"image/webp": event.CapLevelFullySupported,
+				"image/bmp":  event.CapLevelFullySupported,
 			},
 			MaxWidth:         4096,
 			MaxHeight:        4096,
