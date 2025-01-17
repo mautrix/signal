@@ -182,13 +182,13 @@ func deriveStorageManifestKey(storageKey []byte, version uint64) []byte {
 const storageServiceItemKeyInfoPrefix = "20240801_SIGNAL_STORAGE_SERVICE_ITEM_"
 const storageServiceItemKeyLen = 32
 
-func deriveStorageItemKey(storageKey, recordIKM []byte, itemID string) []byte {
+func deriveStorageItemKey(storageKey, recordIKM, rawItemID []byte, b64ItemID string) []byte {
 	if recordIKM == nil {
 		h := hmac.New(sha256.New, storageKey)
-		exerrors.Must(fmt.Fprintf(h, "Item_%s", itemID))
+		exerrors.Must(fmt.Fprintf(h, "Item_%s", b64ItemID))
 		return h.Sum(nil)
 	} else {
-		h := hkdf.New(sha256.New, recordIKM, []byte{}, append([]byte(storageServiceItemKeyInfoPrefix), itemID...))
+		h := hkdf.New(sha256.New, recordIKM, []byte{}, append([]byte(storageServiceItemKeyInfoPrefix), rawItemID...))
 		out := make([]byte, storageServiceItemKeyLen)
 		exerrors.Must(io.ReadFull(h, out))
 		return out
@@ -278,7 +278,7 @@ func (cli *Client) fetchStorageRecords(
 			log.Warn().Int("item_index", i).Str("item_key", base64Key).Msg("Received unexpected storage item")
 			continue
 		}
-		itemKey := deriveStorageItemKey(storageKey, recordIKM, base64Key)
+		itemKey := deriveStorageItemKey(storageKey, recordIKM, encryptedItem.GetKey(), base64Key)
 		decryptedItemBytes, err := decryptBytes(itemKey, encryptedItem.GetValue())
 		if err != nil {
 			log.Warn().Err(err).
