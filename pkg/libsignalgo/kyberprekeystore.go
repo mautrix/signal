@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Scott Weber
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -70,11 +71,11 @@ func signal_mark_kyber_pre_key_used_callback(storeCtx unsafe.Pointer, id C.uint3
 	})
 }
 
-func (ctx *CallbackContext) wrapKyberPreKeyStore(store KyberPreKeyStore) *C.SignalKyberPreKeyStore {
-	return &C.SignalKyberPreKeyStore{
+func (ctx *CallbackContext) wrapKyberPreKeyStore(store KyberPreKeyStore) C.SignalConstPointerFfiKyberPreKeyStoreStruct {
+	return C.SignalConstPointerFfiKyberPreKeyStoreStruct{&C.SignalKyberPreKeyStore{
 		ctx:                     wrapStore(ctx, store),
 		load_kyber_pre_key:      C.SignalLoadKyberPreKey(C.signal_load_kyber_pre_key_callback),
 		store_kyber_pre_key:     C.SignalStoreKyberPreKey(C.signal_store_kyber_pre_key_callback),
 		mark_kyber_pre_key_used: C.SignalMarkKyberPreKeyUsed(C.signal_mark_kyber_pre_key_used_callback),
-	}
+	}}
 }

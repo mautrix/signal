@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Scott Weber
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -148,7 +149,7 @@ func CreateProfileKeyCredentialRequestContext(serverPublicParams *ServerPublicPa
 
 	signalFfiError := C.signal_server_public_params_create_profile_key_credential_request_context_deterministic(
 		&c_result,
-		serverPublicParams,
+		C.SignalConstPointerServerPublicParams{serverPublicParams},
 		c_random,
 		c_uuid,
 		c_profileKey,
@@ -194,7 +195,7 @@ func ReceiveExpiringProfileKeyCredential(spp *ServerPublicParams, requestContext
 	c_credential := [C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar{}
 	signalFfiError := C.signal_server_public_params_receive_expiring_profile_key_credential(
 		&c_credential,
-		spp,
+		C.SignalConstPointerServerPublicParams{spp},
 		(*[C.SignalPROFILE_KEY_CREDENTIAL_REQUEST_CONTEXT_LEN]C.uchar)(unsafe.Pointer(requestContext)),
 		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_RESPONSE_LEN]C.uchar)(unsafe.Pointer(response)),
 		(C.uint64_t)(currentTimeInSeconds),

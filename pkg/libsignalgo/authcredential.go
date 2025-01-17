@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Scott Weber
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -50,7 +51,7 @@ func ReceiveAuthCredentialWithPni(
 
 	signalFfiError := C.signal_server_public_params_receive_auth_credential_with_pni_as_service_id(
 		&c_result,
-		serverPublicParams,
+		C.SignalConstPointerServerPublicParams{serverPublicParams},
 		NewACIServiceID(aci).CFixedBytes(),
 		NewPNIServiceID(pni).CFixedBytes(),
 		C.uint64_t(redemptionTime),
@@ -88,7 +89,7 @@ func CreateAuthCredentialWithPniPresentation(
 
 	signalFfiError := C.signal_server_public_params_create_auth_credential_with_pni_presentation_deterministic(
 		&c_result,
-		serverPublicParams,
+		C.SignalConstPointerServerPublicParams{serverPublicParams},
 		c_randomness,
 		c_groupSecretParams,
 		BytesToBuffer(authCredWithPni[:]),

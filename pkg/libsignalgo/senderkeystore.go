@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -68,10 +69,10 @@ func signal_store_sender_key_callback(storeCtx unsafe.Pointer, address *C.const_
 	})
 }
 
-func (ctx *CallbackContext) wrapSenderKeyStore(store SenderKeyStore) *C.SignalSenderKeyStore {
-	return &C.SignalSenderKeyStore{
+func (ctx *CallbackContext) wrapSenderKeyStore(store SenderKeyStore) C.SignalConstPointerFfiSenderKeyStoreStruct {
+	return C.SignalConstPointerFfiSenderKeyStoreStruct{&C.SignalSenderKeyStore{
 		ctx:              wrapStore(ctx, store),
 		load_sender_key:  C.SignalLoadSenderKey(C.signal_load_sender_key_callback),
 		store_sender_key: C.SignalStoreSenderKey(C.signal_store_sender_key_callback),
-	}
+	}}
 }

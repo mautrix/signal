@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -148,13 +149,13 @@ func signal_is_trusted_identity_callback(storeCtx unsafe.Pointer, address *C.con
 	})
 }
 
-func (ctx *CallbackContext) wrapIdentityKeyStore(store IdentityKeyStore) *C.SignalIdentityKeyStore {
-	return &C.SignalIdentityKeyStore{
+func (ctx *CallbackContext) wrapIdentityKeyStore(store IdentityKeyStore) C.SignalConstPointerFfiIdentityKeyStoreStruct {
+	return C.SignalConstPointerFfiIdentityKeyStoreStruct{&C.SignalIdentityKeyStore{
 		ctx:                       wrapStore(ctx, store),
 		get_identity_key_pair:     C.SignalGetIdentityKeyPair(C.signal_get_identity_key_pair_callback),
 		get_local_registration_id: C.SignalGetLocalRegistrationId(C.signal_get_local_registration_id_callback),
 		save_identity:             C.SignalSaveIdentityKey(C.signal_save_identity_key_callback),
 		get_identity:              C.SignalGetIdentityKey(C.signal_get_identity_key_callback),
 		is_trusted_identity:       C.SignalIsTrustedIdentity(C.signal_is_trusted_identity_callback),
-	}
+	}}
 }

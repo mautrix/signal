@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -42,32 +43,48 @@ func wrapFingerprint(ptr *C.SignalFingerprint) *Fingerprint {
 }
 
 func NewFingerprint(iterations, version FingerprintVersion, localIdentifier []byte, localKey *PublicKey, remoteIdentifier []byte, remoteKey *PublicKey) (*Fingerprint, error) {
-	var pa *C.SignalFingerprint
-	signalFfiError := C.signal_fingerprint_new(&pa, C.uint32_t(iterations), C.uint32_t(version), BytesToBuffer(localIdentifier), localKey.ptr, BytesToBuffer(remoteIdentifier), remoteKey.ptr)
+	var pa C.SignalMutPointerFingerprint
+	signalFfiError := C.signal_fingerprint_new(
+		&pa,
+		C.uint32_t(iterations),
+		C.uint32_t(version),
+		BytesToBuffer(localIdentifier),
+		localKey.constPtr(),
+		BytesToBuffer(remoteIdentifier),
+		remoteKey.constPtr(),
+	)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapFingerprint(pa), nil
+	return wrapFingerprint(pa.raw), nil
+}
+
+func (f *Fingerprint) mutPtr() C.SignalMutPointerFingerprint {
+	return C.SignalMutPointerFingerprint{f.ptr}
+}
+
+func (f *Fingerprint) constPtr() C.SignalConstPointerFingerprint {
+	return C.SignalConstPointerFingerprint{f.ptr}
 }
 
 func (f *Fingerprint) Clone() (*Fingerprint, error) {
-	var cloned *C.SignalFingerprint
-	signalFfiError := C.signal_fingerprint_clone(&cloned, f.ptr)
+	var cloned C.SignalMutPointerFingerprint
+	signalFfiError := C.signal_fingerprint_clone(&cloned, f.constPtr())
 	runtime.KeepAlive(f)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapFingerprint(cloned), nil
+	return wrapFingerprint(cloned.raw), nil
 }
 
 func (f *Fingerprint) Destroy() error {
 	runtime.SetFinalizer(f, nil)
-	return wrapError(C.signal_fingerprint_destroy(f.ptr))
+	return wrapError(C.signal_fingerprint_destroy(f.mutPtr()))
 }
 
 func (f *Fingerprint) ScannableEncoding() ([]byte, error) {
 	var scannableEncoding C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_fingerprint_scannable_encoding(&scannableEncoding, f.ptr)
+	signalFfiError := C.signal_fingerprint_scannable_encoding(&scannableEncoding, f.constPtr())
 	runtime.KeepAlive(f)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -77,7 +94,7 @@ func (f *Fingerprint) ScannableEncoding() ([]byte, error) {
 
 func (f *Fingerprint) DisplayString() (string, error) {
 	var displayString *C.char
-	signalFfiError := C.signal_fingerprint_display_string(&displayString, f.ptr)
+	signalFfiError := C.signal_fingerprint_display_string(&displayString, f.constPtr())
 	runtime.KeepAlive(f)
 	if signalFfiError != nil {
 		return "", wrapError(signalFfiError)

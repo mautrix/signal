@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -60,10 +61,10 @@ func signal_store_signed_pre_key_callback(storeCtx unsafe.Pointer, id C.uint32_t
 	})
 }
 
-func (ctx *CallbackContext) wrapSignedPreKeyStore(store SignedPreKeyStore) *C.SignalSignedPreKeyStore {
-	return &C.SignalSignedPreKeyStore{
+func (ctx *CallbackContext) wrapSignedPreKeyStore(store SignedPreKeyStore) C.SignalConstPointerFfiSignedPreKeyStoreStruct {
+	return C.SignalConstPointerFfiSignedPreKeyStoreStruct{&C.SignalSignedPreKeyStore{
 		ctx:                  wrapStore(ctx, store),
 		load_signed_pre_key:  C.SignalLoadSignedPreKey(C.signal_load_signed_pre_key_callback),
 		store_signed_pre_key: C.SignalStoreSignedPreKey(C.signal_store_signed_pre_key_callback),
-	}
+	}}
 }

@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Scott Weber
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -52,9 +53,17 @@ func wrapKyberKeyPair(ptr *C.SignalKyberKeyPair) *KyberKeyPair {
 	return kp
 }
 
+func (kp *KyberKeyPair) mutPtr() C.SignalMutPointerKyberKeyPair {
+	return C.SignalMutPointerKyberKeyPair{kp.ptr}
+}
+
+func (kp *KyberKeyPair) constPtr() C.SignalConstPointerKyberKeyPair {
+	return C.SignalConstPointerKyberKeyPair{kp.ptr}
+}
+
 func (kp *KyberKeyPair) Destroy() error {
 	kp.CancelFinalizer()
-	return wrapError(C.signal_kyber_key_pair_destroy(kp.ptr))
+	return wrapError(C.signal_kyber_key_pair_destroy(kp.mutPtr()))
 }
 
 func (kp *KyberKeyPair) CancelFinalizer() {
@@ -67,9 +76,17 @@ func wrapKyberPublicKey(ptr *C.SignalKyberPublicKey) *KyberPublicKey {
 	return publicKey
 }
 
+func (k *KyberPublicKey) mutPtr() C.SignalMutPointerKyberPublicKey {
+	return C.SignalMutPointerKyberPublicKey{k.ptr}
+}
+
+func (k *KyberPublicKey) constPtr() C.SignalConstPointerKyberPublicKey {
+	return C.SignalConstPointerKyberPublicKey{k.ptr}
+}
+
 func (k *KyberPublicKey) Destroy() error {
 	k.CancelFinalizer()
-	return wrapError(C.signal_publickey_destroy(k.ptr))
+	return wrapError(C.signal_kyber_public_key_destroy(k.mutPtr()))
 }
 
 func (k *KyberPublicKey) CancelFinalizer() {
@@ -82,9 +99,17 @@ func wrapKyberSecretKey(ptr *C.SignalKyberSecretKey) *KyberSecretKey {
 	return secretKey
 }
 
+func (k *KyberSecretKey) mutPtr() C.SignalMutPointerKyberSecretKey {
+	return C.SignalMutPointerKyberSecretKey{k.ptr}
+}
+
+func (k *KyberSecretKey) constPtr() C.SignalConstPointerKyberSecretKey {
+	return C.SignalConstPointerKyberSecretKey{k.ptr}
+}
+
 func (k *KyberSecretKey) Destroy() error {
 	k.CancelFinalizer()
-	return wrapError(C.signal_kyber_secret_key_destroy(k.ptr))
+	return wrapError(C.signal_kyber_secret_key_destroy(k.mutPtr()))
 }
 
 func (k *KyberSecretKey) CancelFinalizer() {
@@ -98,18 +123,18 @@ func wrapKyberPreKeyRecord(ptr *C.SignalKyberPreKeyRecord) *KyberPreKeyRecord {
 }
 
 func (kp *KyberKeyPair) GetPublicKey() (*KyberPublicKey, error) {
-	var pub *C.SignalKyberPublicKey
-	signalFfiError := C.signal_kyber_key_pair_get_public_key(&pub, kp.ptr)
+	var pub C.SignalMutPointerKyberPublicKey
+	signalFfiError := C.signal_kyber_key_pair_get_public_key(&pub, kp.constPtr())
 	runtime.KeepAlive(kp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberPublicKey(pub), nil
+	return wrapKyberPublicKey(pub.raw), nil
 }
 
 func (kp *KyberPublicKey) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_kyber_public_key_serialize(&serialized, kp.ptr)
+	signalFfiError := C.signal_kyber_public_key_serialize(&serialized, kp.constPtr())
 	runtime.KeepAlive(kp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -118,49 +143,63 @@ func (kp *KyberPublicKey) Serialize() ([]byte, error) {
 }
 
 func DeserializeKyberPublicKey(serialized []byte) (*KyberPublicKey, error) {
-	var kyberPublicKey *C.SignalKyberPublicKey
+	var kyberPublicKey C.SignalMutPointerKyberPublicKey
 	signalFfiError := C.signal_kyber_public_key_deserialize(&kyberPublicKey, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberPublicKey(kyberPublicKey), nil
+	return wrapKyberPublicKey(kyberPublicKey.raw), nil
 }
 
 func NewKyberPreKeyRecord(id uint32, timestamp time.Time, keyPair *KyberKeyPair, signature []byte) (*KyberPreKeyRecord, error) {
-	var kpkr *C.SignalKyberPreKeyRecord
-	signalFfiError := C.signal_kyber_pre_key_record_new(&kpkr, C.uint32_t(id), C.uint64_t(timestamp.UnixMilli()), keyPair.ptr, BytesToBuffer(signature))
+	var kpkr C.SignalMutPointerKyberPreKeyRecord
+	signalFfiError := C.signal_kyber_pre_key_record_new(
+		&kpkr,
+		C.uint32_t(id),
+		C.uint64_t(timestamp.UnixMilli()),
+		keyPair.constPtr(),
+		BytesToBuffer(signature),
+	)
 	runtime.KeepAlive(keyPair)
 	runtime.KeepAlive(signature)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberPreKeyRecord(kpkr), nil
+	return wrapKyberPreKeyRecord(kpkr.raw), nil
 }
 
 func DeserializeKyberPreKeyRecord(serialized []byte) (*KyberPreKeyRecord, error) {
-	var kpkr *C.SignalKyberPreKeyRecord
+	var kpkr C.SignalMutPointerKyberPreKeyRecord
 	signalFfiError := C.signal_kyber_pre_key_record_deserialize(&kpkr, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberPreKeyRecord(kpkr), nil
+	return wrapKyberPreKeyRecord(kpkr.raw), nil
+}
+
+func (kpkr *KyberPreKeyRecord) mutPtr() C.SignalMutPointerKyberPreKeyRecord {
+	return C.SignalMutPointerKyberPreKeyRecord{kpkr.ptr}
+}
+
+func (kpkr *KyberPreKeyRecord) constPtr() C.SignalConstPointerKyberPreKeyRecord {
+	return C.SignalConstPointerKyberPreKeyRecord{kpkr.ptr}
 }
 
 func (kpkr *KyberPreKeyRecord) Clone() (*KyberPreKeyRecord, error) {
-	var cloned *C.SignalKyberPreKeyRecord
-	signalFfiError := C.signal_kyber_pre_key_record_clone(&cloned, kpkr.ptr)
+	var cloned C.SignalMutPointerKyberPreKeyRecord
+	signalFfiError := C.signal_kyber_pre_key_record_clone(&cloned, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberPreKeyRecord(cloned), nil
+	return wrapKyberPreKeyRecord(cloned.raw), nil
 }
 
 func (kpkr *KyberPreKeyRecord) Destroy() error {
 	kpkr.CancelFinalizer()
-	return wrapError(C.signal_kyber_pre_key_record_destroy(kpkr.ptr))
+	return wrapError(C.signal_kyber_pre_key_record_destroy(kpkr.mutPtr()))
 }
 
 func (kpkr *KyberPreKeyRecord) CancelFinalizer() {
@@ -169,7 +208,7 @@ func (kpkr *KyberPreKeyRecord) CancelFinalizer() {
 
 func (kpkr *KyberPreKeyRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_kyber_pre_key_record_serialize(&serialized, kpkr.ptr)
+	signalFfiError := C.signal_kyber_pre_key_record_serialize(&serialized, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -179,7 +218,7 @@ func (kpkr *KyberPreKeyRecord) Serialize() ([]byte, error) {
 
 func (kpkr *KyberPreKeyRecord) GetSignature() ([]byte, error) {
 	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_kyber_pre_key_record_get_signature(&signature, kpkr.ptr)
+	signalFfiError := C.signal_kyber_pre_key_record_get_signature(&signature, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -189,7 +228,7 @@ func (kpkr *KyberPreKeyRecord) GetSignature() ([]byte, error) {
 
 func (kpkr *KyberPreKeyRecord) GetID() (uint32, error) {
 	var id C.uint32_t
-	signalFfiError := C.signal_kyber_pre_key_record_get_id(&id, kpkr.ptr)
+	signalFfiError := C.signal_kyber_pre_key_record_get_id(&id, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
@@ -199,7 +238,7 @@ func (kpkr *KyberPreKeyRecord) GetID() (uint32, error) {
 
 func (kpkr *KyberPreKeyRecord) GetTimestamp() (time.Time, error) {
 	var ts C.uint64_t
-	signalFfiError := C.signal_kyber_pre_key_record_get_timestamp(&ts, kpkr.ptr)
+	signalFfiError := C.signal_kyber_pre_key_record_get_timestamp(&ts, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return time.Time{}, wrapError(signalFfiError)
@@ -208,30 +247,30 @@ func (kpkr *KyberPreKeyRecord) GetTimestamp() (time.Time, error) {
 }
 
 func (kpkr *KyberPreKeyRecord) GetPublicKey() (*KyberPublicKey, error) {
-	var pub *C.SignalKyberPublicKey
-	signalFfiError := C.signal_kyber_pre_key_record_get_public_key(&pub, kpkr.ptr)
+	var pub C.SignalMutPointerKyberPublicKey
+	signalFfiError := C.signal_kyber_pre_key_record_get_public_key(&pub, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberPublicKey(pub), nil
+	return wrapKyberPublicKey(pub.raw), nil
 }
 
 func (kpkr *KyberPreKeyRecord) GetSecretKey() (*KyberSecretKey, error) {
-	var sec *C.SignalKyberSecretKey
-	signalFfiError := C.signal_kyber_pre_key_record_get_secret_key(&sec, kpkr.ptr)
+	var sec C.SignalMutPointerKyberSecretKey
+	signalFfiError := C.signal_kyber_pre_key_record_get_secret_key(&sec, kpkr.constPtr())
 	runtime.KeepAlive(kpkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberSecretKey(sec), nil
+	return wrapKyberSecretKey(sec.raw), nil
 }
 
 func KyberKeyPairGenerate() (*KyberKeyPair, error) {
-	var kp *C.SignalKyberKeyPair
+	var kp C.SignalMutPointerKyberKeyPair
 	signalFfiError := C.signal_kyber_key_pair_generate(&kp)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapKyberKeyPair(kp), nil
+	return wrapKyberKeyPair(kp.raw), nil
 }

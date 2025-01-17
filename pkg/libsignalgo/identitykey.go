@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -57,18 +58,23 @@ func (i *IdentityKey) Serialize() ([]byte, error) {
 }
 
 func DeserializeIdentityKey(bytes []byte) (*IdentityKey, error) {
-	var publicKey *C.SignalPublicKey
+	var publicKey C.SignalMutPointerPublicKey
 	signalFfiError := C.signal_publickey_deserialize(&publicKey, BytesToBuffer(bytes))
 	runtime.KeepAlive(bytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return &IdentityKey{publicKey: wrapPublicKey(publicKey)}, nil
+	return &IdentityKey{publicKey: wrapPublicKey(publicKey.raw)}, nil
 }
 
 func (i *IdentityKey) VerifyAlternateIdentity(other *IdentityKey, signature []byte) (bool, error) {
 	var verify C.bool
-	signalFfiError := C.signal_identitykey_verify_alternate_identity(&verify, i.publicKey.ptr, other.publicKey.ptr, BytesToBuffer(signature))
+	signalFfiError := C.signal_identitykey_verify_alternate_identity(
+		&verify,
+		i.publicKey.constPtr(),
+		other.publicKey.constPtr(),
+		BytesToBuffer(signature),
+	)
 	runtime.KeepAlive(i)
 	runtime.KeepAlive(other)
 	runtime.KeepAlive(signature)
@@ -109,14 +115,14 @@ func GenerateIdentityKeyPair() (*IdentityKeyPair, error) {
 }
 
 func DeserializeIdentityKeyPair(bytes []byte) (*IdentityKeyPair, error) {
-	var privateKey *C.SignalPrivateKey
-	var publicKey *C.SignalPublicKey
+	var privateKey C.SignalMutPointerPrivateKey
+	var publicKey C.SignalMutPointerPublicKey
 	signalFfiError := C.signal_identitykeypair_deserialize(&privateKey, &publicKey, BytesToBuffer(bytes))
 	runtime.KeepAlive(bytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return &IdentityKeyPair{publicKey: wrapPublicKey(publicKey), privateKey: wrapPrivateKey(privateKey)}, nil
+	return &IdentityKeyPair{publicKey: wrapPublicKey(publicKey.raw), privateKey: wrapPrivateKey(privateKey.raw)}, nil
 }
 
 func NewIdentityKeyPair(publicKey *PublicKey, privateKey *PrivateKey) (*IdentityKeyPair, error) {
@@ -125,7 +131,11 @@ func NewIdentityKeyPair(publicKey *PublicKey, privateKey *PrivateKey) (*Identity
 
 func (i *IdentityKeyPair) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_identitykeypair_serialize(&serialized, i.publicKey.ptr, i.privateKey.ptr)
+	signalFfiError := C.signal_identitykeypair_serialize(
+		&serialized,
+		i.publicKey.constPtr(),
+		i.privateKey.constPtr(),
+	)
 	runtime.KeepAlive(i)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -139,7 +149,12 @@ func (i *IdentityKeyPair) GetIdentityKey() *IdentityKey {
 
 func (i *IdentityKeyPair) SignAlternateIdentity(other *IdentityKey) ([]byte, error) {
 	var signature C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_identitykeypair_sign_alternate_identity(&signature, i.publicKey.ptr, i.privateKey.ptr, other.publicKey.ptr)
+	signalFfiError := C.signal_identitykeypair_sign_alternate_identity(
+		&signature,
+		i.publicKey.constPtr(),
+		i.privateKey.constPtr(),
+		other.publicKey.constPtr(),
+	)
 	runtime.KeepAlive(i)
 	runtime.KeepAlive(other)
 	if signalFfiError != nil {

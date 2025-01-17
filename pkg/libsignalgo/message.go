@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -24,7 +25,29 @@ import "C"
 import (
 	"context"
 	"runtime"
+	"time"
 )
+
+func Encrypt(ctx context.Context, plaintext []byte, forAddress *Address, sessionStore SessionStore, identityKeyStore IdentityKeyStore) (*CiphertextMessage, error) {
+	var ciphertextMessage C.SignalMutPointerCiphertextMessage
+	var now C.uint64_t = C.uint64_t(time.Now().Unix())
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
+	signalFfiError := C.signal_encrypt_message(
+		&ciphertextMessage,
+		BytesToBuffer(plaintext),
+		forAddress.constPtr(),
+		callbackCtx.wrapSessionStore(sessionStore),
+		callbackCtx.wrapIdentityKeyStore(identityKeyStore),
+		now,
+	)
+	runtime.KeepAlive(plaintext)
+	runtime.KeepAlive(forAddress)
+	if signalFfiError != nil {
+		return nil, callbackCtx.wrapError(signalFfiError)
+	}
+	return wrapCiphertextMessage(ciphertextMessage.raw), nil
+}
 
 func Decrypt(ctx context.Context, message *Message, fromAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
 	callbackCtx := NewCallbackContext(ctx)
@@ -32,8 +55,8 @@ func Decrypt(ctx context.Context, message *Message, fromAddress *Address, sessio
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_message(
 		&decrypted,
-		message.ptr,
-		fromAddress.ptr,
+		message.constPtr(),
+		fromAddress.constPtr(),
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 	)
@@ -57,28 +80,36 @@ func wrapMessage(ptr *C.SignalMessage) *Message {
 }
 
 func DeserializeMessage(serialized []byte) (*Message, error) {
-	var m *C.SignalMessage
+	var m C.SignalMutPointerSignalMessage
 	signalFfiError := C.signal_message_deserialize(&m, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapMessage(m), nil
+	return wrapMessage(m.raw), nil
+}
+
+func (m *Message) mutPtr() C.SignalMutPointerSignalMessage {
+	return C.SignalMutPointerSignalMessage{m.ptr}
+}
+
+func (m *Message) constPtr() C.SignalConstPointerSignalMessage {
+	return C.SignalConstPointerSignalMessage{m.ptr}
 }
 
 func (m *Message) Clone() (*Message, error) {
-	var cloned *C.SignalMessage
-	signalFfiError := C.signal_message_clone(&cloned, m.ptr)
+	var cloned C.SignalMutPointerSignalMessage
+	signalFfiError := C.signal_message_clone(&cloned, m.constPtr())
 	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapMessage(cloned), nil
+	return wrapMessage(cloned.raw), nil
 }
 
 func (m *Message) Destroy() error {
 	m.CancelFinalizer()
-	return wrapError(C.signal_message_destroy(m.ptr))
+	return wrapError(C.signal_message_destroy(m.mutPtr()))
 }
 
 func (m *Message) CancelFinalizer() {
@@ -87,7 +118,7 @@ func (m *Message) CancelFinalizer() {
 
 func (m *Message) GetBody() ([]byte, error) {
 	var body C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_message_get_body(&body, m.ptr)
+	signalFfiError := C.signal_message_get_body(&body, m.constPtr())
 	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -97,7 +128,7 @@ func (m *Message) GetBody() ([]byte, error) {
 
 func (m *Message) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_message_get_serialized(&serialized, m.ptr)
+	signalFfiError := C.signal_message_get_serialized(&serialized, m.constPtr())
 	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -107,7 +138,7 @@ func (m *Message) Serialize() ([]byte, error) {
 
 func (m *Message) GetMessageVersion() (uint32, error) {
 	var messageVersion C.uint32_t
-	signalFfiError := C.signal_message_get_message_version(&messageVersion, m.ptr)
+	signalFfiError := C.signal_message_get_message_version(&messageVersion, m.constPtr())
 	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
@@ -117,7 +148,7 @@ func (m *Message) GetMessageVersion() (uint32, error) {
 
 func (m *Message) GetCounter() (uint32, error) {
 	var counter C.uint32_t
-	signalFfiError := C.signal_message_get_counter(&counter, m.ptr)
+	signalFfiError := C.signal_message_get_counter(&counter, m.constPtr())
 	runtime.KeepAlive(m)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
@@ -127,7 +158,13 @@ func (m *Message) GetCounter() (uint32, error) {
 
 func (m *Message) VerifyMAC(sender, receiver *PublicKey, macKey []byte) (bool, error) {
 	var result C.bool
-	signalFfiError := C.signal_message_verify_mac(&result, m.ptr, sender.ptr, receiver.ptr, BytesToBuffer(macKey))
+	signalFfiError := C.signal_message_verify_mac(
+		&result,
+		m.constPtr(),
+		sender.constPtr(),
+		receiver.constPtr(),
+		BytesToBuffer(macKey),
+	)
 	runtime.KeepAlive(m)
 	runtime.KeepAlive(sender)
 	runtime.KeepAlive(receiver)

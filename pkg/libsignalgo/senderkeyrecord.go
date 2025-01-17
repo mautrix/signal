@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -37,18 +38,18 @@ func wrapSenderKeyRecord(ptr *C.SignalSenderKeyRecord) *SenderKeyRecord {
 }
 
 func DeserializeSenderKeyRecord(serialized []byte) (*SenderKeyRecord, error) {
-	var sc *C.SignalSenderKeyRecord
+	var sc C.SignalMutPointerSenderKeyRecord
 	signalFfiError := C.signal_sender_key_record_deserialize(&sc, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapSenderKeyRecord(sc), nil
+	return wrapSenderKeyRecord(sc.raw), nil
 }
 
 func (skr *SenderKeyRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_sender_key_record_serialize(&serialized, skr.ptr)
+	signalFfiError := C.signal_sender_key_record_serialize(&serialized, skr.constPtr())
 	runtime.KeepAlive(skr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -56,19 +57,27 @@ func (skr *SenderKeyRecord) Serialize() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
+func (skr *SenderKeyRecord) mutPtr() C.SignalMutPointerSenderKeyRecord {
+	return C.SignalMutPointerSenderKeyRecord{skr.ptr}
+}
+
+func (skr *SenderKeyRecord) constPtr() C.SignalConstPointerSenderKeyRecord {
+	return C.SignalConstPointerSenderKeyRecord{skr.ptr}
+}
+
 func (skr *SenderKeyRecord) Clone() (*SenderKeyRecord, error) {
-	var cloned *C.SignalSenderKeyRecord
-	signalFfiError := C.signal_sender_key_record_clone(&cloned, skr.ptr)
+	var cloned C.SignalMutPointerSenderKeyRecord
+	signalFfiError := C.signal_sender_key_record_clone(&cloned, skr.constPtr())
 	runtime.KeepAlive(skr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapSenderKeyRecord(cloned), nil
+	return wrapSenderKeyRecord(cloned.raw), nil
 }
 
 func (skr *SenderKeyRecord) Destroy() error {
 	skr.CancelFinalizer()
-	return wrapError(C.signal_sender_key_record_destroy(skr.ptr))
+	return wrapError(C.signal_sender_key_record_destroy(skr.mutPtr()))
 }
 
 func (skr *SenderKeyRecord) CancelFinalizer() {

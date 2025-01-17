@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -32,10 +33,10 @@ import (
 func GroupEncrypt(ctx context.Context, ptext []byte, sender *Address, distributionID uuid.UUID, store SenderKeyStore) (*CiphertextMessage, error) {
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
-	var ciphertextMessage *C.SignalCiphertextMessage
+	var ciphertextMessage C.SignalMutPointerCiphertextMessage
 	signalFfiError := C.signal_group_encrypt_message(
 		&ciphertextMessage,
-		sender.ptr,
+		sender.constPtr(),
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		BytesToBuffer(ptext),
 		callbackCtx.wrapSenderKeyStore(store))
@@ -44,7 +45,7 @@ func GroupEncrypt(ctx context.Context, ptext []byte, sender *Address, distributi
 	if signalFfiError != nil {
 		return nil, callbackCtx.wrapError(signalFfiError)
 	}
-	return wrapCiphertextMessage(ciphertextMessage), nil
+	return wrapCiphertextMessage(ciphertextMessage.raw), nil
 }
 
 func GroupDecrypt(ctx context.Context, ctext []byte, sender *Address, store SenderKeyStore) ([]byte, error) {
@@ -53,7 +54,7 @@ func GroupDecrypt(ctx context.Context, ctext []byte, sender *Address, store Send
 	var resp C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_group_decrypt_message(
 		&resp,
-		sender.ptr,
+		sender.constPtr(),
 		BytesToBuffer(ctext),
 		callbackCtx.wrapSenderKeyStore(store))
 	runtime.KeepAlive(ctext)

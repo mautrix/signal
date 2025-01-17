@@ -38,7 +38,7 @@ func wrapSGXClientState(ptr *C.SignalSgxClientState) *SGXClientState {
 }
 
 func NewCDS2ClientState(mrenclave, attestationMessage []byte, currentTime time.Time) (*SGXClientState, error) {
-	var cds *C.SignalSgxClientState
+	var cds C.SignalMutPointerSgxClientState
 	signalFfiError := C.signal_cds2_client_state_new(
 		&cds,
 		BytesToBuffer(mrenclave),
@@ -50,17 +50,25 @@ func NewCDS2ClientState(mrenclave, attestationMessage []byte, currentTime time.T
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapSGXClientState(cds), nil
+	return wrapSGXClientState(cds.raw), nil
+}
+
+func (cds *SGXClientState) mutPtr() C.SignalMutPointerSgxClientState {
+	return C.SignalMutPointerSgxClientState{cds.ptr}
+}
+
+func (cds *SGXClientState) constPtr() C.SignalConstPointerSgxClientState {
+	return C.SignalConstPointerSgxClientState{cds.ptr}
 }
 
 func (cds *SGXClientState) Destroy() error {
 	runtime.SetFinalizer(cds, nil)
-	return wrapError(C.signal_sgx_client_state_destroy(cds.ptr))
+	return wrapError(C.signal_sgx_client_state_destroy(cds.mutPtr()))
 }
 
 func (cds *SGXClientState) InitialRequest() ([]byte, error) {
 	var resp C.SignalOwnedBuffer
-	signalFfiError := C.signal_sgx_client_state_initial_request(&resp, cds.ptr)
+	signalFfiError := C.signal_sgx_client_state_initial_request(&resp, cds.constPtr())
 	runtime.KeepAlive(cds)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -69,7 +77,7 @@ func (cds *SGXClientState) InitialRequest() ([]byte, error) {
 }
 
 func (cds *SGXClientState) CompleteHandshake(handshakeReceived []byte) error {
-	signalFfiError := C.signal_sgx_client_state_complete_handshake(cds.ptr, BytesToBuffer(handshakeReceived))
+	signalFfiError := C.signal_sgx_client_state_complete_handshake(cds.mutPtr(), BytesToBuffer(handshakeReceived))
 	runtime.KeepAlive(cds)
 	runtime.KeepAlive(handshakeReceived)
 	return wrapError(signalFfiError)
@@ -77,7 +85,11 @@ func (cds *SGXClientState) CompleteHandshake(handshakeReceived []byte) error {
 
 func (cds *SGXClientState) EstablishedSend(plaintext []byte) ([]byte, error) {
 	var resp C.SignalOwnedBuffer
-	signalFfiError := C.signal_sgx_client_state_established_send(&resp, cds.ptr, BytesToBuffer(plaintext))
+	signalFfiError := C.signal_sgx_client_state_established_send(
+		&resp,
+		cds.mutPtr(),
+		BytesToBuffer(plaintext),
+	)
 	runtime.KeepAlive(cds)
 	runtime.KeepAlive(plaintext)
 	if signalFfiError != nil {
@@ -88,7 +100,11 @@ func (cds *SGXClientState) EstablishedSend(plaintext []byte) ([]byte, error) {
 
 func (cds *SGXClientState) EstablishedReceive(ciphertext []byte) ([]byte, error) {
 	var resp C.SignalOwnedBuffer
-	signalFfiError := C.signal_sgx_client_state_established_recv(&resp, cds.ptr, BytesToBuffer(ciphertext))
+	signalFfiError := C.signal_sgx_client_state_established_recv(
+		&resp,
+		cds.mutPtr(),
+		BytesToBuffer(ciphertext),
+	)
 	runtime.KeepAlive(cds)
 	runtime.KeepAlive(ciphertext)
 	if signalFfiError != nil {

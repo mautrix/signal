@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -33,8 +34,8 @@ func ProcessSenderKeyDistributionMessage(ctx context.Context, message *SenderKey
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
 	signalFfiError := C.signal_process_sender_key_distribution_message(
-		fromSender.ptr,
-		message.ptr,
+		fromSender.constPtr(),
+		message.constPtr(),
 		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(message)
@@ -56,10 +57,10 @@ func wrapSenderKeyDistributionMessage(ptr *C.SignalSenderKeyDistributionMessage)
 func NewSenderKeyDistributionMessage(ctx context.Context, sender *Address, distributionID uuid.UUID, store SenderKeyStore) (*SenderKeyDistributionMessage, error) {
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
-	var skdm *C.SignalSenderKeyDistributionMessage
+	var skdm C.SignalMutPointerSenderKeyDistributionMessage
 	signalFfiError := C.signal_sender_key_distribution_message_create(
 		&skdm,
-		sender.ptr,
+		sender.constPtr(),
 		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
 		callbackCtx.wrapSenderKeyStore(store),
 	)
@@ -68,22 +69,30 @@ func NewSenderKeyDistributionMessage(ctx context.Context, sender *Address, distr
 	if signalFfiError != nil {
 		return nil, callbackCtx.wrapError(signalFfiError)
 	}
-	return wrapSenderKeyDistributionMessage(skdm), nil
+	return wrapSenderKeyDistributionMessage(skdm.raw), nil
 }
 
 func DeserializeSenderKeyDistributionMessage(serialized []byte) (*SenderKeyDistributionMessage, error) {
-	var skdm *C.SignalSenderKeyDistributionMessage
+	var skdm C.SignalMutPointerSenderKeyDistributionMessage
 	signalFfiError := C.signal_sender_key_distribution_message_deserialize(&skdm, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapSenderKeyDistributionMessage(skdm), nil
+	return wrapSenderKeyDistributionMessage(skdm.raw), nil
+}
+
+func (sc *SenderKeyDistributionMessage) mutPtr() C.SignalMutPointerSenderKeyDistributionMessage {
+	return C.SignalMutPointerSenderKeyDistributionMessage{sc.ptr}
+}
+
+func (sc *SenderKeyDistributionMessage) constPtr() C.SignalConstPointerSenderKeyDistributionMessage {
+	return C.SignalConstPointerSenderKeyDistributionMessage{sc.ptr}
 }
 
 func (sc *SenderKeyDistributionMessage) Destroy() error {
 	sc.CancelFinalizer()
-	return wrapError(C.signal_sender_key_distribution_message_destroy(sc.ptr))
+	return wrapError(C.signal_sender_key_distribution_message_destroy(sc.mutPtr()))
 }
 
 func (sc *SenderKeyDistributionMessage) CancelFinalizer() {
@@ -92,7 +101,7 @@ func (sc *SenderKeyDistributionMessage) CancelFinalizer() {
 
 func (sc *SenderKeyDistributionMessage) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_sender_key_distribution_message_serialize(&serialized, sc.ptr)
+	signalFfiError := C.signal_sender_key_distribution_message_serialize(&serialized, sc.constPtr())
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
@@ -103,8 +112,8 @@ func (sc *SenderKeyDistributionMessage) Process(ctx context.Context, sender *Add
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
 	signalFfiError := C.signal_process_sender_key_distribution_message(
-		sender.ptr,
-		sc.ptr,
+		sender.constPtr(),
+		sc.constPtr(),
 		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(sender)

@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -38,47 +39,64 @@ func wrapDecryptionErrorMessage(ptr *C.SignalDecryptionErrorMessage) *Decryption
 }
 
 func DeserializeDecryptionErrorMessage(messageBytes []byte) (*DecryptionErrorMessage, error) {
-	var dem *C.SignalDecryptionErrorMessage
-	signalFfiError := C.signal_decryption_error_message_deserialize(&dem, BytesToBuffer(messageBytes))
+	var dem C.SignalMutPointerDecryptionErrorMessage
+	signalFfiError := C.signal_decryption_error_message_deserialize(
+		&dem,
+		BytesToBuffer(messageBytes),
+	)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapDecryptionErrorMessage(dem), nil
+	return wrapDecryptionErrorMessage(dem.raw), nil
 }
 
 func DecryptionErrorMessageForOriginalMessage(originalBytes []byte, originalType uint8, originalTs uint64, originalSenderDeviceID uint) (*DecryptionErrorMessage, error) {
-	var dem *C.SignalDecryptionErrorMessage
-	signalFfiError := C.signal_decryption_error_message_for_original_message(&dem, BytesToBuffer(originalBytes), C.uint8_t(originalType), C.uint64_t(originalTs), C.uint32_t(originalSenderDeviceID))
+	var dem C.SignalMutPointerDecryptionErrorMessage
+	signalFfiError := C.signal_decryption_error_message_for_original_message(
+		&dem,
+		BytesToBuffer(originalBytes),
+		C.uint8_t(originalType),
+		C.uint64_t(originalTs),
+		C.uint32_t(originalSenderDeviceID),
+	)
 	runtime.KeepAlive(originalBytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapDecryptionErrorMessage(dem), nil
+	return wrapDecryptionErrorMessage(dem.raw), nil
 }
 
 func DecryptionErrorMessageFromSerializedContent(serialized []byte) (*DecryptionErrorMessage, error) {
-	var dem *C.SignalDecryptionErrorMessage
+	var dem C.SignalMutPointerDecryptionErrorMessage
 	signalFfiError := C.signal_decryption_error_message_extract_from_serialized_content(&dem, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapDecryptionErrorMessage(dem), nil
+	return wrapDecryptionErrorMessage(dem.raw), nil
+}
+
+func (dem *DecryptionErrorMessage) mutPtr() C.SignalMutPointerDecryptionErrorMessage {
+	return C.SignalMutPointerDecryptionErrorMessage{dem.ptr}
+}
+
+func (dem *DecryptionErrorMessage) constPtr() C.SignalConstPointerDecryptionErrorMessage {
+	return C.SignalConstPointerDecryptionErrorMessage{dem.ptr}
 }
 
 func (dem *DecryptionErrorMessage) Clone() (*DecryptionErrorMessage, error) {
-	var cloned *C.SignalDecryptionErrorMessage
-	signalFfiError := C.signal_decryption_error_message_clone(&cloned, dem.ptr)
+	var cloned C.SignalMutPointerDecryptionErrorMessage
+	signalFfiError := C.signal_decryption_error_message_clone(&cloned, dem.constPtr())
 	runtime.KeepAlive(dem)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapDecryptionErrorMessage(cloned), nil
+	return wrapDecryptionErrorMessage(cloned.raw), nil
 }
 
 func (dem *DecryptionErrorMessage) Destroy() error {
 	dem.CancelFinalizer()
-	return wrapError(C.signal_decryption_error_message_destroy(dem.ptr))
+	return wrapError(C.signal_decryption_error_message_destroy(dem.mutPtr()))
 }
 
 func (dem *DecryptionErrorMessage) CancelFinalizer() {
@@ -87,7 +105,7 @@ func (dem *DecryptionErrorMessage) CancelFinalizer() {
 
 func (dem *DecryptionErrorMessage) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_decryption_error_message_serialize(&serialized, dem.ptr)
+	signalFfiError := C.signal_decryption_error_message_serialize(&serialized, dem.constPtr())
 	runtime.KeepAlive(dem)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -97,7 +115,7 @@ func (dem *DecryptionErrorMessage) Serialize() ([]byte, error) {
 
 func (dem *DecryptionErrorMessage) GetTimestamp() (time.Time, error) {
 	var ts C.uint64_t
-	signalFfiError := C.signal_decryption_error_message_get_timestamp(&ts, dem.ptr)
+	signalFfiError := C.signal_decryption_error_message_get_timestamp(&ts, dem.constPtr())
 	runtime.KeepAlive(dem)
 	if signalFfiError != nil {
 		return time.Time{}, wrapError(signalFfiError)
@@ -107,7 +125,7 @@ func (dem *DecryptionErrorMessage) GetTimestamp() (time.Time, error) {
 
 func (dem *DecryptionErrorMessage) GetDeviceID() (uint32, error) {
 	var deviceID C.uint32_t
-	signalFfiError := C.signal_decryption_error_message_get_device_id(&deviceID, dem.ptr)
+	signalFfiError := C.signal_decryption_error_message_get_device_id(&deviceID, dem.constPtr())
 	runtime.KeepAlive(dem)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
@@ -116,11 +134,11 @@ func (dem *DecryptionErrorMessage) GetDeviceID() (uint32, error) {
 }
 
 func (dem *DecryptionErrorMessage) GetRatchetKey() (*PublicKey, error) {
-	var pk *C.SignalPublicKey
-	signalFfiError := C.signal_decryption_error_message_get_ratchet_key(&pk, dem.ptr)
+	var pk C.SignalMutPointerPublicKey
+	signalFfiError := C.signal_decryption_error_message_get_ratchet_key(&pk, dem.constPtr())
 	runtime.KeepAlive(dem)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPublicKey(pk), nil
+	return wrapPublicKey(pk.raw), nil
 }

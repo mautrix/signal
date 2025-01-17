@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -213,7 +214,7 @@ func (gsp *GroupSecretParams) CreateExpiringProfileKeyCredentialPresentation(spp
 	randomness := GenerateRandomness()
 	signalFfiError := C.signal_server_public_params_create_expiring_profile_key_credential_presentation_deterministic(
 		&out,
-		spp,
+		C.SignalConstPointerServerPublicParams{spp},
 		(*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)),
 		(*[C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar)(unsafe.Pointer(gsp)),
 		(*[C.SignalEXPIRING_PROFILE_KEY_CREDENTIAL_LEN]C.uchar)(unsafe.Pointer(&credential)),

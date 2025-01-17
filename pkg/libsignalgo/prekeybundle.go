@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -32,8 +33,8 @@ func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress *
 	defer callbackCtx.Unref()
 	var now C.uint64_t = C.uint64_t(time.Now().Unix())
 	signalFfiError := C.signal_process_prekey_bundle(
-		bundle.ptr,
-		forAddress.ptr,
+		bundle.constPtr(),
+		forAddress.constPtr(),
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 		now,
@@ -67,7 +68,7 @@ func NewPreKeyBundle(
 	kyberPreKeySignature []byte,
 	identityKey *IdentityKey,
 ) (*PreKeyBundle, error) {
-	var pkb *C.SignalPreKeyBundle
+	var pkb C.SignalMutPointerPreKeyBundle
 	var zero uint32 = 0
 	var kyberSignatureBuffer = EmptyBorrowedBuffer()
 	if preKey == nil {
@@ -85,13 +86,13 @@ func NewPreKeyBundle(
 		C.uint32_t(registrationID),
 		C.uint32_t(deviceID),
 		C.uint32_t(preKeyID),
-		preKey.ptr,
+		preKey.constPtr(),
 		C.uint32_t(signedPreKeyID),
-		signedPreKey.ptr,
+		signedPreKey.constPtr(),
 		BytesToBuffer(signedPreKeySignature),
-		identityKey.publicKey.ptr,
+		identityKey.publicKey.constPtr(),
 		C.uint32_t(kyberPreKeyID),
-		kyberPreKey.ptr,
+		kyberPreKey.constPtr(),
 		kyberSignatureBuffer,
 	)
 	runtime.KeepAlive(preKey)
@@ -103,22 +104,30 @@ func NewPreKeyBundle(
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPreKeyBundle(pkb), nil
+	return wrapPreKeyBundle(pkb.raw), nil
+}
+
+func (pkb *PreKeyBundle) mutPtr() C.SignalMutPointerPreKeyBundle {
+	return C.SignalMutPointerPreKeyBundle{pkb.ptr}
+}
+
+func (pkb *PreKeyBundle) constPtr() C.SignalConstPointerPreKeyBundle {
+	return C.SignalConstPointerPreKeyBundle{pkb.ptr}
 }
 
 func (pkb *PreKeyBundle) Clone() (*PreKeyBundle, error) {
-	var cloned *C.SignalPreKeyBundle
-	signalFfiError := C.signal_pre_key_bundle_clone(&cloned, pkb.ptr)
+	var cloned C.SignalMutPointerPreKeyBundle
+	signalFfiError := C.signal_pre_key_bundle_clone(&cloned, pkb.constPtr())
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
 	runtime.KeepAlive(pkb)
-	return wrapPreKeyBundle(cloned), nil
+	return wrapPreKeyBundle(cloned.raw), nil
 }
 
 func (pkb *PreKeyBundle) Destroy() error {
 	pkb.CancelFinalizer()
-	return wrapError(C.signal_pre_key_bundle_destroy(pkb.ptr))
+	return wrapError(C.signal_pre_key_bundle_destroy(pkb.mutPtr()))
 }
 
 func (pkb *PreKeyBundle) CancelFinalizer() {
@@ -126,11 +135,11 @@ func (pkb *PreKeyBundle) CancelFinalizer() {
 }
 
 func (pkb *PreKeyBundle) GetIdentityKey() (*IdentityKey, error) {
-	var pk *C.SignalPublicKey
-	signalFfiError := C.signal_pre_key_bundle_get_identity_key(&pk, pkb.ptr)
+	var pk C.SignalMutPointerPublicKey
+	signalFfiError := C.signal_pre_key_bundle_get_identity_key(&pk, pkb.constPtr())
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
 	runtime.KeepAlive(pkb)
-	return NewIdentityKeyFromPublicKey(wrapPublicKey(pk))
+	return NewIdentityKeyFromPublicKey(wrapPublicKey(pk.raw))
 }

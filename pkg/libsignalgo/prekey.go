@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -32,8 +33,8 @@ func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddres
 	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
 	signalFfiError := C.signal_decrypt_pre_key_message(
 		&decrypted,
-		preKeyMessage.ptr,
-		fromAddress.ptr,
+		preKeyMessage.constPtr(),
+		fromAddress.constPtr(),
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 		callbackCtx.wrapPreKeyStore(preKeyStore),
@@ -60,14 +61,19 @@ func wrapPreKeyRecord(ptr *C.SignalPreKeyRecord) *PreKeyRecord {
 }
 
 func NewPreKeyRecord(id uint32, publicKey *PublicKey, privateKey *PrivateKey) (*PreKeyRecord, error) {
-	var pkr *C.SignalPreKeyRecord
-	signalFfiError := C.signal_pre_key_record_new(&pkr, C.uint32_t(id), publicKey.ptr, privateKey.ptr)
+	var pkr C.SignalMutPointerPreKeyRecord
+	signalFfiError := C.signal_pre_key_record_new(
+		&pkr,
+		C.uint32_t(id),
+		publicKey.constPtr(),
+		privateKey.constPtr(),
+	)
 	runtime.KeepAlive(publicKey)
 	runtime.KeepAlive(privateKey)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPreKeyRecord(pkr), nil
+	return wrapPreKeyRecord(pkr.raw), nil
 }
 
 func NewPreKeyRecordFromPrivateKey(id uint32, privateKey *PrivateKey) (*PreKeyRecord, error) {
@@ -79,28 +85,36 @@ func NewPreKeyRecordFromPrivateKey(id uint32, privateKey *PrivateKey) (*PreKeyRe
 }
 
 func DeserializePreKeyRecord(serialized []byte) (*PreKeyRecord, error) {
-	var pkr *C.SignalPreKeyRecord
+	var pkr C.SignalMutPointerPreKeyRecord
 	signalFfiError := C.signal_pre_key_record_deserialize(&pkr, BytesToBuffer(serialized))
 	runtime.KeepAlive(serialized)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPreKeyRecord(pkr), nil
+	return wrapPreKeyRecord(pkr.raw), nil
+}
+
+func (pkr *PreKeyRecord) mutPtr() C.SignalMutPointerPreKeyRecord {
+	return C.SignalMutPointerPreKeyRecord{pkr.ptr}
+}
+
+func (pkr *PreKeyRecord) constPtr() C.SignalConstPointerPreKeyRecord {
+	return C.SignalConstPointerPreKeyRecord{pkr.ptr}
 }
 
 func (pkr *PreKeyRecord) Clone() (*PreKeyRecord, error) {
-	var cloned *C.SignalPreKeyRecord
-	signalFfiError := C.signal_pre_key_record_clone(&cloned, pkr.ptr)
+	var cloned C.SignalMutPointerPreKeyRecord
+	signalFfiError := C.signal_pre_key_record_clone(&cloned, pkr.constPtr())
 	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPreKeyRecord(cloned), nil
+	return wrapPreKeyRecord(cloned.raw), nil
 }
 
 func (pkr *PreKeyRecord) Destroy() error {
 	pkr.CancelFinalizer()
-	return wrapError(C.signal_pre_key_record_destroy(pkr.ptr))
+	return wrapError(C.signal_pre_key_record_destroy(pkr.mutPtr()))
 }
 
 func (pkr *PreKeyRecord) CancelFinalizer() {
@@ -109,7 +123,7 @@ func (pkr *PreKeyRecord) CancelFinalizer() {
 
 func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_pre_key_record_serialize(&serialized, pkr.ptr)
+	signalFfiError := C.signal_pre_key_record_serialize(&serialized, pkr.constPtr())
 	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -119,7 +133,7 @@ func (pkr *PreKeyRecord) Serialize() ([]byte, error) {
 
 func (pkr *PreKeyRecord) GetID() (uint32, error) {
 	var id C.uint32_t
-	signalFfiError := C.signal_pre_key_record_get_id(&id, pkr.ptr)
+	signalFfiError := C.signal_pre_key_record_get_id(&id, pkr.constPtr())
 	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return 0, wrapError(signalFfiError)
@@ -128,21 +142,21 @@ func (pkr *PreKeyRecord) GetID() (uint32, error) {
 }
 
 func (pkr *PreKeyRecord) GetPublicKey() (*PublicKey, error) {
-	var pub *C.SignalPublicKey
-	signalFfiError := C.signal_pre_key_record_get_public_key(&pub, pkr.ptr)
+	var pub C.SignalMutPointerPublicKey
+	signalFfiError := C.signal_pre_key_record_get_public_key(&pub, pkr.constPtr())
 	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPublicKey(pub), nil
+	return wrapPublicKey(pub.raw), nil
 }
 
 func (pkr *PreKeyRecord) GetPrivateKey() (*PrivateKey, error) {
-	var priv *C.SignalPrivateKey
-	signalFfiError := C.signal_pre_key_record_get_private_key(&priv, pkr.ptr)
+	var priv C.SignalMutPointerPrivateKey
+	signalFfiError := C.signal_pre_key_record_get_private_key(&priv, pkr.constPtr())
 	runtime.KeepAlive(pkr)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPrivateKey(priv), nil
+	return wrapPrivateKey(priv.raw), nil
 }

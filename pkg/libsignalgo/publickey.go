@@ -1,5 +1,6 @@
 // mautrix-signal - A Matrix-signal puppeting bridge.
 // Copyright (C) 2023 Sumner Evans
+// Copyright (C) 2025 Tulir Asokan
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -34,29 +35,37 @@ func wrapPublicKey(ptr *C.SignalPublicKey) *PublicKey {
 	return publicKey
 }
 
+func (pk *PublicKey) mutPtr() C.SignalMutPointerPublicKey {
+	return C.SignalMutPointerPublicKey{pk.ptr}
+}
+
+func (pk *PublicKey) constPtr() C.SignalConstPointerPublicKey {
+	return C.SignalConstPointerPublicKey{pk.ptr}
+}
+
 func (pk *PublicKey) Clone() (*PublicKey, error) {
-	var cloned *C.SignalPublicKey
-	signalFfiError := C.signal_publickey_clone(&cloned, pk.ptr)
+	var cloned C.SignalMutPointerPublicKey
+	signalFfiError := C.signal_publickey_clone(&cloned, pk.constPtr())
 	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPublicKey(cloned), nil
+	return wrapPublicKey(cloned.raw), nil
 }
 
 func DeserializePublicKey(keyData []byte) (*PublicKey, error) {
-	var pk *C.SignalPublicKey
+	var pk C.SignalMutPointerPublicKey
 	signalFfiError := C.signal_publickey_deserialize(&pk, BytesToBuffer(keyData))
 	runtime.KeepAlive(keyData)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return wrapPublicKey(pk), nil
+	return wrapPublicKey(pk.raw), nil
 }
 
 func (pk *PublicKey) Serialize() ([]byte, error) {
 	var serialized C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_publickey_serialize(&serialized, pk.ptr)
+	signalFfiError := C.signal_publickey_serialize(&serialized, pk.constPtr())
 	runtime.KeepAlive(pk)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -66,7 +75,7 @@ func (pk *PublicKey) Serialize() ([]byte, error) {
 
 func (k *PublicKey) Destroy() error {
 	k.CancelFinalizer()
-	return wrapError(C.signal_publickey_destroy(k.ptr))
+	return wrapError(C.signal_publickey_destroy(k.mutPtr()))
 }
 
 func (k *PublicKey) CancelFinalizer() {
@@ -75,7 +84,7 @@ func (k *PublicKey) CancelFinalizer() {
 
 func (k *PublicKey) Compare(other *PublicKey) (int, error) {
 	var comparison C.int
-	signalFfiError := C.signal_publickey_compare(&comparison, k.ptr, other.ptr)
+	signalFfiError := C.signal_publickey_compare(&comparison, k.constPtr(), other.constPtr())
 	runtime.KeepAlive(k)
 	runtime.KeepAlive(other)
 	if signalFfiError != nil {
@@ -86,7 +95,7 @@ func (k *PublicKey) Compare(other *PublicKey) (int, error) {
 
 func (k *PublicKey) Bytes() ([]byte, error) {
 	var pub C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	signalFfiError := C.signal_publickey_get_public_key_bytes(&pub, k.ptr)
+	signalFfiError := C.signal_publickey_get_public_key_bytes(&pub, k.constPtr())
 	runtime.KeepAlive(k)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
@@ -96,7 +105,12 @@ func (k *PublicKey) Bytes() ([]byte, error) {
 
 func (k *PublicKey) Verify(message, signature []byte) (bool, error) {
 	var verify C.bool
-	signalFfiError := C.signal_publickey_verify(&verify, k.ptr, BytesToBuffer(message), BytesToBuffer(signature))
+	signalFfiError := C.signal_publickey_verify(
+		&verify,
+		k.constPtr(),
+		BytesToBuffer(message),
+		BytesToBuffer(signature),
+	)
 	runtime.KeepAlive(k)
 	runtime.KeepAlive(message)
 	runtime.KeepAlive(signature)
