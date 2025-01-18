@@ -37,6 +37,9 @@ type DeviceData struct {
 	Password           string
 	MasterKey          []byte
 	AccountRecord      *signalpb.AccountRecord
+	AccountEntropyPool libsignalgo.AccountEntropyPool
+	EphemeralBackupKey *libsignalgo.BackupKey
+	MediaRootBackupKey *libsignalgo.BackupKey
 }
 
 func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {

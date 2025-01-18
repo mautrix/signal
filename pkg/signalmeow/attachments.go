@@ -47,11 +47,11 @@ const (
 	attachmentIDDownloadPath  = "/attachments/%d"
 )
 
-func getAttachmentPath(id uint64, key string, cdnNumber uint32) (string, error) {
+func getAttachmentPath(id uint64, key string) string {
 	if id != 0 {
-		return fmt.Sprintf(attachmentIDDownloadPath, id), nil
+		return fmt.Sprintf(attachmentIDDownloadPath, id)
 	}
-	return fmt.Sprintf(attachmentKeyDownloadPath, key), nil
+	return fmt.Sprintf(attachmentKeyDownloadPath, key)
 }
 
 // ErrInvalidMACForAttachment signals that the downloaded attachment has an invalid MAC.
@@ -59,10 +59,7 @@ var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
 var ErrInvalidDigestForAttachment = errors.New("invalid digest for attachment")
 
 func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]byte, error) {
-	path, err := getAttachmentPath(a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber())
-	if err != nil {
-		return nil, err
-	}
+	path := getAttachmentPath(a.GetCdnId(), a.GetCdnKey())
 	resp, err := web.GetAttachment(ctx, path, a.GetCdnNumber(), nil)
 	if err != nil {
 		return nil, err
@@ -86,17 +83,20 @@ func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]b
 	return decryptAttachment(body, a.Key, a.Digest, *a.Size)
 }
 
+const MACLength = 32
+const IVLength = 16
+
 func decryptAttachment(body, key, digest []byte, size uint32) ([]byte, error) {
 	hash := sha256.Sum256(body)
 	if !hmac.Equal(hash[:], digest) {
 		return nil, ErrInvalidDigestForAttachment
 	}
-	l := len(body) - 32
-	if !verifyMAC(key[32:], body[:l], body[l:]) {
+	l := len(body) - MACLength
+	if !verifyMAC(key[MACLength:], body[:l], body[l:]) {
 		return nil, ErrInvalidMACForAttachment
 	}
 
-	decrypted, err := aesDecrypt(key[:32], body[:l])
+	decrypted, err := aesDecrypt(key[:MACLength], body[:l])
 	if err != nil {
 		return nil, err
 	}

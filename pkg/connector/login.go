@@ -79,7 +79,7 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	provCtx, cancel := context.WithCancel(log.WithContext(context.Background()))
 	qr.cancelChan = cancel
 	// Don't use the start context here: the channel will outlive the start request.
-	qr.ProvChan = signalmeow.PerformProvisioning(provCtx, qr.Main.Store, qr.Main.Config.DeviceName)
+	qr.ProvChan = signalmeow.PerformProvisioning(provCtx, qr.Main.Store, qr.Main.Config.DeviceName, false)
 	var resp signalmeow.ProvisioningResponse
 	select {
 	case resp = <-qr.ProvChan:

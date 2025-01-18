@@ -18,6 +18,7 @@ package signalmeow
 
 import (
 	"context"
+	"crypto/hmac"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -79,7 +80,7 @@ type ProvisioningResponse struct {
 	Err              error
 }
 
-func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, deviceName string) chan ProvisioningResponse {
+func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, deviceName string, allowBackup bool) chan ProvisioningResponse {
 	log := zerolog.Ctx(ctx).With().Str("action", "perform provisioning").Logger()
 	c := make(chan ProvisioningResponse, 4)
 	go func() {
@@ -100,7 +101,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 		provisioningCipher := NewProvisioningCipher()
 
-		provisioningURL, err := startProvisioning(timeoutCtx, ws, provisioningCipher)
+		provisioningURL, err := startProvisioning(timeoutCtx, ws, provisioningCipher, allowBackup)
 		if err != nil {
 			log.Err(err).Msg("startProvisioning error")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -169,13 +170,22 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			Number:             *provisioningMessage.Number,
 			Password:           password,
 			MasterKey:          provisioningMessage.GetMasterKey(),
+			AccountEntropyPool: libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()),
+			EphemeralBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetEphemeralBackupKey()),
+			MediaRootBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetMediaRootBackupKey()),
 		}
-		if provisioningMessage.GetMasterKey() == nil && provisioningMessage.GetAccountEntropyPool() != "" {
-			data.MasterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
+		if provisioningMessage.GetAccountEntropyPool() != "" {
+			var masterKey []byte
+			masterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
 			if err != nil {
 				log.Err(err).Msg("Failed to derive master key from account entropy pool")
 			} else {
 				log.Debug().Msg("Derived master key from account entropy pool")
+			}
+			if data.MasterKey == nil {
+				data.MasterKey = masterKey
+			} else if !hmac.Equal(data.MasterKey, masterKey) {
+				log.Warn().Msg("Master key mismatch")
 			}
 		}
 
@@ -267,7 +277,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 }
 
 // Returns the provisioningUrl and an error
-func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher) (string, error) {
+func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher, allowBackup bool) (string, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start provisioning").Logger()
 	pubKey := provisioningCipher.GetPublicKey()
 
@@ -289,13 +299,17 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
 	}
 
+	linkCapabilities := []string{"backup"}
+	if !allowBackup {
+		linkCapabilities = []string{}
+	}
 	provisioningURL := (&url.URL{
 		Scheme: "sgnl",
 		Host:   "linkdevice",
 		RawQuery: url.Values{
 			"uuid":         []string{provisioningBody.GetAddress()},
 			"pub_key":      []string{base64.StdEncoding.EncodeToString(exerrors.Must(pubKey.Serialize()))},
-			"capabilities": []string{""}, // Will contain "backup" in the future
+			"capabilities": linkCapabilities,
 		}.Encode(),
 	}).String()
 

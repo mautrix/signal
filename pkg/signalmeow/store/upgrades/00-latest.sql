@@ -1,4 +1,4 @@
--- v0 -> v17 (compatible with v13+): Latest revision
+-- v0 -> v18 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -13,8 +13,11 @@ CREATE TABLE signalmeow_device (
     number                TEXT    NOT NULL DEFAULT '',
     password              TEXT    NOT NULL DEFAULT '',
 
-    master_key     bytea,
-    account_record bytea
+    master_key            bytea,
+    account_record        bytea,
+    account_entropy_pool  TEXT,
+    ephemeral_backup_key  bytea,
+    media_root_backup_key bytea
 );
 
 CREATE TABLE signalmeow_pre_keys (
