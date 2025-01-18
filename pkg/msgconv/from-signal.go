@@ -83,6 +83,7 @@ func (mc *MessageConverter) ToMatrix(
 	portal *bridgev2.Portal,
 	intent bridgev2.MatrixAPI,
 	dm *signalpb.DataMessage,
+	attMap AttachmentMap,
 ) *bridgev2.ConvertedMessage {
 	ctx = context.WithValue(ctx, contextKeyClient, client)
 	ctx = context.WithValue(ctx, contextKeyPortal, portal)
@@ -102,15 +103,15 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Disappear.Timer = time.Duration(dm.GetExpireTimer()) * time.Second
 	}
 	if dm.Sticker != nil {
-		cm.Parts = append(cm.Parts, mc.convertStickerToMatrix(ctx, dm.Sticker))
+		cm.Parts = append(cm.Parts, mc.convertStickerToMatrix(ctx, dm.Sticker, attMap))
 		// Don't allow any other parts in a sticker message
 		return cm
 	}
 	for i, att := range dm.GetAttachments() {
 		if att.GetContentType() != "text/x-signal-plain" {
-			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att))
+			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att, attMap))
 		} else {
-			longBody, err := mc.downloadSignalLongText(ctx, att)
+			longBody, err := mc.downloadSignalLongText(ctx, att, attMap)
 			if err == nil {
 				dm.Body = longBody
 			} else {
@@ -119,7 +120,7 @@ func (mc *MessageConverter) ToMatrix(
 		}
 	}
 	for _, contact := range dm.GetContact() {
-		cm.Parts = append(cm.Parts, mc.convertContactToMatrix(ctx, contact))
+		cm.Parts = append(cm.Parts, mc.convertContactToMatrix(ctx, contact, attMap))
 	}
 	if dm.Payment != nil {
 		cm.Parts = append(cm.Parts, mc.convertPaymentToMatrix(ctx, dm.Payment))
@@ -128,7 +129,7 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Parts = append(cm.Parts, mc.convertGiftBadgeToMatrix(ctx, dm.GiftBadge))
 	}
 	if dm.Body != nil {
-		cm.Parts = append(cm.Parts, mc.convertTextToMatrix(ctx, dm))
+		cm.Parts = append(cm.Parts, mc.convertTextToMatrix(ctx, dm, attMap))
 	}
 	if len(cm.Parts) == 0 && dm.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT) {
 		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
@@ -205,11 +206,11 @@ func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.C
 	return part
 }
 
-func (mc *MessageConverter) convertTextToMatrix(ctx context.Context, dm *signalpb.DataMessage) *bridgev2.ConvertedMessagePart {
+func (mc *MessageConverter) convertTextToMatrix(ctx context.Context, dm *signalpb.DataMessage, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
 	content := signalfmt.Parse(ctx, dm.GetBody(), dm.GetBodyRanges(), mc.SignalFmtParams)
 	extra := map[string]any{}
 	if len(dm.Preview) > 0 {
-		content.BeeperLinkPreviews = mc.convertURLPreviewsToBeeper(ctx, dm.Preview)
+		content.BeeperLinkPreviews = mc.convertURLPreviewsToBeeper(ctx, dm.Preview, attMap)
 	}
 	return &bridgev2.ConvertedMessagePart{
 		Type:    event.EventMessage,
@@ -244,7 +245,7 @@ func (mc *MessageConverter) convertGiftBadgeToMatrix(_ context.Context, giftBadg
 	}
 }
 
-func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *signalpb.DataMessage_Contact) vcard.Card {
+func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *signalpb.DataMessage_Contact, attMap AttachmentMap) vcard.Card {
 	card := make(vcard.Card)
 	card.SetValue(vcard.FieldVersion, "4.0")
 	name := contact.GetName()
@@ -306,7 +307,7 @@ func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *
 		card.Add(vcard.FieldTelephone, &field)
 	}
 	if contact.GetAvatar().GetAvatar() != nil {
-		avatarData, err := signalmeow.DownloadAttachment(ctx, contact.GetAvatar().GetAvatar())
+		avatarData, err := mc.downloadAttachment(ctx, contact.GetAvatar().GetAvatar(), attMap)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to download contact avatar")
 		} else {
@@ -320,8 +321,8 @@ func (mc *MessageConverter) convertContactToVCard(ctx context.Context, contact *
 	return card
 }
 
-func (mc *MessageConverter) convertContactToMatrix(ctx context.Context, contact *signalpb.DataMessage_Contact) *bridgev2.ConvertedMessagePart {
-	card := mc.convertContactToVCard(ctx, contact)
+func (mc *MessageConverter) convertContactToMatrix(ctx context.Context, contact *signalpb.DataMessage_Contact, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
+	card := mc.convertContactToVCard(ctx, contact, attMap)
 	contact.Avatar = nil
 	extraData := map[string]any{
 		"fi.mau.signal.contact": contact,
@@ -380,8 +381,8 @@ func (mc *MessageConverter) convertContactToMatrix(ctx context.Context, contact 
 	}
 }
 
-func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index int, att *signalpb.AttachmentPointer) *bridgev2.ConvertedMessagePart {
-	part, err := mc.reuploadAttachment(ctx, att)
+func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index int, att *signalpb.AttachmentPointer, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
+	part, err := mc.reuploadAttachment(ctx, att, attMap)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Int("attachment_index", index).Msg("Failed to handle attachment")
 		return &bridgev2.ConvertedMessagePart{
@@ -395,8 +396,8 @@ func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index
 	return part
 }
 
-func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker *signalpb.DataMessage_Sticker) *bridgev2.ConvertedMessagePart {
-	converted, err := mc.reuploadAttachment(ctx, sticker.GetData())
+func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker *signalpb.DataMessage_Sticker, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
+	converted, err := mc.reuploadAttachment(ctx, sticker.GetData(), attMap)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to handle sticker")
 		return &bridgev2.ConvertedMessagePart{
@@ -430,8 +431,8 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 	return converted
 }
 
-func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *signalpb.AttachmentPointer) (*string, error) {
-	data, err := signalmeow.DownloadAttachment(ctx, att)
+func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*string, error) {
+	data, err := mc.downloadAttachment(ctx, att, attMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download attachment: %w", err)
 	}
@@ -439,8 +440,26 @@ func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *sig
 	return &longBody, nil
 }
 
-func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer) (*bridgev2.ConvertedMessagePart, error) {
-	data, err := signalmeow.DownloadAttachment(ctx, att)
+func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) ([]byte, error) {
+	if att.AttachmentIdentifier == nil {
+		if len(att.GetUuid()) != 16 {
+			return nil, fmt.Errorf("no attachment identifier found")
+		}
+		target, ok := attMap[uuid.UUID(att.GetUuid())]
+		if !ok {
+			return nil, fmt.Errorf("no attachment identifier and attachment not found in map")
+		} else if target == nil {
+			return nil, fmt.Errorf("attachment not available in backup")
+		} else {
+			// TODO add support for downloading attachments from backup
+			return nil, fmt.Errorf("downloading attachments from backup is not yet supported")
+		}
+	}
+	return signalmeow.DownloadAttachment(ctx, att)
+}
+
+func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*bridgev2.ConvertedMessagePart, error) {
+	data, err := mc.downloadAttachment(ctx, att, attMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download attachment: %w", err)
 	}

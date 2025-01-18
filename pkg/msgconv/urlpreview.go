@@ -27,15 +27,15 @@ import (
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
-func (mc *MessageConverter) convertURLPreviewsToBeeper(ctx context.Context, preview []*signalpb.Preview) []*event.BeeperLinkPreview {
+func (mc *MessageConverter) convertURLPreviewsToBeeper(ctx context.Context, preview []*signalpb.Preview, attMap AttachmentMap) []*event.BeeperLinkPreview {
 	output := make([]*event.BeeperLinkPreview, len(preview))
 	for i, p := range preview {
-		output[i] = mc.convertURLPreviewToBeeper(ctx, p)
+		output[i] = mc.convertURLPreviewToBeeper(ctx, p, attMap)
 	}
 	return output
 }
 
-func (mc *MessageConverter) convertURLPreviewToBeeper(ctx context.Context, preview *signalpb.Preview) *event.BeeperLinkPreview {
+func (mc *MessageConverter) convertURLPreviewToBeeper(ctx context.Context, preview *signalpb.Preview, attMap AttachmentMap) *event.BeeperLinkPreview {
 	output := &event.BeeperLinkPreview{
 		MatchedURL: preview.GetUrl(),
 		LinkPreview: event.LinkPreview{
@@ -45,7 +45,7 @@ func (mc *MessageConverter) convertURLPreviewToBeeper(ctx context.Context, previ
 		},
 	}
 	if preview.Image != nil {
-		msg, err := mc.reuploadAttachment(ctx, preview.Image)
+		msg, err := mc.reuploadAttachment(ctx, preview.Image, attMap)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to reupload link preview image")
 		} else {
