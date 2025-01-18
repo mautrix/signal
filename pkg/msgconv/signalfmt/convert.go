@@ -19,11 +19,11 @@ package signalfmt
 import (
 	"context"
 	"html"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 

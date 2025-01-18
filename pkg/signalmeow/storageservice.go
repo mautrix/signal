@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -31,7 +32,6 @@ import (
 	"go.mau.fi/util/exerrors"
 	"golang.org/x/crypto/hkdf"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"

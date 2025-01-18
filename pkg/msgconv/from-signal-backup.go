@@ -17,10 +17,11 @@
 package msgconv
 
 import (
+	"slices"
+
 	"github.com/google/uuid"
 	"go.mau.fi/util/exslices"
 	"go.mau.fi/util/ptr"
-	"golang.org/x/exp/slices"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/backuppb"
