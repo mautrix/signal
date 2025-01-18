@@ -25,6 +25,7 @@ import (
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -47,7 +48,7 @@ func roleToPL(role signalmeow.GroupMemberRole) *int {
 	}
 }
 
-func applyAnnouncementsOnly(plc *bridgev2.PowerLevelChanges, announcementsOnly bool) {
+func applyAnnouncementsOnly(plc *bridgev2.PowerLevelOverrides, announcementsOnly bool) {
 	if announcementsOnly {
 		plc.EventsDefault = &moderatorPL
 	} else {
@@ -55,7 +56,7 @@ func applyAnnouncementsOnly(plc *bridgev2.PowerLevelChanges, announcementsOnly b
 	}
 }
 
-func applyAttributesAccess(plc *bridgev2.PowerLevelChanges, attributeAccess signalmeow.AccessControl) {
+func applyAttributesAccess(plc *bridgev2.PowerLevelOverrides, attributeAccess signalmeow.AccessControl) {
 	attributePL := defaultPL
 	if attributeAccess == signalmeow.AccessControl_ADMINISTRATOR {
 		attributePL = moderatorPL
@@ -65,7 +66,7 @@ func applyAttributesAccess(plc *bridgev2.PowerLevelChanges, attributeAccess sign
 	plc.Events[event.StateTopic] = attributePL
 }
 
-func applyMembersAccess(plc *bridgev2.PowerLevelChanges, memberAccess signalmeow.AccessControl) {
+func applyMembersAccess(plc *bridgev2.PowerLevelOverrides, memberAccess signalmeow.AccessControl) {
 	if memberAccess == signalmeow.AccessControl_ADMINISTRATOR {
 		plc.Invite = &moderatorPL
 	} else {
@@ -98,9 +99,9 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		return nil, err
 	}
 	members := &bridgev2.ChatMemberList{
-		IsFull:  true,
-		Members: make([]bridgev2.ChatMember, len(groupInfo.Members), len(groupInfo.Members)+len(groupInfo.PendingMembers)+len(groupInfo.RequestingMembers)+len(groupInfo.BannedMembers)),
-		PowerLevels: &bridgev2.PowerLevelChanges{
+		IsFull:    true,
+		MemberMap: make(map[networkid.UserID]bridgev2.ChatMember, len(groupInfo.Members)+len(groupInfo.PendingMembers)+len(groupInfo.RequestingMembers)+len(groupInfo.BannedMembers)),
+		PowerLevels: &bridgev2.PowerLevelOverrides{
 			Events: map[event.Type]int{
 				event.StatePowerLevels: moderatorPL,
 			},
@@ -113,9 +114,10 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		applyMembersAccess(members.PowerLevels, groupInfo.AccessControl.Members)
 		joinRule = inviteLinkToJoinRule(groupInfo.AccessControl.AddFromInviteLink)
 	}
-	for i, member := range groupInfo.Members {
-		members.Members[i] = bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ACI),
+	for _, member := range groupInfo.Members {
+		evtSender := s.makeEventSender(member.ACI)
+		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
+			EventSender: evtSender,
 			PowerLevel:  roleToPL(member.Role),
 			Membership:  event.MembershipJoin,
 		}
@@ -125,27 +127,30 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		if aci == nil {
 			continue
 		}
-		members.Members = append(members.Members, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(*aci),
+		evtSender := s.makeEventSender(*aci)
+		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
+			EventSender: evtSender,
 			PowerLevel:  roleToPL(member.Role),
 			Membership:  event.MembershipInvite,
-		})
+		}
 	}
 	for _, member := range groupInfo.RequestingMembers {
-		members.Members = append(members.Members, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ACI),
+		evtSender := s.makeEventSender(member.ACI)
+		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
+			EventSender: evtSender,
 			Membership:  event.MembershipKnock,
-		})
+		}
 	}
 	for _, member := range groupInfo.BannedMembers {
 		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
 		if aci == nil {
 			continue
 		}
-		members.Members = append(members.Members, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(*aci),
+		evtSender := s.makeEventSender(*aci)
+		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
+			EventSender: evtSender,
 			Membership:  event.MembershipBan,
-		})
+		}
 	}
 	return &bridgev2.ChatInfo{
 		Name:   &groupInfo.Title,
@@ -203,11 +208,11 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 		}
 	}
 
-	var pls *bridgev2.PowerLevelChanges
+	var pls *bridgev2.PowerLevelOverrides
 	if groupChange.ModifyAnnouncementsOnly != nil ||
 		groupChange.ModifyAttributesAccess != nil ||
 		groupChange.ModifyMemberAccess != nil {
-		pls = &bridgev2.PowerLevelChanges{Events: make(map[event.Type]int)}
+		pls = &bridgev2.PowerLevelOverrides{Events: make(map[event.Type]int)}
 		if groupChange.ModifyAnnouncementsOnly != nil {
 			applyAnnouncementsOnly(pls, *groupChange.ModifyAnnouncementsOnly)
 		}

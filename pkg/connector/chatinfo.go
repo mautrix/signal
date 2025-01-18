@@ -227,11 +227,12 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev2.CreateChatResponse {
 	name := ""
 	topic := PrivateChatTopic
+	selfUser := s.makeEventSender(s.Client.Store.ACI)
 	members := &bridgev2.ChatMemberList{
 		IsFull: true,
-		Members: []bridgev2.ChatMember{
-			{
-				EventSender: s.makeEventSender(s.Client.Store.ACI),
+		MemberMap: map[networkid.UserID]bridgev2.ChatMember{
+			selfUser.Sender: {
+				EventSender: selfUser,
 				Membership:  event.MembershipJoin,
 				PowerLevel:  &moderatorPL,
 			},
@@ -257,11 +258,12 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 			}
 		} else {
 			// The other user is only present if their ACI is known
-			members.Members = append(members.Members, bridgev2.ChatMember{
-				EventSender: s.makeEventSender(recipient.ACI),
+			recipientUser := s.makeEventSender(recipient.ACI)
+			members.MemberMap[recipientUser.Sender] = bridgev2.ChatMember{
+				EventSender: recipientUser,
 				Membership:  event.MembershipJoin,
 				PowerLevel:  &moderatorPL,
-			})
+			}
 		}
 		serviceID = libsignalgo.NewACIServiceID(recipient.ACI)
 	}
