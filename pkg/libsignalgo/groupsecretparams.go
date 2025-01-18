@@ -23,6 +23,7 @@ package libsignalgo
 import "C"
 import (
 	"crypto/rand"
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -52,6 +53,18 @@ type ProfileKeyCiphertext [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]byte
 
 func GenerateGroupSecretParams() (GroupSecretParams, error) {
 	return GenerateGroupSecretParamsWithRandomness(GenerateRandomness())
+}
+
+func (gmk GroupMasterKey) GroupIdentifier() (*GroupIdentifier, error) {
+	if groupSecretParams, err := DeriveGroupSecretParamsFromMasterKey(gmk); err != nil {
+		return nil, fmt.Errorf("DeriveGroupSecretParamsFromMasterKey error: %w", err)
+	} else if groupPublicParams, err := groupSecretParams.GetPublicParams(); err != nil {
+		return nil, fmt.Errorf("GetPublicParams error: %w", err)
+	} else if groupIdentifier, err := GetGroupIdentifier(*groupPublicParams); err != nil {
+		return nil, fmt.Errorf("GetGroupIdentifier error: %w", err)
+	} else {
+		return groupIdentifier, nil
+	}
 }
 
 func GenerateGroupSecretParamsWithRandomness(randomness Randomness) (GroupSecretParams, error) {

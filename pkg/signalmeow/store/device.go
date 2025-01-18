@@ -77,6 +77,9 @@ type Device struct {
 	GroupStore     GroupStore
 	RecipientStore RecipientStore
 	DeviceStore    DeviceStore
+	BackupStore    BackupStore
+
+	DoTxn func(context.Context, func(context.Context) error) error
 }
 
 func (d *Device) ClearDeviceKeys(ctx context.Context) error {

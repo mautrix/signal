@@ -41,10 +41,12 @@ import (
 const transferArchiveFetchTimeout = 1 * time.Hour
 
 var (
-	ErrTransferRelinkRequested       = errors.New("relink requested")
-	ErrTransferContinueWithoutUpload = errors.New("continue without upload")
-
 	ErrNoEphemeralBackupKey = errors.New("no ephemeral backup key")
+)
+
+const (
+	TransferErrorRelinkRequested       = "RELINK_REQUESTED"
+	TransferErrorContinueWithoutUpload = "CONTINUE_WITHOUT_UPLOAD"
 )
 
 type TransferArchiveMetadata struct {
@@ -55,14 +57,7 @@ type TransferArchiveMetadata struct {
 
 func (cli *Client) FetchAndProcessTransfer(ctx context.Context, meta *TransferArchiveMetadata) error {
 	if meta.Error != "" {
-		switch meta.Error {
-		case "RELINK_REQUESTED":
-			return ErrTransferRelinkRequested
-		case "CONTINUE_WITHOUT_UPLOAD":
-			return ErrTransferContinueWithoutUpload
-		default:
-			return fmt.Errorf("transfer archive error: %s", meta.Error)
-		}
+		return fmt.Errorf("transfer archive error: %s", meta.Error)
 	}
 	aesKey, hmacKey, err := cli.deriveTransferKeys()
 	if err != nil {
@@ -98,14 +93,28 @@ func (cli *Client) FetchAndProcessTransfer(ctx context.Context, meta *TransferAr
 	if err != nil {
 		return fmt.Errorf("failed to seek to start of file: %w", err)
 	}
-	err = cli.processTransferArchive(ctx, aesKey, hmacKey, file, stat.Size())
+	err = cli.Store.DoTxn(ctx, func(ctx context.Context) error {
+		err = cli.Store.BackupStore.ClearBackup(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to clear backup: %w", err)
+		}
+		err = cli.processTransferArchive(ctx, aesKey, hmacKey, file, stat.Size())
+		if err != nil {
+			return err
+		}
+		err = cli.Store.BackupStore.RecalculateChatCounts(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to calculate message counts: %w", err)
+		}
+		cli.Store.EphemeralBackupKey = nil
+		err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
+		if err != nil {
+			return fmt.Errorf("failed to save device data after clearing ephemeral backup key: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
 		return err
-	}
-	cli.Store.EphemeralBackupKey = nil
-	err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
-	if err != nil {
-		return fmt.Errorf("failed to save device data after clearing ephemeral backup key: %w", err)
 	}
 	return nil
 }
@@ -185,8 +194,27 @@ func (acp *archiveChunkProcessor) processChunk(buf []byte) error {
 }
 
 func (acp *archiveChunkProcessor) processFrame(frame *backuppb.Frame) error {
-	acp.cli.Log.Info().Any("backup_frame", frame).Msg("Received backup frame")
-	return nil
+	acp.cli.Log.Trace().Any("backup_frame", frame).Msg("Processing backup frame")
+	switch item := frame.Item.(type) {
+	case *backuppb.Frame_Recipient:
+		return acp.cli.Store.BackupStore.AddBackupRecipient(acp.ctx, item.Recipient)
+	case *backuppb.Frame_Chat:
+		return acp.cli.Store.BackupStore.AddBackupChat(acp.ctx, item.Chat)
+	case *backuppb.Frame_ChatItem:
+		switch item.ChatItem.Item.(type) {
+		case *backuppb.ChatItem_DirectStoryReplyMessage, *backuppb.ChatItem_UpdateMessage:
+			zerolog.Ctx(acp.ctx).Debug().
+				Uint64("chat_id", item.ChatItem.ChatId).
+				Uint64("message_id", item.ChatItem.DateSent).
+				Type("frame_type", item).
+				Msg("Not saving unsupported chat item type")
+			return nil
+		}
+		return acp.cli.Store.BackupStore.AddBackupChatItem(acp.ctx, item.ChatItem)
+	default:
+		zerolog.Ctx(acp.ctx).Debug().Type("frame_type", item).Msg("Ignoring backup frame")
+		return nil
+	}
 }
 
 func (cli *Client) deriveTransferKeys() (aesKey, hmacKey [32]byte, err error) {

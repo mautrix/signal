@@ -469,18 +469,9 @@ func InviteLinkPasswordFromBytes(inviteLinkPassword []byte) types.SerializedInvi
 }
 
 func groupIdentifierFromMasterKey(masterKey types.SerializedGroupMasterKey) (types.GroupIdentifier, error) {
-	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(masterKey))
+	groupIdentifier, err := masterKeyToBytes(masterKey).GroupIdentifier()
 	if err != nil {
-		return "", fmt.Errorf("DeriveGroupSecretParamsFromMasterKey error: %w", err)
-	}
-	// Get the "group identifier" that isn't just the master key
-	groupPublicParams, err := groupSecretParams.GetPublicParams()
-	if err != nil {
-		return "", fmt.Errorf("GetPublicParams error: %w", err)
-	}
-	groupIdentifier, err := libsignalgo.GetGroupIdentifier(*groupPublicParams)
-	if err != nil {
-		return "", fmt.Errorf("GetGroupIdentifier error: %w", err)
+		return "", err
 	}
 	base64GroupIdentifier := base64.StdEncoding.EncodeToString(groupIdentifier[:])
 	gid := types.GroupIdentifier(base64GroupIdentifier)

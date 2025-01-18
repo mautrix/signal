@@ -1,4 +1,4 @@
--- v0 -> v18 (compatible with v13+): Latest revision
+-- v0 -> v19 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -43,10 +43,10 @@ CREATE TABLE signalmeow_kyber_pre_keys (
 );
 
 CREATE TABLE signalmeow_identity_keys (
-    account_id       TEXT    NOT NULL,
-    their_service_id TEXT    NOT NULL,
-    key              bytea   NOT NULL,
-    trust_level      TEXT    NOT NULL,
+    account_id       TEXT  NOT NULL,
+    their_service_id TEXT  NOT NULL,
+    key              bytea NOT NULL,
+    trust_level      TEXT  NOT NULL,
 
     PRIMARY KEY (account_id, their_service_id),
     FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
@@ -84,7 +84,7 @@ CREATE TABLE signalmeow_sender_keys (
 );
 
 CREATE TABLE signalmeow_groups (
-    account_id     TEXT NOT NULL,
+    account_id       TEXT NOT NULL,
     group_identifier TEXT NOT NULL,
     master_key       TEXT NOT NULL,
 
@@ -92,17 +92,17 @@ CREATE TABLE signalmeow_groups (
 );
 
 CREATE TABLE signalmeow_recipients (
-    account_id          TEXT NOT NULL,
+    account_id          TEXT    NOT NULL,
     aci_uuid            TEXT,
     pni_uuid            TEXT,
-    e164_number         TEXT NOT NULL DEFAULT '',
-    contact_name        TEXT NOT NULL DEFAULT '',
-    contact_avatar_hash TEXT NOT NULL DEFAULT '',
+    e164_number         TEXT    NOT NULL DEFAULT '',
+    contact_name        TEXT    NOT NULL DEFAULT '',
+    contact_avatar_hash TEXT    NOT NULL DEFAULT '',
     profile_key         bytea,
-    profile_name        TEXT NOT NULL DEFAULT '',
-    profile_about       TEXT NOT NULL DEFAULT '',
-    profile_about_emoji TEXT NOT NULL DEFAULT '',
-    profile_avatar_path TEXT NOT NULL DEFAULT '',
+    profile_name        TEXT    NOT NULL DEFAULT '',
+    profile_about       TEXT    NOT NULL DEFAULT '',
+    profile_about_emoji TEXT    NOT NULL DEFAULT '',
+    profile_avatar_path TEXT    NOT NULL DEFAULT '',
     profile_fetched_at  BIGINT,
     needs_pni_signature BOOLEAN NOT NULL DEFAULT false,
 
@@ -111,3 +111,52 @@ CREATE TABLE signalmeow_recipients (
     CONSTRAINT signalmeow_contacts_aci_unique UNIQUE (account_id, aci_uuid),
     CONSTRAINT signalmeow_contacts_pni_unique UNIQUE (account_id, pni_uuid)
 );
+
+CREATE TABLE signalmeow_backup_recipient (
+    account_id       TEXT   NOT NULL,
+    recipient_id     BIGINT NOT NULL,
+
+    aci_uuid         TEXT,
+    pni_uuid         TEXT,
+
+    group_master_key TEXT,
+
+    data             bytea  NOT NULL,
+
+    PRIMARY KEY (account_id, recipient_id),
+    CONSTRAINT signalmeow_backup_recipient_device_fkey FOREIGN KEY (account_id)
+        REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX signalmeow_backup_recipient_group_idx ON signalmeow_backup_recipient (account_id, group_master_key);
+CREATE INDEX signalmeow_backup_recipient_aci_idx ON signalmeow_backup_recipient (account_id, aci_uuid);
+
+CREATE TABLE signalmeow_backup_chat (
+    account_id   TEXT   NOT NULL,
+    chat_id      BIGINT NOT NULL,
+    recipient_id BIGINT NOT NULL,
+    data         bytea  NOT NULL,
+
+    PRIMARY KEY (account_id, chat_id),
+    CONSTRAINT signalmeow_backup_chat_device_fkey FOREIGN KEY (account_id)
+        REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT signalmeow_backup_chat_recipient_fkey FOREIGN KEY (account_id, recipient_id)
+        REFERENCES signalmeow_backup_recipient (account_id, recipient_id) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX signalmeow_backup_chat_recipient_id_idx ON signalmeow_backup_chat (account_id, recipient_id);
+
+CREATE TABLE signalmeow_backup_message (
+    account_id TEXT   NOT NULL,
+    chat_id    BIGINT NOT NULL,
+    sender_id  BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    data       bytea  NOT NULL,
+
+    PRIMARY KEY (account_id, sender_id, message_id),
+    CONSTRAINT signalmeow_backup_message_chat_fkey FOREIGN KEY (account_id, chat_id)
+        REFERENCES signalmeow_backup_chat (account_id, chat_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT signalmeow_backup_message_sender_fkey FOREIGN KEY (account_id, sender_id)
+        REFERENCES signalmeow_backup_recipient (account_id, recipient_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT signalmeow_backup_message_device_fkey FOREIGN KEY (account_id)
+        REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE INDEX signalmeow_backup_chat_recipient_id_idx ON signalmeow_backup_chat (account_id, chat_id);
