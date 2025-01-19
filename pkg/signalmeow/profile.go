@@ -131,16 +131,15 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 		}
 		err, ok := cli.ProfileCache.errors[signalID.String()]
 		if ok {
-			return nil, *err
+			return nil, fmt.Errorf("%w: %w", ErrCachedError, *err)
 		}
 	}
 
 	// If we get here, we don't have a cached profile, so fetch it
 	profile, err := cli.fetchProfileByID(ctx, signalID)
 	if err != nil {
-		// TODO this check is wrong and most likely doesn't work, errors shouldn't use string comparisons
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
-		if strings.HasPrefix(err.Error(), "401") || strings.HasPrefix(err.Error(), "5") {
+		if errors.Is(err, ErrProfileUnauthorized) || errors.Is(err, ErrProfileInternalError) {
 			cli.ProfileCache.errors[signalID.String()] = &err
 			cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 		}
@@ -168,6 +167,13 @@ func (cli *Client) fetchProfileByID(ctx context.Context, signalID uuid.UUID) (*t
 	}
 	return cli.fetchProfileWithRequestAndKey(ctx, signalID, credentialRequest, profileKey)
 }
+
+var (
+	ErrCachedError          = errors.New("cached error")
+	ErrProfileUnauthorized  = errors.New("profile get returned 401")
+	ErrProfileNotFound      = errors.New("profile get returned 404")
+	ErrProfileInternalError = errors.New("profile get returned")
+)
 
 func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID uuid.UUID, credentialRequest []byte, profileKey *libsignalgo.ProfileKey) (*types.Profile, error) {
 	log := zerolog.Ctx(ctx)
@@ -215,7 +221,14 @@ func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID u
 	}
 	logEvt.Msg("Got profile response")
 	if *resp.Status < 200 || *resp.Status >= 300 {
-		return nil, fmt.Errorf("error getting profile (unsuccessful status code %d)", *resp.Status)
+		if *resp.Status == 401 {
+			return nil, ErrProfileUnauthorized
+		} else if *resp.Status == 404 {
+			return nil, ErrProfileNotFound
+		} else if *resp.Status >= 500 {
+			return nil, fmt.Errorf("%w %d", ErrProfileInternalError, *resp.Status)
+		}
+		return nil, fmt.Errorf("unexpected status code %d", *resp.Status)
 	}
 	var profileResponse ProfileResponse
 	err = json.Unmarshal(resp.Body, &profileResponse)
