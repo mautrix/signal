@@ -31,6 +31,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -93,7 +94,7 @@ func inviteLinkToJoinRule(inviteLinkAccess signalmeow.AccessControl) event.JoinR
 	}
 }
 
-func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIdentifier, minRevision uint32) (*bridgev2.ChatInfo, error) {
+func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIdentifier, minRevision uint32, backupChat *store.BackupChat) (*bridgev2.ChatInfo, error) {
 	groupInfo, err := s.Client.RetrieveGroupByID(ctx, groupID, minRevision)
 	if err != nil {
 		return nil, err
@@ -152,6 +153,13 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 			Membership:  event.MembershipBan,
 		}
 	}
+	if backupChat == nil {
+		// TODO allow using backup chat for data too instead of asking server?
+		backupChat, err = s.Client.Store.BackupStore.GetBackupChatByGroupID(ctx, groupID)
+		if err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to get backup chat for group")
+		}
+	}
 	return &bridgev2.ChatInfo{
 		Name:   &groupInfo.Title,
 		Topic:  &groupInfo.Description,
@@ -164,6 +172,7 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		Type:         ptr.Ptr(database.RoomTypeDefault),
 		JoinRule:     &event.JoinRulesEventContent{JoinRule: joinRule},
 		ExtraUpdates: makeRevisionUpdater(groupInfo.Revision),
+		CanBackfill:  backupChat != nil,
 	}, nil
 }
 
@@ -366,7 +375,7 @@ func (s *SignalClient) catchUpGroup(ctx context.Context, portal *bridgev2.Portal
 		Logger()
 	if fromRevision == 0 {
 		log.Info().Msg("Syncing full group info")
-		info, err := s.getGroupInfo(ctx, types.GroupIdentifier(portal.ID), toRevision)
+		info, err := s.getGroupInfo(ctx, types.GroupIdentifier(portal.ID), toRevision, nil)
 		if err != nil {
 			log.Err(err).Msg("Failed to get group info")
 		} else {

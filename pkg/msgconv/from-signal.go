@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -39,6 +40,11 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+)
+
+var (
+	ErrAttachmentNotInBackup = errors.New("attachment not found in backup")
+	ErrBackupNotSupported    = errors.New("downloading attachments from server-side backup is not yet supported")
 )
 
 func calculateLength(dm *signalpb.DataMessage) int {
@@ -384,6 +390,23 @@ func (mc *MessageConverter) convertContactToMatrix(ctx context.Context, contact 
 func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index int, att *signalpb.AttachmentPointer, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
 	part, err := mc.reuploadAttachment(ctx, att, attMap)
 	if err != nil {
+		if (errors.Is(err, signalmeow.ErrAttachmentNotFound) || errors.Is(err, ErrAttachmentNotInBackup)) && attMap != nil {
+			return &bridgev2.ConvertedMessagePart{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    fmt.Sprintf("Attachment no longer available %s", att.GetFileName()),
+				},
+			}
+		} else if errors.Is(err, ErrBackupNotSupported) {
+			return &bridgev2.ConvertedMessagePart{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    "Downloading attachments from backup is not yet supported",
+				},
+			}
+		}
 		zerolog.Ctx(ctx).Err(err).Int("attachment_index", index).Msg("Failed to handle attachment")
 		return &bridgev2.ConvertedMessagePart{
 			Type: event.EventMessage,
@@ -434,7 +457,7 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*string, error) {
 	data, err := mc.downloadAttachment(ctx, att, attMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download attachment: %w", err)
+		return nil, err
 	}
 	longBody := string(data)
 	return &longBody, nil
@@ -449,10 +472,10 @@ func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalp
 		if !ok {
 			return nil, fmt.Errorf("no attachment identifier and attachment not found in map")
 		} else if target == nil {
-			return nil, fmt.Errorf("attachment not available in backup")
+			return nil, ErrAttachmentNotInBackup
 		} else {
 			// TODO add support for downloading attachments from backup
-			return nil, fmt.Errorf("downloading attachments from backup is not yet supported")
+			return nil, ErrBackupNotSupported
 		}
 	}
 	return signalmeow.DownloadAttachment(ctx, att)
@@ -461,7 +484,7 @@ func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalp
 func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*bridgev2.ConvertedMessagePart, error) {
 	data, err := mc.downloadAttachment(ctx, att, attMap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to download attachment: %w", err)
+		return nil, err
 	}
 	mimeType := att.GetContentType()
 	if mimeType == "" {

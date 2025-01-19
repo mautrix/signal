@@ -79,7 +79,9 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	provCtx, cancel := context.WithCancel(log.WithContext(context.Background()))
 	qr.cancelChan = cancel
 	// Don't use the start context here: the channel will outlive the start request.
-	qr.ProvChan = signalmeow.PerformProvisioning(provCtx, qr.Main.Store, qr.Main.Config.DeviceName, false)
+	qr.ProvChan = signalmeow.PerformProvisioning(
+		provCtx, qr.Main.Store, qr.Main.Config.DeviceName, qr.Main.Bridge.Config.Backfill.Enabled,
+	)
 	var resp signalmeow.ProvisioningResponse
 	select {
 	case resp = <-qr.ProvChan:
@@ -165,6 +167,7 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 		RemoteProfile: status.RemoteProfile{
 			Phone: qr.ProvData.Number,
 		},
+		Metadata: &signalid.UserLoginMetadata{},
 	}, &bridgev2.NewLoginParams{
 		DeleteOnConflict: true,
 	})
@@ -172,10 +175,16 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 		return nil, fmt.Errorf("failed to create user login: %w", err)
 	}
 	backgroundCtx := ul.Log.WithContext(context.Background())
-	ul.Client.Connect(backgroundCtx)
-	if signalClient := ul.Client.(*SignalClient).Client; signalClient.Store.MasterKey != nil {
-		zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
-		go signalClient.SyncStorage(backgroundCtx)
+	signalClient := ul.Client.(*SignalClient).Client
+	if signalClient.Store.EphemeralBackupKey != nil {
+		zerolog.Ctx(ctx).Info().Msg("Received ephemeral backup key in login, syncing chats before connecting")
+		go ul.Client.(*SignalClient).postLoginConnect(backgroundCtx)
+	} else {
+		ul.Client.Connect(backgroundCtx)
+		if signalClient.Store.MasterKey != nil {
+			zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
+			go signalClient.SyncStorage(backgroundCtx)
+		}
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,

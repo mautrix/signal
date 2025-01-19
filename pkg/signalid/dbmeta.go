@@ -29,6 +29,10 @@ type MessageMetadata struct {
 	ContainsAttachments bool `json:"contains_attachments,omitempty"`
 }
 
+type UserLoginMetadata struct {
+	ChatsSynced bool `json:"chats_synced,omitempty"`
+}
+
 type GhostMetadata struct {
 	ProfileFetchedAt jsontime.UnixMilli `json:"profile_fetched_at"`
 }

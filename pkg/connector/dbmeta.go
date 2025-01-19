@@ -33,7 +33,9 @@ func (s *SignalConnector) GetDBMetaTypes() database.MetaTypes {
 		Message: func() any {
 			return &signalid.MessageMetadata{}
 		},
-		Reaction:  nil,
-		UserLogin: nil,
+		Reaction: nil,
+		UserLogin: func() any {
+			return &signalid.UserLoginMetadata{}
+		},
 	}
 }

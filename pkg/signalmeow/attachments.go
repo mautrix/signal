@@ -57,6 +57,7 @@ func getAttachmentPath(id uint64, key string) string {
 // ErrInvalidMACForAttachment signals that the downloaded attachment has an invalid MAC.
 var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
 var ErrInvalidDigestForAttachment = errors.New("invalid digest for attachment")
+var ErrAttachmentNotFound = errors.New("attachment not found on server")
 
 func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]byte, error) {
 	path := getAttachmentPath(a.GetCdnId(), a.GetCdnKey())
@@ -76,6 +77,9 @@ func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]b
 			zerolog.Ctx(ctx).Debug().RawJSON("response_data", body).Msg("Failed download response json")
 		} else if len(body) < 1024 {
 			zerolog.Ctx(ctx).Debug().Bytes("response_data", body).Msg("Failed download response data")
+		}
+		if resp.StatusCode == http.StatusNotFound {
+			return nil, ErrAttachmentNotFound
 		}
 		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}

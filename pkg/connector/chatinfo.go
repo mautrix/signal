@@ -34,6 +34,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -62,14 +63,14 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 		return nil, err
 	}
 	if groupID != "" {
-		return s.getGroupInfo(ctx, groupID, 0)
+		return s.getGroupInfo(ctx, groupID, 0, nil)
 	} else {
 		aci, pni := userID.ToACIAndPNI()
 		contact, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
 		if err != nil {
 			return nil, err
 		}
-		return s.makeCreateDMResponse(contact).PortalInfo, nil
+		return s.makeCreateDMResponse(ctx, contact, nil).PortalInfo, nil
 	}
 }
 
@@ -182,13 +183,13 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 			UserID:   signalid.MakeUserID(aci),
 			UserInfo: s.contactToUserInfo(recipient),
 			Ghost:    ghost,
-			Chat:     s.makeCreateDMResponse(recipient),
+			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
 		}, nil
 	} else {
 		return &bridgev2.ResolveIdentifierResponse{
 			UserID:   signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni)),
 			UserInfo: s.contactToUserInfo(recipient),
-			Chat:     s.makeCreateDMResponse(recipient),
+			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
 		}, nil
 	}
 }
@@ -207,7 +208,7 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 	for i, recipient := range recipients {
 		recipientResp := &bridgev2.ResolveIdentifierResponse{
 			UserInfo: s.contactToUserInfo(recipient),
-			Chat:     s.makeCreateDMResponse(recipient),
+			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
 		}
 		if recipient.ACI != uuid.Nil {
 			recipientResp.UserID = signalid.MakeUserID(recipient.ACI)
@@ -224,7 +225,7 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 	return resp, nil
 }
 
-func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev2.CreateChatResponse {
+func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *types.Recipient, backupChat *store.BackupChat) *bridgev2.CreateChatResponse {
 	name := ""
 	topic := PrivateChatTopic
 	selfUser := s.makeEventSender(s.Client.Store.ACI)
@@ -247,6 +248,13 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 		name = s.Main.Config.FormatDisplayname(recipient)
 		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
 	} else {
+		if backupChat == nil {
+			var err error
+			backupChat, err = s.Client.Store.BackupStore.GetBackupChatByUserID(ctx, libsignalgo.NewACIServiceID(recipient.ACI))
+			if err != nil {
+				zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to get backup chat for recipient")
+			}
+		}
 		members.OtherUserID = signalid.MakeUserID(recipient.ACI)
 		if recipient.ACI == s.Client.Store.ACI {
 			name = NoteToSelfName
@@ -275,6 +283,8 @@ func (s *SignalClient) makeCreateDMResponse(recipient *types.Recipient) *bridgev
 			Topic:   &topic,
 			Members: members,
 			Type:    ptr.Ptr(database.RoomTypeDM),
+
+			CanBackfill: backupChat != nil,
 		},
 	}
 }
