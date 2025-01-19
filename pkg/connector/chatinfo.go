@@ -102,17 +102,17 @@ func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.Use
 				return contact.ContactAvatar.Image, nil
 			},
 		}
+	} else if contact.Profile.AvatarPath == "clear" {
+		ui.Avatar = &bridgev2.Avatar{
+			ID:     "",
+			Remove: true,
+		}
 	} else if contact.Profile.AvatarPath != "" {
 		ui.Avatar = &bridgev2.Avatar{
 			ID: makeAvatarPathID(contact.Profile.AvatarPath),
 			Get: func(ctx context.Context) ([]byte, error) {
 				return s.Client.DownloadUserAvatar(ctx, contact.Profile.AvatarPath, contact.Profile.Key)
 			},
-		}
-	} else {
-		ui.Avatar = &bridgev2.Avatar{
-			ID:     "",
-			Remove: true,
 		}
 	}
 	return ui

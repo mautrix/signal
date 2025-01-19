@@ -243,7 +243,11 @@ func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID u
 		}
 	}
 	// TODO store other metadata fields?
-	profile.AvatarPath = profileResponse.Avatar
+	if profileResponse.Avatar == "" {
+		profile.AvatarPath = "clear"
+	} else {
+		profile.AvatarPath = profileResponse.Avatar
+	}
 	profile.Credential = profileResponse.Credential
 	profile.Key = *profileKey
 
