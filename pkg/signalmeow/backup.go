@@ -270,9 +270,18 @@ func (cli *Client) WaitForTransfer(ctx context.Context) (*TransferArchiveMetadat
 		if remainingTime < 0 {
 			return nil, fmt.Errorf("timed out")
 		}
-		resp, err := cli.tryRequestTransferArchive(ctx, min(remainingTime, 5*time.Minute))
+		reqStart := time.Now()
+		reqTimeout := min(remainingTime, 5*time.Minute)
+		resp, err := cli.tryRequestTransferArchive(ctx, reqTimeout)
 		if resp != nil || err != nil {
 			return resp, err
+		}
+		reqDuration := time.Since(reqStart)
+		if reqDuration < reqTimeout-10*time.Second {
+			// There seems to be a bug or feature when the transfer fails that causes the server to
+			// immediately return 204 until the user clicks "Continue" on their phone, so sleep for
+			// a bit to avoid sending requests too often.
+			time.Sleep(15 * time.Second)
 		}
 	}
 }
