@@ -159,4 +159,4 @@ CREATE TABLE signalmeow_backup_message (
     CONSTRAINT signalmeow_backup_message_device_fkey FOREIGN KEY (account_id)
         REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
-CREATE INDEX signalmeow_backup_chat_recipient_id_idx ON signalmeow_backup_chat (account_id, chat_id);
+CREATE INDEX signalmeow_backup_message_chat_id_idx ON signalmeow_backup_message (account_id, chat_id);
