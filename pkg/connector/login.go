@@ -176,15 +176,12 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 	}
 	backgroundCtx := ul.Log.WithContext(context.Background())
 	signalClient := ul.Client.(*SignalClient).Client
-	if signalClient.Store.EphemeralBackupKey != nil {
-		zerolog.Ctx(ctx).Info().Msg("Received ephemeral backup key in login, syncing chats before connecting")
-		go ul.Client.(*SignalClient).postLoginConnect(backgroundCtx)
-	} else {
-		ul.Client.Connect(backgroundCtx)
-		if signalClient.Store.MasterKey != nil {
-			zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
-			go signalClient.SyncStorage(backgroundCtx)
-		}
+	// TODO it would be more proper to only connect after syncing,
+	//      but currently syncing will fetch group info online, so it has to be connected.
+	ul.Client.Connect(backgroundCtx)
+	if signalClient.Store.MasterKey != nil {
+		zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
+		go signalClient.SyncStorage(backgroundCtx)
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,

@@ -206,16 +206,6 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 	}
 }
 
-func (s *SignalClient) postLoginConnect(ctx context.Context) {
-	// TODO it would be more proper to only connect after syncing,
-	//      but currently syncing will fetch group info online, so it has to be connected.
-	s.Connect(ctx)
-	s.syncChats(ctx)
-	if s.Client.Store.MasterKey != nil {
-		s.Client.SyncStorage(ctx)
-	}
-}
-
 func (s *SignalClient) Connect(ctx context.Context) {
 	if s.Client == nil {
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
