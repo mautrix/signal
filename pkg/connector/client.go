@@ -90,6 +90,10 @@ func (s *SignalClient) LogoutRemote(ctx context.Context) {
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to stop receive loops for logout")
 	}
+	err = s.Client.Unlink(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to unlink device")
+	}
 	err = s.Main.Store.DeleteDevice(context.TODO(), &s.Client.Store.DeviceData)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to delete device from store")

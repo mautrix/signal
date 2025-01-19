@@ -385,6 +385,20 @@ func (cli *Client) RegisterCapabilities(ctx context.Context) error {
 	return nil
 }
 
+func (cli *Client) Unlink(ctx context.Context) error {
+	username, password := cli.Store.BasicAuthCreds()
+	resp, err := web.SendHTTPRequest(ctx, http.MethodDelete, fmt.Sprintf("/v1/devices/%d", cli.Store.DeviceID), &web.HTTPReqOpt{
+		Username: &username,
+		Password: &password,
+	})
+	if err != nil {
+		return err
+	} else if resp.StatusCode >= 400 {
+		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func confirmDevice(
 	ctx context.Context,
 	username string,
