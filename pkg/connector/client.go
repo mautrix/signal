@@ -216,7 +216,7 @@ func (s *SignalClient) Connect(ctx context.Context) {
 		return
 	}
 	s.updateRemoteProfile(ctx, false)
-	s.tryConnect(ctx, 0)
+	s.tryConnect(ctx, 0, true)
 }
 
 func (s *SignalClient) ConnectBackground(ctx context.Context) error {
@@ -266,7 +266,24 @@ func (s *SignalClient) Disconnect() {
 	}
 }
 
-func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
+func (s *SignalClient) postLoginConnect() {
+	ctx := s.UserLogin.Log.WithContext(context.Background())
+	// TODO it would be more proper to only connect after syncing,
+	//      but currently syncing will fetch group info online, so it has to be connected.
+	s.tryConnect(ctx, 0, false)
+	if s.Client.Store.EphemeralBackupKey != nil {
+		go func() {
+			s.syncChats(ctx)
+			if s.Client.Store.MasterKey != nil {
+				s.Client.SyncStorage(ctx)
+			}
+		}()
+	} else if s.Client.Store.MasterKey != nil {
+		go s.Client.SyncStorage(ctx)
+	}
+}
+
+func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bool) {
 	err := s.Client.RegisterCapabilities(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
@@ -281,13 +298,15 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int) {
 			retryInSeconds := 2 << retryCount
 			zerolog.Ctx(ctx).Debug().Int("retry_in_seconds", retryInSeconds).Msg("Sleeping and retrying connection")
 			time.Sleep(time.Duration(retryInSeconds) * time.Second)
-			s.tryConnect(ctx, retryCount+1)
+			s.tryConnect(ctx, retryCount+1, doSync)
 		} else {
 			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 		}
 	} else {
 		go s.bridgeStateLoop(ch)
-		go s.syncChats(ctx)
+		if doSync {
+			go s.syncChats(ctx)
+		}
 	}
 }
 

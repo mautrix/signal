@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix/bridge/status"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -174,15 +173,7 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user login: %w", err)
 	}
-	backgroundCtx := ul.Log.WithContext(context.Background())
-	signalClient := ul.Client.(*SignalClient).Client
-	// TODO it would be more proper to only connect after syncing,
-	//      but currently syncing will fetch group info online, so it has to be connected.
-	ul.Client.Connect(backgroundCtx)
-	if signalClient.Store.MasterKey != nil {
-		zerolog.Ctx(ctx).Info().Msg("Received master key in login, syncing storage immediately")
-		go signalClient.SyncStorage(backgroundCtx)
-	}
+	ul.Client.(*SignalClient).postLoginConnect()
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
 		StepID:       LoginStepComplete,
