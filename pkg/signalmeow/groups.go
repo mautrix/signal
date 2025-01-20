@@ -767,7 +767,7 @@ func (cli *Client) StoreMasterKey(ctx context.Context, groupMasterKey types.Seri
 	}
 	err = cli.Store.GroupStore.StoreMasterKey(ctx, groupIdentifier, groupMasterKey)
 	if err != nil {
-		return "", fmt.Errorf("StoreMasterKey error: %w", err)
+		return groupIdentifier, fmt.Errorf("StoreMasterKey error: %w", err)
 	}
 	return groupIdentifier, nil
 }

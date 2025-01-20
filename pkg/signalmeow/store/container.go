@@ -109,7 +109,7 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.DeviceStore = baseStore
 	device.BackupStore = baseStore
 	device.DoTxn = func(ctx context.Context, fn func(context.Context) error) error {
-		return c.db.DoTxn(ctx, nil, fn)
+		return c.db.DoTxn(context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 1), nil, fn)
 	}
 
 	return &device, nil
