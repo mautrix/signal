@@ -151,7 +151,7 @@ func splitChunksStream(input io.Reader, callback func([]byte) error) error {
 			continue
 		}
 		if msgLen > uint64(len(cachedBuf)) {
-			cachedBuf = make([]byte, min(msgLen, 8192))
+			cachedBuf = make([]byte, max(msgLen, 8192))
 		}
 		buf := cachedBuf[:msgLen]
 		_, err = io.ReadFull(input, buf)
