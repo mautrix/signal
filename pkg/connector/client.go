@@ -219,7 +219,7 @@ func (s *SignalClient) Connect(ctx context.Context) {
 	s.tryConnect(ctx, 0, true)
 }
 
-func (s *SignalClient) ConnectBackground(ctx context.Context) error {
+func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.ConnectBackgroundParams) error {
 	s.queueEmptyWaiter.Clear()
 	ch, err := s.Client.StartAuthedWS(ctx)
 	if err != nil {
