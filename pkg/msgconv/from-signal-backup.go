@@ -236,8 +236,8 @@ func deleteNil(bodyRange *signalpb.BodyRange) bool {
 
 func backupToSignalBodyRange(from *backuppb.BodyRange) *signalpb.BodyRange {
 	var out signalpb.BodyRange
-	out.Start = from.Start
-	out.Length = from.Length
+	out.Start = &from.Start
+	out.Length = &from.Length
 	switch av := from.AssociatedValue.(type) {
 	case *backuppb.BodyRange_MentionAci:
 		// TODO confirm this is correct

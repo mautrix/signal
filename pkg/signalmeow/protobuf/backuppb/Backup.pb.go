@@ -25,7 +25,7 @@ const (
 type GroupV2AccessLevel int32
 
 const (
-	GroupV2AccessLevel_UNKNOWN       GroupV2AccessLevel = 0
+	GroupV2AccessLevel_UNKNOWN       GroupV2AccessLevel = 0 // Interpret as "Unsatisfiable"
 	GroupV2AccessLevel_ANY           GroupV2AccessLevel = 1
 	GroupV2AccessLevel_MEMBER        GroupV2AccessLevel = 2
 	GroupV2AccessLevel_ADMINISTRATOR GroupV2AccessLevel = 3
@@ -80,7 +80,7 @@ func (GroupV2AccessLevel) EnumDescriptor() ([]byte, []int) {
 type AccountData_PhoneNumberSharingMode int32
 
 const (
-	AccountData_UNKNOWN   AccountData_PhoneNumberSharingMode = 0
+	AccountData_UNKNOWN   AccountData_PhoneNumberSharingMode = 0 // Interpret as "Nobody"
 	AccountData_EVERYBODY AccountData_PhoneNumberSharingMode = 1
 	AccountData_NOBODY    AccountData_PhoneNumberSharingMode = 2
 )
@@ -129,7 +129,7 @@ func (AccountData_PhoneNumberSharingMode) EnumDescriptor() ([]byte, []int) {
 type AccountData_UsernameLink_Color int32
 
 const (
-	AccountData_UsernameLink_UNKNOWN AccountData_UsernameLink_Color = 0
+	AccountData_UsernameLink_UNKNOWN AccountData_UsernameLink_Color = 0 // Interpret as "Blue"
 	AccountData_UsernameLink_BLUE    AccountData_UsernameLink_Color = 1
 	AccountData_UsernameLink_WHITE   AccountData_UsernameLink_Color = 2
 	AccountData_UsernameLink_GREY    AccountData_UsernameLink_Color = 3
@@ -196,9 +196,9 @@ func (AccountData_UsernameLink_Color) EnumDescriptor() ([]byte, []int) {
 type Contact_IdentityState int32
 
 const (
-	Contact_DEFAULT    Contact_IdentityState = 0
+	Contact_DEFAULT    Contact_IdentityState = 0 // A valid value -- indicates unset by the user
 	Contact_VERIFIED   Contact_IdentityState = 1
-	Contact_UNVERIFIED Contact_IdentityState = 2
+	Contact_UNVERIFIED Contact_IdentityState = 2 // Was once verified and is now unverified
 )
 
 // Enum value maps for Contact_IdentityState.
@@ -245,7 +245,7 @@ func (Contact_IdentityState) EnumDescriptor() ([]byte, []int) {
 type Contact_Visibility int32
 
 const (
-	Contact_VISIBLE                Contact_Visibility = 0
+	Contact_VISIBLE                Contact_Visibility = 0 // A valid value -- the contact is not hidden
 	Contact_HIDDEN                 Contact_Visibility = 1
 	Contact_HIDDEN_MESSAGE_REQUEST Contact_Visibility = 2
 )
@@ -294,7 +294,7 @@ func (Contact_Visibility) EnumDescriptor() ([]byte, []int) {
 type Group_StorySendMode int32
 
 const (
-	Group_DEFAULT  Group_StorySendMode = 0
+	Group_DEFAULT  Group_StorySendMode = 0 // A valid value -- indicates unset by the user
 	Group_DISABLED Group_StorySendMode = 1
 	Group_ENABLED  Group_StorySendMode = 2
 )
@@ -343,7 +343,7 @@ func (Group_StorySendMode) EnumDescriptor() ([]byte, []int) {
 type Group_Member_Role int32
 
 const (
-	Group_Member_UNKNOWN       Group_Member_Role = 0
+	Group_Member_UNKNOWN       Group_Member_Role = 0 // Intepret as "Default"
 	Group_Member_DEFAULT       Group_Member_Role = 1
 	Group_Member_ADMINISTRATOR Group_Member_Role = 2
 )
@@ -392,7 +392,7 @@ func (Group_Member_Role) EnumDescriptor() ([]byte, []int) {
 type Group_AccessControl_AccessRequired int32
 
 const (
-	Group_AccessControl_UNKNOWN       Group_AccessControl_AccessRequired = 0
+	Group_AccessControl_UNKNOWN       Group_AccessControl_AccessRequired = 0 // Intepret as "Unsatisfiable"
 	Group_AccessControl_ANY           Group_AccessControl_AccessRequired = 1
 	Group_AccessControl_MEMBER        Group_AccessControl_AccessRequired = 2
 	Group_AccessControl_ADMINISTRATOR Group_AccessControl_AccessRequired = 3
@@ -447,7 +447,7 @@ func (Group_AccessControl_AccessRequired) EnumDescriptor() ([]byte, []int) {
 type CallLink_Restrictions int32
 
 const (
-	CallLink_UNKNOWN        CallLink_Restrictions = 0
+	CallLink_UNKNOWN        CallLink_Restrictions = 0 // Interpret as "Admin Approval"
 	CallLink_NONE           CallLink_Restrictions = 1
 	CallLink_ADMIN_APPROVAL CallLink_Restrictions = 2
 )
@@ -496,7 +496,7 @@ func (CallLink_Restrictions) EnumDescriptor() ([]byte, []int) {
 type AdHocCall_State int32
 
 const (
-	AdHocCall_UNKNOWN_STATE AdHocCall_State = 0
+	AdHocCall_UNKNOWN_STATE AdHocCall_State = 0 // Interpret as "Generic"
 	AdHocCall_GENERIC       AdHocCall_State = 1
 )
 
@@ -542,7 +542,7 @@ func (AdHocCall_State) EnumDescriptor() ([]byte, []int) {
 type DistributionList_PrivacyMode int32
 
 const (
-	DistributionList_UNKNOWN    DistributionList_PrivacyMode = 0
+	DistributionList_UNKNOWN    DistributionList_PrivacyMode = 0 // Interpret as "Only with"
 	DistributionList_ONLY_WITH  DistributionList_PrivacyMode = 1
 	DistributionList_ALL_EXCEPT DistributionList_PrivacyMode = 2
 	DistributionList_ALL        DistributionList_PrivacyMode = 3
@@ -643,7 +643,7 @@ func (SendStatus_Failed_FailureReason) EnumDescriptor() ([]byte, []int) {
 type PaymentNotification_TransactionDetails_FailedTransaction_FailureReason int32
 
 const (
-	PaymentNotification_TransactionDetails_FailedTransaction_GENERIC            PaymentNotification_TransactionDetails_FailedTransaction_FailureReason = 0
+	PaymentNotification_TransactionDetails_FailedTransaction_GENERIC            PaymentNotification_TransactionDetails_FailedTransaction_FailureReason = 0 // A valid value -- reason unknown
 	PaymentNotification_TransactionDetails_FailedTransaction_NETWORK            PaymentNotification_TransactionDetails_FailedTransaction_FailureReason = 1
 	PaymentNotification_TransactionDetails_FailedTransaction_INSUFFICIENT_FUNDS PaymentNotification_TransactionDetails_FailedTransaction_FailureReason = 2
 )
@@ -692,7 +692,7 @@ func (PaymentNotification_TransactionDetails_FailedTransaction_FailureReason) En
 type PaymentNotification_TransactionDetails_Transaction_Status int32
 
 const (
-	PaymentNotification_TransactionDetails_Transaction_INITIAL    PaymentNotification_TransactionDetails_Transaction_Status = 0
+	PaymentNotification_TransactionDetails_Transaction_INITIAL    PaymentNotification_TransactionDetails_Transaction_Status = 0 // A valid value -- state unconfirmed
 	PaymentNotification_TransactionDetails_Transaction_SUBMITTED  PaymentNotification_TransactionDetails_Transaction_Status = 1
 	PaymentNotification_TransactionDetails_Transaction_SUCCESSFUL PaymentNotification_TransactionDetails_Transaction_Status = 2
 )
@@ -741,7 +741,7 @@ func (PaymentNotification_TransactionDetails_Transaction_Status) EnumDescriptor(
 type GiftBadge_State int32
 
 const (
-	GiftBadge_UNOPENED GiftBadge_State = 0
+	GiftBadge_UNOPENED GiftBadge_State = 0 // A valid state
 	GiftBadge_OPENED   GiftBadge_State = 1
 	GiftBadge_REDEEMED GiftBadge_State = 2
 	GiftBadge_FAILED   GiftBadge_State = 3
@@ -793,7 +793,7 @@ func (GiftBadge_State) EnumDescriptor() ([]byte, []int) {
 type ContactAttachment_Phone_Type int32
 
 const (
-	ContactAttachment_Phone_UNKNOWN ContactAttachment_Phone_Type = 0
+	ContactAttachment_Phone_UNKNOWN ContactAttachment_Phone_Type = 0 // Interpret as "Home"
 	ContactAttachment_Phone_HOME    ContactAttachment_Phone_Type = 1
 	ContactAttachment_Phone_MOBILE  ContactAttachment_Phone_Type = 2
 	ContactAttachment_Phone_WORK    ContactAttachment_Phone_Type = 3
@@ -848,7 +848,7 @@ func (ContactAttachment_Phone_Type) EnumDescriptor() ([]byte, []int) {
 type ContactAttachment_Email_Type int32
 
 const (
-	ContactAttachment_Email_UNKNOWN ContactAttachment_Email_Type = 0
+	ContactAttachment_Email_UNKNOWN ContactAttachment_Email_Type = 0 // Intepret as "Home"
 	ContactAttachment_Email_HOME    ContactAttachment_Email_Type = 1
 	ContactAttachment_Email_MOBILE  ContactAttachment_Email_Type = 2
 	ContactAttachment_Email_WORK    ContactAttachment_Email_Type = 3
@@ -903,7 +903,7 @@ func (ContactAttachment_Email_Type) EnumDescriptor() ([]byte, []int) {
 type ContactAttachment_PostalAddress_Type int32
 
 const (
-	ContactAttachment_PostalAddress_UNKNOWN ContactAttachment_PostalAddress_Type = 0
+	ContactAttachment_PostalAddress_UNKNOWN ContactAttachment_PostalAddress_Type = 0 // Interpret as "Home"
 	ContactAttachment_PostalAddress_HOME    ContactAttachment_PostalAddress_Type = 1
 	ContactAttachment_PostalAddress_WORK    ContactAttachment_PostalAddress_Type = 2
 	ContactAttachment_PostalAddress_CUSTOM  ContactAttachment_PostalAddress_Type = 3
@@ -958,7 +958,7 @@ func (ContactAttachment_PostalAddress_Type) EnumDescriptor() ([]byte, []int) {
 type MessageAttachment_Flag int32
 
 const (
-	MessageAttachment_NONE          MessageAttachment_Flag = 0
+	MessageAttachment_NONE          MessageAttachment_Flag = 0 // A valid value -- no flag applied
 	MessageAttachment_VOICE_MESSAGE MessageAttachment_Flag = 1
 	MessageAttachment_BORDERLESS    MessageAttachment_Flag = 2
 	MessageAttachment_GIF           MessageAttachment_Flag = 3
@@ -1010,7 +1010,7 @@ func (MessageAttachment_Flag) EnumDescriptor() ([]byte, []int) {
 type Quote_Type int32
 
 const (
-	Quote_UNKNOWN    Quote_Type = 0
+	Quote_UNKNOWN    Quote_Type = 0 // Interpret as "Normal"
 	Quote_NORMAL     Quote_Type = 1
 	Quote_GIFT_BADGE Quote_Type = 2
 	Quote_VIEW_ONCE  Quote_Type = 3
@@ -1062,7 +1062,7 @@ func (Quote_Type) EnumDescriptor() ([]byte, []int) {
 type BodyRange_Style int32
 
 const (
-	BodyRange_NONE          BodyRange_Style = 0
+	BodyRange_NONE          BodyRange_Style = 0 // Importers should ignore the body range without throwing an error.
 	BodyRange_BOLD          BodyRange_Style = 1
 	BodyRange_ITALIC        BodyRange_Style = 2
 	BodyRange_SPOILER       BodyRange_Style = 3
@@ -1120,7 +1120,7 @@ func (BodyRange_Style) EnumDescriptor() ([]byte, []int) {
 type IndividualCall_Type int32
 
 const (
-	IndividualCall_UNKNOWN_TYPE IndividualCall_Type = 0
+	IndividualCall_UNKNOWN_TYPE IndividualCall_Type = 0 // Interpret as "Audio call"
 	IndividualCall_AUDIO_CALL   IndividualCall_Type = 1
 	IndividualCall_VIDEO_CALL   IndividualCall_Type = 2
 )
@@ -1169,7 +1169,7 @@ func (IndividualCall_Type) EnumDescriptor() ([]byte, []int) {
 type IndividualCall_Direction int32
 
 const (
-	IndividualCall_UNKNOWN_DIRECTION IndividualCall_Direction = 0
+	IndividualCall_UNKNOWN_DIRECTION IndividualCall_Direction = 0 // Interpret as "Incoming"
 	IndividualCall_INCOMING          IndividualCall_Direction = 1
 	IndividualCall_OUTGOING          IndividualCall_Direction = 2
 )
@@ -1218,7 +1218,7 @@ func (IndividualCall_Direction) EnumDescriptor() ([]byte, []int) {
 type IndividualCall_State int32
 
 const (
-	IndividualCall_UNKNOWN_STATE IndividualCall_State = 0
+	IndividualCall_UNKNOWN_STATE IndividualCall_State = 0 // Interpret as "Accepted"
 	IndividualCall_ACCEPTED      IndividualCall_State = 1
 	IndividualCall_NOT_ACCEPTED  IndividualCall_State = 2
 	// An incoming call that is no longer ongoing, which we neither accepted
@@ -1277,7 +1277,7 @@ func (IndividualCall_State) EnumDescriptor() ([]byte, []int) {
 type GroupCall_State int32
 
 const (
-	GroupCall_UNKNOWN_STATE GroupCall_State = 0
+	GroupCall_UNKNOWN_STATE GroupCall_State = 0 // Interpret as "Generic"
 	// A group call was started without ringing.
 	GroupCall_GENERIC GroupCall_State = 1
 	// We joined a group call that was started without ringing.
@@ -1353,7 +1353,7 @@ func (GroupCall_State) EnumDescriptor() ([]byte, []int) {
 type SimpleChatUpdate_Type int32
 
 const (
-	SimpleChatUpdate_UNKNOWN                          SimpleChatUpdate_Type = 0
+	SimpleChatUpdate_UNKNOWN                          SimpleChatUpdate_Type = 0 // Importers should skip the update without throwing an error.
 	SimpleChatUpdate_JOINED_SIGNAL                    SimpleChatUpdate_Type = 1
 	SimpleChatUpdate_IDENTITY_UPDATE                  SimpleChatUpdate_Type = 2
 	SimpleChatUpdate_IDENTITY_VERIFIED                SimpleChatUpdate_Type = 3
@@ -1444,7 +1444,7 @@ func (SimpleChatUpdate_Type) EnumDescriptor() ([]byte, []int) {
 type ChatStyle_WallpaperPreset int32
 
 const (
-	ChatStyle_UNKNOWN_WALLPAPER_PRESET ChatStyle_WallpaperPreset = 0
+	ChatStyle_UNKNOWN_WALLPAPER_PRESET ChatStyle_WallpaperPreset = 0 // Interpret as the wallpaper being unset
 	ChatStyle_SOLID_BLUSH              ChatStyle_WallpaperPreset = 1
 	ChatStyle_SOLID_COPPER             ChatStyle_WallpaperPreset = 2
 	ChatStyle_SOLID_DUST               ChatStyle_WallpaperPreset = 3
@@ -1550,7 +1550,7 @@ func (ChatStyle_WallpaperPreset) EnumDescriptor() ([]byte, []int) {
 type ChatStyle_BubbleColorPreset int32
 
 const (
-	ChatStyle_UNKNOWN_BUBBLE_COLOR_PRESET ChatStyle_BubbleColorPreset = 0
+	ChatStyle_UNKNOWN_BUBBLE_COLOR_PRESET ChatStyle_BubbleColorPreset = 0 // Interpret as the user's default chat bubble color
 	ChatStyle_SOLID_ULTRAMARINE           ChatStyle_BubbleColorPreset = 1
 	ChatStyle_SOLID_CRIMSON               ChatStyle_BubbleColorPreset = 2
 	ChatStyle_SOLID_VERMILION             ChatStyle_BubbleColorPreset = 3
@@ -1659,7 +1659,7 @@ func (ChatStyle_BubbleColorPreset) EnumDescriptor() ([]byte, []int) {
 type NotificationProfile_DayOfWeek int32
 
 const (
-	NotificationProfile_UNKNOWN   NotificationProfile_DayOfWeek = 0
+	NotificationProfile_UNKNOWN   NotificationProfile_DayOfWeek = 0 // Interpret as "Monday"
 	NotificationProfile_MONDAY    NotificationProfile_DayOfWeek = 1
 	NotificationProfile_TUESDAY   NotificationProfile_DayOfWeek = 2
 	NotificationProfile_WEDNESDAY NotificationProfile_DayOfWeek = 3
@@ -1724,7 +1724,7 @@ func (NotificationProfile_DayOfWeek) EnumDescriptor() ([]byte, []int) {
 type ChatFolder_FolderType int32
 
 const (
-	ChatFolder_UNKNOWN ChatFolder_FolderType = 0
+	ChatFolder_UNKNOWN ChatFolder_FolderType = 0 // Interpret as "Custom"
 	ChatFolder_ALL     ChatFolder_FolderType = 1
 	ChatFolder_CUSTOM  ChatFolder_FolderType = 2
 )
@@ -1864,6 +1864,8 @@ func (x *BackupInfo) GetFirstAppVersion() string {
 // or may each immediately precede its first ChatItem.
 type Frame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should skip this frame without throwing an error.
+	//
 	// Types that are valid to be assigned to Item:
 	//
 	//	*Frame_Account
@@ -2151,6 +2153,8 @@ func (x *AccountData) GetBackupsSubscriberData() *AccountData_IAPSubscriberData 
 type Recipient struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"` // generated id for reference only within this file
+	// If unset, importers should skip this frame without throwing an error.
+	//
 	// Types that are valid to be assigned to Destination:
 	//
 	//	*Recipient_Contact
@@ -2310,6 +2314,8 @@ type Contact struct {
 	E164       *uint64                `protobuf:"varint,4,opt,name=e164,proto3,oneof" json:"e164,omitempty"`
 	Blocked    bool                   `protobuf:"varint,5,opt,name=blocked,proto3" json:"blocked,omitempty"`
 	Visibility Contact_Visibility     `protobuf:"varint,6,opt,name=visibility,proto3,enum=signal.backup.Contact_Visibility" json:"visibility,omitempty"`
+	// If unset, consider the user to be registered
+	//
 	// Types that are valid to be assigned to Registration:
 	//
 	//	*Contact_Registered_
@@ -2511,6 +2517,7 @@ type Group struct {
 	HideStory     bool                   `protobuf:"varint,3,opt,name=hideStory,proto3" json:"hideStory,omitempty"`
 	StorySendMode Group_StorySendMode    `protobuf:"varint,4,opt,name=storySendMode,proto3,enum=signal.backup.Group_StorySendMode" json:"storySendMode,omitempty"`
 	Snapshot      *Group_GroupSnapshot   `protobuf:"bytes,5,opt,name=snapshot,proto3" json:"snapshot,omitempty"`
+	Blocked       bool                   `protobuf:"varint,6,opt,name=blocked,proto3" json:"blocked,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2578,6 +2585,13 @@ func (x *Group) GetSnapshot() *Group_GroupSnapshot {
 		return x.Snapshot
 	}
 	return nil
+}
+
+func (x *Group) GetBlocked() bool {
+	if x != nil {
+		return x.Blocked
+	}
+	return false
 }
 
 type Self struct {
@@ -2925,6 +2939,8 @@ type DistributionListItem struct {
 	// distribution ids are UUIDv4s. "My Story" is represented
 	// by an all-0 UUID (00000000-0000-0000-0000-000000000000).
 	DistributionId []byte `protobuf:"bytes,1,opt,name=distributionId,proto3" json:"distributionId,omitempty"` // distribution list ids are uuids
+	// If unset, importers should skip the item entirely without showing an error.
+	//
 	// Types that are valid to be assigned to Item:
 	//
 	//	*DistributionListItem_DeletionTimestamp
@@ -3089,12 +3105,16 @@ type ChatItem struct {
 	ExpiresInMs     *uint64                `protobuf:"varint,5,opt,name=expiresInMs,proto3,oneof" json:"expiresInMs,omitempty"`         // how long timer of message is (ms)
 	Revisions       []*ChatItem            `protobuf:"bytes,6,rep,name=revisions,proto3" json:"revisions,omitempty"`                    // ordered from oldest to newest
 	Sms             bool                   `protobuf:"varint,7,opt,name=sms,proto3" json:"sms,omitempty"`
+	// If unset, importers should skip this item without throwing an error.
+	//
 	// Types that are valid to be assigned to DirectionalDetails:
 	//
 	//	*ChatItem_Incoming
 	//	*ChatItem_Outgoing
 	//	*ChatItem_Directionless
 	DirectionalDetails isChatItem_DirectionalDetails `protobuf_oneof:"directionalDetails"`
+	// If unset, importers should skip this item without throwing an error.
+	//
 	// Types that are valid to be assigned to Item:
 	//
 	//	*ChatItem_StandardMessage
@@ -3396,6 +3416,8 @@ type SendStatus struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	RecipientId uint64                 `protobuf:"varint,1,opt,name=recipientId,proto3" json:"recipientId,omitempty"`
 	Timestamp   uint64                 `protobuf:"varint,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"` // the time the status was last updated -- if from a receipt, it should be the sentTime of the receipt
+	// If unset, importers should consider the status to be "pending"
+	//
 	// Types that are valid to be assigned to DeliveryStatus:
 	//
 	//	*SendStatus_Pending_
@@ -3760,15 +3782,16 @@ func (x *ContactMessage) GetReactions() []*Reaction {
 
 type DirectStoryReplyMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should ignore the message without throwing an error.
+	//
 	// Types that are valid to be assigned to Reply:
 	//
 	//	*DirectStoryReplyMessage_TextReply_
 	//	*DirectStoryReplyMessage_Emoji
-	Reply              isDirectStoryReplyMessage_Reply `protobuf_oneof:"reply"`
-	Reactions          []*Reaction                     `protobuf:"bytes,3,rep,name=reactions,proto3" json:"reactions,omitempty"`
-	StorySentTimestamp *uint64                         `protobuf:"varint,4,opt,name=storySentTimestamp,proto3,oneof" json:"storySentTimestamp,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	Reply         isDirectStoryReplyMessage_Reply `protobuf_oneof:"reply"`
+	Reactions     []*Reaction                     `protobuf:"bytes,3,rep,name=reactions,proto3" json:"reactions,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DirectStoryReplyMessage) Reset() {
@@ -3831,13 +3854,6 @@ func (x *DirectStoryReplyMessage) GetReactions() []*Reaction {
 		return x.Reactions
 	}
 	return nil
-}
-
-func (x *DirectStoryReplyMessage) GetStorySentTimestamp() uint64 {
-	if x != nil && x.StorySentTimestamp != nil {
-		return *x.StorySentTimestamp
-	}
-	return 0
 }
 
 type isDirectStoryReplyMessage_Reply interface {
@@ -4432,6 +4448,8 @@ func (x *MessageAttachment) GetClientUuid() []byte {
 
 type FilePointer struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should consider it to be an InvalidAttachmentLocator without throwing an error.
+	//
 	// Types that are valid to be assigned to Locator:
 	//
 	//	*FilePointer_BackupLocator_
@@ -4669,9 +4687,13 @@ func (x *Quote) GetType() Quote_Type {
 }
 
 type BodyRange struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
-	Start  *uint32                `protobuf:"varint,1,opt,name=start,proto3,oneof" json:"start,omitempty"`
-	Length *uint32                `protobuf:"varint,2,opt,name=length,proto3,oneof" json:"length,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// 'start' and 'length' are measured in UTF-16 code units.
+	// They may refer to offsets in a longText attachment.
+	Start  uint32 `protobuf:"varint,1,opt,name=start,proto3" json:"start,omitempty"`
+	Length uint32 `protobuf:"varint,2,opt,name=length,proto3" json:"length,omitempty"`
+	// If unset, importers should ignore the body range without throwing an error.
+	//
 	// Types that are valid to be assigned to AssociatedValue:
 	//
 	//	*BodyRange_MentionAci
@@ -4712,15 +4734,15 @@ func (*BodyRange) Descriptor() ([]byte, []int) {
 }
 
 func (x *BodyRange) GetStart() uint32 {
-	if x != nil && x.Start != nil {
-		return *x.Start
+	if x != nil {
+		return x.Start
 	}
 	return 0
 }
 
 func (x *BodyRange) GetLength() uint32 {
-	if x != nil && x.Length != nil {
-		return *x.Length
+	if x != nil {
+		return x.Length
 	}
 	return 0
 }
@@ -4838,6 +4860,8 @@ func (x *Reaction) GetSortOrder() uint64 {
 
 type ChatUpdateMessage struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should ignore the update message without throwing an error.
+	//
 	// Types that are valid to be assigned to Update:
 	//
 	//	*ChatUpdateMessage_SimpleUpdate
@@ -5350,6 +5374,8 @@ func (x *ProfileChangeChatUpdate) GetNewName() string {
 
 type LearnedProfileChatUpdate struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should consider the previous name to be an empty string.
+	//
 	// Types that are valid to be assigned to PreviousName:
 	//
 	//	*LearnedProfileChatUpdate_E164
@@ -7305,11 +7331,15 @@ func (x *StickerPack) GetPackKey() []byte {
 
 type ChatStyle struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should consider there to be no wallpaper.
+	//
 	// Types that are valid to be assigned to Wallpaper:
 	//
 	//	*ChatStyle_WallpaperPreset_
 	//	*ChatStyle_WallpaperPhoto
 	Wallpaper isChatStyle_Wallpaper `protobuf_oneof:"wallpaper"`
+	// If unset, importers should consider it to be AutomaticBubbleColor
+	//
 	// Types that are valid to be assigned to BubbleColor:
 	//
 	//	*ChatStyle_AutoBubbleColor
@@ -7997,6 +8027,8 @@ func (x *AccountData_SubscriberData) GetManuallyCancelled() bool {
 type AccountData_IAPSubscriberData struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	SubscriberId []byte                 `protobuf:"bytes,1,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
+	// If unset, importers should ignore the subscriber data without throwing an error.
+	//
 	// Types that are valid to be assigned to IapSubscriptionId:
 	//
 	//	*AccountData_IAPSubscriberData_PurchaseToken
@@ -8359,6 +8391,8 @@ func (x *Group_GroupSnapshot) GetMembersBanned() []*Group_MemberBanned {
 
 type Group_GroupAttributeBlob struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, consider the field it represents to not be present
+	//
 	// Types that are valid to be assigned to Content:
 	//
 	//	*Group_GroupAttributeBlob_Title
@@ -9250,6 +9284,8 @@ func (x *DirectStoryReplyMessage_TextReply) GetLongText() *FilePointer {
 
 type PaymentNotification_TransactionDetails struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should treat the transaction as successful with no metadata.
+	//
 	// Types that are valid to be assigned to Payment:
 	//
 	//	*PaymentNotification_TransactionDetails_Transaction_
@@ -10123,6 +10159,8 @@ func (x *Quote_QuotedAttachment) GetThumbnail() *MessageAttachment {
 
 type GroupChangeChatUpdate_Update struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
+	// If unset, importers should consider it to be a GenericGroupUpdate with unset updaterAci
+	//
 	// Types that are valid to be assigned to Update:
 	//
 	//	*GroupChangeChatUpdate_Update_GenericGroupUpdate
@@ -10864,6 +10902,8 @@ func (x *ChatStyle_Gradient) GetPositions() []float32 {
 type ChatStyle_CustomChatColor struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Id    uint64                 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	// If unset, use the default chat color
+	//
 	// Types that are valid to be assigned to Color:
 	//
 	//	*ChatStyle_CustomChatColor_Solid

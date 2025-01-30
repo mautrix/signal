@@ -197,12 +197,16 @@ func (acp *archiveChunkProcessor) processFrame(frame *backuppb.Frame) error {
 	acp.cli.Log.Trace().Any("backup_frame", frame).Msg("Processing backup frame")
 	switch item := frame.Item.(type) {
 	case *backuppb.Frame_Recipient:
+		if item.Recipient.Destination == nil {
+			zerolog.Ctx(acp.ctx).Debug().Msg("Ignoring recipient frame with no destination")
+			return nil
+		}
 		return acp.cli.Store.BackupStore.AddBackupRecipient(acp.ctx, item.Recipient)
 	case *backuppb.Frame_Chat:
 		return acp.cli.Store.BackupStore.AddBackupChat(acp.ctx, item.Chat)
 	case *backuppb.Frame_ChatItem:
 		switch item.ChatItem.Item.(type) {
-		case *backuppb.ChatItem_DirectStoryReplyMessage, *backuppb.ChatItem_UpdateMessage:
+		case *backuppb.ChatItem_DirectStoryReplyMessage, *backuppb.ChatItem_UpdateMessage, nil:
 			zerolog.Ctx(acp.ctx).Debug().
 				Uint64("chat_id", item.ChatItem.ChatId).
 				Uint64("message_id", item.ChatItem.DateSent).
