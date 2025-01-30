@@ -1,7 +1,7 @@
 # v0.8.0 (unreleased)
 
 * Added support for history transfer.
-* Updated libsignal to v0.65.2.
+* Updated libsignal to v0.65.4.
 
 # v0.7.5 (2025-01-16)
 
