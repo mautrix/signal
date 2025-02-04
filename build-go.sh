@@ -6,4 +6,4 @@ if [ "$DBG" = 1 ]; then
 else
     GO_LDFLAGS="-s -w ${GO_LDFLAGS}"
 fi
-go build -gcflags="$GO_GCFLAGS" -ldflags="$GO_LDFLAGS" -o mautrix-signal ./cmd/mautrix-signal "$@"
+go build -gcflags="$GO_GCFLAGS" -ldflags="$GO_LDFLAGS" -o mautrix-signal "$@" ./cmd/mautrix-signal
