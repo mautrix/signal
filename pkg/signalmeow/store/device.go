@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/dbutil"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -79,7 +80,22 @@ type Device struct {
 	DeviceStore    DeviceStore
 	BackupStore    BackupStore
 
-	DoTxn func(context.Context, func(context.Context) error) error
+	sqlStore *sqlStore
+	db       *dbutil.Database
+}
+
+type contextKey int64
+
+const (
+	contextKeyContactLock contextKey = 1
+)
+
+func (d *Device) DoContactTxn(ctx context.Context, fn func(context.Context) error) error {
+	d.sqlStore.contactLock.Lock()
+	defer d.sqlStore.contactLock.Unlock()
+	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 1)
+	ctx = context.WithValue(ctx, contextKeyContactLock, true)
+	return d.db.DoTxn(ctx, nil, fn)
 }
 
 func (d *Device) ClearDeviceKeys(ctx context.Context) error {

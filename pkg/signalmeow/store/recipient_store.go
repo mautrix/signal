@@ -204,8 +204,10 @@ func (s *sqlStore) LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUI
 			return false, nil
 		}
 	}
-	s.contactLock.Lock()
-	defer s.contactLock.Unlock()
+	if ctx.Value(contextKeyContactLock) == nil {
+		s.contactLock.Lock()
+		defer s.contactLock.Unlock()
+	}
 	outErr = s.db.DoTxn(ctx, nil, func(ctx context.Context) error {
 		var entries []*types.Recipient
 		var err error

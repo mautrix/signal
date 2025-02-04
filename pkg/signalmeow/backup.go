@@ -93,7 +93,7 @@ func (cli *Client) FetchAndProcessTransfer(ctx context.Context, meta *TransferAr
 	if err != nil {
 		return fmt.Errorf("failed to seek to start of file: %w", err)
 	}
-	err = cli.Store.DoTxn(ctx, func(ctx context.Context) error {
+	err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
 		err = cli.Store.BackupStore.ClearBackup(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to clear backup: %w", err)

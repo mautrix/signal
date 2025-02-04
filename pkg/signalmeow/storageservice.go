@@ -49,7 +49,7 @@ func (cli *Client) SyncStorage(ctx context.Context) {
 		log.Err(err).Msg("Failed to fetch storage")
 		return
 	}
-	err = cli.Store.DoTxn(ctx, func(ctx context.Context) error {
+	err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
 		return cli.processStorageInTxn(ctx, update)
 	})
 	if err != nil {

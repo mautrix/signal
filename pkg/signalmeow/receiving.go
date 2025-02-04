@@ -805,24 +805,30 @@ func (cli *Client) handleDecryptedResult(
 				}
 				log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
 				convertedContacts := make([]*types.Recipient, 0, len(contacts))
-				for i, signalContact := range contacts {
-					if signalContact.Aci == nil || *signalContact.Aci == "" {
-						// TODO lookup PNI via CDSI and store that when ACI is missing?
-						log.Info().
-							Any("contact", signalContact).
-							Msg("Signal Contact UUID is nil, skipping")
-						continue
+				err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
+					for i, signalContact := range contacts {
+						if signalContact.Aci == nil || *signalContact.Aci == "" {
+							// TODO lookup PNI via CDSI and store that when ACI is missing?
+							log.Info().
+								Any("contact", signalContact).
+								Msg("Signal Contact UUID is nil, skipping")
+							continue
+						}
+						contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
+						if err != nil {
+							return err
+						}
+						convertedContacts = append(convertedContacts, contact)
 					}
-					contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
-					if err != nil {
-						log.Err(err).Msg("StoreContactDetailsAsContact error")
-						continue
-					}
-					convertedContacts = append(convertedContacts, contact)
-				}
-				cli.handleEvent(&events.ContactList{
-					Contacts: convertedContacts,
+					return nil
 				})
+				if err != nil {
+					log.Err(err).Msg("Error storing contacts")
+				} else {
+					cli.handleEvent(&events.ContactList{
+						Contacts: convertedContacts,
+					})
+				}
 			}
 		}
 		if content.SyncMessage.Read != nil {
