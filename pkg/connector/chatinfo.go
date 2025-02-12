@@ -46,6 +46,10 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 	if err != nil {
 		return nil, err
 	}
+	if ghost.Name != "" && s.Main.Bridge.Background {
+		// Don't do unnecessary fetches in background mode
+		return nil, nil
+	}
 	contact, err := s.Client.ContactByACI(ctx, userID)
 	if err != nil {
 		return nil, err
