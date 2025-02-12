@@ -221,7 +221,7 @@ func (s *SignalClient) Connect(ctx context.Context) {
 
 func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.ConnectBackgroundParams) error {
 	s.queueEmptyWaiter.Clear()
-	ch, err := s.Client.StartAuthedWS(ctx)
+	ch, _, err := s.Client.StartWebsockets(ctx)
 	if err != nil {
 		return err
 	}

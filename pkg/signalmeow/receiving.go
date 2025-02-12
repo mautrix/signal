@@ -68,34 +68,43 @@ type SignalConnectionStatus struct {
 	Err   error
 }
 
-func (cli *Client) StartAuthedWS(ctx context.Context) (chan web.SignalWebsocketConnectionStatus, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	cli.WSCancel = cancel
-	authChan, err := cli.connectAuthedWS(ctx, cli.incomingRequestHandler)
+func (cli *Client) StartWebsockets(ctx context.Context) (authChan, unauthChan chan web.SignalWebsocketConnectionStatus, err error) {
+	authChan, unauthChan, _, _, err = cli.startWebsocketsInternal(ctx)
+	return
+}
+
+func (cli *Client) startWebsocketsInternal(
+	ctx context.Context,
+) (
+	authChan, unauthChan chan web.SignalWebsocketConnectionStatus,
+	cancelCtx context.Context,
+	cancelFunc context.CancelFunc,
+	err error,
+) {
+	cancelCtx, cancelFunc = context.WithCancel(ctx)
+	cli.WSCancel = cancelFunc
+	unauthChan, err = cli.connectUnauthedWS(cancelCtx)
 	if err != nil {
-		cancel()
-		return nil, err
+		cancelFunc()
+		return
+	}
+	zerolog.Ctx(ctx).Info().Msg("Unauthed websocket connecting")
+	authChan, err = cli.connectAuthedWS(cancelCtx, cli.incomingRequestHandler)
+	if err != nil {
+		cancelFunc()
+		return
 	}
 	zerolog.Ctx(ctx).Info().Msg("Authed websocket connecting")
-	return authChan, nil
+	return
 }
 
 func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnectionStatus, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start receive loops").Logger()
-	ctx, cancel := context.WithCancel(log.WithContext(ctx))
-	cli.WSCancel = cancel
-	authChan, err := cli.connectAuthedWS(ctx, cli.incomingRequestHandler)
+	ctx = log.WithContext(ctx)
+	authChan, unauthChan, ctx, cancel, err := cli.startWebsocketsInternal(log.WithContext(ctx))
 	if err != nil {
-		cancel()
 		return nil, err
 	}
-	log.Info().Msg("Authed websocket connecting")
-	unauthChan, err := cli.connectUnauthedWS(ctx)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-	log.Info().Msg("Unauthed websocket connecting")
 	statusChan := make(chan SignalConnectionStatus, 10000)
 
 	initialConnectChan := make(chan struct{})
