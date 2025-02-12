@@ -1,5 +1,6 @@
 # v0.8.0 (unreleased)
 
+* Bumped minimum Go version to 1.23.
 * Added support for history transfer.
 * Updated libsignal to v0.66.1.
 
