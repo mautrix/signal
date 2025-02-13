@@ -52,10 +52,10 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
-      - name: Set up gotestfmt
-        uses: GoTestTools/gotestfmt-action@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      #- name: Set up gotestfmt
+      #  uses: GoTestTools/gotestfmt-action@v2
+      #  with:
+      #    token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install libolm
         run: sudo apt-get install libolm-dev
@@ -68,4 +68,5 @@ jobs:
         run: |
           set -euo pipefail
           export LIBRARY_PATH=.
-          go test -v -json ./... -cover | gotestfmt
+          #go test -v -json ./... -cover | gotestfmt
+          go test ./...
