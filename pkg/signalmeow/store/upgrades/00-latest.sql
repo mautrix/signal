@@ -1,4 +1,4 @@
--- v0 -> v19 (compatible with v13+): Latest revision
+-- v0 -> v20 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -135,6 +135,9 @@ CREATE TABLE signalmeow_backup_chat (
     chat_id      BIGINT NOT NULL,
     recipient_id BIGINT NOT NULL,
     data         bytea  NOT NULL,
+
+    latest_message_id   BIGINT,
+    total_message_count INTEGER,
 
     PRIMARY KEY (account_id, chat_id),
     CONSTRAINT signalmeow_backup_chat_device_fkey FOREIGN KEY (account_id)
