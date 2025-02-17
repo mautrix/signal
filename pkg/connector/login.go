@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"maunium.net/go/mautrix/bridge/status"
@@ -50,6 +51,7 @@ type QRLogin struct {
 	Main       *SignalConnector
 	cancelChan context.CancelFunc
 	ProvChan   chan signalmeow.ProvisioningResponse
+	newQRCount int
 
 	ProvData *store.DeviceData
 }
@@ -139,6 +141,17 @@ func (qr *QRLogin) qrWait(ctx context.Context) (*bridgev2.LoginStep, error) {
 				Type: bridgev2.LoginDisplayTypeNothing,
 			},
 		}, nil
+
+	// Server will timeout the request after 60 seconds, but Signal Desktop opens
+	// a new socket and gets a new QR code after 45 seconds. We should do the same.
+	case <-time.After(45 * time.Second):
+		qr.cancelChan()
+		qr.newQRCount++
+		if qr.newQRCount >= 6 {
+			return nil, fmt.Errorf("too many QR code refreshes")
+		}
+		return qr.Start(ctx)
+
 	case <-ctx.Done():
 		qr.cancelChan()
 		return nil, ctx.Err()
