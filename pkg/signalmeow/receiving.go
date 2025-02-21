@@ -77,31 +77,30 @@ func (cli *Client) startWebsocketsInternal(
 	ctx context.Context,
 ) (
 	authChan, unauthChan chan web.SignalWebsocketConnectionStatus,
-	cancelCtx context.Context,
-	cancelFunc context.CancelFunc,
+	loopCtx context.Context, loopCancel context.CancelFunc,
 	err error,
 ) {
-	cancelCtx, cancelFunc = context.WithCancel(ctx)
-	cli.WSCancel = cancelFunc
-	unauthChan, err = cli.connectUnauthedWS(cancelCtx)
+	loopCtx, loopCancel = context.WithCancel(ctx)
+	unauthChan, err = cli.connectUnauthedWS(loopCtx)
 	if err != nil {
-		cancelFunc()
+		loopCancel()
 		return
 	}
 	zerolog.Ctx(ctx).Info().Msg("Unauthed websocket connecting")
-	authChan, err = cli.connectAuthedWS(cancelCtx, cli.incomingRequestHandler)
+	authChan, err = cli.connectAuthedWS(loopCtx, cli.incomingRequestHandler)
 	if err != nil {
-		cancelFunc()
+		loopCancel()
 		return
 	}
 	zerolog.Ctx(ctx).Info().Msg("Authed websocket connecting")
+	cli.loopCancel = loopCancel
 	return
 }
 
 func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnectionStatus, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start receive loops").Logger()
-	ctx = log.WithContext(ctx)
-	authChan, unauthChan, ctx, cancel, err := cli.startWebsocketsInternal(log.WithContext(ctx))
+
+	authChan, unauthChan, loopCtx, loopCancel, err := cli.startWebsocketsInternal(log.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -110,13 +109,15 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	initialConnectChan := make(chan struct{})
 
 	// Combine both websocket status channels into a single, more generic "Signal" connection status channel
+	cli.loopWg.Add(1)
 	go func() {
+		defer cli.loopWg.Done()
 		defer close(statusChan)
-		defer cancel()
+		defer loopCancel()
 		var currentStatus, lastAuthStatus, lastUnauthStatus web.SignalWebsocketConnectionStatus
 		for {
 			select {
-			case <-ctx.Done():
+			case <-loopCtx.Done():
 				log.Info().Msg("Context done, exiting websocket status loop")
 				return
 			case status := <-authChan:
@@ -201,19 +202,21 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	}()
 
 	// Send sync message once both websockets are connected
+	cli.loopWg.Add(1)
 	go func() {
+		defer cli.loopWg.Done()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-loopCtx.Done():
 				return
 			case <-initialConnectChan:
 				log.Info().Msg("Both websockets connected, sending contacts sync request")
 				// TODO hacky
 				if cli.SyncContactsOnConnect {
-					cli.SendContactSyncRequest(ctx)
+					cli.SendContactSyncRequest(loopCtx)
 				}
 				if cli.Store.MasterKey == nil {
-					cli.SendStorageMasterKeyRequest(ctx)
+					cli.SendStorageMasterKeyRequest(loopCtx)
 				}
 				return
 			}
@@ -221,7 +224,11 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	}()
 
 	// Start loop to check for and upload more prekeys
-	cli.StartKeyCheckLoop(ctx)
+	cli.loopWg.Add(1)
+	go func() {
+		defer cli.loopWg.Done()
+		cli.keyCheckLoop(loopCtx)
+	}()
 
 	return statusChan, nil
 }
@@ -233,8 +240,9 @@ func (cli *Client) StopReceiveLoops() error {
 	}()
 	authErr := cli.AuthedWS.Close()
 	unauthErr := cli.UnauthedWS.Close()
-	if cli.WSCancel != nil {
-		cli.WSCancel()
+	if cli.loopCancel != nil {
+		cli.loopCancel()
+		cli.loopWg.Wait()
 	}
 	if authErr != nil {
 		return authErr

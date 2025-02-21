@@ -48,8 +48,10 @@ type Client struct {
 
 	AuthedWS             *web.SignalWebsocket
 	UnauthedWS           *web.SignalWebsocket
-	WSCancel             context.CancelFunc
 	lastConnectionStatus SignalConnectionStatus
+
+	loopCancel context.CancelFunc
+	loopWg     sync.WaitGroup
 
 	EventHandler func(events.SignalEvent)
 
