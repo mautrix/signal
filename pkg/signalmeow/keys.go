@@ -599,49 +599,48 @@ func (cli *Client) CheckAndUploadNewPreKeys(ctx context.Context, pks store.PreKe
 	return nil
 }
 
-func (cli *Client) StartKeyCheckLoop(ctx context.Context) {
+func (cli *Client) keyCheckLoop(ctx context.Context) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start key check loop").Logger()
-	go func() {
-		// Do the initial check in 5-10 minutes after starting the loop
-		window_start := 0
-		window_size := 1
-		for {
-			random_minutes_in_window := rand.Intn(window_size) + window_start
-			check_time := time.Duration(random_minutes_in_window) * time.Minute
-			log.Debug().Dur("check_time", check_time).Msg("Waiting to check for new prekeys")
 
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(check_time):
-				err := cli.CheckAndUploadNewPreKeys(ctx, cli.Store.ACIPreKeyStore)
-				if err != nil {
-					log.Err(err).Msg("Error checking and uploading new prekeys for ACI identity")
-					// Retry within half an hour
-					window_start = 5
-					window_size = 25
-					continue
-				}
-				err = cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
-				if err != nil {
-					if errors.Is(err, errPrekeyUpload422) {
-						log.Err(err).Msg("Got 422 error while uploading PNI prekeys, deleting session")
-						disconnectErr := cli.ClearKeysAndDisconnect(ctx)
-						if disconnectErr != nil {
-							log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
-						}
-						return
-					}
-					log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
-					// Retry within half an hour
-					window_start = 5
-					window_size = 25
-					continue
-				}
-				// After a successful check, check again in 36 to 60 hours
-				window_start = 36 * 60
-				window_size = 24 * 60
+	// Do the initial check in 5-10 minutes after starting the loop
+	window_start := 0
+	window_size := 1
+	for {
+		random_minutes_in_window := rand.Intn(window_size) + window_start
+		check_time := time.Duration(random_minutes_in_window) * time.Minute
+		log.Debug().Dur("check_time", check_time).Msg("Waiting to check for new prekeys")
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(check_time):
+			err := cli.CheckAndUploadNewPreKeys(ctx, cli.Store.ACIPreKeyStore)
+			if err != nil {
+				log.Err(err).Msg("Error checking and uploading new prekeys for ACI identity")
+				// Retry within half an hour
+				window_start = 5
+				window_size = 25
+				continue
 			}
+			err = cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
+			if err != nil {
+				if errors.Is(err, errPrekeyUpload422) {
+					log.Err(err).Msg("Got 422 error while uploading PNI prekeys, deleting session")
+					disconnectErr := cli.ClearKeysAndDisconnect(ctx)
+					if disconnectErr != nil {
+						log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
+					}
+					return
+				}
+				log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
+				// Retry within half an hour
+				window_start = 5
+				window_size = 25
+				continue
+			}
+			// After a successful check, check again in 36 to 60 hours
+			window_start = 36 * 60
+			window_size = 24 * 60
 		}
-	}()
+	}
 }
