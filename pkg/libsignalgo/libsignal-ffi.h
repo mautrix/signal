@@ -204,7 +204,7 @@ typedef enum {
   SignalErrorCodeCdsiInvalidToken = 147,
   SignalErrorCodeConnectionFailed = 148,
   SignalErrorCodeChatServiceInactive = 149,
-  SignalErrorCodeChatServiceIntentionallyDisconnected = 150,
+  SignalErrorCodeRequestTimedOut = 150,
   SignalErrorCodeSvrDataMissing = 160,
   SignalErrorCodeSvrRestoreFailed = 161,
   SignalErrorCodeSvrRotationMachineTooManySteps = 162,
@@ -1890,6 +1890,8 @@ SignalFfiError *signal_cdsi_lookup_destroy(SignalMutPointerCdsiLookup p);
 
 SignalFfiError *signal_cdsi_lookup_new(SignalCPromiseMutPointerCdsiLookup *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager, const char *username, const char *password, SignalConstPointerLookupRequest request);
 
+SignalFfiError *signal_cdsi_lookup_new_routes(SignalCPromiseMutPointerCdsiLookup *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager, const char *username, const char *password, SignalConstPointerLookupRequest request);
+
 SignalFfiError *signal_cdsi_lookup_token(SignalOwnedBuffer *out, SignalConstPointerCdsiLookup lookup);
 
 SignalFfiError *signal_cdsi_lookup_complete(SignalCPromiseFfiCdsiLookupResponse *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerCdsiLookup lookup);
@@ -1934,7 +1936,7 @@ SignalFfiError *signal_authenticated_chat_connection_info(SignalMutPointerChatCo
 
 SignalFfiError *signal_server_message_ack_destroy(SignalMutPointerServerMessageAck p);
 
-SignalFfiError *signal_server_message_ack_send(SignalCPromisebool *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerServerMessageAck ack);
+SignalFfiError *signal_server_message_ack_send(SignalConstPointerServerMessageAck ack);
 
 SignalFfiError *signal_tokio_async_context_destroy(SignalMutPointerTokioAsyncContext p);
 
