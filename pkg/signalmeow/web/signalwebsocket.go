@@ -195,7 +195,7 @@ func (s *SignalWebsocket) connectLoop(
 			log.Warn().Dur("backoff", backoff).Msg("Failed to connect, waiting to retry...")
 			time.Sleep(backoff)
 			backoff += backoffIncrement
-		} else if !isFirstConnect && s.basicAuth != nil {
+		} else if !isFirstConnect && s.basicAuth != nil && ctx.Err() == nil {
 			time.Sleep(initialBackoff)
 		}
 		if ctx.Err() != nil {
@@ -331,42 +331,21 @@ func (s *SignalWebsocket) connectLoop(
 		}()
 
 		// Wait for read or write or ping loop to exit (which means there was an error)
-		log.Info().Msg("Waiting for read or write loop to exit")
-		select {
-		case <-loopCtx.Done():
-			log.Info().Msg("received loopCtx done")
-			if context.Cause(loopCtx) != nil {
-				err := context.Cause(loopCtx)
-				if err != nil && err != context.Canceled {
-					log.Err(err).Msg("loopCtx error")
-					errorCount++
-				}
+		log.Debug().Msg("Finished preparing connection, waiting for loop context to finish")
+		<-loopCtx.Done()
+		ctxCauseErr := context.Cause(loopCtx)
+		log.Debug().AnErr("ctx_cause_err", ctxCauseErr).Msg("Read or write loop exited")
+		if ctxCauseErr == nil || errors.Is(ctxCauseErr, context.Canceled) {
+			s.statusChannel <- SignalWebsocketConnectionStatus{
+				Event: SignalWebsocketConnectionEventCleanShutdown,
 			}
-			if context.Cause(loopCtx) != nil && context.Cause(loopCtx) == context.Canceled {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventCleanShutdown,
-				}
-			} else {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventDisconnected,
-					Err:   err,
-				}
-			}
-		case <-ctx.Done():
-			log.Info().AnErr("ctx_err", ctx.Err()).AnErr("ctx_cause", context.Cause(ctx)).Msg("received ctx done")
-			if context.Cause(ctx) != nil && context.Cause(ctx) == context.Canceled {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventCleanShutdown,
-				}
-				return
-			} else {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventDisconnected,
-					Err:   err,
-				}
+		} else {
+			errorCount++
+			s.statusChannel <- SignalWebsocketConnectionStatus{
+				Event: SignalWebsocketConnectionEventDisconnected,
+				Err:   ctxCauseErr,
 			}
 		}
-		log.Info().Msg("Read or write loop exited")
 
 		// Clean up
 		ws.Close(websocket.StatusGoingAway, "Going away")

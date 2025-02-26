@@ -236,7 +236,6 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 				log.Info().Msg("Authed websocket connected")
 			case web.SignalWebsocketConnectionEventDisconnected:
 				log.Err(status.Err).Msg("Authed websocket disconnected")
-				return fmt.Errorf("authed websocket disconnected: %w", status.Err)
 			case web.SignalWebsocketConnectionEventLoggedOut:
 				log.Err(status.Err).Msg("Authed websocket logged out")
 				return fmt.Errorf("authed websocket logged out: %w", status.Err)

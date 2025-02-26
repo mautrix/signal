@@ -285,7 +285,7 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 	if *req.Verb == http.MethodPut && *req.Path == "/api/v1/message" {
 		return cli.incomingAPIMessageHandler(ctx, req)
 	} else if *req.Verb == http.MethodPut && *req.Path == "/api/v1/queue/empty" {
-		log.Trace().Msg("Received queue empty")
+		log.Debug().Msg("Received queue empty notice")
 		cli.handleEvent(&events.QueueEmpty{})
 	} else {
 		log.Warn().Any("req", req).Msg("Unknown websocket request message")
