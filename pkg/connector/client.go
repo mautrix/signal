@@ -228,12 +228,14 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 	defer s.Disconnect()
 	log := zerolog.Ctx(ctx)
 	queueEmpty := s.queueEmptyWaiter.GetChan()
+	didConnect := false
 	for {
 		select {
 		case status := <-ch:
 			switch status.Event {
 			case web.SignalWebsocketConnectionEventConnected:
 				log.Info().Msg("Authed websocket connected")
+				didConnect = true
 			case web.SignalWebsocketConnectionEventDisconnected:
 				log.Err(status.Err).Msg("Authed websocket disconnected")
 			case web.SignalWebsocketConnectionEventLoggedOut:
@@ -247,6 +249,10 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 			}
 		case <-ctx.Done():
 			log.Warn().Msg("Context finished before queue empty event")
+			if didConnect {
+				// Don't propagate timeout errors if the connection was successful at least once
+				return nil
+			}
 			return ctx.Err()
 		case <-queueEmpty:
 			log.Info().Msg("Received queue empty event")
