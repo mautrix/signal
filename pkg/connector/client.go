@@ -76,10 +76,14 @@ func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType b
 	if s.Client == nil {
 		return bridgev2.ErrNotLoggedIn
 	}
-	if pushType != bridgev2.PushTypeFCM {
+	switch pushType {
+	case bridgev2.PushTypeFCM:
+		return s.Client.RegisterFCM(ctx, token)
+	case bridgev2.PushTypeAPNs:
+		return s.Client.RegisterAPNs(ctx, token)
+	default:
 		return fmt.Errorf("unsupported push type: %s", pushType)
 	}
-	return s.Client.RegisterFCM(ctx, token)
 }
 
 func (s *SignalClient) LogoutRemote(ctx context.Context) {
