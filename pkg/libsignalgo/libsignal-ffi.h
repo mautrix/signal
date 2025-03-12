@@ -905,6 +905,8 @@ typedef void (*SignalReceivedIncomingMessage)(void *ctx, SignalOwnedBuffer envel
 
 typedef void (*SignalReceivedQueueEmpty)(void *ctx);
 
+typedef void (*SignalReceivedAlerts)(void *ctx, SignalStringArray alerts);
+
 typedef void (*SignalConnectionInterrupted)(void *ctx, SignalFfiError *error);
 
 typedef void (*SignalDestroyChatListener)(void *ctx);
@@ -928,6 +930,7 @@ typedef struct {
   void *ctx;
   SignalReceivedIncomingMessage received_incoming_message;
   SignalReceivedQueueEmpty received_queue_empty;
+  SignalReceivedAlerts received_alerts;
   SignalConnectionInterrupted connection_interrupted;
   SignalDestroyChatListener destroy;
 } SignalFfiChatListenerStruct;
@@ -1666,6 +1669,8 @@ SignalFfiError *signal_server_secret_params_get_public_params(SignalMutPointerSe
 
 SignalFfiError *signal_server_secret_params_sign_deterministic(uint8_t (*out)[SignalSIGNATURE_LEN], SignalConstPointerServerSecretParams params, const uint8_t (*randomness)[SignalRANDOMNESS_LEN], SignalBorrowedBuffer message);
 
+SignalFfiError *signal_server_public_params_get_endorsement_public_key(SignalOwnedBuffer *out, SignalConstPointerServerPublicParams params);
+
 SignalFfiError *signal_server_public_params_receive_auth_credential_with_pni_as_service_id(SignalOwnedBuffer *out, SignalConstPointerServerPublicParams params, const SignalServiceIdFixedWidthBinaryBytes *aci, const SignalServiceIdFixedWidthBinaryBytes *pni, uint64_t redemption_time, SignalBorrowedBuffer auth_credential_with_pni_response_bytes);
 
 SignalFfiError *signal_server_public_params_create_auth_credential_with_pni_presentation_deterministic(SignalOwnedBuffer *out, SignalConstPointerServerPublicParams server_public_params, const uint8_t (*randomness)[SignalRANDOMNESS_LEN], const unsigned char (*group_secret_params)[SignalGROUP_SECRET_PARAMS_LEN], SignalBorrowedBuffer auth_credential_with_pni_bytes);
@@ -1923,6 +1928,8 @@ SignalFfiError *signal_unauthenticated_chat_connection_send(SignalCPromiseFfiCha
 SignalFfiError *signal_unauthenticated_chat_connection_disconnect(SignalCPromisebool *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerUnauthenticatedChatConnection chat);
 
 SignalFfiError *signal_unauthenticated_chat_connection_info(SignalMutPointerChatConnectionInfo *out, SignalConstPointerUnauthenticatedChatConnection chat);
+
+SignalFfiError *signal_authenticated_chat_connection_preconnect(SignalCPromisebool *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager);
 
 SignalFfiError *signal_authenticated_chat_connection_connect(SignalCPromiseMutPointerAuthenticatedChatConnection *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager, const char *username, const char *password, bool receive_stories);
 
