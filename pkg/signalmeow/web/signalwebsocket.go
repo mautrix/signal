@@ -109,6 +109,19 @@ func (s *SignalWebsocket) Connect(ctx context.Context, requestHandler RequestHan
 	return s.statusChannel
 }
 
+func (s *SignalWebsocket) pushStatus(ctx context.Context, status SignalWebsocketConnectionEvent, err error) {
+	select {
+	case s.statusChannel <- SignalWebsocketConnectionStatus{
+		Event: status,
+		Err:   err,
+	}:
+	case <-ctx.Done():
+		return
+	case <-time.After(5 * time.Second):
+		zerolog.Ctx(ctx).Error().Msg("Status channel didn't accept status")
+	}
+}
+
 func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
 	requestHandler RequestHandlerFunc,
@@ -212,30 +225,18 @@ func (s *SignalWebsocket) connectLoop(
 				// Server didn't want to open websocket
 				if resp.StatusCode >= 500 {
 					// We can try again if it's a 5xx
-					s.statusChannel <- SignalWebsocketConnectionStatus{
-						Event: SignalWebsocketConnectionEventDisconnected,
-						Err:   fmt.Errorf("5xx opening websocket: %v", resp.Status),
-					}
+					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("5xx opening websocket: %v", resp.Status))
 				} else if resp.StatusCode == 403 {
 					// We are logged out, so we should stop trying to reconnect
-					s.statusChannel <- SignalWebsocketConnectionStatus{
-						Event: SignalWebsocketConnectionEventLoggedOut,
-						Err:   fmt.Errorf("403 opening websocket, we are logged out"),
-					}
+					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("403 opening websocket, we are logged out"))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
 					// Unexpected status code
-					s.statusChannel <- SignalWebsocketConnectionStatus{
-						Event: SignalWebsocketConnectionEventError,
-						Err:   fmt.Errorf("bad status opening websocket: %v", resp.Status),
-					}
+					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected status opening websocket: %v", resp.Status))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
 					// Something is very wrong
-					s.statusChannel <- SignalWebsocketConnectionStatus{
-						Event: SignalWebsocketConnectionEventError,
-						Err:   fmt.Errorf("unexpected error opening websocket: %v", resp.Status),
-					}
+					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected error opening websocket: %v", resp.Status))
 				}
 				// Retry the connection
 				retrying = true
@@ -245,24 +246,16 @@ func (s *SignalWebsocket) connectLoop(
 		if err != nil {
 			// Unexpected error opening websocket
 			if backoff < maxBackoff {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventDisconnected,
-					Err:   fmt.Errorf("hopefully transient error opening websocket: %w", err),
-				}
+				s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("transient error opening websocket: %w", err))
 			} else {
-				s.statusChannel <- SignalWebsocketConnectionStatus{
-					Event: SignalWebsocketConnectionEventError,
-					Err:   fmt.Errorf("continuing error opening websocket: %w", err),
-				}
+				s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("continuing error opening websocket: %w", err))
 			}
 			retrying = true
 			continue
 		}
 
 		// Succssfully connected
-		s.statusChannel <- SignalWebsocketConnectionStatus{
-			Event: SignalWebsocketConnectionEventConnected,
-		}
+		s.pushStatus(ctx, SignalWebsocketConnectionEventConnected, nil)
 		s.ws = ws
 		retrying = false
 		backoff = initialBackoff
@@ -338,15 +331,10 @@ func (s *SignalWebsocket) connectLoop(
 		ctxCauseErr := context.Cause(loopCtx)
 		log.Debug().AnErr("ctx_cause_err", ctxCauseErr).Msg("Read or write loop exited")
 		if ctxCauseErr == nil || errors.Is(ctxCauseErr, context.Canceled) {
-			s.statusChannel <- SignalWebsocketConnectionStatus{
-				Event: SignalWebsocketConnectionEventCleanShutdown,
-			}
+			s.pushStatus(ctx, SignalWebsocketConnectionEventCleanShutdown, nil)
 		} else {
 			errorCount++
-			s.statusChannel <- SignalWebsocketConnectionStatus{
-				Event: SignalWebsocketConnectionEventDisconnected,
-				Err:   ctxCauseErr,
-			}
+			s.pushStatus(ctx, SignalWebsocketConnectionEventError, ctxCauseErr)
 		}
 
 		// Clean up
