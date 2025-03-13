@@ -118,7 +118,7 @@ func (s *SignalWebsocket) connectLoop(
 		Logger()
 	ctx, cancel := context.WithCancel(ctx)
 
-	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 10000)
+	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 256)
 	defer func() {
 		close(incomingRequestChan)
 		close(s.statusChannel)
