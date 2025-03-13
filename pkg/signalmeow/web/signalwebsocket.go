@@ -162,14 +162,16 @@ func (s *SignalWebsocket) connectLoop(
 				response, err := (*requestHandler)(ctx, request)
 
 				if err != nil {
-					log.Err(err).Msg("Error handling request")
-					continue
-				}
-				if response != nil && s.sendChannel != nil {
+					log.Err(err).Uint64("request_id", request.GetId()).Msg("Error handling request")
+				} else if response != nil && s.sendChannel != nil {
 					s.sendChannel <- SignalWebsocketSendMessage{
 						RequestMessage:  request,
 						ResponseMessage: response,
 					}
+				} else if response == nil {
+					log.Warn().Uint64("request_id", request.GetId()).Msg("Request handler didn't return a response nor an error")
+				} else {
+					log.Warn().Uint64("request_id", request.GetId()).Msg("sendChannel is nil, can't send response")
 				}
 			}
 		}
