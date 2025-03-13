@@ -104,7 +104,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	if err != nil {
 		return nil, err
 	}
-	statusChan := make(chan SignalConnectionStatus, 10000)
+	statusChan := make(chan SignalConnectionStatus, 128)
 
 	initialConnectChan := make(chan struct{})
 
