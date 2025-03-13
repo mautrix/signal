@@ -280,6 +280,7 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 		Str("handler", "incoming request handler").
 		Str("verb", *req.Verb).
 		Str("path", *req.Path).
+		Uint64("request_id", *req.Id).
 		Logger()
 	ctx = log.WithContext(ctx)
 	if *req.Verb == http.MethodPut && *req.Path == "/api/v1/message" {
@@ -296,7 +297,7 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 }
 
 func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
-	log := *zerolog.Ctx(ctx)
+	log := zerolog.Ctx(ctx)
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
 	if err != nil {
