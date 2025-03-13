@@ -280,7 +280,7 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 		Str("handler", "incoming request handler").
 		Str("verb", *req.Verb).
 		Str("path", *req.Path).
-		Uint64("request_id", *req.Id).
+		Uint64("incoming_request_id", *req.Id).
 		Logger()
 	ctx = log.WithContext(ctx)
 	if *req.Verb == http.MethodPut && *req.Path == "/api/v1/message" {

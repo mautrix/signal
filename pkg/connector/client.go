@@ -225,7 +225,7 @@ func (s *SignalClient) Connect(ctx context.Context) {
 
 func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.ConnectBackgroundParams) error {
 	s.queueEmptyWaiter.Clear()
-	ch, _, err := s.Client.StartWebsockets(ctx)
+	ch, unauthCh, err := s.Client.StartWebsockets(ctx)
 	if err != nil {
 		return err
 	}
@@ -250,6 +250,19 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 				return fmt.Errorf("authed websocket errored: %w", status.Err)
 			case web.SignalWebsocketConnectionEventCleanShutdown:
 				log.Info().Msg("Authed websocket clean shutdown")
+			}
+		case status := <-unauthCh:
+			switch status.Event {
+			case web.SignalWebsocketConnectionEventConnected:
+				log.Info().Msg("Unauthed websocket connected")
+			case web.SignalWebsocketConnectionEventDisconnected:
+				log.Err(status.Err).Msg("Unauthed websocket disconnected")
+			case web.SignalWebsocketConnectionEventLoggedOut:
+				log.Err(status.Err).Msg("Unauthed websocket logged out")
+			case web.SignalWebsocketConnectionEventError:
+				log.Err(status.Err).Msg("Unauthed websocket error")
+			case web.SignalWebsocketConnectionEventCleanShutdown:
+				log.Info().Msg("Unauthed websocket clean shutdown")
 			}
 		case <-ctx.Done():
 			log.Warn().Msg("Context finished before queue empty event")
