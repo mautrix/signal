@@ -104,14 +104,14 @@ func (s *SignalWebsocket) Close() error {
 	return nil
 }
 
-func (s *SignalWebsocket) Connect(ctx context.Context, requestHandler *RequestHandlerFunc) chan SignalWebsocketConnectionStatus {
+func (s *SignalWebsocket) Connect(ctx context.Context, requestHandler RequestHandlerFunc) chan SignalWebsocketConnectionStatus {
 	go s.connectLoop(ctx, requestHandler)
 	return s.statusChannel
 }
 
 func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
-	requestHandler *RequestHandlerFunc,
+	requestHandler RequestHandlerFunc,
 ) {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_connect_loop").
@@ -159,7 +159,7 @@ func (s *SignalWebsocket) connectLoop(
 				}
 
 				// Handle the request with the request handler function
-				response, err := (*requestHandler)(ctx, request)
+				response, err := requestHandler(ctx, request)
 
 				if err != nil {
 					log.Err(err).Uint64("request_id", request.GetId()).Msg("Error handling request")

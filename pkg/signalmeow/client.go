@@ -87,7 +87,7 @@ func (cli *Client) connectAuthedWS(ctx context.Context, requestHandler web.Reque
 		Logger()
 	ctx = log.WithContext(ctx)
 	authedWS := web.NewSignalWebsocket(url.UserPassword(username, password))
-	statusChan := authedWS.Connect(ctx, &requestHandler)
+	statusChan := authedWS.Connect(ctx, requestHandler)
 	cli.AuthedWS = authedWS
 	return statusChan, nil
 }
