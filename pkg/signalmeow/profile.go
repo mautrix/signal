@@ -364,6 +364,8 @@ func (cli *Client) FetchExpiringProfileKeyCredentialById(ctx context.Context, si
 	profileKey, err := cli.ProfileKeyForSignalID(ctx, signalACI)
 	if err != nil {
 		return nil, fmt.Errorf("error getting profile key for ACI: %w", err)
+	} else if profileKey == nil {
+		return nil, errProfileKeyNotFound
 	}
 	requestContext, err := libsignalgo.CreateProfileKeyCredentialRequestContext(
 		prodServerPublicParams,
