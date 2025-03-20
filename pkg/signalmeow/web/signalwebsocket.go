@@ -334,7 +334,7 @@ func (s *SignalWebsocket) connectLoop(
 			s.pushStatus(ctx, SignalWebsocketConnectionEventCleanShutdown, nil)
 		} else {
 			errorCount++
-			s.pushStatus(ctx, SignalWebsocketConnectionEventError, ctxCauseErr)
+			s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, ctxCauseErr)
 		}
 
 		// Clean up
