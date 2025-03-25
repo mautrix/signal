@@ -29,6 +29,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exsync"
 
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
@@ -47,6 +48,8 @@ type SignalWebsocket struct {
 	basicAuth     *url.Userinfo
 	sendChannel   chan SignalWebsocketSendMessage
 	statusChannel chan SignalWebsocketConnectionStatus
+	closeLock     sync.RWMutex
+	closeEvt      *exsync.Event
 }
 
 func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
@@ -54,6 +57,7 @@ func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
 		basicAuth:     basicAuth,
 		sendChannel:   make(chan SignalWebsocketSendMessage),
 		statusChannel: make(chan SignalWebsocketConnectionStatus),
+		closeEvt:      exsync.NewEvent(),
 	}
 }
 
@@ -122,6 +126,22 @@ func (s *SignalWebsocket) pushStatus(ctx context.Context, status SignalWebsocket
 	}
 }
 
+func (s *SignalWebsocket) pushOutgoing(ctx context.Context, send SignalWebsocketSendMessage) error {
+	s.closeLock.RLock()
+	defer s.closeLock.RUnlock()
+	if s.sendChannel == nil {
+		return errors.New("connection is not open")
+	}
+	select {
+	case s.sendChannel <- send:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-s.closeEvt.GetChan():
+		return errors.New("connection closed before send could be queued")
+	}
+}
+
 func (s *SignalWebsocket) connectLoop(
 	ctx context.Context,
 	requestHandler RequestHandlerFunc,
@@ -133,13 +153,17 @@ func (s *SignalWebsocket) connectLoop(
 
 	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 256)
 	defer func() {
+		s.closeEvt.Set()
+		cancel()
+
+		s.closeLock.Lock()
+		defer s.closeLock.Unlock()
 		close(incomingRequestChan)
 		close(s.statusChannel)
 		close(s.sendChannel)
 		incomingRequestChan = nil
 		s.statusChannel = nil
 		s.sendChannel = nil
-		cancel()
 	}()
 
 	const initialBackoff = 2 * time.Second
@@ -176,15 +200,16 @@ func (s *SignalWebsocket) connectLoop(
 
 				if err != nil {
 					log.Err(err).Uint64("request_id", request.GetId()).Msg("Error handling request")
-				} else if response != nil && s.sendChannel != nil {
-					s.sendChannel <- SignalWebsocketSendMessage{
+				} else if response != nil {
+					err = s.pushOutgoing(ctx, SignalWebsocketSendMessage{
 						RequestMessage:  request,
 						ResponseMessage: response,
+					})
+					if err != nil {
+						log.Err(err).Uint64("request_id", request.GetId()).Msg("Error queuing response message")
 					}
-				} else if response == nil {
-					log.Warn().Uint64("request_id", request.GetId()).Msg("Request handler didn't return a response nor an error")
 				} else {
-					log.Warn().Uint64("request_id", request.GetId()).Msg("sendChannel is nil, can't send response")
+					log.Warn().Uint64("request_id", request.GetId()).Msg("Request handler didn't return a response nor an error")
 				}
 			}
 		}
@@ -527,13 +552,13 @@ func (s *SignalWebsocket) sendRequestInternal(
 		request.Headers = append(request.Headers, "authorization:Basic "+s.basicAuth.String())
 	}
 	responseChannel := make(chan *signalpb.WebSocketResponseMessage, 1)
-	if s.sendChannel == nil {
-		return nil, errors.New("Send channel not initialized")
-	}
-	s.sendChannel <- SignalWebsocketSendMessage{
+	err := s.pushOutgoing(ctx, SignalWebsocketSendMessage{
 		RequestMessage:  request,
 		ResponseChannel: responseChannel,
 		RequestTime:     startTime,
+	})
+	if err != nil {
+		return nil, err
 	}
 	response := <-responseChannel
 
@@ -544,7 +569,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("retried 3 times, giving up: %w", ctx.Err())
 			} else {
-				return nil, errors.New("Retried 3 times, giving up")
+				return nil, errors.New("retried 3 times, giving up")
 			}
 		}
 		if ctx.Err() != nil {
