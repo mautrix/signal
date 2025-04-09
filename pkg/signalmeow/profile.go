@@ -30,6 +30,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -76,6 +77,7 @@ type ProfileCache struct {
 	profiles    map[string]*types.Profile
 	errors      map[string]*error
 	lastFetched map[string]time.Time
+	lock        sync.RWMutex
 }
 
 func (cli *Client) ProfileKeyCredentialRequest(ctx context.Context, signalACI uuid.UUID) ([]byte, error) {
@@ -112,17 +114,9 @@ func (cli *Client) ProfileKeyForSignalID(ctx context.Context, signalACI uuid.UUI
 
 var errProfileKeyNotFound = errors.New("profile key not found")
 
-func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*types.Profile, error) {
-	if cli.ProfileCache == nil {
-		cli.ProfileCache = &ProfileCache{
-			profiles:    make(map[string]*types.Profile),
-			errors:      make(map[string]*error),
-			lastFetched: make(map[string]time.Time),
-		}
-	}
-
-	// Check if we have a cached profile that is less than an hour old
-	// or if we have a cached error that is less than an hour old
+func (cli *Client) getCachedProfileByID(signalID uuid.UUID) (*types.Profile, error) {
+	cli.ProfileCache.lock.RLock()
+	defer cli.ProfileCache.lock.RUnlock()
 	lastFetched, ok := cli.ProfileCache.lastFetched[signalID.String()]
 	if ok && time.Since(lastFetched) < 1*time.Hour {
 		profile, ok := cli.ProfileCache.profiles[signalID.String()]
@@ -134,12 +128,32 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 			return nil, fmt.Errorf("%w: %w", ErrCachedError, *err)
 		}
 	}
+	return nil, nil
+}
+
+func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) (*types.Profile, error) {
+	if cli.ProfileCache == nil {
+		cli.ProfileCache = &ProfileCache{
+			profiles:    make(map[string]*types.Profile),
+			errors:      make(map[string]*error),
+			lastFetched: make(map[string]time.Time),
+		}
+	}
+
+	// Check if we have a cached profile that is less than an hour old
+	// or if we have a cached error that is less than an hour old
+	profile, err := cli.getCachedProfileByID(signalID)
+	if err != nil || profile != nil {
+		return profile, err
+	}
 
 	// If we get here, we don't have a cached profile, so fetch it
-	profile, err := cli.fetchProfileByID(ctx, signalID)
+	profile, err = cli.fetchProfileByID(ctx, signalID)
 	if err != nil {
 		// If we get a 401 or 5xx error, we should not retry until the cache expires
 		if errors.Is(err, ErrProfileUnauthorized) || errors.Is(err, ErrProfileInternalError) {
+			cli.ProfileCache.lock.Lock()
+			defer cli.ProfileCache.lock.Unlock()
 			cli.ProfileCache.errors[signalID.String()] = &err
 			cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 		}
@@ -147,6 +161,8 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID) 
 	}
 
 	// If we get here, we have a valid profile, so cache it
+	cli.ProfileCache.lock.Lock()
+	defer cli.ProfileCache.lock.Unlock()
 	cli.ProfileCache.profiles[signalID.String()] = profile
 	cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 
