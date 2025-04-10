@@ -107,17 +107,32 @@ func (s *SignalClient) FetchMessages(ctx context.Context, params bridgev2.FetchM
 		}
 		return uuid.Nil, nil
 	}
-	for _, item := range items {
+	var prevStreamOrder int64
+	findNextStreamOrder := func(i int) int64 {
+		for ; i < len(items); i++ {
+			inc, ok := items[i].DirectionalDetails.(*backuppb.ChatItem_Incoming)
+			if ok {
+				return int64(inc.Incoming.GetDateServerSent())
+			}
+		}
+		return time.Now().UnixMilli()
+	}
+	for i, item := range items {
 		var streamOrder int64
 		switch dt := item.DirectionalDetails.(type) {
 		case *backuppb.ChatItem_Incoming:
 			streamOrder = int64(dt.Incoming.GetDateServerSent())
+			prevStreamOrder = streamOrder
 			if !firstDirectionfulProcessed {
 				firstDirectionfulProcessed = true
 				isRead = dt.Incoming.Read
 			}
 		case *backuppb.ChatItem_Outgoing:
-			// TODO stream order?
+			streamOrder = int64(item.GetDateSent())
+			// Ensure stream order is higher than previous incoming item, but lower than next incoming item
+			streamOrder = min(streamOrder, findNextStreamOrder(i+1)-1)
+			streamOrder = max(streamOrder, prevStreamOrder+1)
+
 			if !firstDirectionfulProcessed {
 				firstDirectionfulProcessed = true
 				isRead = true
