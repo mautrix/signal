@@ -431,11 +431,11 @@ func (cli *Client) decryptEnvelope(
 			Content:       &content,
 		}
 
-	case signalpb.Envelope_RECEIPT:
-		return DecryptionResult{Err: fmt.Errorf("receipt envelopes are not yet supported")}
+	case signalpb.Envelope_SERVER_DELIVERY_RECEIPT:
+		return DecryptionResult{Err: fmt.Errorf("server delivery receipt envelopes are not yet supported")}
 
-	case signalpb.Envelope_KEY_EXCHANGE:
-		return DecryptionResult{Err: fmt.Errorf("key exchange envelopes are not yet supported")}
+	case signalpb.Envelope_SENDERKEY_MESSAGE:
+		return DecryptionResult{Err: fmt.Errorf("senderkey message envelopes are not yet supported")}
 
 	case signalpb.Envelope_UNKNOWN:
 		return DecryptionResult{Err: fmt.Errorf("unknown envelope type")}

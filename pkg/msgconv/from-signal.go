@@ -465,10 +465,10 @@ func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *sig
 
 func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) ([]byte, error) {
 	if att.AttachmentIdentifier == nil {
-		if len(att.GetUuid()) != 16 {
+		if len(att.GetClientUuid()) != 16 {
 			return nil, fmt.Errorf("no attachment identifier found")
 		}
-		target, ok := attMap[uuid.UUID(att.GetUuid())]
+		target, ok := attMap[uuid.UUID(att.GetClientUuid())]
 		if !ok {
 			return nil, fmt.Errorf("no attachment identifier and attachment not found in map")
 		} else if target == nil {

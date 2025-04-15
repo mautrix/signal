@@ -305,10 +305,10 @@ func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *l
 }
 
 type SuccessfulSendResult struct {
-	Recipient              libsignalgo.ServiceID
-	RecipientE164          *string
-	Unidentified           bool
-	DestinationIdentityKey *libsignalgo.IdentityKey
+	Recipient                 libsignalgo.ServiceID
+	RecipientE164             *string
+	Unidentified              bool
+	DestinationPNIIdentityKey *libsignalgo.IdentityKey
 }
 type FailedSendResult struct {
 	Recipient libsignalgo.ServiceID
@@ -386,9 +386,9 @@ func syncMessageFromSoloDataMessage(dataMessage *signalpb.DataMessage, result Su
 				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId:   proto.String(result.Recipient.String()),
-						Unidentified:           &result.Unidentified,
-						DestinationIdentityKey: result.DestinationIdentityKey.TrySerialize(),
+						DestinationServiceId:      proto.String(result.Recipient.String()),
+						Unidentified:              &result.Unidentified,
+						DestinationPniIdentityKey: result.DestinationPNIIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -407,9 +407,9 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 				ExpirationStartTimestamp: ptr.Ptr(uint64(time.Now().UnixMilli())),
 				UnidentifiedStatus: []*signalpb.SyncMessage_Sent_UnidentifiedDeliveryStatus{
 					{
-						DestinationServiceId:   proto.String(result.Recipient.String()),
-						Unidentified:           &result.Unidentified,
-						DestinationIdentityKey: result.DestinationIdentityKey.TrySerialize(),
+						DestinationServiceId:      proto.String(result.Recipient.String()),
+						Unidentified:              &result.Unidentified,
+						DestinationPniIdentityKey: result.DestinationPNIIdentityKey.TrySerialize(),
 					},
 				},
 			},
@@ -791,7 +791,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		},
 	}
 	if recipientID.Type == libsignalgo.ServiceIDTypePNI {
-		result.DestinationIdentityKey, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, recipientID)
+		result.DestinationPNIIdentityKey, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, recipientID)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to add PNI destination identity key to sync message")
 		}

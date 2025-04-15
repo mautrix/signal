@@ -76,6 +76,91 @@ func (OptionalBool) EnumDescriptor() ([]byte, []int) {
 	return file_StorageService_proto_rawDescGZIP(), []int{0}
 }
 
+// If unset - computed as the value of the first byte of SHA-256(msg=CONTACT_ID)
+// modulo the count of colors. Once set the avatar color for a recipient is
+// never recomputed or changed.
+//
+// `CONTACT_ID` is the first available identifier from the list:
+// - ServiceIdToBinary(ACI)
+// - E164
+// - ServiceIdToBinary(PNI)
+// - Group Id
+type AvatarColor int32
+
+const (
+	AvatarColor_A100 AvatarColor = 0
+	AvatarColor_A110 AvatarColor = 1
+	AvatarColor_A120 AvatarColor = 2
+	AvatarColor_A130 AvatarColor = 3
+	AvatarColor_A140 AvatarColor = 4
+	AvatarColor_A150 AvatarColor = 5
+	AvatarColor_A160 AvatarColor = 6
+	AvatarColor_A170 AvatarColor = 7
+	AvatarColor_A180 AvatarColor = 8
+	AvatarColor_A190 AvatarColor = 9
+	AvatarColor_A200 AvatarColor = 10
+	AvatarColor_A210 AvatarColor = 11
+)
+
+// Enum value maps for AvatarColor.
+var (
+	AvatarColor_name = map[int32]string{
+		0:  "A100",
+		1:  "A110",
+		2:  "A120",
+		3:  "A130",
+		4:  "A140",
+		5:  "A150",
+		6:  "A160",
+		7:  "A170",
+		8:  "A180",
+		9:  "A190",
+		10: "A200",
+		11: "A210",
+	}
+	AvatarColor_value = map[string]int32{
+		"A100": 0,
+		"A110": 1,
+		"A120": 2,
+		"A130": 3,
+		"A140": 4,
+		"A150": 5,
+		"A160": 6,
+		"A170": 7,
+		"A180": 8,
+		"A190": 9,
+		"A200": 10,
+		"A210": 11,
+	}
+)
+
+func (x AvatarColor) Enum() *AvatarColor {
+	p := new(AvatarColor)
+	*p = x
+	return p
+}
+
+func (x AvatarColor) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (AvatarColor) Descriptor() protoreflect.EnumDescriptor {
+	return file_StorageService_proto_enumTypes[1].Descriptor()
+}
+
+func (AvatarColor) Type() protoreflect.EnumType {
+	return &file_StorageService_proto_enumTypes[1]
+}
+
+func (x AvatarColor) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use AvatarColor.Descriptor instead.
+func (AvatarColor) EnumDescriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{1}
+}
+
 type ManifestRecord_Identifier_Type int32
 
 const (
@@ -86,6 +171,7 @@ const (
 	ManifestRecord_Identifier_ACCOUNT                 ManifestRecord_Identifier_Type = 4
 	ManifestRecord_Identifier_STORY_DISTRIBUTION_LIST ManifestRecord_Identifier_Type = 5
 	ManifestRecord_Identifier_CALL_LINK               ManifestRecord_Identifier_Type = 7
+	ManifestRecord_Identifier_CHAT_FOLDER             ManifestRecord_Identifier_Type = 8
 )
 
 // Enum value maps for ManifestRecord_Identifier_Type.
@@ -98,6 +184,7 @@ var (
 		4: "ACCOUNT",
 		5: "STORY_DISTRIBUTION_LIST",
 		7: "CALL_LINK",
+		8: "CHAT_FOLDER",
 	}
 	ManifestRecord_Identifier_Type_value = map[string]int32{
 		"UNKNOWN":                 0,
@@ -107,6 +194,7 @@ var (
 		"ACCOUNT":                 4,
 		"STORY_DISTRIBUTION_LIST": 5,
 		"CALL_LINK":               7,
+		"CHAT_FOLDER":             8,
 	}
 )
 
@@ -121,11 +209,11 @@ func (x ManifestRecord_Identifier_Type) String() string {
 }
 
 func (ManifestRecord_Identifier_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[1].Descriptor()
+	return file_StorageService_proto_enumTypes[2].Descriptor()
 }
 
 func (ManifestRecord_Identifier_Type) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[1]
+	return &file_StorageService_proto_enumTypes[2]
 }
 
 func (x ManifestRecord_Identifier_Type) Number() protoreflect.EnumNumber {
@@ -170,11 +258,11 @@ func (x ContactRecord_IdentityState) String() string {
 }
 
 func (ContactRecord_IdentityState) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[2].Descriptor()
+	return file_StorageService_proto_enumTypes[3].Descriptor()
 }
 
 func (ContactRecord_IdentityState) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[2]
+	return &file_StorageService_proto_enumTypes[3]
 }
 
 func (x ContactRecord_IdentityState) Number() protoreflect.EnumNumber {
@@ -219,11 +307,11 @@ func (x GroupV2Record_StorySendMode) String() string {
 }
 
 func (GroupV2Record_StorySendMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[3].Descriptor()
+	return file_StorageService_proto_enumTypes[4].Descriptor()
 }
 
 func (GroupV2Record_StorySendMode) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[3]
+	return &file_StorageService_proto_enumTypes[4]
 }
 
 func (x GroupV2Record_StorySendMode) Number() protoreflect.EnumNumber {
@@ -268,11 +356,11 @@ func (x AccountRecord_PhoneNumberSharingMode) String() string {
 }
 
 func (AccountRecord_PhoneNumberSharingMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[4].Descriptor()
+	return file_StorageService_proto_enumTypes[5].Descriptor()
 }
 
 func (AccountRecord_PhoneNumberSharingMode) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[4]
+	return &file_StorageService_proto_enumTypes[5]
 }
 
 func (x AccountRecord_PhoneNumberSharingMode) Number() protoreflect.EnumNumber {
@@ -335,11 +423,11 @@ func (x AccountRecord_UsernameLink_Color) String() string {
 }
 
 func (AccountRecord_UsernameLink_Color) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[5].Descriptor()
+	return file_StorageService_proto_enumTypes[6].Descriptor()
 }
 
 func (AccountRecord_UsernameLink_Color) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[5]
+	return &file_StorageService_proto_enumTypes[6]
 }
 
 func (x AccountRecord_UsernameLink_Color) Number() protoreflect.EnumNumber {
@@ -349,6 +437,56 @@ func (x AccountRecord_UsernameLink_Color) Number() protoreflect.EnumNumber {
 // Deprecated: Use AccountRecord_UsernameLink_Color.Descriptor instead.
 func (AccountRecord_UsernameLink_Color) EnumDescriptor() ([]byte, []int) {
 	return file_StorageService_proto_rawDescGZIP(), []int{11, 1, 0}
+}
+
+// Represents the default "All chats" folder record vs all other custom folders
+type ChatFolderRecord_FolderType int32
+
+const (
+	ChatFolderRecord_UNKNOWN ChatFolderRecord_FolderType = 0
+	ChatFolderRecord_ALL     ChatFolderRecord_FolderType = 1
+	ChatFolderRecord_CUSTOM  ChatFolderRecord_FolderType = 2
+)
+
+// Enum value maps for ChatFolderRecord_FolderType.
+var (
+	ChatFolderRecord_FolderType_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "ALL",
+		2: "CUSTOM",
+	}
+	ChatFolderRecord_FolderType_value = map[string]int32{
+		"UNKNOWN": 0,
+		"ALL":     1,
+		"CUSTOM":  2,
+	}
+)
+
+func (x ChatFolderRecord_FolderType) Enum() *ChatFolderRecord_FolderType {
+	p := new(ChatFolderRecord_FolderType)
+	*p = x
+	return p
+}
+
+func (x ChatFolderRecord_FolderType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ChatFolderRecord_FolderType) Descriptor() protoreflect.EnumDescriptor {
+	return file_StorageService_proto_enumTypes[7].Descriptor()
+}
+
+func (ChatFolderRecord_FolderType) Type() protoreflect.EnumType {
+	return &file_StorageService_proto_enumTypes[7]
+}
+
+func (x ChatFolderRecord_FolderType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ChatFolderRecord_FolderType.Descriptor instead.
+func (ChatFolderRecord_FolderType) EnumDescriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{14, 0}
 }
 
 type StorageManifest struct {
@@ -689,6 +827,7 @@ type StorageRecord struct {
 	//	*StorageRecord_Account
 	//	*StorageRecord_StoryDistributionList
 	//	*StorageRecord_CallLink
+	//	*StorageRecord_ChatFolder
 	Record        isStorageRecord_Record `protobuf_oneof:"record"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -785,6 +924,15 @@ func (x *StorageRecord) GetCallLink() *CallLinkRecord {
 	return nil
 }
 
+func (x *StorageRecord) GetChatFolder() *ChatFolderRecord {
+	if x != nil {
+		if x, ok := x.Record.(*StorageRecord_ChatFolder); ok {
+			return x.ChatFolder
+		}
+	}
+	return nil
+}
+
 type isStorageRecord_Record interface {
 	isStorageRecord_Record()
 }
@@ -813,6 +961,10 @@ type StorageRecord_CallLink struct {
 	CallLink *CallLinkRecord `protobuf:"bytes,7,opt,name=callLink,proto3,oneof"`
 }
 
+type StorageRecord_ChatFolder struct {
+	ChatFolder *ChatFolderRecord `protobuf:"bytes,8,opt,name=chatFolder,proto3,oneof"`
+}
+
 func (*StorageRecord_Contact) isStorageRecord_Record() {}
 
 func (*StorageRecord_GroupV1) isStorageRecord_Record() {}
@@ -824,6 +976,8 @@ func (*StorageRecord_Account) isStorageRecord_Record() {}
 func (*StorageRecord_StoryDistributionList) isStorageRecord_Record() {}
 
 func (*StorageRecord_CallLink) isStorageRecord_Record() {}
+
+func (*StorageRecord_ChatFolder) isStorageRecord_Record() {}
 
 type ContactRecord struct {
 	state                   protoimpl.MessageState      `protogen:"open.v1"`
@@ -849,7 +1003,8 @@ type ContactRecord struct {
 	Hidden                  bool                        `protobuf:"varint,20,opt,name=hidden,proto3" json:"hidden,omitempty"`
 	PniSignatureVerified    bool                        `protobuf:"varint,21,opt,name=pniSignatureVerified,proto3" json:"pniSignatureVerified,omitempty"`
 	Nickname                *ContactRecord_Name         `protobuf:"bytes,22,opt,name=nickname,proto3" json:"nickname,omitempty"`
-	Note                    string                      `protobuf:"bytes,23,opt,name=note,proto3" json:"note,omitempty"` // NEXT ID: 24
+	Note                    string                      `protobuf:"bytes,23,opt,name=note,proto3" json:"note,omitempty"`
+	AvatarColor             *AvatarColor                `protobuf:"varint,24,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"` // Next ID: 25
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1045,6 +1200,13 @@ func (x *ContactRecord) GetNote() string {
 	return ""
 }
 
+func (x *ContactRecord) GetAvatarColor() AvatarColor {
+	if x != nil && x.AvatarColor != nil {
+		return *x.AvatarColor
+	}
+	return AvatarColor_A100
+}
+
 type GroupV1Record struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Id                  []byte                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1140,6 +1302,7 @@ type GroupV2Record struct {
 	DontNotifyForMentionsIfMuted bool                        `protobuf:"varint,7,opt,name=dontNotifyForMentionsIfMuted,proto3" json:"dontNotifyForMentionsIfMuted,omitempty"`
 	HideStory                    bool                        `protobuf:"varint,8,opt,name=hideStory,proto3" json:"hideStory,omitempty"`
 	StorySendMode                GroupV2Record_StorySendMode `protobuf:"varint,10,opt,name=storySendMode,proto3,enum=signalservice.GroupV2Record_StorySendMode" json:"storySendMode,omitempty"`
+	AvatarColor                  *AvatarColor                `protobuf:"varint,11,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -1237,6 +1400,13 @@ func (x *GroupV2Record) GetStorySendMode() GroupV2Record_StorySendMode {
 	return GroupV2Record_DEFAULT
 }
 
+func (x *GroupV2Record) GetAvatarColor() AvatarColor {
+	if x != nil && x.AvatarColor != nil {
+		return *x.AvatarColor
+	}
+	return AvatarColor_A100
+}
+
 type Payments struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -1326,6 +1496,7 @@ type AccountRecord struct {
 	HasBackup                       *bool                                `protobuf:"varint,39,opt,name=hasBackup,proto3,oneof" json:"hasBackup,omitempty"`   // Set to true after backups are enabled and one is uploaded.
 	BackupTier                      *uint64                              `protobuf:"varint,40,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"` // See zkgroup for integer particular values
 	BackupSubscriberData            *AccountRecord_IAPSubscriberData     `protobuf:"bytes,41,opt,name=backupSubscriberData,proto3" json:"backupSubscriberData,omitempty"`
+	AvatarColor                     *AvatarColor                         `protobuf:"varint,42,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"`
 	unknownFields                   protoimpl.UnknownFields
 	sizeCache                       protoimpl.SizeCache
 }
@@ -1605,6 +1776,13 @@ func (x *AccountRecord) GetBackupSubscriberData() *AccountRecord_IAPSubscriberDa
 	return nil
 }
 
+func (x *AccountRecord) GetAvatarColor() AvatarColor {
+	if x != nil && x.AvatarColor != nil {
+		return *x.AvatarColor
+	}
+	return AvatarColor_A100
+}
+
 type StoryDistributionListRecord struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Identifier          []byte                 `protobuf:"bytes,1,opt,name=identifier,proto3" json:"identifier,omitempty"`
@@ -1749,6 +1927,130 @@ func (x *CallLinkRecord) GetDeletedAtTimestampMs() uint64 {
 	return 0
 }
 
+type ChatFolderRecord struct {
+	state                     protoimpl.MessageState        `protogen:"open.v1"`
+	Identifier                []byte                        `protobuf:"bytes,1,opt,name=identifier,proto3" json:"identifier,omitempty"`
+	Name                      string                        `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Position                  uint32                        `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
+	ShowOnlyUnread            bool                          `protobuf:"varint,4,opt,name=showOnlyUnread,proto3" json:"showOnlyUnread,omitempty"`
+	ShowMutedChats            bool                          `protobuf:"varint,5,opt,name=showMutedChats,proto3" json:"showMutedChats,omitempty"`
+	IncludeAllIndividualChats bool                          `protobuf:"varint,6,opt,name=includeAllIndividualChats,proto3" json:"includeAllIndividualChats,omitempty"` // Folder includes all 1:1 chats, unless excluded
+	IncludeAllGroupChats      bool                          `protobuf:"varint,7,opt,name=includeAllGroupChats,proto3" json:"includeAllGroupChats,omitempty"`           // Folder includes all group chats, unless excluded
+	FolderType                ChatFolderRecord_FolderType   `protobuf:"varint,8,opt,name=folderType,proto3,enum=signalservice.ChatFolderRecord_FolderType" json:"folderType,omitempty"`
+	IncludedRecipients        []*ChatFolderRecord_Recipient `protobuf:"bytes,9,rep,name=includedRecipients,proto3" json:"includedRecipients,omitempty"`
+	ExcludedRecipients        []*ChatFolderRecord_Recipient `protobuf:"bytes,10,rep,name=excludedRecipients,proto3" json:"excludedRecipients,omitempty"`
+	DeletedAtTimestampMs      uint64                        `protobuf:"varint,11,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"` // When non-zero, `position` should be set to -1 and includedRecipients should be empty
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *ChatFolderRecord) Reset() {
+	*x = ChatFolderRecord{}
+	mi := &file_StorageService_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatFolderRecord) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatFolderRecord) ProtoMessage() {}
+
+func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatFolderRecord.ProtoReflect.Descriptor instead.
+func (*ChatFolderRecord) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *ChatFolderRecord) GetIdentifier() []byte {
+	if x != nil {
+		return x.Identifier
+	}
+	return nil
+}
+
+func (x *ChatFolderRecord) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ChatFolderRecord) GetPosition() uint32 {
+	if x != nil {
+		return x.Position
+	}
+	return 0
+}
+
+func (x *ChatFolderRecord) GetShowOnlyUnread() bool {
+	if x != nil {
+		return x.ShowOnlyUnread
+	}
+	return false
+}
+
+func (x *ChatFolderRecord) GetShowMutedChats() bool {
+	if x != nil {
+		return x.ShowMutedChats
+	}
+	return false
+}
+
+func (x *ChatFolderRecord) GetIncludeAllIndividualChats() bool {
+	if x != nil {
+		return x.IncludeAllIndividualChats
+	}
+	return false
+}
+
+func (x *ChatFolderRecord) GetIncludeAllGroupChats() bool {
+	if x != nil {
+		return x.IncludeAllGroupChats
+	}
+	return false
+}
+
+func (x *ChatFolderRecord) GetFolderType() ChatFolderRecord_FolderType {
+	if x != nil {
+		return x.FolderType
+	}
+	return ChatFolderRecord_UNKNOWN
+}
+
+func (x *ChatFolderRecord) GetIncludedRecipients() []*ChatFolderRecord_Recipient {
+	if x != nil {
+		return x.IncludedRecipients
+	}
+	return nil
+}
+
+func (x *ChatFolderRecord) GetExcludedRecipients() []*ChatFolderRecord_Recipient {
+	if x != nil {
+		return x.ExcludedRecipients
+	}
+	return nil
+}
+
+func (x *ChatFolderRecord) GetDeletedAtTimestampMs() uint64 {
+	if x != nil {
+		return x.DeletedAtTimestampMs
+	}
+	return 0
+}
+
 type ManifestRecord_Identifier struct {
 	state         protoimpl.MessageState         `protogen:"open.v1"`
 	Raw           []byte                         `protobuf:"bytes,1,opt,name=raw,proto3" json:"raw,omitempty"`
@@ -1759,7 +2061,7 @@ type ManifestRecord_Identifier struct {
 
 func (x *ManifestRecord_Identifier) Reset() {
 	*x = ManifestRecord_Identifier{}
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_StorageService_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1771,7 +2073,7 @@ func (x *ManifestRecord_Identifier) String() string {
 func (*ManifestRecord_Identifier) ProtoMessage() {}
 
 func (x *ManifestRecord_Identifier) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_StorageService_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1811,7 +2113,7 @@ type ContactRecord_Name struct {
 
 func (x *ContactRecord_Name) Reset() {
 	*x = ContactRecord_Name{}
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_StorageService_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1823,7 +2125,7 @@ func (x *ContactRecord_Name) String() string {
 func (*ContactRecord_Name) ProtoMessage() {}
 
 func (x *ContactRecord_Name) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_StorageService_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1867,7 +2169,7 @@ type AccountRecord_PinnedConversation struct {
 
 func (x *AccountRecord_PinnedConversation) Reset() {
 	*x = AccountRecord_PinnedConversation{}
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_StorageService_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1879,7 +2181,7 @@ func (x *AccountRecord_PinnedConversation) String() string {
 func (*AccountRecord_PinnedConversation) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_StorageService_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1964,7 +2266,7 @@ type AccountRecord_UsernameLink struct {
 
 func (x *AccountRecord_UsernameLink) Reset() {
 	*x = AccountRecord_UsernameLink{}
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_StorageService_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1976,7 +2278,7 @@ func (x *AccountRecord_UsernameLink) String() string {
 func (*AccountRecord_UsernameLink) ProtoMessage() {}
 
 func (x *AccountRecord_UsernameLink) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_StorageService_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2027,7 +2329,7 @@ type AccountRecord_IAPSubscriberData struct {
 
 func (x *AccountRecord_IAPSubscriberData) Reset() {
 	*x = AccountRecord_IAPSubscriberData{}
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_StorageService_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2039,7 +2341,7 @@ func (x *AccountRecord_IAPSubscriberData) String() string {
 func (*AccountRecord_IAPSubscriberData) ProtoMessage() {}
 
 func (x *AccountRecord_IAPSubscriberData) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_StorageService_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2117,7 +2419,7 @@ type AccountRecord_PinnedConversation_Contact struct {
 
 func (x *AccountRecord_PinnedConversation_Contact) Reset() {
 	*x = AccountRecord_PinnedConversation_Contact{}
-	mi := &file_StorageService_proto_msgTypes[19]
+	mi := &file_StorageService_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2129,7 +2431,7 @@ func (x *AccountRecord_PinnedConversation_Contact) String() string {
 func (*AccountRecord_PinnedConversation_Contact) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[19]
+	mi := &file_StorageService_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2159,6 +2461,156 @@ func (x *AccountRecord_PinnedConversation_Contact) GetE164() string {
 	return ""
 }
 
+type ChatFolderRecord_Recipient struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Identifier:
+	//
+	//	*ChatFolderRecord_Recipient_Contact_
+	//	*ChatFolderRecord_Recipient_LegacyGroupId
+	//	*ChatFolderRecord_Recipient_GroupMasterKey
+	Identifier    isChatFolderRecord_Recipient_Identifier `protobuf_oneof:"identifier"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatFolderRecord_Recipient) Reset() {
+	*x = ChatFolderRecord_Recipient{}
+	mi := &file_StorageService_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatFolderRecord_Recipient) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatFolderRecord_Recipient) ProtoMessage() {}
+
+func (x *ChatFolderRecord_Recipient) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatFolderRecord_Recipient.ProtoReflect.Descriptor instead.
+func (*ChatFolderRecord_Recipient) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{14, 0}
+}
+
+func (x *ChatFolderRecord_Recipient) GetIdentifier() isChatFolderRecord_Recipient_Identifier {
+	if x != nil {
+		return x.Identifier
+	}
+	return nil
+}
+
+func (x *ChatFolderRecord_Recipient) GetContact() *ChatFolderRecord_Recipient_Contact {
+	if x != nil {
+		if x, ok := x.Identifier.(*ChatFolderRecord_Recipient_Contact_); ok {
+			return x.Contact
+		}
+	}
+	return nil
+}
+
+func (x *ChatFolderRecord_Recipient) GetLegacyGroupId() []byte {
+	if x != nil {
+		if x, ok := x.Identifier.(*ChatFolderRecord_Recipient_LegacyGroupId); ok {
+			return x.LegacyGroupId
+		}
+	}
+	return nil
+}
+
+func (x *ChatFolderRecord_Recipient) GetGroupMasterKey() []byte {
+	if x != nil {
+		if x, ok := x.Identifier.(*ChatFolderRecord_Recipient_GroupMasterKey); ok {
+			return x.GroupMasterKey
+		}
+	}
+	return nil
+}
+
+type isChatFolderRecord_Recipient_Identifier interface {
+	isChatFolderRecord_Recipient_Identifier()
+}
+
+type ChatFolderRecord_Recipient_Contact_ struct {
+	Contact *ChatFolderRecord_Recipient_Contact `protobuf:"bytes,1,opt,name=contact,proto3,oneof"`
+}
+
+type ChatFolderRecord_Recipient_LegacyGroupId struct {
+	LegacyGroupId []byte `protobuf:"bytes,2,opt,name=legacyGroupId,proto3,oneof"`
+}
+
+type ChatFolderRecord_Recipient_GroupMasterKey struct {
+	GroupMasterKey []byte `protobuf:"bytes,3,opt,name=groupMasterKey,proto3,oneof"`
+}
+
+func (*ChatFolderRecord_Recipient_Contact_) isChatFolderRecord_Recipient_Identifier() {}
+
+func (*ChatFolderRecord_Recipient_LegacyGroupId) isChatFolderRecord_Recipient_Identifier() {}
+
+func (*ChatFolderRecord_Recipient_GroupMasterKey) isChatFolderRecord_Recipient_Identifier() {}
+
+type ChatFolderRecord_Recipient_Contact struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ServiceId     string                 `protobuf:"bytes,1,opt,name=serviceId,proto3" json:"serviceId,omitempty"`
+	E164          string                 `protobuf:"bytes,2,opt,name=e164,proto3" json:"e164,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatFolderRecord_Recipient_Contact) Reset() {
+	*x = ChatFolderRecord_Recipient_Contact{}
+	mi := &file_StorageService_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatFolderRecord_Recipient_Contact) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatFolderRecord_Recipient_Contact) ProtoMessage() {}
+
+func (x *ChatFolderRecord_Recipient_Contact) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatFolderRecord_Recipient_Contact.ProtoReflect.Descriptor instead.
+func (*ChatFolderRecord_Recipient_Contact) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{14, 0, 0}
+}
+
+func (x *ChatFolderRecord_Recipient_Contact) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
+func (x *ChatFolderRecord_Recipient_Contact) GetE164() string {
+	if x != nil {
+		return x.E164
+	}
+	return ""
+}
+
 var File_StorageService_proto protoreflect.FileDescriptor
 
 //go:embed StorageService.pb.raw
@@ -2176,64 +2628,77 @@ func file_StorageService_proto_rawDescGZIP() []byte {
 	return file_StorageService_proto_rawDescData
 }
 
-var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
+var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_StorageService_proto_goTypes = []any{
 	(OptionalBool)(0),                                // 0: signalservice.OptionalBool
-	(ManifestRecord_Identifier_Type)(0),              // 1: signalservice.ManifestRecord.Identifier.Type
-	(ContactRecord_IdentityState)(0),                 // 2: signalservice.ContactRecord.IdentityState
-	(GroupV2Record_StorySendMode)(0),                 // 3: signalservice.GroupV2Record.StorySendMode
-	(AccountRecord_PhoneNumberSharingMode)(0),        // 4: signalservice.AccountRecord.PhoneNumberSharingMode
-	(AccountRecord_UsernameLink_Color)(0),            // 5: signalservice.AccountRecord.UsernameLink.Color
-	(*StorageManifest)(nil),                          // 6: signalservice.StorageManifest
-	(*StorageItem)(nil),                              // 7: signalservice.StorageItem
-	(*StorageItems)(nil),                             // 8: signalservice.StorageItems
-	(*ReadOperation)(nil),                            // 9: signalservice.ReadOperation
-	(*WriteOperation)(nil),                           // 10: signalservice.WriteOperation
-	(*ManifestRecord)(nil),                           // 11: signalservice.ManifestRecord
-	(*StorageRecord)(nil),                            // 12: signalservice.StorageRecord
-	(*ContactRecord)(nil),                            // 13: signalservice.ContactRecord
-	(*GroupV1Record)(nil),                            // 14: signalservice.GroupV1Record
-	(*GroupV2Record)(nil),                            // 15: signalservice.GroupV2Record
-	(*Payments)(nil),                                 // 16: signalservice.Payments
-	(*AccountRecord)(nil),                            // 17: signalservice.AccountRecord
-	(*StoryDistributionListRecord)(nil),              // 18: signalservice.StoryDistributionListRecord
-	(*CallLinkRecord)(nil),                           // 19: signalservice.CallLinkRecord
-	(*ManifestRecord_Identifier)(nil),                // 20: signalservice.ManifestRecord.Identifier
-	(*ContactRecord_Name)(nil),                       // 21: signalservice.ContactRecord.Name
-	(*AccountRecord_PinnedConversation)(nil),         // 22: signalservice.AccountRecord.PinnedConversation
-	(*AccountRecord_UsernameLink)(nil),               // 23: signalservice.AccountRecord.UsernameLink
-	(*AccountRecord_IAPSubscriberData)(nil),          // 24: signalservice.AccountRecord.IAPSubscriberData
-	(*AccountRecord_PinnedConversation_Contact)(nil), // 25: signalservice.AccountRecord.PinnedConversation.Contact
+	(AvatarColor)(0),                                 // 1: signalservice.AvatarColor
+	(ManifestRecord_Identifier_Type)(0),              // 2: signalservice.ManifestRecord.Identifier.Type
+	(ContactRecord_IdentityState)(0),                 // 3: signalservice.ContactRecord.IdentityState
+	(GroupV2Record_StorySendMode)(0),                 // 4: signalservice.GroupV2Record.StorySendMode
+	(AccountRecord_PhoneNumberSharingMode)(0),        // 5: signalservice.AccountRecord.PhoneNumberSharingMode
+	(AccountRecord_UsernameLink_Color)(0),            // 6: signalservice.AccountRecord.UsernameLink.Color
+	(ChatFolderRecord_FolderType)(0),                 // 7: signalservice.ChatFolderRecord.FolderType
+	(*StorageManifest)(nil),                          // 8: signalservice.StorageManifest
+	(*StorageItem)(nil),                              // 9: signalservice.StorageItem
+	(*StorageItems)(nil),                             // 10: signalservice.StorageItems
+	(*ReadOperation)(nil),                            // 11: signalservice.ReadOperation
+	(*WriteOperation)(nil),                           // 12: signalservice.WriteOperation
+	(*ManifestRecord)(nil),                           // 13: signalservice.ManifestRecord
+	(*StorageRecord)(nil),                            // 14: signalservice.StorageRecord
+	(*ContactRecord)(nil),                            // 15: signalservice.ContactRecord
+	(*GroupV1Record)(nil),                            // 16: signalservice.GroupV1Record
+	(*GroupV2Record)(nil),                            // 17: signalservice.GroupV2Record
+	(*Payments)(nil),                                 // 18: signalservice.Payments
+	(*AccountRecord)(nil),                            // 19: signalservice.AccountRecord
+	(*StoryDistributionListRecord)(nil),              // 20: signalservice.StoryDistributionListRecord
+	(*CallLinkRecord)(nil),                           // 21: signalservice.CallLinkRecord
+	(*ChatFolderRecord)(nil),                         // 22: signalservice.ChatFolderRecord
+	(*ManifestRecord_Identifier)(nil),                // 23: signalservice.ManifestRecord.Identifier
+	(*ContactRecord_Name)(nil),                       // 24: signalservice.ContactRecord.Name
+	(*AccountRecord_PinnedConversation)(nil),         // 25: signalservice.AccountRecord.PinnedConversation
+	(*AccountRecord_UsernameLink)(nil),               // 26: signalservice.AccountRecord.UsernameLink
+	(*AccountRecord_IAPSubscriberData)(nil),          // 27: signalservice.AccountRecord.IAPSubscriberData
+	(*AccountRecord_PinnedConversation_Contact)(nil), // 28: signalservice.AccountRecord.PinnedConversation.Contact
+	(*ChatFolderRecord_Recipient)(nil),               // 29: signalservice.ChatFolderRecord.Recipient
+	(*ChatFolderRecord_Recipient_Contact)(nil),       // 30: signalservice.ChatFolderRecord.Recipient.Contact
 }
 var file_StorageService_proto_depIdxs = []int32{
-	7,  // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
-	6,  // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
-	7,  // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
-	20, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
-	13, // 4: signalservice.StorageRecord.contact:type_name -> signalservice.ContactRecord
-	14, // 5: signalservice.StorageRecord.groupV1:type_name -> signalservice.GroupV1Record
-	15, // 6: signalservice.StorageRecord.groupV2:type_name -> signalservice.GroupV2Record
-	17, // 7: signalservice.StorageRecord.account:type_name -> signalservice.AccountRecord
-	18, // 8: signalservice.StorageRecord.storyDistributionList:type_name -> signalservice.StoryDistributionListRecord
-	19, // 9: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
-	2,  // 10: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
-	21, // 11: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
-	3,  // 12: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
-	4,  // 13: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
-	22, // 14: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
-	16, // 15: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
-	0,  // 16: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
-	23, // 17: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
-	24, // 18: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
-	1,  // 19: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
-	25, // 20: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	5,  // 21: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	22, // [22:22] is the sub-list for method output_type
-	22, // [22:22] is the sub-list for method input_type
-	22, // [22:22] is the sub-list for extension type_name
-	22, // [22:22] is the sub-list for extension extendee
-	0,  // [0:22] is the sub-list for field type_name
+	9,  // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
+	8,  // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
+	9,  // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
+	23, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
+	15, // 4: signalservice.StorageRecord.contact:type_name -> signalservice.ContactRecord
+	16, // 5: signalservice.StorageRecord.groupV1:type_name -> signalservice.GroupV1Record
+	17, // 6: signalservice.StorageRecord.groupV2:type_name -> signalservice.GroupV2Record
+	19, // 7: signalservice.StorageRecord.account:type_name -> signalservice.AccountRecord
+	20, // 8: signalservice.StorageRecord.storyDistributionList:type_name -> signalservice.StoryDistributionListRecord
+	21, // 9: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
+	22, // 10: signalservice.StorageRecord.chatFolder:type_name -> signalservice.ChatFolderRecord
+	3,  // 11: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
+	24, // 12: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
+	1,  // 13: signalservice.ContactRecord.avatarColor:type_name -> signalservice.AvatarColor
+	4,  // 14: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
+	1,  // 15: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
+	5,  // 16: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
+	25, // 17: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
+	18, // 18: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
+	0,  // 19: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
+	26, // 20: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
+	27, // 21: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
+	1,  // 22: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
+	7,  // 23: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
+	29, // 24: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.ChatFolderRecord.Recipient
+	29, // 25: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.ChatFolderRecord.Recipient
+	2,  // 26: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
+	28, // 27: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
+	6,  // 28: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	30, // 29: signalservice.ChatFolderRecord.Recipient.contact:type_name -> signalservice.ChatFolderRecord.Recipient.Contact
+	30, // [30:30] is the sub-list for method output_type
+	30, // [30:30] is the sub-list for method input_type
+	30, // [30:30] is the sub-list for extension type_name
+	30, // [30:30] is the sub-list for extension extendee
+	0,  // [0:30] is the sub-list for field type_name
 }
 
 func init() { file_StorageService_proto_init() }
@@ -2248,24 +2713,32 @@ func file_StorageService_proto_init() {
 		(*StorageRecord_Account)(nil),
 		(*StorageRecord_StoryDistributionList)(nil),
 		(*StorageRecord_CallLink)(nil),
+		(*StorageRecord_ChatFolder)(nil),
 	}
+	file_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
+	file_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[16].OneofWrappers = []any{
+	file_StorageService_proto_msgTypes[17].OneofWrappers = []any{
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
 	}
-	file_StorageService_proto_msgTypes[18].OneofWrappers = []any{
+	file_StorageService_proto_msgTypes[19].OneofWrappers = []any{
 		(*AccountRecord_IAPSubscriberData_PurchaseToken)(nil),
 		(*AccountRecord_IAPSubscriberData_OriginalTransactionId)(nil),
+	}
+	file_StorageService_proto_msgTypes[21].OneofWrappers = []any{
+		(*ChatFolderRecord_Recipient_Contact_)(nil),
+		(*ChatFolderRecord_Recipient_LegacyGroupId)(nil),
+		(*ChatFolderRecord_Recipient_GroupMasterKey)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_StorageService_proto_rawDesc,
-			NumEnums:      6,
-			NumMessages:   20,
+			NumEnums:      8,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

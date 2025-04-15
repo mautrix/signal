@@ -189,16 +189,16 @@ func backupToSignalAttachment(
 	atts map[uuid.UUID]*backuppb.FilePointer_BackupLocator,
 ) *signalpb.AttachmentPointer {
 	sig := &signalpb.AttachmentPointer{
-		ContentType:             fp.ContentType,
-		IncrementalMac:          fp.IncrementalMac,
-		IncrementalMacChunkSize: fp.IncrementalMacChunkSize,
-		FileName:                fp.FileName,
-		Flags:                   ptr.NonZero(uint32(backupToSignalAttachmentFlag(flag))),
-		Width:                   fp.Width,
-		Height:                  fp.Height,
-		Caption:                 nil, // is this field deprecated or something?
-		BlurHash:                fp.BlurHash,
-		Uuid:                    clientUUID[:],
+		//IncrementalMacChunkSize: fp.IncrementalMacChunkSize,
+		ContentType:    fp.ContentType,
+		IncrementalMac: fp.IncrementalMac,
+		FileName:       fp.FileName,
+		Flags:          ptr.NonZero(uint32(backupToSignalAttachmentFlag(flag))),
+		Width:          fp.Width,
+		Height:         fp.Height,
+		Caption:        nil, // is this field deprecated or something?
+		BlurHash:       fp.BlurHash,
+		ClientUuid:     clientUUID[:],
 	}
 	switch loc := fp.Locator.(type) {
 	case *backuppb.FilePointer_AttachmentLocator_:

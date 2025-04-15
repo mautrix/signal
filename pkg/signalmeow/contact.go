@@ -30,7 +30,6 @@ import (
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
 
-	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
@@ -49,10 +48,10 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 			recipient.E164 = contactDetails.GetNumber()
 		}
 		recipient.ContactName = contactDetails.GetName()
-		if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
-			profileKey := libsignalgo.ProfileKey(profileKeyString)
-			recipient.Profile.Key = profileKey
-		}
+		//if profileKeyString := contactDetails.GetProfileKey(); profileKeyString != nil {
+		//	profileKey := libsignalgo.ProfileKey(profileKeyString)
+		//	recipient.Profile.Key = profileKey
+		//}
 		if avatar != nil && *avatar != nil && len(*avatar) > 0 {
 			rawHash := sha256.Sum256(*avatar)
 			avatarHash := hex.EncodeToString(rawHash[:])
