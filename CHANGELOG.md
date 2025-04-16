@@ -1,3 +1,8 @@
+# v0.8.2 (2025-04-16)
+
+* Updated libsignal to v0.70.0
+* Fixed panics in some cases when the bridge was under heavy load.
+
 # v0.8.1 (2025-03-16)
 
 * Added QR refreshing when logging in.
