@@ -271,7 +271,7 @@ func scanChat(row dbutil.Scannable) (*BackupChat, error) {
 	return &BackupChat{
 		Chat:            &chat,
 		TotalMessages:   int(totalMessageCount.Int64),
-		LatestMessageID: uint64(totalMessageCount.Int64),
+		LatestMessageID: uint64(latestMessageID.Int64),
 	}, nil
 }
 
