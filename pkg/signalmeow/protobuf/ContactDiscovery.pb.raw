@@ -1,15 +1,0 @@
-
-ContactDiscovery.protosignalservice"ž
-CDSClientRequest"
-aci_uak_pairs (RaciUakPairs
-
-prev_e164s (R	prevE164s
-	new_e164s (RnewE164s#
-discard_e164s (RdiscardE164s
-has_more (RhasMore
-token (Rtoken
-	token_ack (RtokenAck7
-return_acis_without_uaks (RreturnAcisWithoutUaks"Z
-CDSClientResponse/
-e164_pni_aci_triples (Re164PniAciTriples
-token (Rtoken
