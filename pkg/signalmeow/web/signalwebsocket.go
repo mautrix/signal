@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -44,14 +45,14 @@ type SimpleResponse struct {
 type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage) (*SimpleResponse, error)
 
 type SignalWebsocket struct {
-	ws            *websocket.Conn
+	ws            atomic.Pointer[websocket.Conn]
 	basicAuth     *url.Userinfo
 	sendChannel   chan SignalWebsocketSendMessage
 	statusChannel chan SignalWebsocketConnectionStatus
 	closeLock     sync.RWMutex
 	closeEvt      *exsync.Event
-	closeCalled   bool
-	cancel        context.CancelFunc
+	closeCalled   atomic.Bool
+	cancel        atomic.Pointer[context.CancelFunc]
 }
 
 func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
@@ -95,7 +96,7 @@ type SignalWebsocketConnectionStatus struct {
 }
 
 func (s *SignalWebsocket) IsConnected() bool {
-	return s.ws != nil
+	return s.ws.Load() != nil
 }
 
 func (s *SignalWebsocket) Close() (err error) {
@@ -103,14 +104,12 @@ func (s *SignalWebsocket) Close() (err error) {
 		return nil
 	}
 
-	s.closeCalled = true
-	if s.ws != nil {
-		err = s.ws.Close(websocket.StatusNormalClosure, "")
-		s.ws = nil
+	s.closeCalled.Store(true)
+	if ws := s.ws.Swap(nil); ws != nil {
+		err = ws.Close(websocket.StatusNormalClosure, "")
 	}
-	if s.cancel != nil {
-		s.cancel()
-		s.cancel = nil
+	if cancelLoop := s.cancel.Swap(nil); cancelLoop != nil {
+		(*cancelLoop)()
 	}
 	<-s.closeEvt.GetChan()
 	return err
@@ -157,12 +156,13 @@ func (s *SignalWebsocket) connectLoop(
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_connect_loop").
 		Logger()
-	ctx, s.cancel = context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancel.Store(&cancel)
 
 	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 256)
 	defer func() {
 		s.closeEvt.Set()
-		s.cancel()
+		cancel()
 
 		s.closeLock.Lock()
 		defer s.closeLock.Unlock()
@@ -178,7 +178,7 @@ func (s *SignalWebsocket) connectLoop(
 	const backoffIncrement = 5 * time.Second
 	const maxBackoff = 60 * time.Second
 
-	if s.ws != nil {
+	if s.ws.Load() != nil {
 		panic("Already connected")
 	}
 
@@ -289,7 +289,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Succssfully connected
 		s.pushStatus(ctx, SignalWebsocketConnectionEventConnected, nil)
-		s.ws = ws
+		s.ws.Store(ws)
 		retrying = false
 		backoff = initialBackoff
 
@@ -306,9 +306,9 @@ func (s *SignalWebsocket) connectLoop(
 			if err != nil {
 				err = fmt.Errorf("error in readLoop: %w", err)
 			}
-			if s.closeCalled {
+			if s.closeCalled.Load() {
 				// Exit during Close() so cancel the reconnect loop as well
-				s.cancel()
+				cancel()
 			}
 			loopCancel(err)
 			log.Info().Msg("readLoop exited")
