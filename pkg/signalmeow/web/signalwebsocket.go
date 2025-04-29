@@ -50,6 +50,8 @@ type SignalWebsocket struct {
 	statusChannel chan SignalWebsocketConnectionStatus
 	closeLock     sync.RWMutex
 	closeEvt      *exsync.Event
+	closeCalled   bool
+	cancel        context.CancelFunc
 }
 
 func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
@@ -96,16 +98,22 @@ func (s *SignalWebsocket) IsConnected() bool {
 	return s.ws != nil
 }
 
-func (s *SignalWebsocket) Close() error {
-	defer func() {
-		if s != nil {
-			s.ws = nil
-		}
-	}()
-	if s != nil && s.ws != nil {
-		return s.ws.Close(websocket.StatusNormalClosure, "")
+func (s *SignalWebsocket) Close() (err error) {
+	if s == nil {
+		return nil
 	}
-	return nil
+
+	s.closeCalled = true
+	if s.ws != nil {
+		err = s.ws.Close(websocket.StatusNormalClosure, "")
+		s.ws = nil
+	}
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	<-s.closeEvt.GetChan()
+	return err
 }
 
 func (s *SignalWebsocket) Connect(ctx context.Context, requestHandler RequestHandlerFunc) chan SignalWebsocketConnectionStatus {
@@ -149,12 +157,12 @@ func (s *SignalWebsocket) connectLoop(
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_connect_loop").
 		Logger()
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, s.cancel = context.WithCancel(ctx)
 
 	incomingRequestChan := make(chan *signalpb.WebSocketRequestMessage, 256)
 	defer func() {
 		s.closeEvt.Set()
-		cancel()
+		s.cancel()
 
 		s.closeLock.Lock()
 		defer s.closeLock.Unlock()
@@ -297,6 +305,10 @@ func (s *SignalWebsocket) connectLoop(
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in readLoop: %w", err)
+			}
+			if s.closeCalled {
+				// Exit during Close() so cancel the reconnect loop as well
+				s.cancel()
 			}
 			loopCancel(err)
 			log.Info().Msg("readLoop exited")
