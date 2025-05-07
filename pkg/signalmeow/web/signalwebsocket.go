@@ -174,7 +174,7 @@ func (s *SignalWebsocket) connectLoop(
 		s.sendChannel = nil
 	}()
 
-	const initialBackoff = 2 * time.Second
+	const initialBackoff = 10 * time.Second
 	const backoffIncrement = 5 * time.Second
 	const maxBackoff = 60 * time.Second
 
