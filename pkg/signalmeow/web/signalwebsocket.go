@@ -241,10 +241,16 @@ func (s *SignalWebsocket) connectLoop(
 				backoff = maxBackoff
 			}
 			log.Warn().Dur("backoff", backoff).Msg("Failed to connect, waiting to retry...")
-			time.Sleep(backoff)
+			select {
+			case <-time.After(backoff):
+			case <-ctx.Done():
+			}
 			backoff += backoffIncrement
-		} else if !isFirstConnect && s.basicAuth != nil && ctx.Err() == nil {
-			time.Sleep(initialBackoff)
+		} else if !isFirstConnect && s.basicAuth != nil {
+			select {
+			case <-time.After(initialBackoff):
+			case <-ctx.Done():
+			}
 		}
 		if ctx.Err() != nil {
 			log.Info().Msg("ctx done, stopping connection loop")
