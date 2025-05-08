@@ -19,12 +19,17 @@ package connector
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/msgconv"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
@@ -40,6 +45,7 @@ type SignalConnector struct {
 
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
 var _ bridgev2.MaxFileSizeingNetwork = (*SignalConnector)(nil)
+var _ bridgev2.TransactionIDGeneratingNetwork = (*SignalConnector)(nil)
 
 func (s *SignalConnector) GetName() bridgev2.BridgeName {
 	return bridgev2.BridgeName{
@@ -104,4 +110,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 	}
 	login.Client = sc
 	return nil
+}
+
+func (s *SignalConnector) GenerateTransactionID(userID id.UserID, roomID id.RoomID, eventType event.Type) networkid.RawTransactionID {
+	return networkid.RawTransactionID(strconv.FormatInt(time.Now().UnixMilli(), 10))
 }

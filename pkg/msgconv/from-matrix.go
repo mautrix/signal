@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exmime"
@@ -44,6 +43,7 @@ func (mc *MessageConverter) ToSignal(
 	portal *bridgev2.Portal,
 	evt *event.Event,
 	content *event.MessageEventContent,
+	timestamp uint64,
 	relaybotFormatted bool,
 	replyTo *database.Message,
 ) (*signalpb.DataMessage, error) {
@@ -53,14 +53,8 @@ func (mc *MessageConverter) ToSignal(
 		content.MsgType = event.MessageType(event.EventSticker.Type)
 	}
 
-	// Matrix timestamps can be faked, but if the user is using their own Signal account, faking timestamps is their problem.
-	ts := uint64(evt.Timestamp)
-	// However, when relaying, timestamps shouldn't be trusted because anyone can send a message with any timestamp.
-	if relaybotFormatted {
-		ts = uint64(time.Now().UnixMilli())
-	}
 	dm := &signalpb.DataMessage{
-		Timestamp: &ts,
+		Timestamp: &timestamp,
 		Preview:   mc.convertURLPreviewToSignal(ctx, content),
 	}
 	if replyTo != nil {

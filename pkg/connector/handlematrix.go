@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -78,12 +79,29 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 	}
 }
 
+func getTimestampForEvent(txnID networkid.RawTransactionID, evt *event.Event, origSender *bridgev2.OrigSender) uint64 {
+	if origSender != nil {
+		// Relaybot messages are never allowed to set the timestamp
+		return uint64(time.Now().UnixMilli())
+	}
+	if len(txnID) > 0 {
+		parsed, err := strconv.ParseUint(string(txnID), 10, 64)
+		if err == nil {
+			return parsed
+		}
+	}
+	return uint64(evt.Timestamp)
+}
+
 func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
-	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, msg.ReplyTo)
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
+	converted, err := s.Main.MsgConv.ToSignal(
+		ctx, s.Client, msg.Portal, msg.Event, msg.Content, ts, msg.OrigSender != nil, msg.ReplyTo,
+	)
 	if err != nil {
 		return nil, err
 	}
-	msgID := signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
+	msgID := signalid.MakeMessageID(s.Client.Store.ACI, ts)
 	msg.AddPendingToIgnore(networkid.TransactionID(msgID))
 	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
 	if err != nil {
@@ -92,7 +110,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	dbMsg := &database.Message{
 		ID:        msgID,
 		SenderID:  signalid.MakeUserID(s.Client.Store.ACI),
-		Timestamp: time.UnixMilli(int64(converted.GetTimestamp())),
+		Timestamp: time.UnixMilli(int64(ts)),
 		Metadata: &signalid.MessageMetadata{
 			ContainsAttachments: len(converted.Attachments) > 0,
 		},
@@ -117,7 +135,8 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 			return fmt.Errorf("failed to get message reply target: %w", err)
 		}
 	}
-	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, replyTo)
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
+	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, ts, msg.OrigSender != nil, replyTo)
 	if err != nil {
 		return err
 	}
@@ -128,7 +147,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	if err != nil {
 		return bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
-	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, converted.GetTimestamp())
+	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, ts)
 	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
 	msg.EditTarget.EditCount++
 	return nil
@@ -147,9 +166,10 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target message ID: %w", err)
 	}
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	wrappedContent := &signalpb.Content{
 		DataMessage: &signalpb.DataMessage{
-			Timestamp:               proto.Uint64(uint64(msg.Event.Timestamp)),
+			Timestamp:               proto.Uint64(ts),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
 				Emoji:               proto.String(msg.PreHandleResp.Emoji),
@@ -171,9 +191,10 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
 	}
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	wrappedContent := &signalpb.Content{
 		DataMessage: &signalpb.DataMessage{
-			Timestamp:               proto.Uint64(uint64(msg.Event.Timestamp)),
+			Timestamp:               proto.Uint64(ts),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
 				Emoji:               proto.String(msg.TargetReaction.Emoji),
@@ -197,9 +218,10 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 	} else if msg.TargetMessage.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
 		return fmt.Errorf("cannot delete other people's messages")
 	}
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	wrappedContent := &signalpb.Content{
 		DataMessage: &signalpb.DataMessage{
-			Timestamp: proto.Uint64(uint64(msg.Event.Timestamp)),
+			Timestamp: proto.Uint64(ts),
 			Delete: &signalpb.DataMessage_Delete{
 				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 			},
