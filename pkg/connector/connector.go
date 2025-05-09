@@ -41,6 +41,8 @@ type SignalConnector struct {
 	Store   *store.Container
 	Bridge  *bridgev2.Bridge
 	Config  SignalConfig
+
+	useDirectMedia bool
 }
 
 var _ bridgev2.NetworkConnector = (*SignalConnector)(nil)
@@ -70,6 +72,7 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 	s.MsgConv = msgconv.NewMessageConverter(bridge)
 	s.MsgConv.LocationFormat = s.Config.LocationFormat
 	s.MsgConv.DisappearViewOnce = s.Config.DisappearViewOnce
+	s.MsgConv.DirectMedia = s.useDirectMedia
 }
 
 func (s *SignalConnector) SetMaxFileSize(maxSize int64) {
