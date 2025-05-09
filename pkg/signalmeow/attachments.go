@@ -59,9 +59,13 @@ var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
 var ErrInvalidDigestForAttachment = errors.New("invalid digest for attachment")
 var ErrAttachmentNotFound = errors.New("attachment not found on server")
 
-func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]byte, error) {
-	path := getAttachmentPath(a.GetCdnId(), a.GetCdnKey())
-	resp, err := web.GetAttachment(ctx, path, a.GetCdnNumber(), nil)
+func DownloadAttachmentWithPointer(ctx context.Context, a *signalpb.AttachmentPointer) ([]byte, error) {
+	return DownloadAttachment(ctx, a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber(), a.Key, a.Digest, a.GetSize())
+}
+
+func DownloadAttachment(ctx context.Context, cdnID uint64, cdnKey string, cdnNumber uint32, key, digest []byte, size uint32) ([]byte, error) {
+	path := getAttachmentPath(cdnID, cdnKey)
+	resp, err := web.GetAttachment(ctx, path, cdnNumber, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +88,7 @@ func DownloadAttachment(ctx context.Context, a *signalpb.AttachmentPointer) ([]b
 		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
-	return decryptAttachment(body, a.Key, a.Digest, *a.Size)
+	return decryptAttachment(body, key, digest, size)
 }
 
 const MACLength = 32
