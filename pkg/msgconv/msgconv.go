@@ -47,6 +47,7 @@ type MessageConverter struct {
 	MaxFileSize       int64
 	LocationFormat    string
 	DisappearViewOnce bool
+	DirectMedia       bool
 }
 
 func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {

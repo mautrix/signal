@@ -42,11 +42,6 @@ import (
 
 type GroupMemberRole int32
 
-type GroupAvatarMeta interface {
-	getGroupMasterKey() types.SerializedGroupMasterKey
-	GetAvatarPath() *string
-}
-
 const (
 	// Note: right now we assume these match the equivalent values in the protobuf (signalpb.Member_Role)
 	GroupMember_UNKNOWN       GroupMemberRole = 0
@@ -76,7 +71,7 @@ func (gm *GroupMember) UserServiceID() libsignalgo.ServiceID {
 }
 
 type Group struct {
-	groupMasterKey  types.SerializedGroupMasterKey // We should keep this relatively private
+	GroupMasterKey  types.SerializedGroupMasterKey // We should keep this relatively private
 	GroupIdentifier types.GroupIdentifier          // This is what we should use to identify a group outside this file
 
 	Title                        string
@@ -98,7 +93,7 @@ func (group *Group) GetInviteLink() (string, error) {
 	if group.InviteLinkPassword == nil {
 		return "", fmt.Errorf("no invite link password set")
 	}
-	masterKeyBytes := masterKeyToBytes(group.groupMasterKey)
+	masterKeyBytes := masterKeyToBytes(group.GroupMasterKey)
 	inviteLinkPasswordBytes, err := inviteLinkPasswordToBytes(*group.InviteLinkPassword)
 	if err != nil {
 		return "", fmt.Errorf("couldn't decode invite link password")
@@ -122,13 +117,6 @@ type GroupAccessControl struct {
 	Members           AccessControl
 	AddFromInviteLink AccessControl
 	Attributes        AccessControl
-}
-
-func (group *Group) getGroupMasterKey() types.SerializedGroupMasterKey {
-	return group.groupMasterKey
-}
-func (group *Group) GetAvatarPath() *string {
-	return &group.AvatarPath
 }
 
 type AddMember struct {
@@ -176,8 +164,7 @@ type BannedMember struct {
 }
 
 type GroupChange struct {
-	groupMasterKey types.SerializedGroupMasterKey
-
+	GroupMasterKey                     types.SerializedGroupMasterKey
 	SourceServiceID                    libsignalgo.ServiceID
 	Revision                           uint32
 	AddMembers                         []*AddMember
@@ -308,14 +295,6 @@ func (groupChange *GroupChange) resolveConflict(group *Group) {
 			groupChange.ModifyMemberRoles = append(groupChange.ModifyMemberRoles[:i], groupChange.ModifyMemberRoles[i+1:]...)
 		}
 	}
-}
-
-func (groupChange *GroupChange) getGroupMasterKey() types.SerializedGroupMasterKey {
-	return groupChange.groupMasterKey
-}
-
-func (groupChange *GroupChange) GetAvatarPath() *string {
-	return groupChange.ModifyAvatar
 }
 
 type GroupChangeState struct {
@@ -481,7 +460,7 @@ func groupIdentifierFromMasterKey(masterKey types.SerializedGroupMasterKey) (typ
 func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMasterKey types.SerializedGroupMasterKey) (*Group, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group").Logger()
 	decryptedGroup := &Group{
-		groupMasterKey: groupMasterKey,
+		GroupMasterKey: groupMasterKey,
 	}
 
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(groupMasterKey))
@@ -642,7 +621,7 @@ func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey types.SerializedG
 }
 
 func groupMetadataForDataMessage(group Group) *signalpb.GroupContextV2 {
-	masterKey := masterKeyToBytes(group.groupMasterKey)
+	masterKey := masterKeyToBytes(group.GroupMasterKey)
 	masterKeyBytes := masterKey[:]
 	return &signalpb.GroupContextV2{
 		MasterKey: masterKeyBytes,
@@ -710,16 +689,14 @@ func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey t
 	return group, nil
 }
 
-func (cli *Client) DownloadGroupAvatar(ctx context.Context, group GroupAvatarMeta) ([]byte, error) {
-	groupMasterKey := group.getGroupMasterKey()
-	avatarPath := group.GetAvatarPath()
+func (cli *Client) DownloadGroupAvatar(ctx context.Context, avatarPath string, groupMasterKey types.SerializedGroupMasterKey) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
 		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, *avatarPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, avatarPath, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -853,7 +830,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		return nil, fmt.Errorf("wrong serviceid kind: expected aci, got pni")
 	}
 	decryptedGroupChange := &GroupChange{
-		groupMasterKey:  groupMasterKey,
+		GroupMasterKey:  groupMasterKey,
 		Revision:        encryptedActions.Revision,
 		SourceServiceID: sourceServiceID,
 	}
@@ -1221,7 +1198,7 @@ func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.Req
 
 func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroupChange *GroupChange, gid types.GroupIdentifier) (*signalpb.GroupChange, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "EncryptGroupChange").Logger()
-	groupMasterKey := decryptedGroupChange.groupMasterKey
+	groupMasterKey := decryptedGroupChange.GroupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyBytes)
 	if err != nil {
@@ -1573,7 +1550,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 		log.Err(err).Msg("Could not get master key from group id")
 		return 0, err
 	}
-	groupChange.groupMasterKey = groupMasterKey
+	groupChange.GroupMasterKey = groupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	var refetchedAddMemberCredentials bool
 	var signedGroupChange *signalpb.GroupChange
@@ -1789,7 +1766,7 @@ func (cli *Client) CreateGroup(ctx context.Context, decryptedGroup *Group, avata
 		log.Err(err).Msg("Error creating group on server")
 		return nil, err
 	}
-	masterKeyBytes := masterKeyToBytes(group.groupMasterKey)
+	masterKeyBytes := masterKeyToBytes(group.GroupMasterKey)
 	groupContext := &signalpb.GroupContextV2{Revision: &group.Revision, MasterKey: masterKeyBytes[:]}
 	_, err = cli.SendGroupUpdate(ctx, group, groupContext, nil)
 	if err != nil {

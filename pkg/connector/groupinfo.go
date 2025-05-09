@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -97,7 +98,7 @@ func inviteLinkToJoinRule(inviteLinkAccess signalmeow.AccessControl) event.JoinR
 func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIdentifier, minRevision uint32, backupChat *store.BackupChat) (*bridgev2.ChatInfo, error) {
 	groupInfo, err := s.Client.RetrieveGroupByID(ctx, groupID, minRevision)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to retrieve group by id: %w", err)
 	}
 	members := &bridgev2.ChatMemberList{
 		IsFull:    true,
@@ -160,10 +161,14 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 			zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to get backup chat for group")
 		}
 	}
+	avatar, err := s.makeGroupAvatar(ctx, groupID, &groupInfo.AvatarPath, groupInfo.GroupMasterKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make group avatar: %w", err)
+	}
 	return &bridgev2.ChatInfo{
 		Name:   &groupInfo.Title,
 		Topic:  &groupInfo.Description,
-		Avatar: s.makeGroupAvatar(groupInfo),
+		Avatar: avatar,
 		Disappear: &database.DisappearingSetting{
 			Type:  database.DisappearingTypeAfterRead,
 			Timer: time.Duration(groupInfo.DisappearingMessagesDuration) * time.Second,
@@ -176,18 +181,42 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 	}, nil
 }
 
-func (s *SignalClient) makeGroupAvatar(meta signalmeow.GroupAvatarMeta) *bridgev2.Avatar {
-	path := meta.GetAvatarPath()
+func (s *SignalClient) makeGroupAvatar(ctx context.Context, groupID types.GroupIdentifier, path *string, groupMasterKey types.SerializedGroupMasterKey) (*bridgev2.Avatar, error) {
 	if path == nil {
-		return nil
+		return nil, nil
 	}
-	return &bridgev2.Avatar{
-		ID: makeAvatarPathID(*path),
-		Get: func(ctx context.Context) ([]byte, error) {
-			return s.Client.DownloadGroupAvatar(ctx, meta)
-		},
+	avatar := &bridgev2.Avatar{
+		ID:     makeAvatarPathID(*path),
 		Remove: *path == "",
 	}
+	if s.Main.MsgConv.DirectMedia {
+		userID, err := signalid.ParseUserLoginID(s.UserLogin.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse user login ID: %w", err)
+		}
+		groupIDBytes, err := groupID.Bytes()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get group id bytes: %w", err)
+		}
+		mediaID, err := signalid.DirectMediaGroupAvatar{
+			UserID:          userID,
+			GroupID:         groupIDBytes,
+			GroupAvatarPath: *path,
+		}.AsMediaID()
+		if err != nil {
+			return nil, err
+		}
+		avatar.MXC, err = s.Main.Bridge.Matrix.GenerateContentURI(ctx, mediaID)
+		if err != nil {
+			return nil, err
+		}
+		avatar.Hash = signalid.HashMediaID(mediaID)
+	} else {
+		avatar.Get = func(ctx context.Context) ([]byte, error) {
+			return s.Client.DownloadGroupAvatar(ctx, *path, groupMasterKey)
+		}
+	}
+	return avatar, nil
 }
 
 func makeRevisionUpdater(rev uint32) func(ctx context.Context, portal *bridgev2.Portal) bool {
@@ -201,13 +230,17 @@ func makeRevisionUpdater(rev uint32) func(ctx context.Context, portal *bridgev2.
 	}
 }
 
-func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint32, groupChange *signalmeow.GroupChange) *bridgev2.ChatInfoChange {
+func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID types.GroupIdentifier, rev uint32, groupChange *signalmeow.GroupChange) (*bridgev2.ChatInfoChange, error) {
+	avatar, err := s.makeGroupAvatar(ctx, groupID, groupChange.ModifyAvatar, groupChange.GroupMasterKey)
+	if err != nil {
+		return nil, err
+	}
 	ic := &bridgev2.ChatInfoChange{
 		ChatInfo: &bridgev2.ChatInfo{
 			ExtraUpdates: makeRevisionUpdater(rev),
 			Name:         groupChange.ModifyTitle,
 			Topic:        groupChange.ModifyDescription,
-			Avatar:       s.makeGroupAvatar(groupChange),
+			Avatar:       avatar,
 		},
 	}
 	if groupChange.ModifyDisappearingMessagesDuration != nil {
@@ -350,7 +383,7 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, rev uint
 	if len(mc) > 0 || pls != nil {
 		ic.MemberChanges = &bridgev2.ChatMemberList{Members: mc, PowerLevels: pls}
 	}
-	return ic
+	return ic, nil
 }
 
 func (s *SignalClient) maybeResolvePNItoACI(ctx context.Context, serviceID *libsignalgo.ServiceID) *uuid.UUID {
@@ -390,8 +423,10 @@ func (s *SignalClient) catchUpGroup(ctx context.Context, portal *bridgev2.Portal
 		}
 		for _, gc := range groupChanges {
 			log.Debug().Uint32("current_rev", gc.GroupChange.Revision).Msg("Processing group change")
-			chatInfoChange := s.groupChangeToChatInfoChange(ctx, gc.GroupChange.Revision, gc.GroupChange)
-			if gc.GroupChange.SourceServiceID.Type == libsignalgo.ServiceIDTypeACI {
+			chatInfoChange, err := s.groupChangeToChatInfoChange(ctx, types.GroupIdentifier(portal.ID), gc.GroupChange.Revision, gc.GroupChange)
+			if err != nil {
+				log.Err(err).Msg("Failed to convert group info")
+			} else if gc.GroupChange.SourceServiceID.Type == libsignalgo.ServiceIDTypeACI {
 				portal.ProcessChatInfoChange(ctx, s.makeEventSender(gc.GroupChange.SourceServiceID.UUID), s.UserLogin, chatInfoChange, time.UnixMilli(int64(ts)))
 			}
 			if gc.GroupChange.Revision == toRevision {

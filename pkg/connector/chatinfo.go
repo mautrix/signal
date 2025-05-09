@@ -58,13 +58,13 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 	if !s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt) {
 		return nil, nil
 	}
-	return s.contactToUserInfo(contact), nil
+	return s.contactToUserInfo(ctx, contact)
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
 	userID, groupID, err := signalid.ParsePortalID(portal.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse portal id: %w", err)
 	}
 	if groupID != "" {
 		return s.getGroupInfo(ctx, groupID, 0, nil)
@@ -78,7 +78,7 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 	}
 }
 
-func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.UserInfo {
+func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Recipient) (*bridgev2.UserInfo, error) {
 	isBot := false
 	ui := &bridgev2.UserInfo{
 		IsBot:       &isBot,
@@ -115,12 +115,33 @@ func (s *SignalClient) contactToUserInfo(contact *types.Recipient) *bridgev2.Use
 	} else if contact.Profile.AvatarPath != "" {
 		ui.Avatar = &bridgev2.Avatar{
 			ID: makeAvatarPathID(contact.Profile.AvatarPath),
-			Get: func(ctx context.Context) ([]byte, error) {
+		}
+
+		if s.Main.MsgConv.DirectMedia {
+			userID, err := signalid.ParseUserLoginID(s.UserLogin.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse user login ID: %w", err)
+			}
+			mediaID, err := signalid.DirectMediaProfileAvatar{
+				UserID:            userID,
+				ContactID:         contact.ACI,
+				ProfileAvatarPath: contact.Profile.AvatarPath,
+			}.AsMediaID()
+			if err != nil {
+				return nil, err
+			}
+			ui.Avatar.MXC, err = s.Main.Bridge.Matrix.GenerateContentURI(ctx, mediaID)
+			if err != nil {
+				return nil, err
+			}
+			ui.Avatar.Hash = signalid.HashMediaID(mediaID)
+		} else {
+			ui.Avatar.Get = func(ctx context.Context) ([]byte, error) {
 				return s.Client.DownloadUserAvatar(ctx, contact.Profile.AvatarPath, contact.Profile.Key)
-			},
+			}
 		}
 	}
-	return ui
+	return ui, nil
 }
 
 var _ bridgev2.IdentifierValidatingNetwork = (*SignalConnector)(nil)
@@ -177,6 +198,11 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 		Stringer("pni", pni).
 		Msg("Found resolve identifier target user")
 
+	userInfo, err := s.contactToUserInfo(ctx, recipient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert contact: %w", err)
+	}
+
 	// createChat is a no-op: chats don't need to be created, and we always return chat info
 	if aci != uuid.Nil {
 		ghost, err := s.Main.Bridge.GetGhostByID(ctx, signalid.MakeUserID(aci))
@@ -185,14 +211,14 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 		}
 		return &bridgev2.ResolveIdentifierResponse{
 			UserID:   signalid.MakeUserID(aci),
-			UserInfo: s.contactToUserInfo(recipient),
+			UserInfo: userInfo,
 			Ghost:    ghost,
 			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
 		}, nil
 	} else {
 		return &bridgev2.ResolveIdentifierResponse{
 			UserID:   signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni)),
-			UserInfo: s.contactToUserInfo(recipient),
+			UserInfo: userInfo,
 			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
 		}, nil
 	}
@@ -210,8 +236,12 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 	}
 	resp := make([]*bridgev2.ResolveIdentifierResponse, len(recipients))
 	for i, recipient := range recipients {
+		userInfo, err := s.contactToUserInfo(ctx, recipient)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert contact: %w", err)
+		}
 		recipientResp := &bridgev2.ResolveIdentifierResponse{
-			UserInfo: s.contactToUserInfo(recipient),
+			UserInfo: userInfo,
 			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
 		}
 		if recipient.ACI != uuid.Nil {

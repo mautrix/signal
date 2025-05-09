@@ -478,40 +478,55 @@ func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalp
 			return nil, ErrBackupNotSupported
 		}
 	}
-	return signalmeow.DownloadAttachment(ctx, att)
+	return signalmeow.DownloadAttachmentWithPointer(ctx, att)
 }
 
 func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*bridgev2.ConvertedMessagePart, error) {
-	data, err := mc.downloadAttachment(ctx, att, attMap)
-	if err != nil {
-		return nil, err
-	}
-	mimeType := att.GetContentType()
-	if mimeType == "" {
-		mimeType = http.DetectContentType(data)
-	}
 	fileName := att.GetFileName()
 	content := &event.MessageEventContent{
 		Info: &event.FileInfo{
 			Width:  int(att.GetWidth()),
 			Height: int(att.GetHeight()),
-			Size:   len(data),
+			Size:   int(att.GetSize()),
 		},
 	}
-	if att.GetFlags()&uint32(signalpb.AttachmentPointer_VOICE_MESSAGE) != 0 && ffmpeg.Supported() {
-		data, err = ffmpeg.ConvertBytes(ctx, data, ".ogg", []string{}, []string{"-c:a", "libopus"}, mimeType)
+	mimeType := att.GetContentType()
+	if mc.DirectMedia {
+		mediaID, err := signalid.DirectMediaAttachment{
+			CDNID:     att.GetCdnId(),
+			CDNKey:    att.GetCdnKey(),
+			CDNNumber: att.GetCdnNumber(),
+			Key:       att.Key,
+			Digest:    att.Digest,
+			Size:      att.GetSize(),
+		}.AsMediaID()
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert audio to ogg/opus: %w", err)
+			return nil, err
 		}
-		fileName += ".ogg"
-		mimeType = "audio/ogg"
-		content.MSC3245Voice = &event.MSC3245Voice{}
-		// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
-		//content.MSC1767Audio = &event.MSC1767Audio{}
-	}
-	content.URL, content.File, err = getIntent(ctx).UploadMedia(ctx, getPortal(ctx).MXID, data, fileName, mimeType)
-	if err != nil {
-		return nil, err
+		content.URL, err = mc.Bridge.Matrix.GenerateContentURI(ctx, mediaID)
+	} else {
+		data, err := mc.downloadAttachment(ctx, att, attMap)
+		if err != nil {
+			return nil, err
+		}
+		if mimeType == "" {
+			mimeType = http.DetectContentType(data)
+		}
+		if att.GetFlags()&uint32(signalpb.AttachmentPointer_VOICE_MESSAGE) != 0 && ffmpeg.Supported() {
+			data, err = ffmpeg.ConvertBytes(ctx, data, ".ogg", []string{}, []string{"-c:a", "libopus"}, mimeType)
+			if err != nil {
+				return nil, fmt.Errorf("failed to convert audio to ogg/opus: %w", err)
+			}
+			fileName += ".ogg"
+			mimeType = "audio/ogg"
+			content.MSC3245Voice = &event.MSC3245Voice{}
+			// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
+			//content.MSC1767Audio = &event.MSC1767Audio{}
+		}
+		content.URL, content.File, err = getIntent(ctx).UploadMedia(ctx, getPortal(ctx).MXID, data, fileName, mimeType)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if att.GetBlurHash() != "" {
 		content.Info.Blurhash = att.GetBlurHash()

@@ -34,6 +34,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
@@ -188,7 +189,8 @@ func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context) (*bridgev2.ChatI
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt group change: %w", err)
 	}
-	return evt.s.groupChangeToChatInfoChange(ctx, gv2.GetRevision(), groupChange), nil
+	// XXX: is this ID compatible with types.GroupIdentifier?
+	return evt.s.groupChangeToChatInfoChange(ctx, types.GroupIdentifier(evt.Info.ChatID), gv2.GetRevision(), groupChange)
 }
 
 func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal) {
@@ -503,7 +505,12 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			log.Err(err).Msg("Failed to get ghost to update contact info")
 			continue
 		}
-		ghost.UpdateInfo(ctx, s.contactToUserInfo(contact))
+		userInfo, err := s.contactToUserInfo(ctx, contact)
+		if err != nil {
+			log.Err(err).Msg("Failed to convert contact info")
+			continue
+		}
+		ghost.UpdateInfo(ctx, userInfo)
 		if contact.ACI == s.Client.Store.ACI {
 			s.updateRemoteProfile(ctx, true)
 		}

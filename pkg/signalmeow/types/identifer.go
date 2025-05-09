@@ -31,7 +31,7 @@ func (gid GroupIdentifier) String() string {
 
 func (gid GroupIdentifier) Bytes() (raw libsignalgo.GroupIdentifier, err error) {
 	var decoded []byte
-	decoded, err = base64.RawStdEncoding.DecodeString(string(gid))
+	decoded, err = base64.StdEncoding.DecodeString(string(gid))
 	if err == nil {
 		if len(decoded) != 32 {
 			err = fmt.Errorf("invalid group identifier length")

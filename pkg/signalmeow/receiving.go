@@ -812,7 +812,7 @@ func (cli *Client) handleDecryptedResult(
 			log.Debug().Msg("Recieved sync message contacts")
 			blob := content.SyncMessage.Contacts.Blob
 			if blob != nil {
-				contactsBytes, err := DownloadAttachment(ctx, blob)
+				contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob)
 				if err != nil {
 					log.Err(err).Msg("Contacts Sync DownloadAttachment error")
 				}
