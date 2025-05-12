@@ -386,7 +386,13 @@ func (cli *Client) handleDecryptedResult(
 		defer func() {
 			err := cli.Store.EventBuffer.ClearBufferedEventPlaintext(ctx, *result.CiphertextHash)
 			if err != nil {
-				log.Err(err).Msg("Failed to clear buffered event plaintext")
+				log.Err(err).
+					Hex("ciphertext_hash", result.CiphertextHash[:]).
+					Msg("Failed to clear buffered event plaintext")
+			} else {
+				log.Debug().
+					Hex("ciphertext_hash", result.CiphertextHash[:]).
+					Msg("Deleted event plaintext from buffer")
 			}
 		}()
 	}

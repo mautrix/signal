@@ -112,8 +112,18 @@ func (cli *Client) bufferedDecryptTxn(ctx context.Context, ciphertext []byte, se
 		return
 	} else if buf != nil {
 		plaintext = buf.Plaintext
+		insertTime := time.UnixMilli(buf.InsertTimestamp)
 		if plaintext == nil {
-			err = fmt.Errorf("%w at %s", EventAlreadyProcessed, time.UnixMilli(buf.InsertTimestamp).String())
+			zerolog.Ctx(ctx).Debug().
+				Hex("ciphertext_hash", ciphertextHash[:]).
+				Time("insertion_time", insertTime).
+				Msg("Returning event already processed error")
+			err = fmt.Errorf("%w at %s", EventAlreadyProcessed, insertTime.String())
+		} else {
+			zerolog.Ctx(ctx).Debug().
+				Hex("ciphertext_hash", ciphertextHash[:]).
+				Time("insertion_time", insertTime).
+				Msg("Returning previously decrypted plaintext")
 		}
 		return
 	}
@@ -127,6 +137,9 @@ func (cli *Client) bufferedDecryptTxn(ctx context.Context, ciphertext []byte, se
 		if innerErr != nil {
 			innerErr = fmt.Errorf("failed to save decrypted event to buffer: %w", innerErr)
 		}
+		zerolog.Ctx(ctx).Debug().
+			Hex("ciphertext_hash", ciphertextHash[:]).
+			Msg("Successfully decrypted and saved event")
 		return
 	})
 	return
