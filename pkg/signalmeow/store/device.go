@@ -79,6 +79,7 @@ type Device struct {
 	RecipientStore RecipientStore
 	DeviceStore    DeviceStore
 	BackupStore    BackupStore
+	EventBuffer    EventBuffer
 
 	sqlStore *sqlStore
 	db       *dbutil.Database
@@ -95,6 +96,11 @@ func (d *Device) DoContactTxn(ctx context.Context, fn func(context.Context) erro
 	defer d.sqlStore.contactLock.Unlock()
 	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 1)
 	ctx = context.WithValue(ctx, contextKeyContactLock, true)
+	return d.db.DoTxn(ctx, nil, fn)
+}
+
+func (d *Device) DoDecryptionTxn(ctx context.Context, fn func(context.Context) error) error {
+	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 2)
 	return d.db.DoTxn(ctx, nil, fn)
 }
 

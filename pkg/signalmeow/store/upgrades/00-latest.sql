@@ -1,4 +1,4 @@
--- v0 -> v20 (compatible with v13+): Latest revision
+-- v0 -> v21 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -60,6 +60,17 @@ CREATE TABLE signalmeow_sessions (
     record           bytea   NOT NULL,
 
     PRIMARY KEY (account_id, service_id, their_service_id, their_device_id),
+    FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+CREATE TABLE signalmeow_event_buffer (
+    account_id       TEXT   NOT NULL,
+    ciphertext_hash  bytea  NOT NULL,
+    plaintext        bytea,
+    server_timestamp BIGINT NOT NULL,
+    insert_timestamp BIGINT NOT NULL,
+
+    PRIMARY KEY (account_id, ciphertext_hash),
     FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -131,10 +142,10 @@ CREATE INDEX signalmeow_backup_recipient_group_idx ON signalmeow_backup_recipien
 CREATE INDEX signalmeow_backup_recipient_aci_idx ON signalmeow_backup_recipient (account_id, aci_uuid);
 
 CREATE TABLE signalmeow_backup_chat (
-    account_id   TEXT   NOT NULL,
-    chat_id      BIGINT NOT NULL,
-    recipient_id BIGINT NOT NULL,
-    data         bytea  NOT NULL,
+    account_id          TEXT   NOT NULL,
+    chat_id             BIGINT NOT NULL,
+    recipient_id        BIGINT NOT NULL,
+    data                bytea  NOT NULL,
 
     latest_message_id   BIGINT,
     total_message_count INTEGER,

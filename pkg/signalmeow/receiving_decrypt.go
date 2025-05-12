@@ -19,8 +19,10 @@ package signalmeow
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
 	"fmt"
-	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -28,13 +30,15 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
 
 type DecryptionResult struct {
-	SenderAddress *libsignalgo.Address
-	Content       *signalpb.Content
-	ContentHint   signalpb.UnidentifiedSenderMessage_Message_ContentHint
-	Err           error
+	SenderAddress  *libsignalgo.Address
+	CiphertextHash *[32]byte
+	Content        *signalpb.Content
+	ContentHint    signalpb.UnidentifiedSenderMessage_Message_ContentHint
+	Err            error
 }
 
 func (cli *Client) decryptEnvelope(
@@ -68,10 +72,10 @@ func (cli *Client) decryptEnvelope(
 		var result *DecryptionResult
 		var bundleType string
 		if *envelope.Type == signalpb.Envelope_PREKEY_BUNDLE {
-			result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content)
+			result, err = cli.prekeyDecrypt(ctx, destinationServiceID, sender, envelope.Content, envelope.GetServerTimestamp())
 			bundleType = "prekey bundle"
 		} else {
-			result, err = cli.decryptCiphertextEnvelope(ctx, destinationServiceID, sender, envelope.Content)
+			result, err = cli.decryptCiphertextEnvelope(ctx, destinationServiceID, sender, envelope.Content, envelope.GetServerTimestamp())
 			bundleType = "ciphertext"
 		}
 		if err != nil {
@@ -96,7 +100,45 @@ func (cli *Client) decryptEnvelope(
 	}
 }
 
-func (cli *Client) prekeyDecrypt(ctx context.Context, destination libsignalgo.ServiceID, sender *libsignalgo.Address, encryptedContent []byte) (*DecryptionResult, error) {
+var EventAlreadyProcessed = errors.New("event was already processed")
+
+func (cli *Client) bufferedDecryptTxn(ctx context.Context, ciphertext []byte, serverTimestamp uint64, decrypt func(context.Context) ([]byte, error)) (plaintext []byte, ciphertextHash [32]byte, err error) {
+	ciphertextHash = sha256.Sum256(ciphertext)
+
+	var buf *store.BufferedEvent
+	buf, err = cli.Store.EventBuffer.GetBufferedEvent(ctx, ciphertextHash)
+	if err != nil {
+		err = fmt.Errorf("failed to get buffered event: %w", err)
+		return
+	} else if buf != nil {
+		plaintext = buf.Plaintext
+		if plaintext == nil {
+			err = fmt.Errorf("%w at %s", EventAlreadyProcessed, time.UnixMilli(buf.InsertTimestamp).String())
+		}
+		return
+	}
+
+	err = cli.Store.DoDecryptionTxn(ctx, func(ctx context.Context) (innerErr error) {
+		plaintext, innerErr = decrypt(ctx)
+		if innerErr != nil {
+			return
+		}
+		innerErr = cli.Store.EventBuffer.PutBufferedEvent(ctx, ciphertextHash, plaintext, serverTimestamp)
+		if innerErr != nil {
+			innerErr = fmt.Errorf("failed to save decrypted event to buffer: %w", innerErr)
+		}
+		return
+	})
+	return
+}
+
+func (cli *Client) prekeyDecrypt(
+	ctx context.Context,
+	destination libsignalgo.ServiceID,
+	sender *libsignalgo.Address,
+	encryptedContent []byte,
+	serverTimestamp uint64,
+) (*DecryptionResult, error) {
 	preKeyMessage, err := libsignalgo.DeserializePreKeyMessage(encryptedContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to deserialize prekey message: %w", err)
@@ -116,31 +158,34 @@ func (cli *Client) prekeyDecrypt(ctx context.Context, destination libsignalgo.Se
 		return nil, fmt.Errorf("no identity store found for %s", destination)
 	}
 
-	data, err := libsignalgo.DecryptPreKey(
-		ctx,
-		preKeyMessage,
-		sender,
-		ss,
-		is,
-		pks,
-		pks,
-		pks,
-	)
+	plaintext, ciphertextHash, err := cli.bufferedDecryptTxn(ctx, encryptedContent, serverTimestamp, func(ctx context.Context) ([]byte, error) {
+		return libsignalgo.DecryptPreKey(
+			ctx,
+			preKeyMessage,
+			sender,
+			ss,
+			is,
+			pks,
+			pks,
+			pks,
+		)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt prekey message: %w", err)
 	}
-	data, err = stripPadding(data)
+	plaintext, err = stripPadding(plaintext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to strip padding: %w", err)
 	}
 	content := &signalpb.Content{}
-	err = proto.Unmarshal(data, content)
+	err = proto.Unmarshal(plaintext, content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal decrypted prekey message: %w", err)
 	}
 	return &DecryptionResult{
-		SenderAddress: sender,
-		Content:       content,
+		SenderAddress:  sender,
+		Content:        content,
+		CiphertextHash: &ciphertextHash,
 	}, nil
 }
 
@@ -149,6 +194,7 @@ func (cli *Client) decryptCiphertextEnvelope(
 	destinationServiceID libsignalgo.ServiceID,
 	senderAddress *libsignalgo.Address,
 	ciphertext []byte,
+	serverTimestamp uint64,
 ) (*DecryptionResult, error) {
 	log := zerolog.Ctx(ctx)
 	message, err := libsignalgo.DeserializeMessage(ciphertext)
@@ -164,33 +210,31 @@ func (cli *Client) decryptCiphertextEnvelope(
 	if identityStore == nil {
 		return nil, fmt.Errorf("no identity store for destination service ID %s", destinationServiceID)
 	}
-	decryptedText, err := libsignalgo.Decrypt(
-		ctx,
-		message,
-		senderAddress,
-		sessionStore,
-		identityStore,
-	)
+	plaintext, ciphertextHash, err := cli.bufferedDecryptTxn(ctx, ciphertext, serverTimestamp, func(ctx context.Context) ([]byte, error) {
+		return libsignalgo.Decrypt(
+			ctx,
+			message,
+			senderAddress,
+			sessionStore,
+			identityStore,
+		)
+	})
 	if err != nil {
-		if strings.Contains(err.Error(), "message with old counter") {
-			log.Warn().Err(err).Msg("Duplicate message error while decrypting whisper ciphertext")
-		} else {
-			log.Err(err).Msg("Failed to decrypt whisper ciphertext message")
-		}
 		return nil, fmt.Errorf("failed to decrypt ciphertext message: %w", err)
 	}
-	decryptedText, err = stripPadding(decryptedText)
+	plaintext, err = stripPadding(plaintext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to strip padding: %w", err)
 	}
 	content := signalpb.Content{}
-	err = proto.Unmarshal(decryptedText, &content)
+	err = proto.Unmarshal(plaintext, &content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal decrypted message: %w", err)
 	}
 	return &DecryptionResult{
-		SenderAddress: senderAddress,
-		Content:       &content,
+		SenderAddress:  senderAddress,
+		Content:        &content,
+		CiphertextHash: &ciphertextHash,
 	}, nil
 }
 
@@ -198,28 +242,32 @@ func (cli *Client) decryptSenderKeyMessage(
 	ctx context.Context,
 	senderAddress *libsignalgo.Address,
 	ciphertext []byte,
+	serverTimestamp uint64,
 ) (*DecryptionResult, error) {
-	decryptedText, err := libsignalgo.GroupDecrypt(
-		ctx,
-		ciphertext,
-		senderAddress,
-		cli.Store.SenderKeyStore,
-	)
+	plaintext, ciphertextHash, err := cli.bufferedDecryptTxn(ctx, ciphertext, serverTimestamp, func(ctx context.Context) ([]byte, error) {
+		return libsignalgo.GroupDecrypt(
+			ctx,
+			ciphertext,
+			senderAddress,
+			cli.Store.SenderKeyStore,
+		)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt sender key message: %w", err)
 	}
-	decryptedText, err = stripPadding(decryptedText)
+	plaintext, err = stripPadding(plaintext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to strip padding: %w", err)
 	}
 	content := signalpb.Content{}
-	err = proto.Unmarshal(decryptedText, &content)
+	err = proto.Unmarshal(plaintext, &content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal decrypted sender key message: %w", err)
 	}
 	return &DecryptionResult{
-		SenderAddress: senderAddress,
-		Content:       &content,
+		SenderAddress:  senderAddress,
+		Content:        &content,
+		CiphertextHash: &ciphertextHash,
 	}, nil
 }
 
@@ -296,11 +344,11 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	var resultPtr *DecryptionResult
 	switch messageType {
 	case libsignalgo.CiphertextMessageTypeSenderKey:
-		resultPtr, err = cli.decryptSenderKeyMessage(ctx, senderAddress, usmcContents)
+		resultPtr, err = cli.decryptSenderKeyMessage(ctx, senderAddress, usmcContents, envelope.GetServerTimestamp())
 	case libsignalgo.CiphertextMessageTypePreKey:
-		resultPtr, err = cli.prekeyDecrypt(ctx, destinationServiceID, senderAddress, usmcContents)
+		resultPtr, err = cli.prekeyDecrypt(ctx, destinationServiceID, senderAddress, usmcContents, envelope.GetServerTimestamp())
 	case libsignalgo.CiphertextMessageTypeWhisper:
-		resultPtr, err = cli.decryptCiphertextEnvelope(ctx, destinationServiceID, senderAddress, usmcContents)
+		resultPtr, err = cli.decryptCiphertextEnvelope(ctx, destinationServiceID, senderAddress, usmcContents, envelope.GetServerTimestamp())
 	case libsignalgo.CiphertextMessageTypePlaintext:
 		// TODO: handle plaintext (usually DecryptionErrorMessage) and retries
 		//       when implementing SenderKey groups

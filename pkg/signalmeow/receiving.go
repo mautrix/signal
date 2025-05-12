@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -337,6 +338,14 @@ func (cli *Client) handleDecryptedResult(
 	destinationServiceID libsignalgo.ServiceID,
 ) error {
 	log := zerolog.Ctx(ctx)
+	if result.CiphertextHash != nil {
+		defer func() {
+			err := cli.Store.EventBuffer.ClearBufferedEventPlaintext(ctx, *result.CiphertextHash)
+			if err != nil {
+				log.Err(err).Msg("Failed to clear buffered event plaintext")
+			}
+		}()
+	}
 
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
@@ -361,7 +370,8 @@ func (cli *Client) handleDecryptedResult(
 		// to prevent spamming errors for typing notifications and whatnot
 		if envelope.GetUrgent() &&
 			result.ContentHint != signalpb.UnidentifiedSenderMessage_Message_IMPLICIT &&
-			!strings.Contains(result.Err.Error(), "message with old counter") {
+			!strings.Contains(result.Err.Error(), "message with old counter") &&
+			!errors.Is(err, EventAlreadyProcessed) {
 			cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
 				Err:       result.Err,
