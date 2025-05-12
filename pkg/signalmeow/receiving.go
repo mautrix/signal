@@ -30,7 +30,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
@@ -451,7 +450,6 @@ func (cli *Client) handleDecryptedResult(
 		Uint64("server_ts", envelope.GetServerTimestamp()).
 		Uint64("client_ts", envelope.GetTimestamp()).
 		Msg("Decrypted message")
-	printContentFieldString(ctx, content, "Decrypted content fields")
 
 	// If there's a sender key distribution message, process it
 	if content.GetSenderKeyDistributionMessage() != nil {
@@ -670,57 +668,6 @@ func (cli *Client) handleDecryptedResult(
 		})
 	}
 	return nil
-}
-
-func printStructFields(message protoreflect.Message, parent string, builder *strings.Builder) {
-	message.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
-		fieldName := string(fd.Name())
-		currentField := parent + fieldName
-		fmt.Fprintf(builder, "%s (%s), ", currentField, fd.Kind().String())
-		//builder.WriteString(fmt.Sprintf("%s (%s): %s, ", currentField, fd.Kind().String(), v.String())) // DEBUG: printing value, don't commit
-		if fd.Kind() == protoreflect.MessageKind && !fd.IsList() && v.Message().IsValid() {
-			builder.WriteString("{ ")
-			printStructFields(v.Message(), "", builder)
-			builder.WriteString("} ")
-		} else if fd.Kind() == protoreflect.MessageKind && fd.IsList() {
-			builder.WriteString("[ ")
-			for i := 0; i < v.List().Len(); i++ {
-				v := v.List().Get(i)
-				builder.WriteString("{ ")
-				printStructFields(v.Message(), "", builder)
-				builder.WriteString("} ")
-			}
-			builder.WriteString("] ")
-		} else if fd.IsList() {
-			builder.WriteString("[ ")
-			for i := 0; i < v.List().Len(); i++ {
-				//v := v.List().Get(i)
-				//builder.WriteString(fmt.Sprintf("%s, ", v.String())) // DEBUG: printing value, don't commit
-				builder.WriteString("<>, ")
-			}
-			builder.WriteString("] ")
-		}
-		return true
-	})
-}
-
-func printContentFieldString(ctx context.Context, c *signalpb.Content, message string) {
-	log := zerolog.Ctx(ctx)
-	go func() {
-		// catch panic
-		defer func() {
-			if r := recover(); r != nil {
-				log.Warn().Any("recover", r).Msg("Panic in contentFieldsString")
-			}
-		}()
-		log.Debug().Str("content_fields", contentFieldsString(c)).Msg(message)
-	}()
-}
-
-func contentFieldsString(c *signalpb.Content) string {
-	var builder strings.Builder
-	printStructFields(c.ProtoReflect(), "", &builder)
-	return builder.String()
 }
 
 func groupOrUserID(groupID types.GroupIdentifier, userID libsignalgo.ServiceID) string {
