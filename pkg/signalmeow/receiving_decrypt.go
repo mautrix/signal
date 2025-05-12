@@ -129,7 +129,7 @@ func (cli *Client) prekeyDecrypt(ctx context.Context, destination libsignalgo.Se
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt prekey message: %w", err)
 	}
-	err = stripPadding(&data)
+	data, err = stripPadding(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to strip padding: %w", err)
 	}
@@ -179,7 +179,7 @@ func (cli *Client) decryptCiphertextEnvelope(
 		}
 		return nil, fmt.Errorf("failed to decrypt ciphertext message: %w", err)
 	}
-	err = stripPadding(&decryptedText)
+	decryptedText, err = stripPadding(decryptedText)
 	if err != nil {
 		return nil, fmt.Errorf("failed to strip padding: %w", err)
 	}
@@ -208,7 +208,7 @@ func (cli *Client) decryptSenderKeyMessage(
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt sender key message: %w", err)
 	}
-	err = stripPadding(&decryptedText)
+	decryptedText, err = stripPadding(decryptedText)
 	if err != nil {
 		return nil, fmt.Errorf("failed to strip padding: %w", err)
 	}
@@ -314,14 +314,14 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	return *resultPtr, nil
 }
 
-func stripPadding(contents *[]byte) error {
-	for i := len(*contents) - 1; i >= 0; i-- {
-		if (*contents)[i] == 0x80 {
-			*contents = (*contents)[:i]
-			return nil
-		} else if (*contents)[i] != 0x00 {
-			return fmt.Errorf("Invalid ISO7816 padding")
+func stripPadding(contents []byte) ([]byte, error) {
+	for i := len(contents) - 1; i >= 0; i-- {
+		if contents[i] == 0x80 {
+			contents = contents[:i]
+			return contents, nil
+		} else if contents[i] != 0x00 {
+			return nil, fmt.Errorf("invalid ISO7816 padding")
 		}
 	}
-	return fmt.Errorf("Invalid ISO7816 padding, len(contents): %v", len(*contents))
+	return nil, fmt.Errorf("invalid ISO7816 padding (length %d)", len(contents))
 }
