@@ -111,6 +111,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	statusChan := make(chan SignalConnectionStatus, 128)
 
 	initialConnectChan := make(chan struct{})
+	resetWriteCount := make(chan struct{}, 1)
 
 	// Combine both websocket status channels into a single, more generic "Signal" connection status channel
 	cli.loopWg.Add(2)
@@ -122,6 +123,8 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			select {
 			case <-loopCtx.Done():
 				return
+			case <-resetWriteCount:
+				callbackCount = 0
 			case nextTS := <-cbc:
 				if callbackCount >= 4 && time.Since(writeCallbackTimer) > 1*time.Minute {
 					err := cli.Store.EventBuffer.DeleteBufferedEventsOlderThan(ctx, writeCallbackTimer)
@@ -164,6 +167,12 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 					log.Err(status.Err).Msg("Authed websocket error")
 				case web.SignalWebsocketConnectionEventCleanShutdown:
 					log.Info().Msg("Authed websocket clean shutdown")
+				}
+				if status.Event != web.SignalWebsocketConnectionEventConnected {
+					select {
+					case resetWriteCount <- struct{}{}:
+					default:
+					}
 				}
 			case status := <-unauthChan:
 				lastUnauthStatus = status
