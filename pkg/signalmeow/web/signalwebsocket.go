@@ -40,7 +40,8 @@ const WebsocketProvisioningPath = "/v1/websocket/provisioning/"
 const WebsocketPath = "/v1/websocket/"
 
 type SimpleResponse struct {
-	Status int
+	Status        int
+	WriteCallback func(time.Time)
 }
 type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage) (*SimpleResponse, error)
 
@@ -541,9 +542,13 @@ func writeLoop(
 					Uint64("request_id", *request.RequestMessage.Id).
 					Int("response_status", request.ResponseMessage.Status).
 					Msg("Sending WS response")
+				writeStartTime := time.Now()
 				err := wspb.Write(ctx, ws, message)
 				if err != nil {
 					return fmt.Errorf("error writing response message: %w", err)
+				}
+				if request.ResponseMessage.WriteCallback != nil {
+					request.ResponseMessage.WriteCallback(writeStartTime)
 				}
 			} else {
 				return fmt.Errorf("invalid request: %+v", request)

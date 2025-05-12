@@ -33,7 +33,7 @@ type EventBuffer interface {
 	GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*BufferedEvent, error)
 	PutBufferedEvent(ctx context.Context, ciphertextHash [32]byte, plaintext []byte, serverTimestamp uint64) error
 	ClearBufferedEventPlaintext(ctx context.Context, ciphertextHash [32]byte) error
-	DeleteBufferedEvent(ctx context.Context, ciphertextHash [32]byte) error
+	DeleteBufferedEventsOlderThan(ctx context.Context, maxTS time.Time) error
 }
 
 var _ EventBuffer = (*sqlStore)(nil)
@@ -49,7 +49,7 @@ const (
 		VALUES ($1, $2, $3, $4, $5)
 	`
 	clearBufferedEventPlaintextQuery = `UPDATE signalmeow_event_buffer SET plaintext=NULL WHERE account_id=$1 AND ciphertext_hash=$2`
-	deleteBufferedEventQuery         = `DELETE FROM signalmeow_event_buffer WHERE account_id=$1 AND ciphertext_hash=$2`
+	deleteOldBufferedEventsQuery     = `DELETE FROM signalmeow_event_buffer WHERE account_id=$1 AND insert_timestamp<$2 AND plaintext IS NULL`
 )
 
 func (s *sqlStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*BufferedEvent, error) {
@@ -73,7 +73,7 @@ func (s *sqlStore) ClearBufferedEventPlaintext(ctx context.Context, ciphertextHa
 	return err
 }
 
-func (s *sqlStore) DeleteBufferedEvent(ctx context.Context, ciphertextHash [32]byte) error {
-	_, err := s.db.Exec(ctx, deleteBufferedEventQuery, s.AccountID, ciphertextHash[:])
+func (s *sqlStore) DeleteBufferedEventsOlderThan(ctx context.Context, maxTS time.Time) error {
+	_, err := s.db.Exec(ctx, deleteOldBufferedEventsQuery, s.AccountID, maxTS.UnixMilli())
 	return err
 }

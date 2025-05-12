@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -100,6 +101,8 @@ func (cli *Client) startWebsocketsInternal(
 
 func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnectionStatus, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start receive loops").Logger()
+	cbc := make(chan time.Time, 1)
+	cli.writeCallbackCounter = cbc
 
 	authChan, unauthChan, loopCtx, loopCancel, err := cli.startWebsocketsInternal(log.WithContext(ctx))
 	if err != nil {
@@ -110,7 +113,28 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	initialConnectChan := make(chan struct{})
 
 	// Combine both websocket status channels into a single, more generic "Signal" connection status channel
-	cli.loopWg.Add(1)
+	cli.loopWg.Add(2)
+	go func() {
+		defer cli.loopWg.Done()
+		writeCallbackTimer := time.Now()
+		callbackCount := 0
+		for {
+			select {
+			case <-loopCtx.Done():
+				return
+			case nextTS := <-cbc:
+				if callbackCount >= 4 && time.Since(writeCallbackTimer) > 1*time.Minute {
+					err := cli.Store.EventBuffer.DeleteBufferedEventsOlderThan(ctx, writeCallbackTimer)
+					if err != nil {
+						log.Err(err).Msg("Failed to delete old buffered event hashes")
+					}
+					writeCallbackTimer = nextTS
+				} else {
+					callbackCount++
+				}
+			}
+		}
+	}()
 	go func() {
 		defer cli.loopWg.Done()
 		defer close(statusChan)
@@ -326,8 +350,19 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 	}
 
 	return &web.SimpleResponse{
-		Status: 200,
+		Status:        200,
+		WriteCallback: cli.writeCallback,
 	}, nil
+}
+
+func (cli *Client) writeCallback(preWriteTime time.Time) {
+	ch := cli.writeCallbackCounter
+	if ch != nil {
+		select {
+		case ch <- preWriteTime:
+		default:
+		}
+	}
 }
 
 // TODO: we should split this up into multiple functions

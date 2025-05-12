@@ -60,6 +60,8 @@ type Client struct {
 	cdAuthLock      sync.Mutex
 	cdAuth          *basicExpiringCredentials
 	cdToken         []byte
+
+	writeCallbackCounter chan time.Time
 }
 
 func (cli *Client) handleEvent(evt events.SignalEvent) {
