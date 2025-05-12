@@ -27,7 +27,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/exerrors"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
@@ -810,14 +809,4 @@ func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps
 		}
 	}
 	return nil
-}
-
-const prodServerTrustRootStr = "BXu6QIKVz5MA8gstzfOgRQGqyLqOwNKHL6INkv3IHWMF"
-
-var prodServerTrustRootBytes = exerrors.Must(base64.StdEncoding.DecodeString(prodServerTrustRootStr))
-var prodServerTrustRootKey = exerrors.Must(libsignalgo.DeserializePublicKey(prodServerTrustRootBytes))
-
-func init() {
-	// It's never going to be freed anyway
-	prodServerTrustRootKey.CancelFinalizer()
 }
