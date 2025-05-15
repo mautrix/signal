@@ -107,61 +107,6 @@ func SealedSenderDecryptToUSMC(
 	return wrapUnidentifiedSenderMessageContent(usmc.raw), nil
 }
 
-func SealedSenderDecrypt(
-	ctx context.Context,
-	ciphertext []byte,
-	localAddress *SealedSenderAddress,
-	trustRoot *PublicKey,
-	timestamp uint64,
-	sessionStore SessionStore,
-	identityStore IdentityKeyStore,
-	preKeyStore PreKeyStore,
-	signedPreKeyStore SignedPreKeyStore,
-) (result SealedSenderResult, err error) {
-	callbackCtx := NewCallbackContext(ctx)
-	defer callbackCtx.Unref()
-
-	var decrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
-	var senderE164 *C.char
-	var senderUUID *C.char
-	var senderDeviceID C.uint32_t
-
-	signalFfiError := C.signal_sealed_session_cipher_decrypt(
-		&decrypted,
-		&senderE164,
-		&senderUUID,
-		&senderDeviceID,
-		BytesToBuffer(ciphertext),
-		trustRoot.constPtr(),
-		C.uint64_t(timestamp),
-		C.CString(localAddress.E164),
-		C.CString(localAddress.UUID.String()),
-		C.uint32_t(localAddress.DeviceID),
-		callbackCtx.wrapSessionStore(sessionStore),
-		callbackCtx.wrapIdentityKeyStore(identityStore),
-		callbackCtx.wrapPreKeyStore(preKeyStore),
-		callbackCtx.wrapSignedPreKeyStore(signedPreKeyStore),
-	)
-	runtime.KeepAlive(localAddress)
-	runtime.KeepAlive(trustRoot)
-	if signalFfiError != nil {
-		err = callbackCtx.wrapError(signalFfiError)
-		return
-	}
-
-	defer C.signal_free_string(senderE164)
-	defer C.signal_free_string(senderUUID)
-
-	return SealedSenderResult{
-		Message: CopySignalOwnedBufferToBytes(decrypted),
-		Sender: SealedSenderAddress{
-			E164:     C.GoString(senderE164),
-			UUID:     uuid.MustParse(C.GoString(senderUUID)),
-			DeviceID: uint32(senderDeviceID),
-		},
-	}, nil
-}
-
 type UnidentifiedSenderMessageContentHint uint32
 
 const (
