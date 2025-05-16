@@ -1,6 +1,16 @@
+# v0.8.3 (2025-05-16)
+
+* Updated libsignal to v0.72.1.
+* Added initial support for direct media access.
+  * Note that media is only kept on the Signal servers for 45 days, after which
+    any direct media links will permanently stop working.
+* Added buffer for decrypted events to prevent losing messages if the bridge is
+  stopped in the middle of event handling.
+* Fixed backfilling messages in existing portals after relogining.
+
 # v0.8.2 (2025-04-16)
 
-* Updated libsignal to v0.70.0
+* Updated libsignal to v0.70.0.
 * Fixed panics in some cases when the bridge was under heavy load.
 
 # v0.8.1 (2025-03-16)
