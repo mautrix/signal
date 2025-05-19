@@ -192,6 +192,7 @@ func ParseDirectMediaInfo(mediaID networkid.MediaID) (_ DirectMediaInfo, err err
 		} else {
 			info.ProfileAvatarPath = string(profileAvatarPath)
 		}
+		return &info, nil
 	}
 
 	return nil, fmt.Errorf("invalid direct media type %d", mediaType)
