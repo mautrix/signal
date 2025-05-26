@@ -107,12 +107,14 @@ func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2
 			Type: bridgev2.RemoteEventMessage,
 			LogContext: func(c zerolog.Context) zerolog.Context {
 				c = c.Stringer("sender_id", evt.Sender)
+				c = c.Uint64("message_ts", evt.Timestamp)
 				return c
 			},
 			PortalKey:    s.makePortalKey(evt.Sender.String()),
 			CreatePortal: true,
 			Sender:       s.makeEventSender(evt.Sender),
 			Timestamp:    time.UnixMilli(int64(evt.Timestamp)),
+			StreamOrder:  int64(evt.Timestamp),
 		},
 		Data: evt,
 		// TODO use main message id and edit it if it later becomes decryptable?
