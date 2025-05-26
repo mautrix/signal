@@ -414,13 +414,23 @@ func (cli *Client) handleDecryptedResult(
 		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
 			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
 		}
+		if errors.Is(result.Err, EventAlreadyProcessed) {
+			logEvt.Discard().Msg("")
+			log.Debug().Err(result.Err).
+				Bool("urgent", envelope.GetUrgent()).
+				Stringer("content_hint", result.ContentHint).
+				Uint64("server_ts", envelope.GetServerTimestamp()).
+				Uint64("client_ts", envelope.GetTimestamp()).
+				Stringer("sender", theirServiceID).
+				Msg("Ignoring already processed event")
+			return nil
+		}
 		logEvt.Stringer("sender", theirServiceID).Msg("Decryption error with known sender")
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
 		if envelope.GetUrgent() &&
 			result.ContentHint != signalpb.UnidentifiedSenderMessage_Message_IMPLICIT &&
-			!strings.Contains(result.Err.Error(), "message with old counter") &&
-			!errors.Is(err, EventAlreadyProcessed) {
+			!strings.Contains(result.Err.Error(), "message with old counter") {
 			cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
 				Err:       result.Err,
