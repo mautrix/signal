@@ -52,9 +52,9 @@ func (mc *MessageConverter) convertURLPreviewToBeeper(ctx context.Context, previ
 			output.ImageURL = msg.Content.URL
 			output.ImageEncryption = msg.Content.File
 			output.ImageType = msg.Content.Info.MimeType
-			output.ImageSize = msg.Content.Info.Size
-			output.ImageHeight = msg.Content.Info.Height
-			output.ImageWidth = msg.Content.Info.Width
+			output.ImageSize = event.IntOrString(msg.Content.Info.Size)
+			output.ImageHeight = event.IntOrString(msg.Content.Info.Height)
+			output.ImageWidth = event.IntOrString(msg.Content.Info.Width)
 		}
 	}
 	return output
