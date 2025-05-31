@@ -252,7 +252,7 @@ func (evt *Bv2ChatEvent) GetSender() bridgev2.EventSender {
 func (evt *Bv2ChatEvent) GetID() networkid.MessageID {
 	ts := evt.getDataMsgTimestamp()
 	if ts == 0 {
-		panic(fmt.Errorf("GetID() called for non-DataMessage event"))
+		return ""
 	}
 	return signalid.MakeMessageID(evt.Info.Sender, ts)
 }
@@ -288,12 +288,12 @@ func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
 		case innerEvt.Delete != nil:
 			targetSentTS = innerEvt.Delete.GetTargetSentTimestamp()
 		default:
-			panic(fmt.Errorf("GetTargetMessage() called for message type without target"))
+			return ""
 		}
 	case *signalpb.EditMessage:
 		targetSentTS = innerEvt.GetTargetSentTimestamp()
 	default:
-		panic(fmt.Errorf("GetTargetMessage() called for message type without target"))
+		return ""
 	}
 	targetAuthorUUID := evt.Info.Sender
 	if targetAuthorACI != "" {
