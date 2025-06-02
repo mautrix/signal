@@ -19,6 +19,7 @@ package msgconv
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/rs/zerolog"
@@ -154,6 +155,9 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 		fileName = content.FileName
 	}
 	mime := content.GetInfo().MimeType
+	if mime == "" {
+		mime = http.DetectContentType(data)
+	}
 	if content.MSC3245Voice != nil && mime != "audio/aac" && ffmpeg.Supported() {
 		data, err = ffmpeg.ConvertBytes(ctx, data, ".aac", []string{}, []string{"-c:a", "aac"}, mime)
 		if err != nil {
