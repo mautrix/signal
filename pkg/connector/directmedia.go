@@ -64,6 +64,8 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		userLogin, err := s.Bridge.GetExistingUserLoginByID(ctx, signalid.MakeUserLoginID(info.UserID))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user login: %w", err)
+		} else if userLogin == nil {
+			return nil, bridgev2.ErrNotLoggedIn
 		}
 
 		client := userLogin.Client.(*SignalClient)
@@ -95,6 +97,8 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		userLogin, err := s.Bridge.GetExistingUserLoginByID(ctx, signalid.MakeUserLoginID(info.UserID))
 		if err != nil {
 			return nil, fmt.Errorf("failed to get user login: %w", err)
+		} else if userLogin == nil {
+			return nil, bridgev2.ErrNotLoggedIn
 		}
 
 		client := userLogin.Client.(*SignalClient)
@@ -102,6 +106,8 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		profileKey, err := client.Client.Store.RecipientStore.LoadProfileKey(ctx, info.ContactID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get contact: %w", err)
+		} else if profileKey == nil {
+			return nil, fmt.Errorf("profile key not found")
 		}
 
 		return &mediaproxy.GetMediaResponseCallback{
