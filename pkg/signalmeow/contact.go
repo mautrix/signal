@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -71,14 +72,14 @@ func (cli *Client) StoreContactDetailsAsContact(ctx context.Context, contactDeta
 	})
 }
 
-func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, aci uuid.UUID) (*types.Recipient, error) {
+func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, aci uuid.UUID, refreshAfter time.Duration) (*types.Recipient, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "fetch contact then try and update with profile").
 		Stringer("profile_aci", aci).
 		Logger()
 	ctx = log.WithContext(ctx)
 
-	profile, err := cli.RetrieveProfileByID(ctx, aci)
+	profile, err := cli.RetrieveProfileByID(ctx, aci, refreshAfter)
 	if err != nil {
 		log.Debug().Err(err).Msg("Failed to fetch profile")
 		// Continue to return contact without profile
@@ -96,7 +97,11 @@ func (cli *Client) fetchContactThenTryAndUpdateWithProfile(ctx context.Context, 
 }
 
 func (cli *Client) ContactByACI(ctx context.Context, aci uuid.UUID) (*types.Recipient, error) {
-	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, aci)
+	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, aci, DefaultProfileRefreshAfter)
+}
+
+func (cli *Client) ContactByACIWithRefreshAfter(ctx context.Context, aci uuid.UUID, refreshAfter time.Duration) (*types.Recipient, error) {
+	return cli.fetchContactThenTryAndUpdateWithProfile(ctx, aci, refreshAfter)
 }
 
 func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Recipient, error) {
@@ -109,7 +114,7 @@ func (cli *Client) ContactByE164(ctx context.Context, e164 string) (*types.Recip
 		return nil, nil
 	}
 	if contact.ACI != uuid.Nil {
-		contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.ACI)
+		contact, err = cli.fetchContactThenTryAndUpdateWithProfile(ctx, contact.ACI, DefaultProfileRefreshAfter)
 	}
 	return contact, err
 }

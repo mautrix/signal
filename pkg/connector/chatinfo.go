@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -34,6 +35,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
@@ -41,7 +43,7 @@ import (
 const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
-func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
+func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *bridgev2.Ghost, refreshAfter time.Duration) (*bridgev2.UserInfo, error) {
 	userID, err := signalid.ParseUserID(ghost.ID)
 	if err != nil {
 		return nil, err
@@ -50,7 +52,7 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 		// Don't do unnecessary fetches in background mode
 		return nil, nil
 	}
-	contact, err := s.Client.ContactByACI(ctx, userID)
+	contact, err := s.Client.ContactByACIWithRefreshAfter(ctx, userID, refreshAfter)
 	if err != nil {
 		return nil, err
 	}
@@ -59,6 +61,10 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 		return nil, nil
 	}
 	return s.contactToUserInfo(ctx, contact)
+}
+
+func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
+	return s.GetUserInfoWithRefreshAfter(ctx, ghost, signalmeow.DefaultProfileRefreshAfter)
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
