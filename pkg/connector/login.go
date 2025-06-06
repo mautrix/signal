@@ -86,7 +86,7 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	var resp signalmeow.ProvisioningResponse
 	select {
 	case resp = <-qr.ProvChan:
-		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
+		if resp.Err != nil {
 			return nil, resp.Err
 		} else if resp.State != signalmeow.StateProvisioningURLReceived {
 			return nil, fmt.Errorf("unexpected state %v", resp.State)
