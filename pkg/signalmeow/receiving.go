@@ -330,17 +330,20 @@ func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.Web
 }
 
 func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {
-	log := zerolog.Ctx(ctx)
+	log := *zerolog.Ctx(ctx)
 	envelope := &signalpb.Envelope{}
 	err := proto.Unmarshal(req.Body, envelope)
 	if err != nil {
 		log.Err(err).Msg("Unmarshal error")
 		return nil, err
 	}
-	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
-	log.Trace().
-		Uint64("timestamp", envelope.GetTimestamp()).
+	log = log.With().
+		Uint64("envelope_timestamp", envelope.GetTimestamp()).
 		Uint64("server_timestamp", envelope.GetServerTimestamp()).
+		Logger()
+	ctx = log.WithContext(ctx)
+	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
+	log.Debug().
 		Str("destination_service_id", envelope.GetDestinationServiceId()).
 		Str("source_service_id", envelope.GetSourceServiceId()).
 		Uint32("source_device_id", envelope.GetSourceDevice()).
@@ -456,10 +459,11 @@ func (cli *Client) handleDecryptedResult(
 		Logger()
 	log = &newLog
 	ctx = log.WithContext(ctx)
-	log.Debug().
-		Uint64("server_ts", envelope.GetServerTimestamp()).
-		Uint64("client_ts", envelope.GetTimestamp()).
-		Msg("Decrypted message")
+	logEvt := log.Debug()
+	if result.CiphertextHash != nil {
+		logEvt = logEvt.Hex("ciphertext_hash", result.CiphertextHash[:])
+	}
+	logEvt.Msg("Decrypted message")
 
 	// If there's a sender key distribution message, process it
 	if content.GetSenderKeyDistributionMessage() != nil {

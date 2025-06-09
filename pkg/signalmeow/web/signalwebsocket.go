@@ -429,7 +429,7 @@ func readLoop(
 			if msg.Request == nil {
 				return errors.New("received request message with no request")
 			}
-			log.Debug().
+			log.Trace().
 				Uint64("request_id", *msg.Request.Id).
 				Str("request_verb", *msg.Request.Verb).
 				Str("request_path", *msg.Request.Path).

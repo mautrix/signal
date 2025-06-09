@@ -137,7 +137,7 @@ func (cli *Client) bufferedDecryptTxn(ctx context.Context, ciphertext []byte, se
 		if innerErr != nil {
 			innerErr = fmt.Errorf("failed to save decrypted event to buffer: %w", innerErr)
 		}
-		zerolog.Ctx(ctx).Debug().
+		zerolog.Ctx(ctx).Trace().
 			Hex("ciphertext_hash", ciphertextHash[:]).
 			Msg("Successfully decrypted and saved event")
 		return
