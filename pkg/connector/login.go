@@ -122,7 +122,7 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 func (qr *QRLogin) qrWait(ctx context.Context) (*bridgev2.LoginStep, error) {
 	select {
 	case resp := <-qr.ProvChan:
-		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
+		if resp.Err != nil {
 			qr.cancelChan()
 			return nil, resp.Err
 		} else if resp.State != signalmeow.StateProvisioningDataReceived {
@@ -164,7 +164,7 @@ func (qr *QRLogin) processingWait(ctx context.Context) (*bridgev2.LoginStep, err
 
 	select {
 	case resp := <-qr.ProvChan:
-		if resp.Err != nil || resp.State == signalmeow.StateProvisioningError {
+		if resp.Err != nil {
 			return nil, resp.Err
 		} else if resp.State != signalmeow.StateProvisioningPreKeysRegistered {
 			return nil, fmt.Errorf("unexpected state %v", resp.State)
