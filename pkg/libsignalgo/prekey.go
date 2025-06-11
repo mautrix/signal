@@ -39,6 +39,7 @@ func DecryptPreKey(ctx context.Context, preKeyMessage *PreKeyMessage, fromAddres
 		callbackCtx.wrapPreKeyStore(preKeyStore),
 		callbackCtx.wrapSignedPreKeyStore(signedPreKeyStore),
 		callbackCtx.wrapKyberPreKeyStore(kyberPreKeyStore),
+		false, // no pq ratchets yet
 	)
 	runtime.KeepAlive(preKeyMessage)
 	runtime.KeepAlive(fromAddress)

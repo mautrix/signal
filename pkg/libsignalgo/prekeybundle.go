@@ -37,6 +37,7 @@ func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress *
 		callbackCtx.wrapSessionStore(sessionStore),
 		callbackCtx.wrapIdentityKeyStore(identityStore),
 		now,
+		false, // no pq ratchets yet
 	)
 	runtime.KeepAlive(bundle)
 	runtime.KeepAlive(forAddress)
