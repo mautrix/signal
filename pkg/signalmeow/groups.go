@@ -795,6 +795,7 @@ func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalp
 	}
 	return cli.decryptGroupChange(ctx, encryptedGroupChange, groupMasterKey, true)
 }
+
 func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange *signalpb.GroupChange, groupMasterKey types.SerializedGroupMasterKey, verifySignature bool) (*GroupChange, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group change").Logger()
 	serverSignature := encryptedGroupChange.ServerSignature
