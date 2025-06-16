@@ -1,3 +1,11 @@
+# v0.8.4 (2025-06-16)
+
+* Updated libsignal to v0.74.1.
+* Updated Docker image to Alpine 3.22.
+* Fixed avatars when using direct media.
+* Fixed starting chats with non-contact users.
+* Fixed Matrix media being rejected if the mime type isn't specified.
+
 # v0.8.3 (2025-05-16)
 
 * Updated libsignal to v0.72.1.
