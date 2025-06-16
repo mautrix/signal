@@ -419,6 +419,7 @@ func (s *SignalClient) catchUpGroup(ctx context.Context, portal *bridgev2.Portal
 		groupChanges, err := s.Client.GetGroupHistoryPage(ctx, types.GroupIdentifier(portal.ID), fromRevision, false)
 		if err != nil {
 			log.Err(err).Msg("Failed to get group history page")
+			s.catchUpGroup(ctx, portal, 0, toRevision, ts)
 			return
 		}
 		for _, gc := range groupChanges {
