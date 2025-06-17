@@ -53,7 +53,7 @@ type Client struct {
 	loopCancel context.CancelFunc
 	loopWg     sync.WaitGroup
 
-	EventHandler func(events.SignalEvent)
+	EventHandler func(events.SignalEvent) bool
 
 	storageAuthLock sync.Mutex
 	storageAuth     *basicExpiringCredentials
@@ -64,10 +64,8 @@ type Client struct {
 	writeCallbackCounter chan time.Time
 }
 
-func (cli *Client) handleEvent(evt events.SignalEvent) {
-	if cli.EventHandler != nil {
-		cli.EventHandler(evt)
-	}
+func (cli *Client) handleEvent(evt events.SignalEvent) bool {
+	return cli.EventHandler(evt)
 }
 
 func (cli *Client) IsConnected() bool {

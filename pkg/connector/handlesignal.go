@@ -37,18 +37,18 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
-func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
+func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
-		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s})
+		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s}).Success
 	case *events.DecryptionError:
-		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapDecryptionError(evt))
+		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapDecryptionError(evt)).Success
 	case *events.Receipt:
-		s.handleSignalReceipt(evt)
+		return s.handleSignalReceipt(evt)
 	case *events.ReadSelf:
-		s.handleSignalReadSelf(evt)
+		return s.handleSignalReadSelf(evt)
 	case *events.Call:
-		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapCallEvent(evt))
+		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapCallEvent(evt)).Success
 	case *events.ContactList:
 		s.handleSignalContactList(evt)
 	case *events.ACIFound:
@@ -58,6 +58,7 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) {
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}
+	return true
 }
 
 func (s *SignalClient) wrapCallEvent(evt *events.Call) bridgev2.RemoteMessage {
@@ -427,17 +428,20 @@ func convertReceipts[T any](ctx context.Context, input []T, getMessageFunc func(
 	return receipts
 }
 
-func (s *SignalClient) dispatchReceipts(sender uuid.UUID, receiptType signalpb.ReceiptMessage_Type, receipts map[networkid.PortalKey]*Bv2Receipt) {
+func (s *SignalClient) dispatchReceipts(sender uuid.UUID, receiptType signalpb.ReceiptMessage_Type, receipts map[networkid.PortalKey]*Bv2Receipt) bool {
 	evtSender := s.makeEventSender(sender)
 	for chat, receiptEvt := range receipts {
 		receiptEvt.Chat = chat
 		receiptEvt.Sender = evtSender
 		receiptEvt.Type = receiptType
-		s.Main.Bridge.QueueRemoteEvent(s.UserLogin, receiptEvt)
+		if !s.Main.Bridge.QueueRemoteEvent(s.UserLogin, receiptEvt).Success {
+			return false
+		}
 	}
+	return true
 }
 
-func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) {
+func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) bool {
 	log := s.UserLogin.Log.With().
 		Str("action", "handle signal receipt").
 		Stringer("sender_id", evt.Sender).
@@ -447,10 +451,10 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) {
 	receipts := convertReceipts(ctx, evt.Content.Timestamp, func(ctx context.Context, msgTS uint64) (*database.Message, error) {
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(s.Client.Store.ACI, msgTS))
 	})
-	s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
+	return s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
 }
 
-func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) {
+func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {
 	log := s.UserLogin.Log.With().
 		Str("action", "handle signal read self").
 		Logger()
@@ -462,7 +466,7 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) {
 		}
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(aciUUID, msgInfo.GetTimestamp()))
 	})
-	s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
+	return s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
 }
 
 func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {
