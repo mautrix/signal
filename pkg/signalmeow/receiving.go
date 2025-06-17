@@ -376,6 +376,8 @@ func (cli *Client) writeCallback(preWriteTime time.Time) {
 	}
 }
 
+var ErrHandlerFailed = errors.New("event handler returned non-success status")
+
 // TODO: we should split this up into multiple functions
 func (cli *Client) handleDecryptedResult(
 	ctx context.Context,
@@ -399,6 +401,7 @@ func (cli *Client) handleDecryptedResult(
 		}()
 	}
 
+	handlerSuccess := true
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {
@@ -434,13 +437,16 @@ func (cli *Client) handleDecryptedResult(
 		if envelope.GetUrgent() &&
 			result.ContentHint != signalpb.UnidentifiedSenderMessage_Message_IMPLICIT &&
 			!strings.Contains(result.Err.Error(), "message with old counter") {
-			cli.handleEvent(&events.DecryptionError{
+			handlerSuccess = cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
 				Err:       result.Err,
 				Timestamp: envelope.GetTimestamp(),
 			})
 		}
-		// TODO there are probably no cases with both content and an error
+		if !handlerSuccess {
+			return ErrHandlerFailed
+		}
+		return nil
 	}
 
 	content := result.Content
@@ -612,28 +618,29 @@ func (cli *Client) handleDecryptedResult(
 				if err != nil {
 					log.Err(err).Msg("Error storing contacts")
 				} else {
-					cli.handleEvent(&events.ContactList{
+					handlerSuccess = cli.handleEvent(&events.ContactList{
 						Contacts: convertedContacts,
 					})
 				}
 			}
 		}
 		if content.SyncMessage.Read != nil {
-			cli.handleEvent(&events.ReadSelf{
+			handlerSuccess = cli.handleEvent(&events.ReadSelf{
 				Messages: content.SyncMessage.GetRead(),
 			})
 		}
 
 	}
 
-	var sendDeliveryReceipt bool
+	sendDeliveryReceipt := true
 	if content.DataMessage != nil {
-		sendDeliveryReceipt = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
+		handlerSuccess = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
 	} else if content.EditMessage != nil {
-		sendDeliveryReceipt = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
+		handlerSuccess = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
+	} else {
+		sendDeliveryReceipt = false
 	}
-	if sendDeliveryReceipt {
-		// TODO send delivery receipts after actually bridging instead of here
+	if sendDeliveryReceipt && handlerSuccess {
 		err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirServiceID.UUID)
 		if err != nil {
 			log.Err(err).Msg("sendDeliveryReceipts error")
@@ -646,6 +653,7 @@ func (cli *Client) handleDecryptedResult(
 			gidBytes := content.TypingMessage.GetGroupId()
 			groupID = types.GroupIdentifier(base64.StdEncoding.EncodeToString(gidBytes))
 		}
+		// No handler success check here, nobody cares if typing notifications are dropped
 		cli.handleEvent(&events.ChatEvent{
 			Info: events.MessageInfo{
 				Sender:          theirServiceID.UUID,
@@ -658,7 +666,7 @@ func (cli *Client) handleDecryptedResult(
 
 	// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
 	if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
-		cli.handleEvent(&events.Call{
+		handlerSuccess = cli.handleEvent(&events.Call{
 			Info: events.MessageInfo{
 				Sender:          theirServiceID.UUID,
 				ChatID:          theirServiceID.String(),
@@ -667,7 +675,7 @@ func (cli *Client) handleDecryptedResult(
 			// CallMessage doesn't have its own timestamp, use one from the envelope
 			Timestamp: envelope.GetTimestamp(),
 			IsRinging: content.CallMessage.Offer != nil,
-		})
+		}) && handlerSuccess
 	}
 
 	// Read and delivery receipts
@@ -676,10 +684,13 @@ func (cli *Client) handleDecryptedResult(
 			// Ignore delivery receipts from other own devices
 			return nil
 		}
-		cli.handleEvent(&events.Receipt{
+		handlerSuccess = cli.handleEvent(&events.Receipt{
 			Sender:  theirServiceID.UUID,
 			Content: content.ReceiptMessage,
-		})
+		}) && handlerSuccess
+	}
+	if !handlerSuccess {
+		return ErrHandlerFailed
 	}
 	return nil
 }
@@ -757,7 +768,7 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 		}
 		groupRevision = editMessage.GetDataMessage().GetGroupV2().GetRevision()
 	}
-	cli.handleEvent(&events.ChatEvent{
+	return cli.handleEvent(&events.ChatEvent{
 		Info: events.MessageInfo{
 			Sender:          messageSenderACI,
 			ChatID:          groupOrUserID(groupID, chatRecipient),
@@ -766,7 +777,6 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 		},
 		Event: editMessage,
 	})
-	return true
 }
 
 func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID, serverTimestamp uint64) bool {
@@ -805,19 +815,17 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 	// Hacky special case for group calls to cache the state
 	if dataMessage.GroupCallUpdate != nil {
 		isRinging := cli.UpdateActiveCalls(groupID, dataMessage.GroupCallUpdate.GetEraId())
-		cli.handleEvent(&events.Call{
+		return cli.handleEvent(&events.Call{
 			Info:      evtInfo,
 			Timestamp: dataMessage.GetTimestamp(),
 			IsRinging: isRinging,
 		})
 	} else {
-		cli.handleEvent(&events.ChatEvent{
+		return cli.handleEvent(&events.ChatEvent{
 			Info:  evtInfo,
 			Event: dataMessage,
 		})
 	}
-
-	return true
 }
 
 func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps []uint64, senderUUID uuid.UUID) error {
