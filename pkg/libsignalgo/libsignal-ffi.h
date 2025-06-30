@@ -123,6 +123,12 @@ SPDX-License-Identifier: AGPL-3.0-only
  */
 #define SignalFourCC_ENCODED_LEN 4
 
+enum SignalChallengeOption {
+  SignalChallengeOptionPushChallenge,
+  SignalChallengeOptionCaptcha,
+};
+typedef uint8_t SignalChallengeOption;
+
 typedef enum {
   SignalCiphertextMessageTypeWhisper = 2,
   SignalCiphertextMessageTypePreKey = 3,
@@ -169,12 +175,6 @@ typedef enum {
   SignalLogLevelTrace,
 } SignalLogLevel;
 
-enum SignalRequestedInformation {
-  SignalRequestedInformationPushChallenge,
-  SignalRequestedInformationCaptcha,
-};
-typedef uint8_t SignalRequestedInformation;
-
 typedef enum {
   SignalErrorCodeUnknownError = 1,
   SignalErrorCodeInvalidState = 2,
@@ -201,6 +201,7 @@ typedef enum {
   SignalErrorCodeInvalidRegistrationId = 81,
   SignalErrorCodeInvalidSession = 82,
   SignalErrorCodeInvalidSenderKeySession = 83,
+  SignalErrorCodeInvalidProtocolAddress = 84,
   SignalErrorCodeDuplicatedMessage = 90,
   SignalErrorCodeCallbackError = 100,
   SignalErrorCodeVerificationFailure = 110,
@@ -229,6 +230,7 @@ typedef enum {
   SignalErrorCodeConnectionFailed = 148,
   SignalErrorCodeChatServiceInactive = 149,
   SignalErrorCodeRequestTimedOut = 150,
+  SignalErrorCodeRateLimitChallenge = 151,
   SignalErrorCodeSvrDataMissing = 160,
   SignalErrorCodeSvrRestoreFailed = 161,
   SignalErrorCodeSvrRotationMachineTooManySteps = 162,
@@ -238,7 +240,6 @@ typedef enum {
   SignalErrorCodeConnectedElsewhere = 173,
   SignalErrorCodeBackupValidation = 180,
   SignalErrorCodeRegistrationInvalidSessionId = 190,
-  SignalErrorCodeRegistrationRequestNotValid = 191,
   SignalErrorCodeRegistrationUnknown = 192,
   SignalErrorCodeRegistrationSessionNotFound = 193,
   SignalErrorCodeRegistrationNotReadyForVerification = 194,
@@ -465,6 +466,16 @@ typedef struct {
 typedef struct {
   const SignalConnectionManager *raw;
 } SignalConstPointerConnectionManager;
+
+typedef struct {
+  const size_t *base;
+  size_t length;
+} SignalBorrowedSliceOfusize;
+
+typedef struct {
+  SignalBorrowedBuffer bytes;
+  SignalBorrowedSliceOfusize lengths;
+} SignalBorrowedBytestringArray;
 
 /**
  * A C callback used to report the results of Rust futures.
@@ -1117,16 +1128,6 @@ typedef struct {
 } SignalMutPointerRegistrationAccountAttributes;
 
 typedef struct {
-  const size_t *base;
-  size_t length;
-} SignalBorrowedSliceOfusize;
-
-typedef struct {
-  SignalBorrowedBuffer bytes;
-  SignalBorrowedSliceOfusize lengths;
-} SignalBorrowedBytestringArray;
-
-typedef struct {
   /**
    * Bridged as a string of bytes, but each entry is a UTF-8 `String` key
    * concatenated with a byte for the value.
@@ -1391,7 +1392,7 @@ SignalFfiError *signal_auth_credential_with_pni_check_valid_contents(SignalBorro
 
 SignalFfiError *signal_auth_credential_with_pni_response_check_valid_contents(SignalBorrowedBuffer bytes);
 
-SignalFfiError *signal_authenticated_chat_connection_connect(SignalCPromiseMutPointerAuthenticatedChatConnection *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager, const char *username, const char *password, bool receive_stories);
+SignalFfiError *signal_authenticated_chat_connection_connect(SignalCPromiseMutPointerAuthenticatedChatConnection *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager, const char *username, const char *password, bool receive_stories, SignalBorrowedBytestringArray languages);
 
 SignalFfiError *signal_authenticated_chat_connection_destroy(SignalMutPointerAuthenticatedChatConnection p);
 
@@ -1589,13 +1590,21 @@ void signal_error_free(SignalFfiError *err);
 
 SignalFfiError *signal_error_get_address(const SignalFfiError *err, SignalMutPointerProtocolAddress *out);
 
+SignalFfiError *signal_error_get_invalid_protocol_address(const SignalFfiError *err, const char **name_out, uint32_t *device_id_out);
+
 SignalFfiError *signal_error_get_message(const SignalFfiError *err, const char **out);
+
+SignalFfiError *signal_error_get_our_fingerprint_version(const SignalFfiError *err, uint32_t *out);
+
+SignalFfiError *signal_error_get_rate_limit_challenge(const SignalFfiError *err, const char **out_token, SignalOwnedBuffer *out_options);
 
 SignalFfiError *signal_error_get_registration_error_not_deliverable(const SignalFfiError *err, const char **out_reason, bool *out_permanent);
 
 SignalFfiError *signal_error_get_registration_lock(const SignalFfiError *err, uint64_t *out_time_remaining_seconds, const char **out_svr2_username, const char **out_svr2_password);
 
 SignalFfiError *signal_error_get_retry_after_seconds(const SignalFfiError *err, uint32_t *out);
+
+SignalFfiError *signal_error_get_their_fingerprint_version(const SignalFfiError *err, uint32_t *out);
 
 SignalFfiError *signal_error_get_tries_remaining(const SignalFfiError *err, uint32_t *out);
 
@@ -1915,11 +1924,11 @@ SignalFfiError *signal_pre_key_bundle_get_device_id(uint32_t *out, SignalConstPo
 
 SignalFfiError *signal_pre_key_bundle_get_identity_key(SignalMutPointerPublicKey *out, SignalConstPointerPreKeyBundle p);
 
-SignalFfiError *signal_pre_key_bundle_get_kyber_pre_key_id(uint32_t *out, SignalConstPointerPreKeyBundle bundle);
+SignalFfiError *signal_pre_key_bundle_get_kyber_pre_key_id(uint32_t *out, SignalConstPointerPreKeyBundle obj);
 
 SignalFfiError *signal_pre_key_bundle_get_kyber_pre_key_public(SignalMutPointerKyberPublicKey *out, SignalConstPointerPreKeyBundle bundle);
 
-SignalFfiError *signal_pre_key_bundle_get_kyber_pre_key_signature(SignalOwnedBuffer *out, SignalConstPointerPreKeyBundle bundle);
+SignalFfiError *signal_pre_key_bundle_get_kyber_pre_key_signature(SignalOwnedBuffer *out, SignalConstPointerPreKeyBundle obj);
 
 SignalFfiError *signal_pre_key_bundle_get_pre_key_id(uint32_t *out, SignalConstPointerPreKeyBundle obj);
 
@@ -2387,7 +2396,7 @@ SignalFfiError *signal_tokio_async_context_destroy(SignalMutPointerTokioAsyncCon
 
 SignalFfiError *signal_tokio_async_context_new(SignalMutPointerTokioAsyncContext *out);
 
-SignalFfiError *signal_unauthenticated_chat_connection_connect(SignalCPromiseMutPointerUnauthenticatedChatConnection *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager);
+SignalFfiError *signal_unauthenticated_chat_connection_connect(SignalCPromiseMutPointerUnauthenticatedChatConnection *promise, SignalConstPointerTokioAsyncContext async_runtime, SignalConstPointerConnectionManager connection_manager, SignalBorrowedBytestringArray languages);
 
 SignalFfiError *signal_unauthenticated_chat_connection_destroy(SignalMutPointerUnauthenticatedChatConnection p);
 
