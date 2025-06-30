@@ -171,6 +171,7 @@ const (
 	ManifestRecord_Identifier_STORY_DISTRIBUTION_LIST ManifestRecord_Identifier_Type = 5
 	ManifestRecord_Identifier_CALL_LINK               ManifestRecord_Identifier_Type = 7
 	ManifestRecord_Identifier_CHAT_FOLDER             ManifestRecord_Identifier_Type = 8
+	ManifestRecord_Identifier_NOTIFICATION_PROFILE    ManifestRecord_Identifier_Type = 9
 )
 
 // Enum value maps for ManifestRecord_Identifier_Type.
@@ -184,6 +185,7 @@ var (
 		5: "STORY_DISTRIBUTION_LIST",
 		7: "CALL_LINK",
 		8: "CHAT_FOLDER",
+		9: "NOTIFICATION_PROFILE",
 	}
 	ManifestRecord_Identifier_Type_value = map[string]int32{
 		"UNKNOWN":                 0,
@@ -194,6 +196,7 @@ var (
 		"STORY_DISTRIBUTION_LIST": 5,
 		"CALL_LINK":               7,
 		"CHAT_FOLDER":             8,
+		"NOTIFICATION_PROFILE":    9,
 	}
 )
 
@@ -485,7 +488,71 @@ func (x ChatFolderRecord_FolderType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ChatFolderRecord_FolderType.Descriptor instead.
 func (ChatFolderRecord_FolderType) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{14, 0}
+	return file_StorageService_proto_rawDescGZIP(), []int{15, 0}
+}
+
+type NotificationProfile_DayOfWeek int32
+
+const (
+	NotificationProfile_UNKNOWN   NotificationProfile_DayOfWeek = 0 // Interpret as "Monday"
+	NotificationProfile_MONDAY    NotificationProfile_DayOfWeek = 1
+	NotificationProfile_TUESDAY   NotificationProfile_DayOfWeek = 2
+	NotificationProfile_WEDNESDAY NotificationProfile_DayOfWeek = 3
+	NotificationProfile_THURSDAY  NotificationProfile_DayOfWeek = 4
+	NotificationProfile_FRIDAY    NotificationProfile_DayOfWeek = 5
+	NotificationProfile_SATURDAY  NotificationProfile_DayOfWeek = 6
+	NotificationProfile_SUNDAY    NotificationProfile_DayOfWeek = 7
+)
+
+// Enum value maps for NotificationProfile_DayOfWeek.
+var (
+	NotificationProfile_DayOfWeek_name = map[int32]string{
+		0: "UNKNOWN",
+		1: "MONDAY",
+		2: "TUESDAY",
+		3: "WEDNESDAY",
+		4: "THURSDAY",
+		5: "FRIDAY",
+		6: "SATURDAY",
+		7: "SUNDAY",
+	}
+	NotificationProfile_DayOfWeek_value = map[string]int32{
+		"UNKNOWN":   0,
+		"MONDAY":    1,
+		"TUESDAY":   2,
+		"WEDNESDAY": 3,
+		"THURSDAY":  4,
+		"FRIDAY":    5,
+		"SATURDAY":  6,
+		"SUNDAY":    7,
+	}
+)
+
+func (x NotificationProfile_DayOfWeek) Enum() *NotificationProfile_DayOfWeek {
+	p := new(NotificationProfile_DayOfWeek)
+	*p = x
+	return p
+}
+
+func (x NotificationProfile_DayOfWeek) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (NotificationProfile_DayOfWeek) Descriptor() protoreflect.EnumDescriptor {
+	return file_StorageService_proto_enumTypes[8].Descriptor()
+}
+
+func (NotificationProfile_DayOfWeek) Type() protoreflect.EnumType {
+	return &file_StorageService_proto_enumTypes[8]
+}
+
+func (x NotificationProfile_DayOfWeek) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use NotificationProfile_DayOfWeek.Descriptor instead.
+func (NotificationProfile_DayOfWeek) EnumDescriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{16, 0}
 }
 
 type StorageManifest struct {
@@ -827,6 +894,7 @@ type StorageRecord struct {
 	//	*StorageRecord_StoryDistributionList
 	//	*StorageRecord_CallLink
 	//	*StorageRecord_ChatFolder
+	//	*StorageRecord_NotificationProfile
 	Record        isStorageRecord_Record `protobuf_oneof:"record"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -932,6 +1000,15 @@ func (x *StorageRecord) GetChatFolder() *ChatFolderRecord {
 	return nil
 }
 
+func (x *StorageRecord) GetNotificationProfile() *NotificationProfile {
+	if x != nil {
+		if x, ok := x.Record.(*StorageRecord_NotificationProfile); ok {
+			return x.NotificationProfile
+		}
+	}
+	return nil
+}
+
 type isStorageRecord_Record interface {
 	isStorageRecord_Record()
 }
@@ -964,6 +1041,10 @@ type StorageRecord_ChatFolder struct {
 	ChatFolder *ChatFolderRecord `protobuf:"bytes,8,opt,name=chatFolder,proto3,oneof"`
 }
 
+type StorageRecord_NotificationProfile struct {
+	NotificationProfile *NotificationProfile `protobuf:"bytes,9,opt,name=notificationProfile,proto3,oneof"`
+}
+
 func (*StorageRecord_Contact) isStorageRecord_Record() {}
 
 func (*StorageRecord_GroupV1) isStorageRecord_Record() {}
@@ -977,6 +1058,8 @@ func (*StorageRecord_StoryDistributionList) isStorageRecord_Record() {}
 func (*StorageRecord_CallLink) isStorageRecord_Record() {}
 
 func (*StorageRecord_ChatFolder) isStorageRecord_Record() {}
+
+func (*StorageRecord_NotificationProfile) isStorageRecord_Record() {}
 
 type ContactRecord struct {
 	state                   protoimpl.MessageState      `protogen:"open.v1"`
@@ -1459,45 +1542,46 @@ func (x *Payments) GetEntropy() []byte {
 }
 
 type AccountRecord struct {
-	state                           protoimpl.MessageState               `protogen:"open.v1"`
-	ProfileKey                      []byte                               `protobuf:"bytes,1,opt,name=profileKey,proto3" json:"profileKey,omitempty"`
-	GivenName                       string                               `protobuf:"bytes,2,opt,name=givenName,proto3" json:"givenName,omitempty"`
-	FamilyName                      string                               `protobuf:"bytes,3,opt,name=familyName,proto3" json:"familyName,omitempty"`
-	AvatarUrlPath                   string                               `protobuf:"bytes,4,opt,name=avatarUrlPath,proto3" json:"avatarUrlPath,omitempty"`
-	NoteToSelfArchived              bool                                 `protobuf:"varint,5,opt,name=noteToSelfArchived,proto3" json:"noteToSelfArchived,omitempty"`
-	ReadReceipts                    bool                                 `protobuf:"varint,6,opt,name=readReceipts,proto3" json:"readReceipts,omitempty"`
-	SealedSenderIndicators          bool                                 `protobuf:"varint,7,opt,name=sealedSenderIndicators,proto3" json:"sealedSenderIndicators,omitempty"`
-	TypingIndicators                bool                                 `protobuf:"varint,8,opt,name=typingIndicators,proto3" json:"typingIndicators,omitempty"`
-	NoteToSelfMarkedUnread          bool                                 `protobuf:"varint,10,opt,name=noteToSelfMarkedUnread,proto3" json:"noteToSelfMarkedUnread,omitempty"`
-	LinkPreviews                    bool                                 `protobuf:"varint,11,opt,name=linkPreviews,proto3" json:"linkPreviews,omitempty"`
-	PhoneNumberSharingMode          AccountRecord_PhoneNumberSharingMode `protobuf:"varint,12,opt,name=phoneNumberSharingMode,proto3,enum=signalservice.AccountRecord_PhoneNumberSharingMode" json:"phoneNumberSharingMode,omitempty"`
-	UnlistedPhoneNumber             bool                                 `protobuf:"varint,13,opt,name=unlistedPhoneNumber,proto3" json:"unlistedPhoneNumber,omitempty"`
-	PinnedConversations             []*AccountRecord_PinnedConversation  `protobuf:"bytes,14,rep,name=pinnedConversations,proto3" json:"pinnedConversations,omitempty"`
-	PreferContactAvatars            bool                                 `protobuf:"varint,15,opt,name=preferContactAvatars,proto3" json:"preferContactAvatars,omitempty"`
-	Payments                        *Payments                            `protobuf:"bytes,16,opt,name=payments,proto3" json:"payments,omitempty"`
-	UniversalExpireTimer            uint32                               `protobuf:"varint,17,opt,name=universalExpireTimer,proto3" json:"universalExpireTimer,omitempty"`
-	PrimarySendsSms                 bool                                 `protobuf:"varint,18,opt,name=primarySendsSms,proto3" json:"primarySendsSms,omitempty"`
-	E164                            string                               `protobuf:"bytes,19,opt,name=e164,proto3" json:"e164,omitempty"`
-	PreferredReactionEmoji          []string                             `protobuf:"bytes,20,rep,name=preferredReactionEmoji,proto3" json:"preferredReactionEmoji,omitempty"`
-	SubscriberId                    []byte                               `protobuf:"bytes,21,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
-	SubscriberCurrencyCode          string                               `protobuf:"bytes,22,opt,name=subscriberCurrencyCode,proto3" json:"subscriberCurrencyCode,omitempty"`
-	DisplayBadgesOnProfile          bool                                 `protobuf:"varint,23,opt,name=displayBadgesOnProfile,proto3" json:"displayBadgesOnProfile,omitempty"`
-	SubscriptionManuallyCancelled   bool                                 `protobuf:"varint,24,opt,name=subscriptionManuallyCancelled,proto3" json:"subscriptionManuallyCancelled,omitempty"`
-	KeepMutedChatsArchived          bool                                 `protobuf:"varint,25,opt,name=keepMutedChatsArchived,proto3" json:"keepMutedChatsArchived,omitempty"`
-	HasSetMyStoriesPrivacy          bool                                 `protobuf:"varint,26,opt,name=hasSetMyStoriesPrivacy,proto3" json:"hasSetMyStoriesPrivacy,omitempty"`
-	HasViewedOnboardingStory        bool                                 `protobuf:"varint,27,opt,name=hasViewedOnboardingStory,proto3" json:"hasViewedOnboardingStory,omitempty"`
-	StoriesDisabled                 bool                                 `protobuf:"varint,29,opt,name=storiesDisabled,proto3" json:"storiesDisabled,omitempty"`
-	StoryViewReceiptsEnabled        OptionalBool                         `protobuf:"varint,30,opt,name=storyViewReceiptsEnabled,proto3,enum=signalservice.OptionalBool" json:"storyViewReceiptsEnabled,omitempty"`
-	HasSeenGroupStoryEducationSheet bool                                 `protobuf:"varint,32,opt,name=hasSeenGroupStoryEducationSheet,proto3" json:"hasSeenGroupStoryEducationSheet,omitempty"`
-	Username                        string                               `protobuf:"bytes,33,opt,name=username,proto3" json:"username,omitempty"`
-	HasCompletedUsernameOnboarding  bool                                 `protobuf:"varint,34,opt,name=hasCompletedUsernameOnboarding,proto3" json:"hasCompletedUsernameOnboarding,omitempty"`
-	UsernameLink                    *AccountRecord_UsernameLink          `protobuf:"bytes,35,opt,name=usernameLink,proto3" json:"usernameLink,omitempty"`
-	HasBackup                       *bool                                `protobuf:"varint,39,opt,name=hasBackup,proto3,oneof" json:"hasBackup,omitempty"`   // Set to true after backups are enabled and one is uploaded.
-	BackupTier                      *uint64                              `protobuf:"varint,40,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"` // See zkgroup for integer particular values
-	BackupSubscriberData            *AccountRecord_IAPSubscriberData     `protobuf:"bytes,41,opt,name=backupSubscriberData,proto3" json:"backupSubscriberData,omitempty"`
-	AvatarColor                     *AvatarColor                         `protobuf:"varint,42,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"`
-	unknownFields                   protoimpl.UnknownFields
-	sizeCache                       protoimpl.SizeCache
+	state                             protoimpl.MessageState                           `protogen:"open.v1"`
+	ProfileKey                        []byte                                           `protobuf:"bytes,1,opt,name=profileKey,proto3" json:"profileKey,omitempty"`
+	GivenName                         string                                           `protobuf:"bytes,2,opt,name=givenName,proto3" json:"givenName,omitempty"`
+	FamilyName                        string                                           `protobuf:"bytes,3,opt,name=familyName,proto3" json:"familyName,omitempty"`
+	AvatarUrlPath                     string                                           `protobuf:"bytes,4,opt,name=avatarUrlPath,proto3" json:"avatarUrlPath,omitempty"`
+	NoteToSelfArchived                bool                                             `protobuf:"varint,5,opt,name=noteToSelfArchived,proto3" json:"noteToSelfArchived,omitempty"`
+	ReadReceipts                      bool                                             `protobuf:"varint,6,opt,name=readReceipts,proto3" json:"readReceipts,omitempty"`
+	SealedSenderIndicators            bool                                             `protobuf:"varint,7,opt,name=sealedSenderIndicators,proto3" json:"sealedSenderIndicators,omitempty"`
+	TypingIndicators                  bool                                             `protobuf:"varint,8,opt,name=typingIndicators,proto3" json:"typingIndicators,omitempty"`
+	NoteToSelfMarkedUnread            bool                                             `protobuf:"varint,10,opt,name=noteToSelfMarkedUnread,proto3" json:"noteToSelfMarkedUnread,omitempty"`
+	LinkPreviews                      bool                                             `protobuf:"varint,11,opt,name=linkPreviews,proto3" json:"linkPreviews,omitempty"`
+	PhoneNumberSharingMode            AccountRecord_PhoneNumberSharingMode             `protobuf:"varint,12,opt,name=phoneNumberSharingMode,proto3,enum=signalservice.AccountRecord_PhoneNumberSharingMode" json:"phoneNumberSharingMode,omitempty"`
+	UnlistedPhoneNumber               bool                                             `protobuf:"varint,13,opt,name=unlistedPhoneNumber,proto3" json:"unlistedPhoneNumber,omitempty"`
+	PinnedConversations               []*AccountRecord_PinnedConversation              `protobuf:"bytes,14,rep,name=pinnedConversations,proto3" json:"pinnedConversations,omitempty"`
+	PreferContactAvatars              bool                                             `protobuf:"varint,15,opt,name=preferContactAvatars,proto3" json:"preferContactAvatars,omitempty"`
+	Payments                          *Payments                                        `protobuf:"bytes,16,opt,name=payments,proto3" json:"payments,omitempty"`
+	UniversalExpireTimer              uint32                                           `protobuf:"varint,17,opt,name=universalExpireTimer,proto3" json:"universalExpireTimer,omitempty"`
+	PrimarySendsSms                   bool                                             `protobuf:"varint,18,opt,name=primarySendsSms,proto3" json:"primarySendsSms,omitempty"`
+	PreferredReactionEmoji            []string                                         `protobuf:"bytes,20,rep,name=preferredReactionEmoji,proto3" json:"preferredReactionEmoji,omitempty"`
+	SubscriberId                      []byte                                           `protobuf:"bytes,21,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
+	SubscriberCurrencyCode            string                                           `protobuf:"bytes,22,opt,name=subscriberCurrencyCode,proto3" json:"subscriberCurrencyCode,omitempty"`
+	DisplayBadgesOnProfile            bool                                             `protobuf:"varint,23,opt,name=displayBadgesOnProfile,proto3" json:"displayBadgesOnProfile,omitempty"`
+	SubscriptionManuallyCancelled     bool                                             `protobuf:"varint,24,opt,name=subscriptionManuallyCancelled,proto3" json:"subscriptionManuallyCancelled,omitempty"`
+	KeepMutedChatsArchived            bool                                             `protobuf:"varint,25,opt,name=keepMutedChatsArchived,proto3" json:"keepMutedChatsArchived,omitempty"`
+	HasSetMyStoriesPrivacy            bool                                             `protobuf:"varint,26,opt,name=hasSetMyStoriesPrivacy,proto3" json:"hasSetMyStoriesPrivacy,omitempty"`
+	HasViewedOnboardingStory          bool                                             `protobuf:"varint,27,opt,name=hasViewedOnboardingStory,proto3" json:"hasViewedOnboardingStory,omitempty"`
+	StoriesDisabled                   bool                                             `protobuf:"varint,29,opt,name=storiesDisabled,proto3" json:"storiesDisabled,omitempty"`
+	StoryViewReceiptsEnabled          OptionalBool                                     `protobuf:"varint,30,opt,name=storyViewReceiptsEnabled,proto3,enum=signalservice.OptionalBool" json:"storyViewReceiptsEnabled,omitempty"`
+	HasSeenGroupStoryEducationSheet   bool                                             `protobuf:"varint,32,opt,name=hasSeenGroupStoryEducationSheet,proto3" json:"hasSeenGroupStoryEducationSheet,omitempty"`
+	Username                          string                                           `protobuf:"bytes,33,opt,name=username,proto3" json:"username,omitempty"`
+	HasCompletedUsernameOnboarding    bool                                             `protobuf:"varint,34,opt,name=hasCompletedUsernameOnboarding,proto3" json:"hasCompletedUsernameOnboarding,omitempty"`
+	UsernameLink                      *AccountRecord_UsernameLink                      `protobuf:"bytes,35,opt,name=usernameLink,proto3" json:"usernameLink,omitempty"`
+	HasBackup                         *bool                                            `protobuf:"varint,39,opt,name=hasBackup,proto3,oneof" json:"hasBackup,omitempty"`   // Set to true after backups are enabled and one is uploaded.
+	BackupTier                        *uint64                                          `protobuf:"varint,40,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"` // See zkgroup for integer particular values. Unset if backups are not enabled.
+	BackupSubscriberData              *AccountRecord_IAPSubscriberData                 `protobuf:"bytes,41,opt,name=backupSubscriberData,proto3" json:"backupSubscriberData,omitempty"`
+	AvatarColor                       *AvatarColor                                     `protobuf:"varint,42,opt,name=avatarColor,proto3,enum=signalservice.AvatarColor,oneof" json:"avatarColor,omitempty"`
+	BackupTierHistory                 *AccountRecord_BackupTierHistory                 `protobuf:"bytes,43,opt,name=backupTierHistory,proto3" json:"backupTierHistory,omitempty"`
+	NotificationProfileManualOverride *AccountRecord_NotificationProfileManualOverride `protobuf:"bytes,44,opt,name=notificationProfileManualOverride,proto3" json:"notificationProfileManualOverride,omitempty"`
+	unknownFields                     protoimpl.UnknownFields
+	sizeCache                         protoimpl.SizeCache
 }
 
 func (x *AccountRecord) Reset() {
@@ -1649,13 +1733,6 @@ func (x *AccountRecord) GetPrimarySendsSms() bool {
 	return false
 }
 
-func (x *AccountRecord) GetE164() string {
-	if x != nil {
-		return x.E164
-	}
-	return ""
-}
-
 func (x *AccountRecord) GetPreferredReactionEmoji() []string {
 	if x != nil {
 		return x.PreferredReactionEmoji
@@ -1780,6 +1857,20 @@ func (x *AccountRecord) GetAvatarColor() AvatarColor {
 		return *x.AvatarColor
 	}
 	return AvatarColor_A100
+}
+
+func (x *AccountRecord) GetBackupTierHistory() *AccountRecord_BackupTierHistory {
+	if x != nil {
+		return x.BackupTierHistory
+	}
+	return nil
+}
+
+func (x *AccountRecord) GetNotificationProfileManualOverride() *AccountRecord_NotificationProfileManualOverride {
+	if x != nil {
+		return x.NotificationProfileManualOverride
+	}
+	return nil
 }
 
 type StoryDistributionListRecord struct {
@@ -1926,26 +2017,124 @@ func (x *CallLinkRecord) GetDeletedAtTimestampMs() uint64 {
 	return 0
 }
 
+type Recipient struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Identifier:
+	//
+	//	*Recipient_Contact_
+	//	*Recipient_LegacyGroupId
+	//	*Recipient_GroupMasterKey
+	Identifier    isRecipient_Identifier `protobuf_oneof:"identifier"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Recipient) Reset() {
+	*x = Recipient{}
+	mi := &file_StorageService_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Recipient) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Recipient) ProtoMessage() {}
+
+func (x *Recipient) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Recipient.ProtoReflect.Descriptor instead.
+func (*Recipient) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *Recipient) GetIdentifier() isRecipient_Identifier {
+	if x != nil {
+		return x.Identifier
+	}
+	return nil
+}
+
+func (x *Recipient) GetContact() *Recipient_Contact {
+	if x != nil {
+		if x, ok := x.Identifier.(*Recipient_Contact_); ok {
+			return x.Contact
+		}
+	}
+	return nil
+}
+
+func (x *Recipient) GetLegacyGroupId() []byte {
+	if x != nil {
+		if x, ok := x.Identifier.(*Recipient_LegacyGroupId); ok {
+			return x.LegacyGroupId
+		}
+	}
+	return nil
+}
+
+func (x *Recipient) GetGroupMasterKey() []byte {
+	if x != nil {
+		if x, ok := x.Identifier.(*Recipient_GroupMasterKey); ok {
+			return x.GroupMasterKey
+		}
+	}
+	return nil
+}
+
+type isRecipient_Identifier interface {
+	isRecipient_Identifier()
+}
+
+type Recipient_Contact_ struct {
+	Contact *Recipient_Contact `protobuf:"bytes,1,opt,name=contact,proto3,oneof"`
+}
+
+type Recipient_LegacyGroupId struct {
+	LegacyGroupId []byte `protobuf:"bytes,2,opt,name=legacyGroupId,proto3,oneof"`
+}
+
+type Recipient_GroupMasterKey struct {
+	GroupMasterKey []byte `protobuf:"bytes,3,opt,name=groupMasterKey,proto3,oneof"`
+}
+
+func (*Recipient_Contact_) isRecipient_Identifier() {}
+
+func (*Recipient_LegacyGroupId) isRecipient_Identifier() {}
+
+func (*Recipient_GroupMasterKey) isRecipient_Identifier() {}
+
 type ChatFolderRecord struct {
-	state                     protoimpl.MessageState        `protogen:"open.v1"`
-	Identifier                []byte                        `protobuf:"bytes,1,opt,name=identifier,proto3" json:"identifier,omitempty"`
-	Name                      string                        `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	Position                  uint32                        `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
-	ShowOnlyUnread            bool                          `protobuf:"varint,4,opt,name=showOnlyUnread,proto3" json:"showOnlyUnread,omitempty"`
-	ShowMutedChats            bool                          `protobuf:"varint,5,opt,name=showMutedChats,proto3" json:"showMutedChats,omitempty"`
-	IncludeAllIndividualChats bool                          `protobuf:"varint,6,opt,name=includeAllIndividualChats,proto3" json:"includeAllIndividualChats,omitempty"` // Folder includes all 1:1 chats, unless excluded
-	IncludeAllGroupChats      bool                          `protobuf:"varint,7,opt,name=includeAllGroupChats,proto3" json:"includeAllGroupChats,omitempty"`           // Folder includes all group chats, unless excluded
-	FolderType                ChatFolderRecord_FolderType   `protobuf:"varint,8,opt,name=folderType,proto3,enum=signalservice.ChatFolderRecord_FolderType" json:"folderType,omitempty"`
-	IncludedRecipients        []*ChatFolderRecord_Recipient `protobuf:"bytes,9,rep,name=includedRecipients,proto3" json:"includedRecipients,omitempty"`
-	ExcludedRecipients        []*ChatFolderRecord_Recipient `protobuf:"bytes,10,rep,name=excludedRecipients,proto3" json:"excludedRecipients,omitempty"`
-	DeletedAtTimestampMs      uint64                        `protobuf:"varint,11,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"` // When non-zero, `position` should be set to -1 and includedRecipients should be empty
+	state                     protoimpl.MessageState      `protogen:"open.v1"`
+	Identifier                []byte                      `protobuf:"bytes,1,opt,name=identifier,proto3" json:"identifier,omitempty"`
+	Name                      string                      `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Position                  uint32                      `protobuf:"varint,3,opt,name=position,proto3" json:"position,omitempty"`
+	ShowOnlyUnread            bool                        `protobuf:"varint,4,opt,name=showOnlyUnread,proto3" json:"showOnlyUnread,omitempty"`
+	ShowMutedChats            bool                        `protobuf:"varint,5,opt,name=showMutedChats,proto3" json:"showMutedChats,omitempty"`
+	IncludeAllIndividualChats bool                        `protobuf:"varint,6,opt,name=includeAllIndividualChats,proto3" json:"includeAllIndividualChats,omitempty"` // Folder includes all 1:1 chats, unless excluded
+	IncludeAllGroupChats      bool                        `protobuf:"varint,7,opt,name=includeAllGroupChats,proto3" json:"includeAllGroupChats,omitempty"`           // Folder includes all group chats, unless excluded
+	FolderType                ChatFolderRecord_FolderType `protobuf:"varint,8,opt,name=folderType,proto3,enum=signalservice.ChatFolderRecord_FolderType" json:"folderType,omitempty"`
+	IncludedRecipients        []*Recipient                `protobuf:"bytes,9,rep,name=includedRecipients,proto3" json:"includedRecipients,omitempty"`
+	ExcludedRecipients        []*Recipient                `protobuf:"bytes,10,rep,name=excludedRecipients,proto3" json:"excludedRecipients,omitempty"`
+	DeletedAtTimestampMs      uint64                      `protobuf:"varint,11,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"` // When non-zero, `position` should be set to -1 and includedRecipients should be empty
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
 
 func (x *ChatFolderRecord) Reset() {
 	*x = ChatFolderRecord{}
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_StorageService_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1957,7 +2146,7 @@ func (x *ChatFolderRecord) String() string {
 func (*ChatFolderRecord) ProtoMessage() {}
 
 func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_StorageService_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1970,7 +2159,7 @@ func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatFolderRecord.ProtoReflect.Descriptor instead.
 func (*ChatFolderRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{14}
+	return file_StorageService_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ChatFolderRecord) GetIdentifier() []byte {
@@ -2029,14 +2218,14 @@ func (x *ChatFolderRecord) GetFolderType() ChatFolderRecord_FolderType {
 	return ChatFolderRecord_UNKNOWN
 }
 
-func (x *ChatFolderRecord) GetIncludedRecipients() []*ChatFolderRecord_Recipient {
+func (x *ChatFolderRecord) GetIncludedRecipients() []*Recipient {
 	if x != nil {
 		return x.IncludedRecipients
 	}
 	return nil
 }
 
-func (x *ChatFolderRecord) GetExcludedRecipients() []*ChatFolderRecord_Recipient {
+func (x *ChatFolderRecord) GetExcludedRecipients() []*Recipient {
 	if x != nil {
 		return x.ExcludedRecipients
 	}
@@ -2044,6 +2233,146 @@ func (x *ChatFolderRecord) GetExcludedRecipients() []*ChatFolderRecord_Recipient
 }
 
 func (x *ChatFolderRecord) GetDeletedAtTimestampMs() uint64 {
+	if x != nil {
+		return x.DeletedAtTimestampMs
+	}
+	return 0
+}
+
+type NotificationProfile struct {
+	state                protoimpl.MessageState          `protogen:"open.v1"`
+	Id                   []byte                          `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name                 string                          `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Emoji                *string                         `protobuf:"bytes,3,opt,name=emoji,proto3,oneof" json:"emoji,omitempty"`
+	Color                uint32                          `protobuf:"fixed32,4,opt,name=color,proto3" json:"color,omitempty"` // 0xAARRGGBB
+	CreatedAtMs          uint64                          `protobuf:"varint,5,opt,name=createdAtMs,proto3" json:"createdAtMs,omitempty"`
+	AllowAllCalls        bool                            `protobuf:"varint,6,opt,name=allowAllCalls,proto3" json:"allowAllCalls,omitempty"`
+	AllowAllMentions     bool                            `protobuf:"varint,7,opt,name=allowAllMentions,proto3" json:"allowAllMentions,omitempty"`
+	AllowedMembers       []*Recipient                    `protobuf:"bytes,8,rep,name=allowedMembers,proto3" json:"allowedMembers,omitempty"`
+	ScheduleEnabled      bool                            `protobuf:"varint,9,opt,name=scheduleEnabled,proto3" json:"scheduleEnabled,omitempty"`
+	ScheduleStartTime    uint32                          `protobuf:"varint,10,opt,name=scheduleStartTime,proto3" json:"scheduleStartTime,omitempty"` // 24-hour clock int, 0000-2359 (e.g., 15, 900, 1130, 2345)
+	ScheduleEndTime      uint32                          `protobuf:"varint,11,opt,name=scheduleEndTime,proto3" json:"scheduleEndTime,omitempty"`     // 24-hour clock int, 0000-2359 (e.g., 15, 900, 1130, 2345)
+	ScheduleDaysEnabled  []NotificationProfile_DayOfWeek `protobuf:"varint,12,rep,packed,name=scheduleDaysEnabled,proto3,enum=signalservice.NotificationProfile_DayOfWeek" json:"scheduleDaysEnabled,omitempty"`
+	DeletedAtTimestampMs uint64                          `protobuf:"varint,13,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *NotificationProfile) Reset() {
+	*x = NotificationProfile{}
+	mi := &file_StorageService_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NotificationProfile) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NotificationProfile) ProtoMessage() {}
+
+func (x *NotificationProfile) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NotificationProfile.ProtoReflect.Descriptor instead.
+func (*NotificationProfile) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *NotificationProfile) GetId() []byte {
+	if x != nil {
+		return x.Id
+	}
+	return nil
+}
+
+func (x *NotificationProfile) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *NotificationProfile) GetEmoji() string {
+	if x != nil && x.Emoji != nil {
+		return *x.Emoji
+	}
+	return ""
+}
+
+func (x *NotificationProfile) GetColor() uint32 {
+	if x != nil {
+		return x.Color
+	}
+	return 0
+}
+
+func (x *NotificationProfile) GetCreatedAtMs() uint64 {
+	if x != nil {
+		return x.CreatedAtMs
+	}
+	return 0
+}
+
+func (x *NotificationProfile) GetAllowAllCalls() bool {
+	if x != nil {
+		return x.AllowAllCalls
+	}
+	return false
+}
+
+func (x *NotificationProfile) GetAllowAllMentions() bool {
+	if x != nil {
+		return x.AllowAllMentions
+	}
+	return false
+}
+
+func (x *NotificationProfile) GetAllowedMembers() []*Recipient {
+	if x != nil {
+		return x.AllowedMembers
+	}
+	return nil
+}
+
+func (x *NotificationProfile) GetScheduleEnabled() bool {
+	if x != nil {
+		return x.ScheduleEnabled
+	}
+	return false
+}
+
+func (x *NotificationProfile) GetScheduleStartTime() uint32 {
+	if x != nil {
+		return x.ScheduleStartTime
+	}
+	return 0
+}
+
+func (x *NotificationProfile) GetScheduleEndTime() uint32 {
+	if x != nil {
+		return x.ScheduleEndTime
+	}
+	return 0
+}
+
+func (x *NotificationProfile) GetScheduleDaysEnabled() []NotificationProfile_DayOfWeek {
+	if x != nil {
+		return x.ScheduleDaysEnabled
+	}
+	return nil
+}
+
+func (x *NotificationProfile) GetDeletedAtTimestampMs() uint64 {
 	if x != nil {
 		return x.DeletedAtTimestampMs
 	}
@@ -2060,7 +2389,7 @@ type ManifestRecord_Identifier struct {
 
 func (x *ManifestRecord_Identifier) Reset() {
 	*x = ManifestRecord_Identifier{}
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_StorageService_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2072,7 +2401,7 @@ func (x *ManifestRecord_Identifier) String() string {
 func (*ManifestRecord_Identifier) ProtoMessage() {}
 
 func (x *ManifestRecord_Identifier) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_StorageService_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2112,7 +2441,7 @@ type ContactRecord_Name struct {
 
 func (x *ContactRecord_Name) Reset() {
 	*x = ContactRecord_Name{}
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_StorageService_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2124,7 +2453,7 @@ func (x *ContactRecord_Name) String() string {
 func (*ContactRecord_Name) ProtoMessage() {}
 
 func (x *ContactRecord_Name) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_StorageService_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2168,7 +2497,7 @@ type AccountRecord_PinnedConversation struct {
 
 func (x *AccountRecord_PinnedConversation) Reset() {
 	*x = AccountRecord_PinnedConversation{}
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_StorageService_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2180,7 +2509,7 @@ func (x *AccountRecord_PinnedConversation) String() string {
 func (*AccountRecord_PinnedConversation) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_StorageService_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2265,7 +2594,7 @@ type AccountRecord_UsernameLink struct {
 
 func (x *AccountRecord_UsernameLink) Reset() {
 	*x = AccountRecord_UsernameLink{}
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_StorageService_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2277,7 +2606,7 @@ func (x *AccountRecord_UsernameLink) String() string {
 func (*AccountRecord_UsernameLink) ProtoMessage() {}
 
 func (x *AccountRecord_UsernameLink) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_StorageService_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2328,7 +2657,7 @@ type AccountRecord_IAPSubscriberData struct {
 
 func (x *AccountRecord_IAPSubscriberData) Reset() {
 	*x = AccountRecord_IAPSubscriberData{}
-	mi := &file_StorageService_proto_msgTypes[19]
+	mi := &file_StorageService_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2340,7 +2669,7 @@ func (x *AccountRecord_IAPSubscriberData) String() string {
 func (*AccountRecord_IAPSubscriberData) ProtoMessage() {}
 
 func (x *AccountRecord_IAPSubscriberData) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[19]
+	mi := &file_StorageService_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2408,6 +2737,143 @@ func (*AccountRecord_IAPSubscriberData_PurchaseToken) isAccountRecord_IAPSubscri
 func (*AccountRecord_IAPSubscriberData_OriginalTransactionId) isAccountRecord_IAPSubscriberData_IapSubscriptionId() {
 }
 
+type AccountRecord_BackupTierHistory struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// See zkgroup for integer particular values. Unset if backups are not enabled.
+	BackupTier       *uint64 `protobuf:"varint,1,opt,name=backupTier,proto3,oneof" json:"backupTier,omitempty"`
+	EndedAtTimestamp *uint64 `protobuf:"varint,2,opt,name=endedAtTimestamp,proto3,oneof" json:"endedAtTimestamp,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *AccountRecord_BackupTierHistory) Reset() {
+	*x = AccountRecord_BackupTierHistory{}
+	mi := &file_StorageService_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountRecord_BackupTierHistory) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountRecord_BackupTierHistory) ProtoMessage() {}
+
+func (x *AccountRecord_BackupTierHistory) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountRecord_BackupTierHistory.ProtoReflect.Descriptor instead.
+func (*AccountRecord_BackupTierHistory) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{11, 3}
+}
+
+func (x *AccountRecord_BackupTierHistory) GetBackupTier() uint64 {
+	if x != nil && x.BackupTier != nil {
+		return *x.BackupTier
+	}
+	return 0
+}
+
+func (x *AccountRecord_BackupTierHistory) GetEndedAtTimestamp() uint64 {
+	if x != nil && x.EndedAtTimestamp != nil {
+		return *x.EndedAtTimestamp
+	}
+	return 0
+}
+
+type AccountRecord_NotificationProfileManualOverride struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Override:
+	//
+	//	*AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs
+	//	*AccountRecord_NotificationProfileManualOverride_Enabled
+	Override      isAccountRecord_NotificationProfileManualOverride_Override `protobuf_oneof:"override"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccountRecord_NotificationProfileManualOverride) Reset() {
+	*x = AccountRecord_NotificationProfileManualOverride{}
+	mi := &file_StorageService_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccountRecord_NotificationProfileManualOverride) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccountRecord_NotificationProfileManualOverride) ProtoMessage() {}
+
+func (x *AccountRecord_NotificationProfileManualOverride) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccountRecord_NotificationProfileManualOverride.ProtoReflect.Descriptor instead.
+func (*AccountRecord_NotificationProfileManualOverride) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{11, 4}
+}
+
+func (x *AccountRecord_NotificationProfileManualOverride) GetOverride() isAccountRecord_NotificationProfileManualOverride_Override {
+	if x != nil {
+		return x.Override
+	}
+	return nil
+}
+
+func (x *AccountRecord_NotificationProfileManualOverride) GetDisabledAtTimestampMs() uint64 {
+	if x != nil {
+		if x, ok := x.Override.(*AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs); ok {
+			return x.DisabledAtTimestampMs
+		}
+	}
+	return 0
+}
+
+func (x *AccountRecord_NotificationProfileManualOverride) GetEnabled() *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled {
+	if x != nil {
+		if x, ok := x.Override.(*AccountRecord_NotificationProfileManualOverride_Enabled); ok {
+			return x.Enabled
+		}
+	}
+	return nil
+}
+
+type isAccountRecord_NotificationProfileManualOverride_Override interface {
+	isAccountRecord_NotificationProfileManualOverride_Override()
+}
+
+type AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs struct {
+	DisabledAtTimestampMs uint64 `protobuf:"varint,1,opt,name=disabledAtTimestampMs,proto3,oneof"`
+}
+
+type AccountRecord_NotificationProfileManualOverride_Enabled struct {
+	Enabled *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled `protobuf:"bytes,2,opt,name=enabled,proto3,oneof"`
+}
+
+func (*AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs) isAccountRecord_NotificationProfileManualOverride_Override() {
+}
+
+func (*AccountRecord_NotificationProfileManualOverride_Enabled) isAccountRecord_NotificationProfileManualOverride_Override() {
+}
+
 type AccountRecord_PinnedConversation_Contact struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ServiceId     string                 `protobuf:"bytes,1,opt,name=serviceId,proto3" json:"serviceId,omitempty"`
@@ -2418,7 +2884,7 @@ type AccountRecord_PinnedConversation_Contact struct {
 
 func (x *AccountRecord_PinnedConversation_Contact) Reset() {
 	*x = AccountRecord_PinnedConversation_Contact{}
-	mi := &file_StorageService_proto_msgTypes[20]
+	mi := &file_StorageService_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2430,7 +2896,7 @@ func (x *AccountRecord_PinnedConversation_Contact) String() string {
 func (*AccountRecord_PinnedConversation_Contact) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[20]
+	mi := &file_StorageService_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2460,33 +2926,30 @@ func (x *AccountRecord_PinnedConversation_Contact) GetE164() string {
 	return ""
 }
 
-type ChatFolderRecord_Recipient struct {
+type AccountRecord_NotificationProfileManualOverride_ManuallyEnabled struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Types that are valid to be assigned to Identifier:
-	//
-	//	*ChatFolderRecord_Recipient_Contact_
-	//	*ChatFolderRecord_Recipient_LegacyGroupId
-	//	*ChatFolderRecord_Recipient_GroupMasterKey
-	Identifier    isChatFolderRecord_Recipient_Identifier `protobuf_oneof:"identifier"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Id    []byte                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// This will be unset if no timespan was chosen in the UI.
+	EndAtTimestampMs uint64 `protobuf:"varint,3,opt,name=endAtTimestampMs,proto3" json:"endAtTimestampMs,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
-func (x *ChatFolderRecord_Recipient) Reset() {
-	*x = ChatFolderRecord_Recipient{}
-	mi := &file_StorageService_proto_msgTypes[21]
+func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) Reset() {
+	*x = AccountRecord_NotificationProfileManualOverride_ManuallyEnabled{}
+	mi := &file_StorageService_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ChatFolderRecord_Recipient) String() string {
+func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ChatFolderRecord_Recipient) ProtoMessage() {}
+func (*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoMessage() {}
 
-func (x *ChatFolderRecord_Recipient) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[21]
+func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2497,68 +2960,26 @@ func (x *ChatFolderRecord_Recipient) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ChatFolderRecord_Recipient.ProtoReflect.Descriptor instead.
-func (*ChatFolderRecord_Recipient) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{14, 0}
+// Deprecated: Use AccountRecord_NotificationProfileManualOverride_ManuallyEnabled.ProtoReflect.Descriptor instead.
+func (*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{11, 4, 0}
 }
 
-func (x *ChatFolderRecord_Recipient) GetIdentifier() isChatFolderRecord_Recipient_Identifier {
+func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) GetId() []byte {
 	if x != nil {
-		return x.Identifier
+		return x.Id
 	}
 	return nil
 }
 
-func (x *ChatFolderRecord_Recipient) GetContact() *ChatFolderRecord_Recipient_Contact {
+func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) GetEndAtTimestampMs() uint64 {
 	if x != nil {
-		if x, ok := x.Identifier.(*ChatFolderRecord_Recipient_Contact_); ok {
-			return x.Contact
-		}
+		return x.EndAtTimestampMs
 	}
-	return nil
+	return 0
 }
 
-func (x *ChatFolderRecord_Recipient) GetLegacyGroupId() []byte {
-	if x != nil {
-		if x, ok := x.Identifier.(*ChatFolderRecord_Recipient_LegacyGroupId); ok {
-			return x.LegacyGroupId
-		}
-	}
-	return nil
-}
-
-func (x *ChatFolderRecord_Recipient) GetGroupMasterKey() []byte {
-	if x != nil {
-		if x, ok := x.Identifier.(*ChatFolderRecord_Recipient_GroupMasterKey); ok {
-			return x.GroupMasterKey
-		}
-	}
-	return nil
-}
-
-type isChatFolderRecord_Recipient_Identifier interface {
-	isChatFolderRecord_Recipient_Identifier()
-}
-
-type ChatFolderRecord_Recipient_Contact_ struct {
-	Contact *ChatFolderRecord_Recipient_Contact `protobuf:"bytes,1,opt,name=contact,proto3,oneof"`
-}
-
-type ChatFolderRecord_Recipient_LegacyGroupId struct {
-	LegacyGroupId []byte `protobuf:"bytes,2,opt,name=legacyGroupId,proto3,oneof"`
-}
-
-type ChatFolderRecord_Recipient_GroupMasterKey struct {
-	GroupMasterKey []byte `protobuf:"bytes,3,opt,name=groupMasterKey,proto3,oneof"`
-}
-
-func (*ChatFolderRecord_Recipient_Contact_) isChatFolderRecord_Recipient_Identifier() {}
-
-func (*ChatFolderRecord_Recipient_LegacyGroupId) isChatFolderRecord_Recipient_Identifier() {}
-
-func (*ChatFolderRecord_Recipient_GroupMasterKey) isChatFolderRecord_Recipient_Identifier() {}
-
-type ChatFolderRecord_Recipient_Contact struct {
+type Recipient_Contact struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ServiceId     string                 `protobuf:"bytes,1,opt,name=serviceId,proto3" json:"serviceId,omitempty"`
 	E164          string                 `protobuf:"bytes,2,opt,name=e164,proto3" json:"e164,omitempty"`
@@ -2566,21 +2987,21 @@ type ChatFolderRecord_Recipient_Contact struct {
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ChatFolderRecord_Recipient_Contact) Reset() {
-	*x = ChatFolderRecord_Recipient_Contact{}
-	mi := &file_StorageService_proto_msgTypes[22]
+func (x *Recipient_Contact) Reset() {
+	*x = Recipient_Contact{}
+	mi := &file_StorageService_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ChatFolderRecord_Recipient_Contact) String() string {
+func (x *Recipient_Contact) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ChatFolderRecord_Recipient_Contact) ProtoMessage() {}
+func (*Recipient_Contact) ProtoMessage() {}
 
-func (x *ChatFolderRecord_Recipient_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[22]
+func (x *Recipient_Contact) ProtoReflect() protoreflect.Message {
+	mi := &file_StorageService_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2591,19 +3012,19 @@ func (x *ChatFolderRecord_Recipient_Contact) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ChatFolderRecord_Recipient_Contact.ProtoReflect.Descriptor instead.
-func (*ChatFolderRecord_Recipient_Contact) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{14, 0, 0}
+// Deprecated: Use Recipient_Contact.ProtoReflect.Descriptor instead.
+func (*Recipient_Contact) Descriptor() ([]byte, []int) {
+	return file_StorageService_proto_rawDescGZIP(), []int{14, 0}
 }
 
-func (x *ChatFolderRecord_Recipient_Contact) GetServiceId() string {
+func (x *Recipient_Contact) GetServiceId() string {
 	if x != nil {
 		return x.ServiceId
 	}
 	return ""
 }
 
-func (x *ChatFolderRecord_Recipient_Contact) GetE164() string {
+func (x *Recipient_Contact) GetE164() string {
 	if x != nil {
 		return x.E164
 	}
@@ -2631,16 +3052,16 @@ const file_StorageService_proto_rawDesc = "" +
 	"insertItem\x18\x02 \x03(\v2\x1a.signalservice.StorageItemR\n" +
 	"insertItem\x12\x1c\n" +
 	"\tdeleteKey\x18\x03 \x03(\fR\tdeleteKey\x12\x1a\n" +
-	"\bclearAll\x18\x04 \x01(\bR\bclearAll\"\xa3\x03\n" +
+	"\bclearAll\x18\x04 \x01(\bR\bclearAll\"\xbd\x03\n" +
 	"\x0eManifestRecord\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x04R\aversion\x12\"\n" +
 	"\fsourceDevice\x18\x03 \x01(\rR\fsourceDevice\x12J\n" +
 	"\videntifiers\x18\x02 \x03(\v2(.signalservice.ManifestRecord.IdentifierR\videntifiers\x12\x1c\n" +
-	"\trecordIkm\x18\x04 \x01(\fR\trecordIkm\x1a\xe8\x01\n" +
+	"\trecordIkm\x18\x04 \x01(\fR\trecordIkm\x1a\x82\x02\n" +
 	"\n" +
 	"Identifier\x12\x10\n" +
 	"\x03raw\x18\x01 \x01(\fR\x03raw\x12A\n" +
-	"\x04type\x18\x02 \x01(\x0e2-.signalservice.ManifestRecord.Identifier.TypeR\x04type\"\x84\x01\n" +
+	"\x04type\x18\x02 \x01(\x0e2-.signalservice.ManifestRecord.Identifier.TypeR\x04type\"\x9e\x01\n" +
 	"\x04Type\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\v\n" +
 	"\aCONTACT\x10\x01\x12\v\n" +
@@ -2649,7 +3070,8 @@ const file_StorageService_proto_rawDesc = "" +
 	"\aACCOUNT\x10\x04\x12\x1b\n" +
 	"\x17STORY_DISTRIBUTION_LIST\x10\x05\x12\r\n" +
 	"\tCALL_LINK\x10\a\x12\x0f\n" +
-	"\vCHAT_FOLDER\x10\b\"\xe5\x03\n" +
+	"\vCHAT_FOLDER\x10\b\x12\x18\n" +
+	"\x14NOTIFICATION_PROFILE\x10\t\"\xbd\x04\n" +
 	"\rStorageRecord\x128\n" +
 	"\acontact\x18\x01 \x01(\v2\x1c.signalservice.ContactRecordH\x00R\acontact\x128\n" +
 	"\agroupV1\x18\x02 \x01(\v2\x1c.signalservice.GroupV1RecordH\x00R\agroupV1\x128\n" +
@@ -2659,7 +3081,8 @@ const file_StorageService_proto_rawDesc = "" +
 	"\bcallLink\x18\a \x01(\v2\x1d.signalservice.CallLinkRecordH\x00R\bcallLink\x12A\n" +
 	"\n" +
 	"chatFolder\x18\b \x01(\v2\x1f.signalservice.ChatFolderRecordH\x00R\n" +
-	"chatFolderB\b\n" +
+	"chatFolder\x12V\n" +
+	"\x13notificationProfile\x18\t \x01(\v2\".signalservice.NotificationProfileH\x00R\x13notificationProfileB\b\n" +
 	"\x06record\"\x9d\b\n" +
 	"\rContactRecord\x12\x10\n" +
 	"\x03aci\x18\x01 \x01(\tR\x03aci\x12\x12\n" +
@@ -2727,7 +3150,7 @@ const file_StorageService_proto_rawDesc = "" +
 	"\">\n" +
 	"\bPayments\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x18\n" +
-	"\aentropy\x18\x02 \x01(\fR\aentropy\"\xf7\x15\n" +
+	"\aentropy\x18\x02 \x01(\fR\aentropy\"\x8b\x1b\n" +
 	"\rAccountRecord\x12\x1e\n" +
 	"\n" +
 	"profileKey\x18\x01 \x01(\fR\n" +
@@ -2750,8 +3173,7 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x14preferContactAvatars\x18\x0f \x01(\bR\x14preferContactAvatars\x123\n" +
 	"\bpayments\x18\x10 \x01(\v2\x17.signalservice.PaymentsR\bpayments\x122\n" +
 	"\x14universalExpireTimer\x18\x11 \x01(\rR\x14universalExpireTimer\x12(\n" +
-	"\x0fprimarySendsSms\x18\x12 \x01(\bR\x0fprimarySendsSms\x12\x12\n" +
-	"\x04e164\x18\x13 \x01(\tR\x04e164\x126\n" +
+	"\x0fprimarySendsSms\x18\x12 \x01(\bR\x0fprimarySendsSms\x126\n" +
 	"\x16preferredReactionEmoji\x18\x14 \x03(\tR\x16preferredReactionEmoji\x12\"\n" +
 	"\fsubscriberId\x18\x15 \x01(\fR\fsubscriberId\x126\n" +
 	"\x16subscriberCurrencyCode\x18\x16 \x01(\tR\x16subscriberCurrencyCode\x126\n" +
@@ -2771,7 +3193,9 @@ const file_StorageService_proto_rawDesc = "" +
 	"backupTier\x18( \x01(\x04H\x01R\n" +
 	"backupTier\x88\x01\x01\x12b\n" +
 	"\x14backupSubscriberData\x18) \x01(\v2..signalservice.AccountRecord.IAPSubscriberDataR\x14backupSubscriberData\x12A\n" +
-	"\vavatarColor\x18* \x01(\x0e2\x1a.signalservice.AvatarColorH\x02R\vavatarColor\x88\x01\x01\x1a\x86\x02\n" +
+	"\vavatarColor\x18* \x01(\x0e2\x1a.signalservice.AvatarColorH\x02R\vavatarColor\x88\x01\x01\x12\\\n" +
+	"\x11backupTierHistory\x18+ \x01(\v2..signalservice.AccountRecord.BackupTierHistoryR\x11backupTierHistory\x12\x8c\x01\n" +
+	"!notificationProfileManualOverride\x18, \x01(\v2>.signalservice.AccountRecord.NotificationProfileManualOverrideR!notificationProfileManualOverride\x1a\x86\x02\n" +
 	"\x12PinnedConversation\x12S\n" +
 	"\acontact\x18\x01 \x01(\v27.signalservice.AccountRecord.PinnedConversation.ContactH\x00R\acontact\x12&\n" +
 	"\rlegacyGroupId\x18\x03 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
@@ -2801,7 +3225,22 @@ const file_StorageService_proto_rawDesc = "" +
 	"\fsubscriberId\x18\x01 \x01(\fR\fsubscriberId\x12&\n" +
 	"\rpurchaseToken\x18\x02 \x01(\tH\x00R\rpurchaseToken\x126\n" +
 	"\x15originalTransactionId\x18\x03 \x01(\x04H\x00R\x15originalTransactionIdB\x13\n" +
-	"\x11iapSubscriptionId\"@\n" +
+	"\x11iapSubscriptionId\x1a\x8d\x01\n" +
+	"\x11BackupTierHistory\x12#\n" +
+	"\n" +
+	"backupTier\x18\x01 \x01(\x04H\x00R\n" +
+	"backupTier\x88\x01\x01\x12/\n" +
+	"\x10endedAtTimestamp\x18\x02 \x01(\x04H\x01R\x10endedAtTimestamp\x88\x01\x01B\r\n" +
+	"\v_backupTierB\x13\n" +
+	"\x11_endedAtTimestamp\x1a\xa2\x02\n" +
+	"!NotificationProfileManualOverride\x126\n" +
+	"\x15disabledAtTimestampMs\x18\x01 \x01(\x04H\x00R\x15disabledAtTimestampMs\x12j\n" +
+	"\aenabled\x18\x02 \x01(\v2N.signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabledH\x00R\aenabled\x1aM\n" +
+	"\x0fManuallyEnabled\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\fR\x02id\x12*\n" +
+	"\x10endAtTimestampMs\x18\x03 \x01(\x04R\x10endAtTimestampMsB\n" +
+	"\n" +
+	"\boverride\"@\n" +
 	"\x16PhoneNumberSharingMode\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\r\n" +
 	"\tEVERYBODY\x10\x01\x12\n" +
@@ -2811,7 +3250,7 @@ const file_StorageService_proto_rawDesc = "" +
 	"_hasBackupB\r\n" +
 	"\v_backupTierB\x0e\n" +
 	"\f_avatarColorJ\x04\b\t\x10\n" +
-	"J\x04\b\x1c\x10\x1dJ\x04\b\x1f\x10 J\x04\b$\x10%J\x04\b%\x10&J\x04\b&\x10'\"\xfb\x01\n" +
+	"J\x04\b\x13\x10\x14J\x04\b\x1c\x10\x1dJ\x04\b\x1f\x10 J\x04\b$\x10%J\x04\b%\x10&J\x04\b&\x10'\"\xfb\x01\n" +
 	"\x1bStoryDistributionListRecord\x12\x1e\n" +
 	"\n" +
 	"identifier\x18\x01 \x01(\fR\n" +
@@ -2824,7 +3263,16 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x0eCallLinkRecord\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\"\n" +
 	"\fadminPasskey\x18\x02 \x01(\fR\fadminPasskey\x122\n" +
-	"\x14deletedAtTimestampMs\x18\x03 \x01(\x04R\x14deletedAtTimestampMs\"\x84\a\n" +
+	"\x14deletedAtTimestampMs\x18\x03 \x01(\x04R\x14deletedAtTimestampMs\"\xe6\x01\n" +
+	"\tRecipient\x12<\n" +
+	"\acontact\x18\x01 \x01(\v2 .signalservice.Recipient.ContactH\x00R\acontact\x12&\n" +
+	"\rlegacyGroupId\x18\x02 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
+	"\x0egroupMasterKey\x18\x03 \x01(\fH\x00R\x0egroupMasterKey\x1a;\n" +
+	"\aContact\x12\x1c\n" +
+	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12\x12\n" +
+	"\x04e164\x18\x02 \x01(\tR\x04e164B\f\n" +
+	"\n" +
+	"identifier\"\xe8\x04\n" +
 	"\x10ChatFolderRecord\x12\x1e\n" +
 	"\n" +
 	"identifier\x18\x01 \x01(\fR\n" +
@@ -2837,26 +3285,45 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x14includeAllGroupChats\x18\a \x01(\bR\x14includeAllGroupChats\x12J\n" +
 	"\n" +
 	"folderType\x18\b \x01(\x0e2*.signalservice.ChatFolderRecord.FolderTypeR\n" +
-	"folderType\x12Y\n" +
-	"\x12includedRecipients\x18\t \x03(\v2).signalservice.ChatFolderRecord.RecipientR\x12includedRecipients\x12Y\n" +
+	"folderType\x12H\n" +
+	"\x12includedRecipients\x18\t \x03(\v2\x18.signalservice.RecipientR\x12includedRecipients\x12H\n" +
 	"\x12excludedRecipients\x18\n" +
-	" \x03(\v2).signalservice.ChatFolderRecord.RecipientR\x12excludedRecipients\x122\n" +
-	"\x14deletedAtTimestampMs\x18\v \x01(\x04R\x14deletedAtTimestampMs\x1a\xf7\x01\n" +
-	"\tRecipient\x12M\n" +
-	"\acontact\x18\x01 \x01(\v21.signalservice.ChatFolderRecord.Recipient.ContactH\x00R\acontact\x12&\n" +
-	"\rlegacyGroupId\x18\x02 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
-	"\x0egroupMasterKey\x18\x03 \x01(\fH\x00R\x0egroupMasterKey\x1a;\n" +
-	"\aContact\x12\x1c\n" +
-	"\tserviceId\x18\x01 \x01(\tR\tserviceId\x12\x12\n" +
-	"\x04e164\x18\x02 \x01(\tR\x04e164B\f\n" +
-	"\n" +
-	"identifier\".\n" +
+	" \x03(\v2\x18.signalservice.RecipientR\x12excludedRecipients\x122\n" +
+	"\x14deletedAtTimestampMs\x18\v \x01(\x04R\x14deletedAtTimestampMs\".\n" +
 	"\n" +
 	"FolderType\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\a\n" +
 	"\x03ALL\x10\x01\x12\n" +
 	"\n" +
-	"\x06CUSTOM\x10\x02*4\n" +
+	"\x06CUSTOM\x10\x02\"\xb6\x05\n" +
+	"\x13NotificationProfile\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\fR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x19\n" +
+	"\x05emoji\x18\x03 \x01(\tH\x00R\x05emoji\x88\x01\x01\x12\x14\n" +
+	"\x05color\x18\x04 \x01(\aR\x05color\x12 \n" +
+	"\vcreatedAtMs\x18\x05 \x01(\x04R\vcreatedAtMs\x12$\n" +
+	"\rallowAllCalls\x18\x06 \x01(\bR\rallowAllCalls\x12*\n" +
+	"\x10allowAllMentions\x18\a \x01(\bR\x10allowAllMentions\x12@\n" +
+	"\x0eallowedMembers\x18\b \x03(\v2\x18.signalservice.RecipientR\x0eallowedMembers\x12(\n" +
+	"\x0fscheduleEnabled\x18\t \x01(\bR\x0fscheduleEnabled\x12,\n" +
+	"\x11scheduleStartTime\x18\n" +
+	" \x01(\rR\x11scheduleStartTime\x12(\n" +
+	"\x0fscheduleEndTime\x18\v \x01(\rR\x0fscheduleEndTime\x12^\n" +
+	"\x13scheduleDaysEnabled\x18\f \x03(\x0e2,.signalservice.NotificationProfile.DayOfWeekR\x13scheduleDaysEnabled\x122\n" +
+	"\x14deletedAtTimestampMs\x18\r \x01(\x04R\x14deletedAtTimestampMs\"t\n" +
+	"\tDayOfWeek\x12\v\n" +
+	"\aUNKNOWN\x10\x00\x12\n" +
+	"\n" +
+	"\x06MONDAY\x10\x01\x12\v\n" +
+	"\aTUESDAY\x10\x02\x12\r\n" +
+	"\tWEDNESDAY\x10\x03\x12\f\n" +
+	"\bTHURSDAY\x10\x04\x12\n" +
+	"\n" +
+	"\x06FRIDAY\x10\x05\x12\f\n" +
+	"\bSATURDAY\x10\x06\x12\n" +
+	"\n" +
+	"\x06SUNDAY\x10\aB\b\n" +
+	"\x06_emoji*4\n" +
 	"\fOptionalBool\x12\t\n" +
 	"\x05UNSET\x10\x00\x12\v\n" +
 	"\aENABLED\x10\x01\x12\f\n" +
@@ -2889,77 +3356,88 @@ func file_StorageService_proto_rawDescGZIP() []byte {
 	return file_StorageService_proto_rawDescData
 }
 
-var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 8)
-var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
+var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
+var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_StorageService_proto_goTypes = []any{
-	(OptionalBool)(0),                                // 0: signalservice.OptionalBool
-	(AvatarColor)(0),                                 // 1: signalservice.AvatarColor
-	(ManifestRecord_Identifier_Type)(0),              // 2: signalservice.ManifestRecord.Identifier.Type
-	(ContactRecord_IdentityState)(0),                 // 3: signalservice.ContactRecord.IdentityState
-	(GroupV2Record_StorySendMode)(0),                 // 4: signalservice.GroupV2Record.StorySendMode
-	(AccountRecord_PhoneNumberSharingMode)(0),        // 5: signalservice.AccountRecord.PhoneNumberSharingMode
-	(AccountRecord_UsernameLink_Color)(0),            // 6: signalservice.AccountRecord.UsernameLink.Color
-	(ChatFolderRecord_FolderType)(0),                 // 7: signalservice.ChatFolderRecord.FolderType
-	(*StorageManifest)(nil),                          // 8: signalservice.StorageManifest
-	(*StorageItem)(nil),                              // 9: signalservice.StorageItem
-	(*StorageItems)(nil),                             // 10: signalservice.StorageItems
-	(*ReadOperation)(nil),                            // 11: signalservice.ReadOperation
-	(*WriteOperation)(nil),                           // 12: signalservice.WriteOperation
-	(*ManifestRecord)(nil),                           // 13: signalservice.ManifestRecord
-	(*StorageRecord)(nil),                            // 14: signalservice.StorageRecord
-	(*ContactRecord)(nil),                            // 15: signalservice.ContactRecord
-	(*GroupV1Record)(nil),                            // 16: signalservice.GroupV1Record
-	(*GroupV2Record)(nil),                            // 17: signalservice.GroupV2Record
-	(*Payments)(nil),                                 // 18: signalservice.Payments
-	(*AccountRecord)(nil),                            // 19: signalservice.AccountRecord
-	(*StoryDistributionListRecord)(nil),              // 20: signalservice.StoryDistributionListRecord
-	(*CallLinkRecord)(nil),                           // 21: signalservice.CallLinkRecord
-	(*ChatFolderRecord)(nil),                         // 22: signalservice.ChatFolderRecord
-	(*ManifestRecord_Identifier)(nil),                // 23: signalservice.ManifestRecord.Identifier
-	(*ContactRecord_Name)(nil),                       // 24: signalservice.ContactRecord.Name
-	(*AccountRecord_PinnedConversation)(nil),         // 25: signalservice.AccountRecord.PinnedConversation
-	(*AccountRecord_UsernameLink)(nil),               // 26: signalservice.AccountRecord.UsernameLink
-	(*AccountRecord_IAPSubscriberData)(nil),          // 27: signalservice.AccountRecord.IAPSubscriberData
-	(*AccountRecord_PinnedConversation_Contact)(nil), // 28: signalservice.AccountRecord.PinnedConversation.Contact
-	(*ChatFolderRecord_Recipient)(nil),               // 29: signalservice.ChatFolderRecord.Recipient
-	(*ChatFolderRecord_Recipient_Contact)(nil),       // 30: signalservice.ChatFolderRecord.Recipient.Contact
+	(OptionalBool)(0),                                       // 0: signalservice.OptionalBool
+	(AvatarColor)(0),                                        // 1: signalservice.AvatarColor
+	(ManifestRecord_Identifier_Type)(0),                     // 2: signalservice.ManifestRecord.Identifier.Type
+	(ContactRecord_IdentityState)(0),                        // 3: signalservice.ContactRecord.IdentityState
+	(GroupV2Record_StorySendMode)(0),                        // 4: signalservice.GroupV2Record.StorySendMode
+	(AccountRecord_PhoneNumberSharingMode)(0),               // 5: signalservice.AccountRecord.PhoneNumberSharingMode
+	(AccountRecord_UsernameLink_Color)(0),                   // 6: signalservice.AccountRecord.UsernameLink.Color
+	(ChatFolderRecord_FolderType)(0),                        // 7: signalservice.ChatFolderRecord.FolderType
+	(NotificationProfile_DayOfWeek)(0),                      // 8: signalservice.NotificationProfile.DayOfWeek
+	(*StorageManifest)(nil),                                 // 9: signalservice.StorageManifest
+	(*StorageItem)(nil),                                     // 10: signalservice.StorageItem
+	(*StorageItems)(nil),                                    // 11: signalservice.StorageItems
+	(*ReadOperation)(nil),                                   // 12: signalservice.ReadOperation
+	(*WriteOperation)(nil),                                  // 13: signalservice.WriteOperation
+	(*ManifestRecord)(nil),                                  // 14: signalservice.ManifestRecord
+	(*StorageRecord)(nil),                                   // 15: signalservice.StorageRecord
+	(*ContactRecord)(nil),                                   // 16: signalservice.ContactRecord
+	(*GroupV1Record)(nil),                                   // 17: signalservice.GroupV1Record
+	(*GroupV2Record)(nil),                                   // 18: signalservice.GroupV2Record
+	(*Payments)(nil),                                        // 19: signalservice.Payments
+	(*AccountRecord)(nil),                                   // 20: signalservice.AccountRecord
+	(*StoryDistributionListRecord)(nil),                     // 21: signalservice.StoryDistributionListRecord
+	(*CallLinkRecord)(nil),                                  // 22: signalservice.CallLinkRecord
+	(*Recipient)(nil),                                       // 23: signalservice.Recipient
+	(*ChatFolderRecord)(nil),                                // 24: signalservice.ChatFolderRecord
+	(*NotificationProfile)(nil),                             // 25: signalservice.NotificationProfile
+	(*ManifestRecord_Identifier)(nil),                       // 26: signalservice.ManifestRecord.Identifier
+	(*ContactRecord_Name)(nil),                              // 27: signalservice.ContactRecord.Name
+	(*AccountRecord_PinnedConversation)(nil),                // 28: signalservice.AccountRecord.PinnedConversation
+	(*AccountRecord_UsernameLink)(nil),                      // 29: signalservice.AccountRecord.UsernameLink
+	(*AccountRecord_IAPSubscriberData)(nil),                 // 30: signalservice.AccountRecord.IAPSubscriberData
+	(*AccountRecord_BackupTierHistory)(nil),                 // 31: signalservice.AccountRecord.BackupTierHistory
+	(*AccountRecord_NotificationProfileManualOverride)(nil), // 32: signalservice.AccountRecord.NotificationProfileManualOverride
+	(*AccountRecord_PinnedConversation_Contact)(nil),        // 33: signalservice.AccountRecord.PinnedConversation.Contact
+	(*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled)(nil), // 34: signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	(*Recipient_Contact)(nil), // 35: signalservice.Recipient.Contact
 }
 var file_StorageService_proto_depIdxs = []int32{
-	9,  // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
-	8,  // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
-	9,  // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
-	23, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
-	15, // 4: signalservice.StorageRecord.contact:type_name -> signalservice.ContactRecord
-	16, // 5: signalservice.StorageRecord.groupV1:type_name -> signalservice.GroupV1Record
-	17, // 6: signalservice.StorageRecord.groupV2:type_name -> signalservice.GroupV2Record
-	19, // 7: signalservice.StorageRecord.account:type_name -> signalservice.AccountRecord
-	20, // 8: signalservice.StorageRecord.storyDistributionList:type_name -> signalservice.StoryDistributionListRecord
-	21, // 9: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
-	22, // 10: signalservice.StorageRecord.chatFolder:type_name -> signalservice.ChatFolderRecord
-	3,  // 11: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
-	24, // 12: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
-	1,  // 13: signalservice.ContactRecord.avatarColor:type_name -> signalservice.AvatarColor
-	4,  // 14: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
-	1,  // 15: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
-	5,  // 16: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
-	25, // 17: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
-	18, // 18: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
-	0,  // 19: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
-	26, // 20: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
-	27, // 21: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
-	1,  // 22: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
-	7,  // 23: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
-	29, // 24: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.ChatFolderRecord.Recipient
-	29, // 25: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.ChatFolderRecord.Recipient
-	2,  // 26: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
-	28, // 27: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	6,  // 28: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	30, // 29: signalservice.ChatFolderRecord.Recipient.contact:type_name -> signalservice.ChatFolderRecord.Recipient.Contact
-	30, // [30:30] is the sub-list for method output_type
-	30, // [30:30] is the sub-list for method input_type
-	30, // [30:30] is the sub-list for extension type_name
-	30, // [30:30] is the sub-list for extension extendee
-	0,  // [0:30] is the sub-list for field type_name
+	10, // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
+	9,  // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
+	10, // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
+	26, // 3: signalservice.ManifestRecord.identifiers:type_name -> signalservice.ManifestRecord.Identifier
+	16, // 4: signalservice.StorageRecord.contact:type_name -> signalservice.ContactRecord
+	17, // 5: signalservice.StorageRecord.groupV1:type_name -> signalservice.GroupV1Record
+	18, // 6: signalservice.StorageRecord.groupV2:type_name -> signalservice.GroupV2Record
+	20, // 7: signalservice.StorageRecord.account:type_name -> signalservice.AccountRecord
+	21, // 8: signalservice.StorageRecord.storyDistributionList:type_name -> signalservice.StoryDistributionListRecord
+	22, // 9: signalservice.StorageRecord.callLink:type_name -> signalservice.CallLinkRecord
+	24, // 10: signalservice.StorageRecord.chatFolder:type_name -> signalservice.ChatFolderRecord
+	25, // 11: signalservice.StorageRecord.notificationProfile:type_name -> signalservice.NotificationProfile
+	3,  // 12: signalservice.ContactRecord.identityState:type_name -> signalservice.ContactRecord.IdentityState
+	27, // 13: signalservice.ContactRecord.nickname:type_name -> signalservice.ContactRecord.Name
+	1,  // 14: signalservice.ContactRecord.avatarColor:type_name -> signalservice.AvatarColor
+	4,  // 15: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
+	1,  // 16: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
+	5,  // 17: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
+	28, // 18: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
+	19, // 19: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
+	0,  // 20: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
+	29, // 21: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
+	30, // 22: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
+	1,  // 23: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
+	31, // 24: signalservice.AccountRecord.backupTierHistory:type_name -> signalservice.AccountRecord.BackupTierHistory
+	32, // 25: signalservice.AccountRecord.notificationProfileManualOverride:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride
+	35, // 26: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
+	7,  // 27: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
+	23, // 28: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.Recipient
+	23, // 29: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.Recipient
+	23, // 30: signalservice.NotificationProfile.allowedMembers:type_name -> signalservice.Recipient
+	8,  // 31: signalservice.NotificationProfile.scheduleDaysEnabled:type_name -> signalservice.NotificationProfile.DayOfWeek
+	2,  // 32: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
+	33, // 33: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
+	6,  // 34: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	34, // 35: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	36, // [36:36] is the sub-list for method output_type
+	36, // [36:36] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_StorageService_proto_init() }
@@ -2975,31 +3453,38 @@ func file_StorageService_proto_init() {
 		(*StorageRecord_StoryDistributionList)(nil),
 		(*StorageRecord_CallLink)(nil),
 		(*StorageRecord_ChatFolder)(nil),
+		(*StorageRecord_NotificationProfile)(nil),
 	}
 	file_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[17].OneofWrappers = []any{
+	file_StorageService_proto_msgTypes[14].OneofWrappers = []any{
+		(*Recipient_Contact_)(nil),
+		(*Recipient_LegacyGroupId)(nil),
+		(*Recipient_GroupMasterKey)(nil),
+	}
+	file_StorageService_proto_msgTypes[16].OneofWrappers = []any{}
+	file_StorageService_proto_msgTypes[19].OneofWrappers = []any{
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
 	}
-	file_StorageService_proto_msgTypes[19].OneofWrappers = []any{
+	file_StorageService_proto_msgTypes[21].OneofWrappers = []any{
 		(*AccountRecord_IAPSubscriberData_PurchaseToken)(nil),
 		(*AccountRecord_IAPSubscriberData_OriginalTransactionId)(nil),
 	}
-	file_StorageService_proto_msgTypes[21].OneofWrappers = []any{
-		(*ChatFolderRecord_Recipient_Contact_)(nil),
-		(*ChatFolderRecord_Recipient_LegacyGroupId)(nil),
-		(*ChatFolderRecord_Recipient_GroupMasterKey)(nil),
+	file_StorageService_proto_msgTypes[22].OneofWrappers = []any{}
+	file_StorageService_proto_msgTypes[23].OneofWrappers = []any{
+		(*AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs)(nil),
+		(*AccountRecord_NotificationProfileManualOverride_Enabled)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_StorageService_proto_rawDesc), len(file_StorageService_proto_rawDesc)),
-			NumEnums:      8,
-			NumMessages:   23,
+			NumEnums:      9,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

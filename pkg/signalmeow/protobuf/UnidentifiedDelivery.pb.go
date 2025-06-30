@@ -27,8 +27,10 @@ const (
 type UnidentifiedSenderMessage_Message_Type int32
 
 const (
-	UnidentifiedSenderMessage_Message_PREKEY_MESSAGE    UnidentifiedSenderMessage_Message_Type = 1
-	UnidentifiedSenderMessage_Message_MESSAGE           UnidentifiedSenderMessage_Message_Type = 2 // Further cases should line up with Envelope.Type, even though old cases don't.
+	// Our parser does not handle reserved in enums: DESKTOP-1569
+	// reserved 1;
+	UnidentifiedSenderMessage_Message_MESSAGE           UnidentifiedSenderMessage_Message_Type = 2
+	UnidentifiedSenderMessage_Message_PREKEY_MESSAGE    UnidentifiedSenderMessage_Message_Type = 3 // Further cases should line up with Envelope.Type, even though old cases don't.
 	UnidentifiedSenderMessage_Message_SENDERKEY_MESSAGE UnidentifiedSenderMessage_Message_Type = 7
 	UnidentifiedSenderMessage_Message_PLAINTEXT_CONTENT UnidentifiedSenderMessage_Message_Type = 8
 )
@@ -36,14 +38,14 @@ const (
 // Enum value maps for UnidentifiedSenderMessage_Message_Type.
 var (
 	UnidentifiedSenderMessage_Message_Type_name = map[int32]string{
-		1: "PREKEY_MESSAGE",
 		2: "MESSAGE",
+		3: "PREKEY_MESSAGE",
 		7: "SENDERKEY_MESSAGE",
 		8: "PLAINTEXT_CONTENT",
 	}
 	UnidentifiedSenderMessage_Message_Type_value = map[string]int32{
-		"PREKEY_MESSAGE":    1,
 		"MESSAGE":           2,
+		"PREKEY_MESSAGE":    3,
 		"SENDERKEY_MESSAGE": 7,
 		"PLAINTEXT_CONTENT": 8,
 	}
@@ -493,7 +495,7 @@ func (x *UnidentifiedSenderMessage_Message) GetType() UnidentifiedSenderMessage_
 	if x != nil && x.Type != nil {
 		return *x.Type
 	}
-	return UnidentifiedSenderMessage_Message_PREKEY_MESSAGE
+	return UnidentifiedSenderMessage_Message_MESSAGE
 }
 
 func (x *UnidentifiedSenderMessage_Message) GetSenderCertificate() *SenderCertificate {
@@ -559,9 +561,9 @@ const file_UnidentifiedDelivery_proto_rawDesc = "" +
 	"\acontent\x18\x03 \x01(\fR\acontent\x12^\n" +
 	"\vcontentHint\x18\x04 \x01(\x0e2<.signalservice.UnidentifiedSenderMessage.Message.ContentHintR\vcontentHint\x12\x18\n" +
 	"\agroupId\x18\x05 \x01(\fR\agroupId\"U\n" +
-	"\x04Type\x12\x12\n" +
-	"\x0ePREKEY_MESSAGE\x10\x01\x12\v\n" +
-	"\aMESSAGE\x10\x02\x12\x15\n" +
+	"\x04Type\x12\v\n" +
+	"\aMESSAGE\x10\x02\x12\x12\n" +
+	"\x0ePREKEY_MESSAGE\x10\x03\x12\x15\n" +
 	"\x11SENDERKEY_MESSAGE\x10\a\x12\x15\n" +
 	"\x11PLAINTEXT_CONTENT\x10\b\"8\n" +
 	"\vContentHint\x12\v\n" +
