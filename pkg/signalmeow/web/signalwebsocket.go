@@ -561,6 +561,9 @@ func (s *SignalWebsocket) SendRequest(
 	ctx context.Context,
 	request *signalpb.WebSocketRequestMessage,
 ) (*signalpb.WebSocketResponseMessage, error) {
+	if s == nil {
+		return nil, errors.New("websocket is nil")
+	}
 	startTime := time.Now()
 	return s.sendRequestInternal(ctx, request, startTime, 0)
 }
