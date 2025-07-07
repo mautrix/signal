@@ -339,36 +339,3 @@ func (s *SignalClient) IsLoggedIn() bool {
 	}
 	return s.Client.IsLoggedIn()
 }
-
-func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.MatrixViewingChat) error {
-	if msg.Portal == nil || msg.Portal.OtherUserID == "" {
-		// Group chat changes are sent by Signal so no need to fetch them on view
-		return nil
-	}
-
-	// Sync other user ghost info in DM rooms
-	ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, msg.Portal.OtherUserID)
-	if err != nil {
-		return fmt.Errorf("failed to get ghost for sync: %w", err)
-	} else if ghost == nil {
-		zerolog.Ctx(ctx).Warn().
-			Str("other_user_id", string(msg.Portal.OtherUserID)).
-			Msg("No ghost found for other user in portal")
-		return nil
-	}
-
-	meta := ghost.Metadata.(*signalid.GhostMetadata)
-	if meta.ProfileFetchedAt.Time.Add(5 * time.Minute).After(time.Now()) {
-		// Limit profile fetches to max one per 5 minutes
-		return nil
-	}
-
-	// Reset, but don't save, portal last sync time for immediate sync now
-	meta.ProfileFetchedAt.Time = time.Time{}
-	info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, 5*time.Minute)
-	if err != nil {
-		return fmt.Errorf("failed to get user info: %w", err)
-	}
-	ghost.UpdateInfo(ctx, info)
-	return nil
-}
