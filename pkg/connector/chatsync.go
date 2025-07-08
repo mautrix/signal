@@ -147,7 +147,9 @@ func (s *SignalClient) syncChats(ctx context.Context) {
 			}
 			continue
 		}
-		s.UserLogin.QueueRemoteEvent(resyncEvt)
+		if !s.UserLogin.QueueRemoteEvent(resyncEvt).Success {
+			return
+		}
 	}
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).ChatsSynced = true
 	err = s.UserLogin.Save(ctx)
