@@ -385,6 +385,11 @@ func (cli *Client) handleDecryptedResult(
 	envelope *signalpb.Envelope,
 	destinationServiceID libsignalgo.ServiceID,
 ) error {
+	if errors.Is(result.Err, context.Canceled) {
+		return result.Err
+	} else if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	log := zerolog.Ctx(ctx)
 	if result.CiphertextHash != nil {
 		defer func() {

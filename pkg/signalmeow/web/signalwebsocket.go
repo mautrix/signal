@@ -135,6 +135,9 @@ func (s *SignalWebsocket) pushStatus(ctx context.Context, status SignalWebsocket
 }
 
 func (s *SignalWebsocket) pushOutgoing(ctx context.Context, send SignalWebsocketSendMessage) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	s.closeLock.RLock()
 	defer s.closeLock.RUnlock()
 	if s.sendChannel == nil {
