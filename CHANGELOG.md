@@ -1,3 +1,7 @@
+# v0.8.5 (2025-07-16)
+
+* Updated libsignal to v0.76.1.
+
 # v0.8.4 (2025-06-16)
 
 * Updated libsignal to v0.74.1.

@@ -2,7 +2,7 @@ module go.mau.fi/mautrix-signal
 
 go 1.23.0
 
-toolchain go1.24.4
+toolchain go1.24.5
 
 require (
 	github.com/coder/websocket v1.8.13
@@ -14,11 +14,11 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/gjson v1.18.0
 	go.mau.fi/util v0.8.8
-	golang.org/x/crypto v0.39.0
-	golang.org/x/exp v0.0.0-20250606033433-dcc06ee1d476
-	golang.org/x/net v0.41.0
+	golang.org/x/crypto v0.40.0
+	golang.org/x/exp v0.0.0-20250711185948-6ae5c78190dc
+	golang.org/x/net v0.42.0
 	google.golang.org/protobuf v1.36.6
-	maunium.net/go/mautrix v0.24.2-0.20250617163829-26da46dbbf6e
+	maunium.net/go/mautrix v0.24.2
 )
 
 require (
@@ -41,9 +41,9 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/yuin/goldmark v1.7.12 // indirect
 	go.mau.fi/zeroconfig v0.1.3 // indirect
-	golang.org/x/sync v0.15.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.26.0 // indirect
+	golang.org/x/sync v0.16.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
