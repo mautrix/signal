@@ -160,7 +160,8 @@ var signalCapsNoteToSelf *event.RoomFeatures
 func init() {
 	signalCapsNoteToSelf = ptr.Clone(signalCaps)
 	signalCapsNoteToSelf.EditMaxAge = nil
-	signalCapsNoteToSelf.ID = capID() + "+note_to_self"
+	signalCapsNoteToSelf.DeleteMaxAge = nil
+	signalCapsNoteToSelf.ID = capID() + "+note_to_self.2"
 }
 
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
@@ -180,5 +181,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 3
+	return 1, 4
 }
