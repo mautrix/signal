@@ -35,6 +35,7 @@ func (*ReadSelf) isSignalEvent()        {}
 func (*Call) isSignalEvent()            {}
 func (*ContactList) isSignalEvent()     {}
 func (*ACIFound) isSignalEvent()        {}
+func (*DeleteForMe) isSignalEvent()     {}
 func (*QueueEmpty) isSignalEvent()      {}
 
 type MessageInfo struct {
@@ -62,7 +63,8 @@ type Receipt struct {
 }
 
 type ReadSelf struct {
-	Messages []*signalpb.SyncMessage_Read
+	Timestamp uint64
+	Messages  []*signalpb.SyncMessage_Read
 }
 
 type Call struct {
@@ -78,6 +80,11 @@ type ContactList struct {
 type ACIFound struct {
 	PNI libsignalgo.ServiceID
 	ACI libsignalgo.ServiceID
+}
+
+type DeleteForMe struct {
+	Timestamp uint64
+	*signalpb.SyncMessage_DeleteForMe
 }
 
 type QueueEmpty struct{}

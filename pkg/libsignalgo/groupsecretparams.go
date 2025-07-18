@@ -23,6 +23,7 @@ package libsignalgo
 import "C"
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"runtime"
 	"unsafe"
@@ -42,11 +43,19 @@ func GenerateRandomness() Randomness {
 }
 
 const GroupMasterKeyLength = C.SignalGROUP_MASTER_KEY_LEN
+const GroupIdentifierLength = C.SignalGROUP_IDENTIFIER_LEN
 
 type GroupMasterKey [GroupMasterKeyLength]byte
 type GroupSecretParams [C.SignalGROUP_SECRET_PARAMS_LEN]byte
 type GroupPublicParams [C.SignalGROUP_PUBLIC_PARAMS_LEN]byte
-type GroupIdentifier [C.SignalGROUP_IDENTIFIER_LEN]byte
+type GroupIdentifier [GroupIdentifierLength]byte
+
+func (gid *GroupIdentifier) String() string {
+	if gid == nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(gid[:])
+}
 
 type UUIDCiphertext [C.SignalUUID_CIPHERTEXT_LEN]byte
 type ProfileKeyCiphertext [C.SignalPROFILE_KEY_CIPHERTEXT_LEN]byte

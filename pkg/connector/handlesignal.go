@@ -18,6 +18,7 @@ package connector
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/simplevent"
 	"maunium.net/go/mautrix/event"
 
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
@@ -47,6 +49,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		return s.handleSignalReceipt(evt)
 	case *events.ReadSelf:
 		return s.handleSignalReadSelf(evt)
+	case *events.DeleteForMe:
+		return s.handleSignalDeleteForMe(evt)
 	case *events.Call:
 		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapCallEvent(evt)).Success
 	case *events.ContactList:
@@ -467,6 +471,144 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(aciUUID, msgInfo.GetTimestamp()))
 	})
 	return s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
+}
+
+func (s *SignalClient) conversationIDToPortalKey(ctx context.Context, cid *signalpb.ConversationIdentifier) (networkid.PortalKey, bool) {
+	log := zerolog.Ctx(ctx)
+	switch ident := cid.GetIdentifier().(type) {
+	case *signalpb.ConversationIdentifier_ThreadServiceId:
+		serviceID, err := libsignalgo.ServiceIDFromString(ident.ThreadServiceId)
+		if err != nil {
+			log.Err(err).Str("chat_id", ident.ThreadServiceId).Msg("Failed to parse delete for me conversation ID")
+			return networkid.PortalKey{}, false
+		}
+		return s.makeDMPortalKey(serviceID), true
+	case *signalpb.ConversationIdentifier_ThreadGroupId:
+		if len(ident.ThreadGroupId) != libsignalgo.GroupIdentifierLength {
+			log.Error().
+				Str("chat_id", base64.StdEncoding.EncodeToString(ident.ThreadGroupId)).
+				Msg("Invalid group ID length in delete for me conversation")
+			return networkid.PortalKey{}, false
+		}
+		return s.makePortalKey((*libsignalgo.GroupIdentifier)(ident.ThreadGroupId).String()), true
+	case *signalpb.ConversationIdentifier_ThreadE164:
+		log.Warn().Str("chat_id", ident.ThreadE164).Msg("Unsupported E164 conversation ID in delete for me")
+		return networkid.PortalKey{}, false
+	default:
+		log.Warn().
+			Type("chat_id_type", ident).
+			Msg("Unsupported conversation ID protobuf type in delete for me")
+		return networkid.PortalKey{}, false
+	}
+}
+
+func (s *SignalClient) addressableMessageToID(ctx context.Context, portalKey networkid.PortalKey, am *signalpb.AddressableMessage) networkid.MessageID {
+	log := zerolog.Ctx(ctx)
+	switch typedAuthor := am.GetAuthor().(type) {
+	case *signalpb.AddressableMessage_AuthorServiceId:
+		serviceID, err := libsignalgo.ServiceIDFromString(typedAuthor.AuthorServiceId)
+		if err != nil {
+			log.Err(err).
+				Object("portal_key", portalKey).
+				Str("author_service_id", typedAuthor.AuthorServiceId).
+				Msg("Failed to parse delete for me message author service ID")
+			return ""
+		} else if serviceID.Type != libsignalgo.ServiceIDTypeACI {
+			log.Warn().
+				Object("portal_key", portalKey).
+				Str("author_service_id", typedAuthor.AuthorServiceId).
+				Msg("Dropping delete for me message with unsupported service ID type")
+			return ""
+		}
+		return signalid.MakeMessageID(serviceID.UUID, am.GetSentTimestamp())
+	case *signalpb.AddressableMessage_AuthorE164:
+		log.Warn().
+			Object("portal_key", portalKey).
+			Str("author_e164", typedAuthor.AuthorE164).
+			Msg("Dropping delete for me message with unsupported E164 author")
+		return ""
+	default:
+		log.Warn().
+			Object("portal_key", portalKey).
+			Type("author_type", typedAuthor).
+			Msg("Dropping delete for me message with unrecognized author protobuf type")
+		return ""
+	}
+}
+
+func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
+	log := s.UserLogin.Log.With().
+		Str("action", "handle signal delete for me").
+		Logger()
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
+	for _, conv := range evt.GetConversationDeletes() {
+		if !conv.GetIsFullDelete() {
+			// Non-full deletes might mean clearing chats?
+			continue
+		}
+		portalKey, ok := s.conversationIDToPortalKey(ctx, conv.GetConversation())
+		if !ok {
+			continue
+		}
+
+		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
+			EventMeta: simplevent.EventMeta{
+				Type:        bridgev2.RemoteEventChatDelete,
+				PortalKey:   portalKey,
+				Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
+				StreamOrder: int64(evt.Timestamp),
+			},
+			OnlyForMe: true,
+		})
+		if !res.Success {
+			return false
+		}
+	}
+	for _, conv := range evt.GetLocalOnlyConversationDeletes() {
+		portalKey, ok := s.conversationIDToPortalKey(ctx, conv.GetConversation())
+		if !ok {
+			continue
+		}
+
+		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
+			EventMeta: simplevent.EventMeta{
+				Type:        bridgev2.RemoteEventChatDelete,
+				PortalKey:   portalKey,
+				Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
+				StreamOrder: int64(evt.Timestamp),
+			},
+			OnlyForMe: true,
+		})
+		if !res.Success {
+			return false
+		}
+	}
+	for _, conv := range evt.GetMessageDeletes() {
+		portalKey, ok := s.conversationIDToPortalKey(ctx, conv.GetConversation())
+		if !ok {
+			continue
+		}
+		for _, msg := range conv.GetMessages() {
+			msgID := s.addressableMessageToID(ctx, portalKey, msg)
+			if msgID == "" {
+				continue
+			}
+			res := s.UserLogin.QueueRemoteEvent(&simplevent.MessageRemove{
+				EventMeta: simplevent.EventMeta{
+					Type:        bridgev2.RemoteEventMessageRemove,
+					PortalKey:   portalKey,
+					Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
+					StreamOrder: int64(evt.Timestamp),
+				},
+				OnlyForMe:     true,
+				TargetMessage: msgID,
+			})
+			if !res.Success {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {

@@ -452,9 +452,7 @@ func groupIdentifierFromMasterKey(masterKey types.SerializedGroupMasterKey) (typ
 	if err != nil {
 		return "", err
 	}
-	base64GroupIdentifier := base64.StdEncoding.EncodeToString(groupIdentifier[:])
-	gid := types.GroupIdentifier(base64GroupIdentifier)
-	return gid, nil
+	return types.BytesToGroupIdentifier(groupIdentifier), nil
 }
 
 func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMasterKey types.SerializedGroupMasterKey) (*Group, error) {

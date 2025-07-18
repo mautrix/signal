@@ -631,7 +631,14 @@ func (cli *Client) handleDecryptedResult(
 		}
 		if content.SyncMessage.Read != nil {
 			handlerSuccess = cli.handleEvent(&events.ReadSelf{
-				Messages: content.SyncMessage.GetRead(),
+				Timestamp: envelope.GetTimestamp(),
+				Messages:  content.SyncMessage.GetRead(),
+			})
+		}
+		if content.SyncMessage.DeleteForMe != nil {
+			handlerSuccess = cli.handleEvent(&events.DeleteForMe{
+				Timestamp:               envelope.GetTimestamp(),
+				SyncMessage_DeleteForMe: content.SyncMessage.DeleteForMe,
 			})
 		}
 

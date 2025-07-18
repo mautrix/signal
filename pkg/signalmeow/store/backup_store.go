@@ -183,7 +183,7 @@ func (s *sqlStore) AddBackupRecipient(ctx context.Context, recipient *backuppb.R
 				zerolog.Ctx(ctx).Err(err).
 					Uint64("recipient_id", recipient.Id).
 					Msg("Failed to get group identifier from master key")
-			} else if err = s.StoreMasterKey(ctx, types.GroupIdentifier(base64.StdEncoding.EncodeToString(gid[:])), groupMasterKey); err != nil {
+			} else if err = s.StoreMasterKey(ctx, types.BytesToGroupIdentifier(gid), groupMasterKey); err != nil {
 				return fmt.Errorf("failed to save group master key for recipient %d: %w", recipient.Id, err)
 			}
 		} else {

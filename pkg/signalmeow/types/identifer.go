@@ -25,6 +25,10 @@ import (
 
 type GroupIdentifier string
 
+func BytesToGroupIdentifier(raw *libsignalgo.GroupIdentifier) GroupIdentifier {
+	return GroupIdentifier(raw.String())
+}
+
 func (gid GroupIdentifier) String() string {
 	return string(gid)
 }
