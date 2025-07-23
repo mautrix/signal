@@ -6660,6 +6660,7 @@ type SyncMessage_CallLinkUpdate struct {
 	RootKey       []byte                           `protobuf:"bytes,1,opt,name=rootKey" json:"rootKey,omitempty"`
 	AdminPasskey  []byte                           `protobuf:"bytes,2,opt,name=adminPasskey" json:"adminPasskey,omitempty"`
 	Type          *SyncMessage_CallLinkUpdate_Type `protobuf:"varint,3,opt,name=type,enum=signalservice.SyncMessage_CallLinkUpdate_Type" json:"type,omitempty"` // defaults to UPDATE
+	Epoch         []byte                           `protobuf:"bytes,4,opt,name=epoch" json:"epoch,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6713,6 +6714,13 @@ func (x *SyncMessage_CallLinkUpdate) GetType() SyncMessage_CallLinkUpdate_Type {
 		return *x.Type
 	}
 	return SyncMessage_CallLinkUpdate_UPDATE
+}
+
+func (x *SyncMessage_CallLinkUpdate) GetEpoch() []byte {
+	if x != nil {
+		return x.Epoch
+	}
+	return nil
 }
 
 type SyncMessage_CallLogEvent struct {
@@ -8082,7 +8090,7 @@ const file_SignalService_proto_rawDesc = "" +
 	"\aDEFAULT\x10\x00\x12\f\n" +
 	"\bVERIFIED\x10\x01\x12\x0e\n" +
 	"\n" +
-	"UNVERIFIED\x10\x02J\x04\b\x01\x10\x02\"\xf1C\n" +
+	"UNVERIFIED\x10\x02J\x04\b\x01\x10\x02\"\x87D\n" +
 	"\vSyncMessage\x123\n" +
 	"\x04sent\x18\x01 \x01(\v2\x1f.signalservice.SyncMessage.SentR\x04sent\x12?\n" +
 	"\bcontacts\x18\x02 \x01(\v2#.signalservice.SyncMessage.ContactsR\bcontacts\x12<\n" +
@@ -8247,11 +8255,12 @@ const file_SignalService_proto_rawDesc = "" +
 	"\fNOT_ACCEPTED\x10\x02\x12\n" +
 	"\n" +
 	"\x06DELETE\x10\x03\x12\f\n" +
-	"\bOBSERVED\x10\x04\x1a\xac\x01\n" +
+	"\bOBSERVED\x10\x04\x1a\xc2\x01\n" +
 	"\x0eCallLinkUpdate\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\"\n" +
 	"\fadminPasskey\x18\x02 \x01(\fR\fadminPasskey\x12B\n" +
-	"\x04type\x18\x03 \x01(\x0e2..signalservice.SyncMessage.CallLinkUpdate.TypeR\x04type\"\x18\n" +
+	"\x04type\x18\x03 \x01(\x0e2..signalservice.SyncMessage.CallLinkUpdate.TypeR\x04type\x12\x14\n" +
+	"\x05epoch\x18\x04 \x01(\fR\x05epoch\"\x18\n" +
 	"\x04Type\x12\n" +
 	"\n" +
 	"\x06UPDATE\x10\x00\"\x04\b\x01\x10\x01\x1a\x94\x02\n" +

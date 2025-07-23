@@ -1861,6 +1861,7 @@ type BackupInfo struct {
 	MediaRootBackupKey []byte                 `protobuf:"bytes,3,opt,name=mediaRootBackupKey,proto3" json:"mediaRootBackupKey,omitempty"` // 32-byte random value generated when the backup is uploaded for the first time.
 	CurrentAppVersion  string                 `protobuf:"bytes,4,opt,name=currentAppVersion,proto3" json:"currentAppVersion,omitempty"`
 	FirstAppVersion    string                 `protobuf:"bytes,5,opt,name=firstAppVersion,proto3" json:"firstAppVersion,omitempty"`
+	DebugInfo          []byte                 `protobuf:"bytes,6,opt,name=debugInfo,proto3" json:"debugInfo,omitempty"` // Client-specific data field for debug info during testing
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1928,6 +1929,13 @@ func (x *BackupInfo) GetFirstAppVersion() string {
 		return x.FirstAppVersion
 	}
 	return ""
+}
+
+func (x *BackupInfo) GetDebugInfo() []byte {
+	if x != nil {
+		return x.DebugInfo
+	}
+	return nil
 }
 
 // Frames must follow in the following ordering rules:
@@ -2936,6 +2944,7 @@ type CallLink struct {
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
 	Restrictions  CallLink_Restrictions  `protobuf:"varint,4,opt,name=restrictions,proto3,enum=signal.backup.CallLink_Restrictions" json:"restrictions,omitempty"`
 	ExpirationMs  uint64                 `protobuf:"varint,5,opt,name=expirationMs,proto3" json:"expirationMs,omitempty"`
+	Epoch         []byte                 `protobuf:"bytes,6,opt,name=epoch,proto3" json:"epoch,omitempty"` // May be absent/empty for older links
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3003,6 +3012,13 @@ func (x *CallLink) GetExpirationMs() uint64 {
 		return x.ExpirationMs
 	}
 	return 0
+}
+
+func (x *CallLink) GetEpoch() []byte {
+	if x != nil {
+		return x.Epoch
+	}
+	return nil
 }
 
 type AdHocCall struct {
@@ -11519,14 +11535,15 @@ var File_backuppb_Backup_proto protoreflect.FileDescriptor
 
 const file_backuppb_Backup_proto_rawDesc = "" +
 	"\n" +
-	"\x15backuppb/Backup.proto\x12\rsignal.backup\"\xd2\x01\n" +
+	"\x15backuppb/Backup.proto\x12\rsignal.backup\"\xf0\x01\n" +
 	"\n" +
 	"BackupInfo\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x04R\aversion\x12\"\n" +
 	"\fbackupTimeMs\x18\x02 \x01(\x04R\fbackupTimeMs\x12.\n" +
 	"\x12mediaRootBackupKey\x18\x03 \x01(\fR\x12mediaRootBackupKey\x12,\n" +
 	"\x11currentAppVersion\x18\x04 \x01(\tR\x11currentAppVersion\x12(\n" +
-	"\x0ffirstAppVersion\x18\x05 \x01(\tR\x0ffirstAppVersion\"\xf2\x03\n" +
+	"\x0ffirstAppVersion\x18\x05 \x01(\tR\x0ffirstAppVersion\x12\x1c\n" +
+	"\tdebugInfo\x18\x06 \x01(\fR\tdebugInfo\"\xf2\x03\n" +
 	"\x05Frame\x126\n" +
 	"\aaccount\x18\x01 \x01(\v2\x1a.signal.backup.AccountDataH\x00R\aaccount\x128\n" +
 	"\trecipient\x18\x02 \x01(\v2\x18.signal.backup.RecipientH\x00R\trecipient\x12)\n" +
@@ -11763,13 +11780,14 @@ const file_backuppb_Backup_proto_rawDesc = "" +
 	" \x01(\rR\x12expireTimerVersionB\x0e\n" +
 	"\f_pinnedOrderB\x14\n" +
 	"\x12_expirationTimerMsB\x0e\n" +
-	"\f_muteUntilMs\"\x8f\x02\n" +
+	"\f_muteUntilMs\"\xa5\x02\n" +
 	"\bCallLink\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\x1f\n" +
 	"\badminKey\x18\x02 \x01(\fH\x00R\badminKey\x88\x01\x01\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x12H\n" +
 	"\frestrictions\x18\x04 \x01(\x0e2$.signal.backup.CallLink.RestrictionsR\frestrictions\x12\"\n" +
-	"\fexpirationMs\x18\x05 \x01(\x04R\fexpirationMs\"9\n" +
+	"\fexpirationMs\x18\x05 \x01(\x04R\fexpirationMs\x12\x14\n" +
+	"\x05epoch\x18\x06 \x01(\fR\x05epoch\"9\n" +
 	"\fRestrictions\x12\v\n" +
 	"\aUNKNOWN\x10\x00\x12\b\n" +
 	"\x04NONE\x10\x01\x12\x12\n" +
