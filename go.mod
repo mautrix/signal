@@ -17,7 +17,7 @@ require (
 	golang.org/x/exp v0.0.0-20250718183923-645b1fa84792
 	golang.org/x/net v0.42.0
 	google.golang.org/protobuf v1.36.6
-	maunium.net/go/mautrix v0.24.3-0.20250728143428-ae2c07fb863a
+	maunium.net/go/mautrix v0.24.3-0.20250728190343-2e7ff3fedd4c
 )
 
 require (
