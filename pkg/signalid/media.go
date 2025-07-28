@@ -17,7 +17,6 @@
 package signalid
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
@@ -127,7 +126,7 @@ func ParseDirectMediaInfo(mediaID networkid.MediaID) (_ DirectMediaInfo, err err
 		return nil, fmt.Errorf("empty media ID")
 	}
 
-	buf := bufio.NewReader(bytes.NewBuffer(mediaID))
+	buf := bytes.NewReader(mediaID)
 
 	// type byte
 	var mediaType directMediaType
@@ -169,7 +168,7 @@ func ParseDirectMediaInfo(mediaID networkid.MediaID) (_ DirectMediaInfo, err err
 
 		if err = binary.Read(buf, binary.BigEndian, &info.UserID); err != nil {
 			return info, fmt.Errorf("failed to read user id: %w", err)
-		} else if binary.Read(buf, binary.BigEndian, &info.GroupID); err != nil {
+		} else if err = binary.Read(buf, binary.BigEndian, &info.GroupID); err != nil {
 			return info, fmt.Errorf("failed to read group id: %w", err)
 		}
 		if groupAvatarPath, err := readByteSlice(buf, mediaIDLen); err != nil {
@@ -215,7 +214,12 @@ func writeByteSlice(w io.Writer, b []byte) error {
 	return err
 }
 
-func readByteSlice(r *bufio.Reader, maxLength int) ([]byte, error) {
+type byteReader interface {
+	io.ByteReader
+	io.Reader
+}
+
+func readByteSlice(r byteReader, maxLength int) ([]byte, error) {
 	length, err := binary.ReadUvarint(r)
 	if err != nil {
 		return nil, fmt.Errorf("reading uvarint failed: %w", err)
