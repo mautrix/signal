@@ -485,7 +485,14 @@ func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalp
 	if err := checkIfAttachmentExists(att, attMap); err != nil {
 		return nil, err
 	}
-	return signalmeow.DownloadAttachmentWithPointer(ctx, att)
+	var plaintextHash []byte
+	if len(att.GetClientUuid()) == 16 {
+		target, ok := attMap[uuid.UUID(att.GetClientUuid())]
+		if ok {
+			plaintextHash = target.GetPlaintextHash()
+		}
+	}
+	return signalmeow.DownloadAttachmentWithPointer(ctx, att, plaintextHash)
 }
 
 func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) (*bridgev2.ConvertedMessagePart, error) {
@@ -501,13 +508,23 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 	if err := checkIfAttachmentExists(att, attMap); err != nil {
 		return nil, err
 	} else if mc.DirectMedia {
+		digest := att.Digest
+		var plaintextDigest bool
+		if digest == nil && len(att.GetClientUuid()) == 16 {
+			locatorInfo, ok := attMap[uuid.UUID(att.GetClientUuid())]
+			if ok {
+				digest = locatorInfo.GetPlaintextHash()
+				plaintextDigest = true
+			}
+		}
 		mediaID, err := signalid.DirectMediaAttachment{
-			CDNID:     att.GetCdnId(),
-			CDNKey:    att.GetCdnKey(),
-			CDNNumber: att.GetCdnNumber(),
-			Key:       att.Key,
-			Digest:    att.Digest,
-			Size:      att.GetSize(),
+			CDNID:           att.GetCdnId(),
+			CDNKey:          att.GetCdnKey(),
+			CDNNumber:       att.GetCdnNumber(),
+			Key:             att.Key,
+			Digest:          digest,
+			PlaintextDigest: plaintextDigest,
+			Size:            att.GetSize(),
 		}.AsMediaID()
 		if err != nil {
 			return nil, err

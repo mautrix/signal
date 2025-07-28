@@ -59,11 +59,17 @@ var ErrInvalidMACForAttachment = errors.New("invalid MAC for attachment")
 var ErrInvalidDigestForAttachment = errors.New("invalid digest for attachment")
 var ErrAttachmentNotFound = errors.New("attachment not found on server")
 
-func DownloadAttachmentWithPointer(ctx context.Context, a *signalpb.AttachmentPointer) ([]byte, error) {
-	return DownloadAttachment(ctx, a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber(), a.Key, a.Digest, a.GetSize())
+func DownloadAttachmentWithPointer(ctx context.Context, a *signalpb.AttachmentPointer, plaintextHash []byte) ([]byte, error) {
+	digest := a.GetDigest()
+	plaintextDigest := false
+	if digest == nil && plaintextHash != nil {
+		digest = plaintextHash
+		plaintextDigest = true
+	}
+	return DownloadAttachment(ctx, a.GetCdnId(), a.GetCdnKey(), a.GetCdnNumber(), a.Key, digest, plaintextDigest, a.GetSize())
 }
 
-func DownloadAttachment(ctx context.Context, cdnID uint64, cdnKey string, cdnNumber uint32, key, digest []byte, size uint32) ([]byte, error) {
+func DownloadAttachment(ctx context.Context, cdnID uint64, cdnKey string, cdnNumber uint32, key, digest []byte, plaintextDigest bool, size uint32) ([]byte, error) {
 	path := getAttachmentPath(cdnID, cdnKey)
 	resp, err := web.GetAttachment(ctx, path, cdnNumber, nil)
 	if err != nil {
@@ -88,16 +94,18 @@ func DownloadAttachment(ctx context.Context, cdnID uint64, cdnKey string, cdnNum
 		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
-	return decryptAttachment(body, key, digest, size)
+	return decryptAttachment(body, key, digest, plaintextDigest, size)
 }
 
 const MACLength = 32
 const IVLength = 16
 
-func decryptAttachment(body, key, digest []byte, size uint32) ([]byte, error) {
-	hash := sha256.Sum256(body)
-	if !hmac.Equal(hash[:], digest) {
-		return nil, ErrInvalidDigestForAttachment
+func decryptAttachment(body, key, digest []byte, plaintextDigest bool, size uint32) ([]byte, error) {
+	if !plaintextDigest {
+		hash := sha256.Sum256(body)
+		if !hmac.Equal(hash[:], digest) {
+			return nil, ErrInvalidDigestForAttachment
+		}
 	}
 	l := len(body) - MACLength
 	if !verifyMAC(key[MACLength:], body[:l], body[l:]) {
@@ -111,7 +119,14 @@ func decryptAttachment(body, key, digest []byte, size uint32) ([]byte, error) {
 	if len(decrypted) < int(size) {
 		return nil, fmt.Errorf("decrypted attachment length %v < expected %v", len(decrypted), size)
 	}
-	return decrypted[:size], nil
+	decrypted = decrypted[:size]
+	if plaintextDigest {
+		hash := sha256.Sum256(decrypted)
+		if !hmac.Equal(hash[:], digest) {
+			return nil, fmt.Errorf("%w (plaintext hash)", ErrInvalidDigestForAttachment)
+		}
+	}
+	return decrypted, nil
 }
 
 type attachmentV4UploadAttributes struct {

@@ -37,12 +37,15 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 			Uint32("cdn_number", info.CDNNumber).
 			Int("key_len", len(info.Key)).
 			Int("digest_len", len(info.Digest)).
+			Bool("plaintext_digest", info.PlaintextDigest).
 			Uint32("size", info.Size).
 			Msg("Direct downloading attachment")
 
 		return &mediaproxy.GetMediaResponseCallback{
 			Callback: func(w io.Writer) (int64, error) {
-				data, err := signalmeow.DownloadAttachment(ctx, info.CDNID, info.CDNKey, info.CDNNumber, info.Key, info.Digest, info.Size)
+				data, err := signalmeow.DownloadAttachment(
+					ctx, info.CDNID, info.CDNKey, info.CDNNumber, info.Key, info.Digest, info.PlaintextDigest, info.Size,
+				)
 				if err != nil {
 					log.Err(err).Msg("Direct download failed")
 					return 0, err

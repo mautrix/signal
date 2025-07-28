@@ -30,9 +30,10 @@ import (
 type directMediaType byte
 
 const (
-	directMediaTypeAttachment    directMediaType = 0
-	directMediaTypeGroupAvatar   directMediaType = 1
-	directMediaTypeProfileAvatar directMediaType = 2
+	directMediaTypeAttachment                directMediaType = 0
+	directMediaTypeGroupAvatar               directMediaType = 1
+	directMediaTypeProfileAvatar             directMediaType = 2
+	directMediaTypePlaintextDigestAttachment directMediaType = 3
 )
 
 type DirectMediaInfo interface {
@@ -46,18 +47,24 @@ var (
 )
 
 type DirectMediaAttachment struct {
-	CDNID     uint64
-	CDNKey    string
-	CDNNumber uint32
-	Key       []byte
-	Digest    []byte
-	Size      uint32
+	CDNID           uint64
+	CDNKey          string
+	CDNNumber       uint32
+	Key             []byte
+	PlaintextDigest bool
+	Digest          []byte
+	Size            uint32
 }
 
 func (m DirectMediaAttachment) AsMediaID() (mediaID networkid.MediaID, err error) {
 	buf := &bytes.Buffer{}
 
-	if err = binary.Write(buf, binary.BigEndian, directMediaTypeAttachment); err != nil {
+	attType := directMediaTypeAttachment
+	if m.PlaintextDigest {
+		attType = directMediaTypePlaintextDigestAttachment
+	}
+
+	if err = binary.Write(buf, binary.BigEndian, attType); err != nil {
 		return
 	} else if err = writeUvarint(buf, m.CDNID); err != nil {
 		return
@@ -135,8 +142,9 @@ func ParseDirectMediaInfo(mediaID networkid.MediaID) (_ DirectMediaInfo, err err
 	}
 
 	switch mediaType {
-	case directMediaTypeAttachment:
+	case directMediaTypeAttachment, directMediaTypePlaintextDigestAttachment:
 		var info DirectMediaAttachment
+		info.PlaintextDigest = mediaType == directMediaTypePlaintextDigestAttachment
 
 		if info.CDNID, err = binary.ReadUvarint(buf); err != nil {
 			return info, fmt.Errorf("failed to read cdn id: %w", err)
