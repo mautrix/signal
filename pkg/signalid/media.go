@@ -30,9 +30,9 @@ import (
 type directMediaType byte
 
 const (
-	directMediaTypeAttachment directMediaType = iota
-	directMediaTypeGroupAvatar
-	directMediaTypeProfileAvatar
+	directMediaTypeAttachment    directMediaType = 0
+	directMediaTypeGroupAvatar   directMediaType = 1
+	directMediaTypeProfileAvatar directMediaType = 2
 )
 
 type DirectMediaInfo interface {

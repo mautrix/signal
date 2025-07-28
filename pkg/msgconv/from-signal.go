@@ -463,20 +463,27 @@ func (mc *MessageConverter) downloadSignalLongText(ctx context.Context, att *sig
 	return &longBody, nil
 }
 
-func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) ([]byte, error) {
+func checkIfAttachmentExists(att *signalpb.AttachmentPointer, attMap AttachmentMap) error {
 	if att.AttachmentIdentifier == nil {
 		if len(att.GetClientUuid()) != 16 {
-			return nil, fmt.Errorf("no attachment identifier found")
+			return fmt.Errorf("no attachment identifier found")
 		}
 		target, ok := attMap[uuid.UUID(att.GetClientUuid())]
 		if !ok {
-			return nil, fmt.Errorf("no attachment identifier and attachment not found in map")
-		} else if target == nil {
-			return nil, ErrAttachmentNotInBackup
+			return fmt.Errorf("no attachment identifier and attachment not found in map")
+		} else if target == nil || target.MediaTierCdnNumber == nil {
+			return ErrAttachmentNotInBackup
 		} else {
 			// TODO add support for downloading attachments from backup
-			return nil, ErrBackupNotSupported
+			return ErrBackupNotSupported
 		}
+	}
+	return nil
+}
+
+func (mc *MessageConverter) downloadAttachment(ctx context.Context, att *signalpb.AttachmentPointer, attMap AttachmentMap) ([]byte, error) {
+	if err := checkIfAttachmentExists(att, attMap); err != nil {
+		return nil, err
 	}
 	return signalmeow.DownloadAttachmentWithPointer(ctx, att)
 }
@@ -491,7 +498,9 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		},
 	}
 	mimeType := att.GetContentType()
-	if mc.DirectMedia {
+	if err := checkIfAttachmentExists(att, attMap); err != nil {
+		return nil, err
+	} else if mc.DirectMedia {
 		mediaID, err := signalid.DirectMediaAttachment{
 			CDNID:     att.GetCdnId(),
 			CDNKey:    att.GetCdnKey(),
