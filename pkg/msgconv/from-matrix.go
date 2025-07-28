@@ -192,7 +192,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 		att.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_VOICE_MESSAGE))
 	}
 	if content.Info.MauGIF {
-		att.Flags = proto.Uint32(uint32(compatFlagGIF))
+		att.Flags = proto.Uint32(uint32(signalpb.AttachmentPointer_GIF))
 	}
 	att.ContentType = proto.String(mime)
 	att.FileName = &fileName

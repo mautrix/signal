@@ -236,7 +236,7 @@ func backupToSignalAttachmentFlag(flag backuppb.MessageAttachment_Flag) signalpb
 	case backuppb.MessageAttachment_BORDERLESS:
 		return signalpb.AttachmentPointer_BORDERLESS
 	case backuppb.MessageAttachment_GIF:
-		return compatFlagGIF
+		return signalpb.AttachmentPointer_GIF
 	case backuppb.MessageAttachment_NONE:
 		fallthrough
 	default:

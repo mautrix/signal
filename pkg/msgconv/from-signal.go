@@ -76,13 +76,6 @@ func CanConvertSignal(dm *signalpb.DataMessage) bool {
 
 const ViewOnceDisappearTimer = 5 * time.Minute
 
-// Why does signal have two different flags for gifs??
-// https://github.com/signalapp/Signal-Android/blob/v7.29.4/libsignal-service/src/main/protowire/SignalService.proto#L745
-// https://github.com/signalapp/Signal-Desktop/blob/v7.38.0-beta.1/protos/SignalService.proto#L740
-// https://github.com/signalapp/Signal-iOS/blob/7.42.0.545-beta/SignalServiceKit/protobuf/SignalService.proto#L756
-// Apparently the android one is a lie and doesn't work?
-const compatFlagGIF = 8
-
 func (mc *MessageConverter) ToMatrix(
 	ctx context.Context,
 	client *signalmeow.Client,
@@ -569,7 +562,7 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		content.MsgType = event.MsgFile
 	}
 	var extra map[string]any
-	if att.GetFlags()&uint32(compatFlagGIF) != 0 {
+	if att.GetFlags()&uint32(signalpb.AttachmentPointer_GIF) != 0 {
 		content.Info.MauGIF = true
 		extra = map[string]any{
 			"info": map[string]any{
