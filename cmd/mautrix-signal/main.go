@@ -17,8 +17,6 @@
 package main
 
 import (
-	"net/http"
-
 	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
 	"maunium.net/go/mautrix/bridgev2/matrix/mxmain"
 
@@ -57,12 +55,12 @@ func main() {
 	}
 	m.PostStart = func() {
 		if m.Matrix.Provisioning != nil {
-			m.Matrix.Provisioning.Router.HandleFunc("/v2/link/new", legacyProvLinkNew).Methods(http.MethodPost)
-			m.Matrix.Provisioning.Router.HandleFunc("/v2/link/wait/scan", legacyProvLinkWaitScan).Methods(http.MethodPost)
-			m.Matrix.Provisioning.Router.HandleFunc("/v2/link/wait/account", legacyProvLinkWaitAccount).Methods(http.MethodPost)
-			m.Matrix.Provisioning.Router.HandleFunc("/v2/logout", legacyProvLogout).Methods(http.MethodPost)
-			m.Matrix.Provisioning.Router.HandleFunc("/v2/resolve_identifier/{phonenum}", legacyProvResolveIdentifier).Methods(http.MethodGet)
-			m.Matrix.Provisioning.Router.HandleFunc("/v2/pm/{phonenum}", legacyProvPM).Methods(http.MethodPost)
+			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/link/new", legacyProvLinkNew)
+			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/link/wait/scan", legacyProvLinkWaitScan)
+			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/link/wait/account", legacyProvLinkWaitAccount)
+			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/logout", legacyProvLogout)
+			m.Matrix.Provisioning.Router.HandleFunc("GET /v2/resolve_identifier/{phonenum}", legacyProvResolveIdentifier)
+			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/pm/{phonenum}", legacyProvPM)
 		}
 	}
 	m.InitVersion(Tag, Commit, BuildTime)

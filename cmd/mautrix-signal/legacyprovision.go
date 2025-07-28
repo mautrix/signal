@@ -25,7 +25,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gorilla/mux"
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
@@ -215,7 +214,7 @@ func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 	api := login.Client.(bridgev2.IdentifierResolvingNetworkAPI)
-	phonenum := mux.Vars(r)["phonenum"]
+	phonenum := r.PathValue("phonenum")
 	resp, err := api.ResolveIdentifier(r.Context(), phonenum, create)
 	if err != nil {
 		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to resolve identifier")
