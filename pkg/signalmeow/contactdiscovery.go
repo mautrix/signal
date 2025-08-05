@@ -40,7 +40,7 @@ import (
 )
 
 const ProdContactDiscoveryServer = "cdsi.signal.org"
-const ProdContactDiscoveryMrenclave = "c6ff0682219217f7045624be472a077c0d4b06193fe71632eb0adb50051d5da1"
+const ProdContactDiscoveryMrenclave = "ee9503070127120074612b6688e593b67e486b1541449f54d71e387484eb40a3"
 const ContactDiscoveryAuthTTL = 23 * time.Hour
 
 const rateLimitCloseCode = websocket.StatusCode(4008)
