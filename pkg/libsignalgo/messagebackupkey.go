@@ -42,6 +42,7 @@ func MessageBackupKeyFromAccountEntropyPool(aep AccountEntropyPool, aci ServiceI
 		&bk,
 		C.CString(string(aep)),
 		aci.CFixedBytes(),
+		nil, // TODO what's a forward secrecy token?
 	)
 	runtime.KeepAlive(aep)
 	if signalFfiError != nil {
@@ -56,6 +57,7 @@ func MessageBackupKeyFromBackupKeyAndID(backupKey *BackupKey, backupID *BackupID
 		&bk,
 		(*[C.SignalBACKUP_KEY_LEN]C.uint8_t)(unsafe.Pointer(backupKey)),
 		(*[BackupIDLength]C.uint8_t)(unsafe.Pointer(backupID)),
+		nil, // TODO what's a forward secrecy token?
 	)
 	runtime.KeepAlive(backupKey)
 	runtime.KeepAlive(backupID)

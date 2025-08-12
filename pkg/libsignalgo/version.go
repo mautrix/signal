@@ -2,4 +2,4 @@
 
 package libsignalgo
 
-const Version = "v0.76.7"
+const Version = "v0.78.2"
