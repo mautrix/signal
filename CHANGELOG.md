@@ -1,3 +1,9 @@
+# v0.8.6 (unreleased)
+
+* Updated libsignal to v0.78.2.
+* Added support for "delete to me" of chats and messages.
+* Added support for latest Signal backup/transfer protocol.
+
 # v0.8.5 (2025-07-16)
 
 * Updated libsignal to v0.76.1.
