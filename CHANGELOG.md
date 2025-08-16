@@ -1,5 +1,8 @@
-# v0.8.6 (unreleased)
+# v0.8.6 (2025-08-16)
 
+* Deprecated legacy provisioning API. The `/_matrix/provision/v2` endpoints will
+  be deleted in the next release.
+* Bumped minimum Go version to 1.24.
 * Updated libsignal to v0.78.2.
 * Added support for "delete to me" of chats and messages.
 * Added support for latest Signal backup/transfer protocol.
