@@ -37,6 +37,7 @@ func (*ContactList) isSignalEvent()     {}
 func (*ACIFound) isSignalEvent()        {}
 func (*DeleteForMe) isSignalEvent()     {}
 func (*QueueEmpty) isSignalEvent()      {}
+func (*LoggedOut) isSignalEvent()       {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -88,3 +89,5 @@ type DeleteForMe struct {
 }
 
 type QueueEmpty struct{}
+
+type LoggedOut struct{ Error error }

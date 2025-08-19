@@ -30,6 +30,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
@@ -630,6 +631,7 @@ func (cli *Client) keyCheckLoop(ctx context.Context) {
 					if disconnectErr != nil {
 						log.Err(disconnectErr).Msg("ClearKeysAndDisconnect error")
 					}
+					cli.handleEvent(&events.LoggedOut{Error: err})
 					return
 				}
 				log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
