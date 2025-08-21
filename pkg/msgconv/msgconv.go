@@ -65,7 +65,8 @@ func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {
 					Name: ghost.Name,
 				}
 				userLogin := br.GetCachedUserLoginByID(networkid.UserLoginID(uuid.String()))
-				if userLogin != nil {
+				portal := getPortal(ctx)
+				if userLogin != nil && (portal.Receiver == "" || portal.Receiver == userLogin.ID) {
 					userInfo.MXID = userLogin.UserMXID
 					// TODO find matrix user displayname?
 				}
