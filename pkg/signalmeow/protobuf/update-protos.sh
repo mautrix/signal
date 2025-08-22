@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-dbd79cd0a52d7d1594f70a4ba5a68c8fc3efa5e8}
-DESKTOP_GIT_REVISION=${1:-07a05f3dd6f7fd07a1faebd8dd046d2b87da6c07}
+ANDROID_GIT_REVISION=${1:-62fdf3d1aa9f637729ae67b55aadcc24f38f0117}
+DESKTOP_GIT_REVISION=${1:-203a1cc5e3f9c1533a58caff72e13aa6eaeeddc7}
 
 update_proto() {
   case "$1" in

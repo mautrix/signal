@@ -1962,7 +1962,7 @@ type CallLinkRecord struct {
 	RootKey              []byte                 `protobuf:"bytes,1,opt,name=rootKey,proto3" json:"rootKey,omitempty"`
 	AdminPasskey         []byte                 `protobuf:"bytes,2,opt,name=adminPasskey,proto3" json:"adminPasskey,omitempty"`
 	DeletedAtTimestampMs uint64                 `protobuf:"varint,3,opt,name=deletedAtTimestampMs,proto3" json:"deletedAtTimestampMs,omitempty"`
-	Epoch                []byte                 `protobuf:"bytes,4,opt,name=epoch,proto3" json:"epoch,omitempty"`
+	Epoch                []byte                 `protobuf:"bytes,4,opt,name=epoch,proto3,oneof" json:"epoch,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -3267,12 +3267,13 @@ const file_StorageService_proto_rawDesc = "" +
 	"\x13recipientServiceIds\x18\x03 \x03(\tR\x13recipientServiceIds\x12.\n" +
 	"\x12deletedAtTimestamp\x18\x04 \x01(\x04R\x12deletedAtTimestamp\x12$\n" +
 	"\rallowsReplies\x18\x05 \x01(\bR\rallowsReplies\x12 \n" +
-	"\visBlockList\x18\x06 \x01(\bR\visBlockList\"\x98\x01\n" +
+	"\visBlockList\x18\x06 \x01(\bR\visBlockList\"\xa7\x01\n" +
 	"\x0eCallLinkRecord\x12\x18\n" +
 	"\arootKey\x18\x01 \x01(\fR\arootKey\x12\"\n" +
 	"\fadminPasskey\x18\x02 \x01(\fR\fadminPasskey\x122\n" +
-	"\x14deletedAtTimestampMs\x18\x03 \x01(\x04R\x14deletedAtTimestampMs\x12\x14\n" +
-	"\x05epoch\x18\x04 \x01(\fR\x05epoch\"\xe6\x01\n" +
+	"\x14deletedAtTimestampMs\x18\x03 \x01(\x04R\x14deletedAtTimestampMs\x12\x19\n" +
+	"\x05epoch\x18\x04 \x01(\fH\x00R\x05epoch\x88\x01\x01B\b\n" +
+	"\x06_epoch\"\xe6\x01\n" +
 	"\tRecipient\x12<\n" +
 	"\acontact\x18\x01 \x01(\v2 .signalservice.Recipient.ContactH\x00R\acontact\x12&\n" +
 	"\rlegacyGroupId\x18\x02 \x01(\fH\x00R\rlegacyGroupId\x12(\n" +
@@ -3467,6 +3468,7 @@ func file_StorageService_proto_init() {
 	file_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
+	file_StorageService_proto_msgTypes[13].OneofWrappers = []any{}
 	file_StorageService_proto_msgTypes[14].OneofWrappers = []any{
 		(*Recipient_Contact_)(nil),
 		(*Recipient_LegacyGroupId)(nil),

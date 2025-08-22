@@ -205,26 +205,10 @@ func backupToSignalAttachment(
 			sig.AttachmentIdentifier = &signalpb.AttachmentPointer_CdnKey{CdnKey: *fp.LocatorInfo.TransitCdnKey}
 			sig.Size = &fp.LocatorInfo.Size
 			sig.Digest = fp.LocatorInfo.GetEncryptedDigest() // Note: may be nil if plaintextHash is set instead
-			if sig.Digest == nil {
-				sig.Digest = fp.LocatorInfo.LegacyDigest
-			}
 			sig.CdnNumber = fp.LocatorInfo.TransitCdnNumber
 		}
 		sig.Key = fp.LocatorInfo.Key
 		atts[clientUUID] = fp.LocatorInfo
-	} else {
-		switch loc := fp.Locator.(type) {
-		case *backuppb.FilePointer_AttachmentLocator_:
-			sig.AttachmentIdentifier = &signalpb.AttachmentPointer_CdnKey{CdnKey: loc.AttachmentLocator.CdnKey}
-			sig.Key = loc.AttachmentLocator.Key
-			sig.Size = &loc.AttachmentLocator.Size
-			sig.Digest = loc.AttachmentLocator.Digest
-			sig.CdnNumber = &loc.AttachmentLocator.CdnNumber
-		case *backuppb.FilePointer_BackupLocator_:
-			//atts[clientUUID] = loc.BackupLocator
-		case *backuppb.FilePointer_InvalidAttachmentLocator_:
-			atts[clientUUID] = nil
-		}
 	}
 	return sig
 }
