@@ -39,6 +39,18 @@ import (
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
+var (
+	_ bridgev2.EditHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI    = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI    = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI         = (*SignalClient)(nil)
+)
+
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
 	userID, groupID, err := signalid.ParsePortalID(portalID)
 	if err != nil {

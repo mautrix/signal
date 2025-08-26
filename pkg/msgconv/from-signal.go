@@ -93,12 +93,12 @@ func (mc *MessageConverter) ToMatrix(
 		Parts:      make([]*bridgev2.ConvertedMessagePart, 0, calculateLength(dm)),
 	}
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
-		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(ctx, dm.GetExpireTimer(), dm.ExpireTimerVersion, true))
+		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(ctx, dm.GetExpireTimer(), dm.ExpireTimerVersion, time.UnixMilli(int64(dm.GetTimestamp()))))
 		// Don't allow any other parts in a disappearing timer change message
 		return cm
 	}
 	if dm.GetExpireTimer() > 0 {
-		cm.Disappear.Type = database.DisappearingTypeAfterRead
+		cm.Disappear.Type = event.DisappearingTypeAfterRead
 		cm.Disappear.Timer = time.Duration(dm.GetExpireTimer()) * time.Second
 	}
 	if dm.Sticker != nil {
@@ -140,7 +140,7 @@ func (mc *MessageConverter) ToMatrix(
 		})
 	}
 	if dm.GetIsViewOnce() && mc.DisappearViewOnce && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > ViewOnceDisappearTimer) {
-		cm.Disappear.Type = database.DisappearingTypeAfterRead
+		cm.Disappear.Type = event.DisappearingTypeAfterRead
 		cm.Disappear.Timer = ViewOnceDisappearTimer
 		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
 			Type: event.EventMessage,
@@ -170,38 +170,38 @@ func (mc *MessageConverter) ToMatrix(
 	return cm
 }
 
-func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.Context, timer uint32, timerVersion *uint32, updatePortal bool) *bridgev2.ConvertedMessagePart {
+func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.Context, timer uint32, timerVersion *uint32, ts time.Time) *bridgev2.ConvertedMessagePart {
 	part := &bridgev2.ConvertedMessagePart{
 		Type:    event.EventMessage,
 		Content: bridgev2.DisappearingMessageNotice(time.Duration(timer)*time.Second, false),
 	}
-	if updatePortal {
-		portal := getPortal(ctx)
-		portalMeta := portal.Metadata.(*signalid.PortalMetadata)
-		if timerVersion != nil && portalMeta.ExpirationTimerVersion > *timerVersion {
-			zerolog.Ctx(ctx).Warn().
-				Uint32("current_version", portalMeta.ExpirationTimerVersion).
-				Uint32("new_version", *timerVersion).
-				Msg("Ignoring outdated disappearing timer change")
-			part.Content.Body += " (change ignored)"
-			return part
-		}
-		portal.Disappear.Timer = time.Duration(timer) * time.Second
-		if timer == 0 {
-			portal.Disappear.Type = ""
-		} else {
-			portal.Disappear.Type = database.DisappearingTypeAfterRead
-		}
-		if timerVersion != nil {
-			portalMeta.ExpirationTimerVersion = *timerVersion
-		} else {
-			portalMeta.ExpirationTimerVersion = 1
-		}
-		err := portal.Save(ctx)
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to update portal disappearing timer in database")
-		}
+	portal := getPortal(ctx)
+	portalMeta := portal.Metadata.(*signalid.PortalMetadata)
+	if timerVersion != nil && portalMeta.ExpirationTimerVersion > *timerVersion {
+		zerolog.Ctx(ctx).Warn().
+			Uint32("current_version", portalMeta.ExpirationTimerVersion).
+			Uint32("new_version", *timerVersion).
+			Msg("Ignoring outdated disappearing timer change")
+		part.Content.Body += " (change ignored)"
+		return part
 	}
+	setting := database.DisappearingSetting{
+		Timer: time.Duration(timer) * time.Second,
+		Type:  event.DisappearingTypeAfterRead,
+	}
+	if timer == 0 {
+		portal.Disappear.Type = ""
+	}
+	if timerVersion != nil {
+		portalMeta.ExpirationTimerVersion = *timerVersion
+	} else {
+		portalMeta.ExpirationTimerVersion = 1
+	}
+	portal.UpdateDisappearingSetting(ctx, setting, bridgev2.UpdateDisappearingSettingOpts{
+		Sender:    getIntent(ctx),
+		Timestamp: ts,
+		Save:      true,
+	})
 	return part
 }
 

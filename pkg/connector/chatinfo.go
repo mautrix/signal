@@ -40,6 +40,12 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
+var (
+	_ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.GroupCreatingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.ContactListingNetworkAPI      = (*SignalClient)(nil)
+)
+
 const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
@@ -276,6 +282,14 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 				EventSender: selfUser,
 				Membership:  event.MembershipJoin,
 				PowerLevel:  &moderatorPL,
+			},
+		},
+		PowerLevels: &bridgev2.PowerLevelOverrides{
+			Events: map[event.Type]int{
+				event.StateRoomName:                0,
+				event.StateTopic:                   0,
+				event.StateRoomAvatar:              0,
+				event.StateBeeperDisappearingTimer: 0,
 			},
 		},
 	}

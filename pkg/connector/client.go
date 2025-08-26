@@ -42,21 +42,8 @@ type SignalClient struct {
 }
 
 var (
-	_ bridgev2.NetworkAPI                    = (*SignalClient)(nil)
-	_ bridgev2.EditHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI    = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI   = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
-	_ bridgev2.GroupCreatingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ContactListingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI    = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI  = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI   = (*SignalClient)(nil)
-	_ bridgev2.BackgroundSyncingNetworkAPI   = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.NetworkAPI                  = (*SignalClient)(nil)
+	_ bridgev2.BackgroundSyncingNetworkAPI = (*SignalClient)(nil)
 )
 
 var pushCfg = &bridgev2.PushConfig{

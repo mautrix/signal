@@ -37,7 +37,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_01_16"
+	base := "fi.mau.signal.capabilities.2025_08_25"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -136,17 +136,21 @@ var signalCaps = &event.RoomFeatures{
 			MaxSize: MaxFileSize,
 		},
 	},
-	MaxTextLength:        MaxTextLength, // TODO support arbitrary sized text messages with files
-	LocationMessage:      event.CapLevelPartialSupport,
-	Poll:                 event.CapLevelRejected,
-	Thread:               event.CapLevelUnsupported,
-	Reply:                event.CapLevelFullySupported,
-	Edit:                 event.CapLevelFullySupported,
-	EditMaxCount:         10,
-	EditMaxAge:           ptr.Ptr(jsontime.S(24 * time.Hour)),
-	Delete:               event.CapLevelFullySupported,
-	DeleteForMe:          false,
-	DeleteMaxAge:         ptr.Ptr(jsontime.S(24 * time.Hour)),
+	MaxTextLength:   MaxTextLength, // TODO support arbitrary sized text messages with files
+	LocationMessage: event.CapLevelPartialSupport,
+	Poll:            event.CapLevelRejected,
+	Thread:          event.CapLevelUnsupported,
+	Reply:           event.CapLevelFullySupported,
+	Edit:            event.CapLevelFullySupported,
+	EditMaxCount:    10,
+	EditMaxAge:      ptr.Ptr(jsontime.S(24 * time.Hour)),
+	Delete:          event.CapLevelFullySupported,
+	DeleteForMe:     false,
+	DeleteMaxAge:    ptr.Ptr(jsontime.S(24 * time.Hour)),
+	DisappearingTimer: &event.DisappearingTimerCapability{
+		Types: []event.DisappearingType{event.DisappearingTypeAfterRead},
+	},
+
 	Reaction:             event.CapLevelFullySupported,
 	ReactionCount:        1,
 	AllowedReactions:     nil,
@@ -161,7 +165,7 @@ func init() {
 	signalCapsNoteToSelf = ptr.Clone(signalCaps)
 	signalCapsNoteToSelf.EditMaxAge = nil
 	signalCapsNoteToSelf.DeleteMaxAge = nil
-	signalCapsNoteToSelf.ID = capID() + "+note_to_self.2"
+	signalCapsNoteToSelf.ID = capID() + "+note_to_self"
 }
 
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
@@ -181,5 +185,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 4
+	return 1, 5
 }

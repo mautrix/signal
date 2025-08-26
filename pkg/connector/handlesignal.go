@@ -331,7 +331,13 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 	if converted.Disappear.Type != "" {
 		evtTS := evt.GetTimestamp()
 		if !dataMsg.GetIsViewOnce() {
-			portal.UpdateDisappearingSetting(ctx, converted.Disappear, nil, evtTS, true, true)
+			portal.UpdateDisappearingSetting(ctx, converted.Disappear, bridgev2.UpdateDisappearingSettingOpts{
+				Sender:     intent,
+				Timestamp:  evtTS,
+				Implicit:   true,
+				Save:       true,
+				SendNotice: true,
+			})
 		}
 		if evt.Info.Sender == evt.s.Client.Store.ACI {
 			converted.Disappear.DisappearAt = evtTS.Add(converted.Disappear.Timer)

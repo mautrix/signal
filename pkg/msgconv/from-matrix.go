@@ -71,8 +71,12 @@ func (mc *MessageConverter) ToSignal(
 			}
 		}
 	}
-	if portal.Disappear.Timer > 0 {
+	if content.BeeperDisappearingTimer != nil {
+		dm.ExpireTimer = proto.Uint32(uint32(content.BeeperDisappearingTimer.Timer.Seconds()))
+	} else if portal.Disappear.Timer > 0 {
 		dm.ExpireTimer = proto.Uint32(uint32(portal.Disappear.Timer.Seconds()))
+	}
+	if dm.ExpireTimer != nil && *dm.ExpireTimer != 0 {
 		timerVersion := portal.Metadata.(*signalid.PortalMetadata).ExpirationTimerVersion
 		if timerVersion > 0 {
 			dm.ExpireTimerVersion = &timerVersion

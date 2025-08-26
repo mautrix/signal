@@ -66,6 +66,7 @@ func applyAttributesAccess(plc *bridgev2.PowerLevelOverrides, attributeAccess si
 	plc.Events[event.StateRoomName] = attributePL
 	plc.Events[event.StateRoomAvatar] = attributePL
 	plc.Events[event.StateTopic] = attributePL
+	plc.Events[event.StateBeeperDisappearingTimer] = attributePL
 }
 
 func applyMembersAccess(plc *bridgev2.PowerLevelOverrides, memberAccess signalmeow.AccessControl) {
@@ -170,7 +171,7 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		Topic:  &groupInfo.Description,
 		Avatar: avatar,
 		Disappear: &database.DisappearingSetting{
-			Type:  database.DisappearingTypeAfterRead,
+			Type:  event.DisappearingTypeAfterRead,
 			Timer: time.Duration(groupInfo.DisappearingMessagesDuration) * time.Second,
 		},
 		Members:      members,
@@ -245,7 +246,7 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 	}
 	if groupChange.ModifyDisappearingMessagesDuration != nil {
 		ic.ChatInfo.Disappear = &database.DisappearingSetting{
-			Type:  database.DisappearingTypeAfterRead,
+			Type:  event.DisappearingTypeAfterRead,
 			Timer: time.Duration(*groupChange.ModifyDisappearingMessagesDuration) * time.Second,
 		}
 	}
