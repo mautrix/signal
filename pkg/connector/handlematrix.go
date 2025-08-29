@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix/bridgev2"
@@ -40,15 +41,16 @@ import (
 )
 
 var (
-	_ bridgev2.EditHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI    = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI   = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI    = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI  = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI   = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI           = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI    = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI     = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI            = (*SignalClient)(nil)
+	_ bridgev2.DisappearTimerChangingNetworkAPI = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -606,4 +608,40 @@ func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev
 	}
 	ghost.UpdateInfo(ctx, info)
 	return nil
+}
+
+func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *bridgev2.MatrixDisappearingTimer) (bool, error) {
+	if msg.Content.Type != event.DisappearingTypeAfterRead && msg.Content.Timer.Duration != 0 {
+		return false, fmt.Errorf("unsupported disappearing timer type: %s", msg.Content.Type)
+	}
+	userID, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil {
+		return false, err
+	}
+	newSetting := database.DisappearingSetting{
+		Type:  event.DisappearingTypeAfterRead,
+		Timer: msg.Content.Timer.Duration,
+	}
+	if newSetting.Timer == 0 {
+		newSetting.Type = event.DisappearingTypeNone
+	}
+	if groupID != "" {
+		return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
+			ModifyDisappearingMessagesDuration: ptr.Ptr(uint32(msg.Content.Timer.Seconds())),
+		}, func() {
+			msg.Portal.Disappear = newSetting
+		})
+	} else {
+		res := s.Client.SendMessage(ctx, userID, &signalpb.Content{
+			DataMessage: &signalpb.DataMessage{
+				Flags:       ptr.Ptr(uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE)),
+				ExpireTimer: ptr.Ptr(uint32(msg.Content.Timer.Seconds())),
+			},
+		})
+		if !res.WasSuccessful {
+			return false, res.Error
+		}
+		msg.Portal.Disappear = newSetting
+		return true, nil
+	}
 }
