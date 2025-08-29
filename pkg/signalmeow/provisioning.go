@@ -359,9 +359,8 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 }
 
 var signalCapabilities = map[string]any{
-	"deleteSync":               true,
-	"versionedExpirationTimer": true,
-	"ssre2":                    true,
+	"attachmentBackfill": true,
+	"sqpr":               true,
 }
 
 var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))
