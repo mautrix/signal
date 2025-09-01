@@ -22,6 +22,8 @@ import (
 	"text/template"
 
 	up "go.mau.fi/util/configupgrade"
+	"gopkg.in/yaml.v3"
+
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
@@ -42,6 +44,22 @@ type SignalConfig struct {
 	DisappearViewOnce     bool                `yaml:"disappear_view_once"`
 
 	displaynameTemplate *template.Template `yaml:"-"`
+}
+
+type umConfig SignalConfig
+
+func (c *SignalConfig) UnmarshalYAML(node *yaml.Node) error {
+	err := node.Decode((*umConfig)(c))
+	if err != nil {
+		return err
+	}
+	return c.PostProcess()
+}
+
+func (c *SignalConfig) PostProcess() error {
+	var err error
+	c.displaynameTemplate, err = template.New("displayname").Parse(c.DisplaynameTemplate)
+	return err
 }
 
 type DisplaynameParams struct {

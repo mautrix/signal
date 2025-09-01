@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -59,12 +58,6 @@ func (s *SignalConnector) GetName() bridgev2.BridgeName {
 }
 
 func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
-	var err error
-	s.Config.displaynameTemplate, err = template.New("displayname").Parse(s.Config.DisplaynameTemplate)
-	if err != nil {
-		// TODO return error or do this later?
-		panic(err)
-	}
 	s.Store = store.NewStore(bridge.DB.Database, dbutil.ZeroLogger(bridge.Log.With().Str("db_section", "signalmeow").Logger()))
 	s.Bridge = bridge
 	s.MsgConv = msgconv.NewMessageConverter(bridge)
