@@ -651,12 +651,15 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 		if contact.ACI == uuid.Nil {
 			continue
 		}
-		fullContact, err := s.Client.ContactByACI(ctx, contact.ACI)
-		if err != nil {
-			log.Err(err).Msg("Failed to get full contact info from store")
-			continue
+		if !evt.IsFromDB {
+			fullContact, err := s.Client.ContactByACI(ctx, contact.ACI)
+			if err != nil {
+				log.Err(err).Msg("Failed to get full contact info from store")
+				continue
+			}
+			fullContact.ContactAvatar = contact.ContactAvatar
+			contact = fullContact
 		}
-		fullContact.ContactAvatar = contact.ContactAvatar
 		ghost, err := s.Main.Bridge.GetGhostByID(ctx, signalid.MakeUserID(contact.ACI))
 		if err != nil {
 			log.Err(err).Msg("Failed to get ghost to update contact info")

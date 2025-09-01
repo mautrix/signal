@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -59,6 +60,7 @@ func (cli *Client) SyncStorage(ctx context.Context) {
 
 func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdate) error {
 	log := zerolog.Ctx(ctx)
+	var changedContacts []*types.Recipient
 	for _, record := range update.NewRecords {
 		switch data := record.StorageRecord.GetRecord().(type) {
 		case *signalpb.StorageRecord_Contact:
@@ -74,7 +76,8 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 				continue
 			}
 			contact := data.Contact
-			_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (changed bool, err error) {
+			topLevelChanged := false
+			recipient, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (changed bool, err error) {
 				if len(contact.ProfileKey) == libsignalgo.ProfileKeyLength {
 					newProfileKey := libsignalgo.ProfileKey(contact.ProfileKey)
 					changed = changed || recipient.Profile.Key != newProfileKey
@@ -96,10 +99,14 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					changed = changed || recipient.E164 != contact.E164
 					recipient.E164 = contact.E164
 				}
+				topLevelChanged = changed
 				return
 			})
 			if err != nil {
 				return fmt.Errorf("failed to update contact %s/%s: %w", aci, pni, err)
+			}
+			if topLevelChanged {
+				changedContacts = append(changedContacts, recipient)
 			}
 		case *signalpb.StorageRecord_GroupV2:
 			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
@@ -125,6 +132,12 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 		default:
 			log.Warn().Type("type", data).Str("item_id", record.StorageID).Msg("Unknown storage record type")
 		}
+	}
+	if len(changedContacts) > 0 {
+		go cli.handleEvent(&events.ContactList{
+			Contacts: changedContacts,
+			IsFromDB: true,
+		})
 	}
 	return nil
 }

@@ -76,6 +76,7 @@ type Call struct {
 
 type ContactList struct {
 	Contacts []*types.Recipient
+	IsFromDB bool
 }
 
 type ACIFound struct {
