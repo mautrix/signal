@@ -1,4 +1,4 @@
--- v0 -> v21 (compatible with v13+): Latest revision
+-- v0 -> v22 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -109,6 +109,7 @@ CREATE TABLE signalmeow_recipients (
     e164_number         TEXT    NOT NULL DEFAULT '',
     contact_name        TEXT    NOT NULL DEFAULT '',
     contact_avatar_hash TEXT    NOT NULL DEFAULT '',
+    nickname            TEXT    NOT NULL DEFAULT '',
     profile_key         bytea,
     profile_name        TEXT    NOT NULL DEFAULT '',
     profile_about       TEXT    NOT NULL DEFAULT '',

@@ -47,6 +47,7 @@ type SignalConfig struct {
 type DisplaynameParams struct {
 	ProfileName string
 	ContactName string
+	Nickname    string
 	Username    string
 	PhoneNumber string
 	UUID        string
@@ -60,6 +61,7 @@ func (c *SignalConfig) FormatDisplayname(contact *types.Recipient) string {
 	err := c.displaynameTemplate.Execute(&nameBuf, &DisplaynameParams{
 		ProfileName: contact.Profile.Name,
 		ContactName: contact.ContactName,
+		Nickname:    contact.Nickname,
 		Username:    "",
 		PhoneNumber: contact.E164,
 		UUID:        contact.ACI.String(),

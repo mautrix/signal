@@ -55,6 +55,7 @@ const (
 			e164_number,
 			contact_name,
 			contact_avatar_hash,
+			nickname,
 			profile_key,
 			profile_name,
 			profile_about,
@@ -79,6 +80,7 @@ const (
 			e164_number,
 			contact_name,
 			contact_avatar_hash,
+			nickname,
 			profile_key,
 			profile_name,
 			profile_about,
@@ -87,12 +89,13 @@ const (
 			profile_fetched_at,
 			needs_pni_signature
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (account_id, aci_uuid) DO UPDATE SET
 			pni_uuid = excluded.pni_uuid,
 			e164_number = excluded.e164_number,
 			contact_name = excluded.contact_name,
 			contact_avatar_hash = excluded.contact_avatar_hash,
+			nickname = excluded.nickname,
 			profile_key = excluded.profile_key,
 			profile_name = excluded.profile_name,
 			profile_about = excluded.profile_about,
@@ -128,6 +131,7 @@ func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 		&recipient.E164,
 		&recipient.ContactName,
 		&recipient.ContactAvatar.Hash,
+		&recipient.Nickname,
 		&profileKey,
 		&recipient.Profile.Name,
 		&recipient.Profile.About,
@@ -329,6 +333,7 @@ func (s *sqlStore) StoreRecipient(ctx context.Context, recipient *types.Recipien
 			recipient.E164,
 			recipient.ContactName,
 			recipient.ContactAvatar.Hash,
+			recipient.Nickname,
 			recipient.Profile.Key.Slice(),
 			recipient.Profile.Name,
 			recipient.Profile.About,

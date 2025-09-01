@@ -51,6 +51,7 @@ type Recipient struct {
 	E164          string
 	ContactName   string
 	ContactAvatar ContactAvatar
+	Nickname      string
 	Profile       Profile
 
 	NeedsPNISignature bool

@@ -88,6 +88,10 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					changed = true
 					recipient.ContactName = strings.TrimSpace(fmt.Sprintf("%s %s", contact.SystemGivenName, contact.SystemFamilyName))
 				}
+				if contact.Nickname != nil {
+					changed = true
+					recipient.Nickname = strings.TrimSpace(fmt.Sprintf("%s %s", contact.Nickname.Given, contact.Nickname.Family))
+				}
 				if contact.E164 != "" {
 					changed = changed || recipient.E164 != contact.E164
 					recipient.E164 = contact.E164
