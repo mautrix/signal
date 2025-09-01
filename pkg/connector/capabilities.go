@@ -136,20 +136,18 @@ var signalCaps = &event.RoomFeatures{
 			MaxSize: MaxFileSize,
 		},
 	},
-	MaxTextLength:   MaxTextLength, // TODO support arbitrary sized text messages with files
-	LocationMessage: event.CapLevelPartialSupport,
-	Poll:            event.CapLevelRejected,
-	Thread:          event.CapLevelUnsupported,
-	Reply:           event.CapLevelFullySupported,
-	Edit:            event.CapLevelFullySupported,
-	EditMaxCount:    10,
-	EditMaxAge:      ptr.Ptr(jsontime.S(24 * time.Hour)),
-	Delete:          event.CapLevelFullySupported,
-	DeleteForMe:     false,
-	DeleteMaxAge:    ptr.Ptr(jsontime.S(24 * time.Hour)),
-	DisappearingTimer: &event.DisappearingTimerCapability{
-		Types: []event.DisappearingType{event.DisappearingTypeAfterRead},
-	},
+	MaxTextLength:     MaxTextLength, // TODO support arbitrary sized text messages with files
+	LocationMessage:   event.CapLevelPartialSupport,
+	Poll:              event.CapLevelRejected,
+	Thread:            event.CapLevelUnsupported,
+	Reply:             event.CapLevelFullySupported,
+	Edit:              event.CapLevelFullySupported,
+	EditMaxCount:      10,
+	EditMaxAge:        ptr.Ptr(jsontime.S(24 * time.Hour)),
+	Delete:            event.CapLevelFullySupported,
+	DeleteForMe:       false,
+	DeleteMaxAge:      ptr.Ptr(jsontime.S(24 * time.Hour)),
+	DisappearingTimer: signalDisappearingCap,
 
 	Reaction:             event.CapLevelFullySupported,
 	ReactionCount:        1,
@@ -157,6 +155,10 @@ var signalCaps = &event.RoomFeatures{
 	CustomEmojiReactions: false,
 	ReadReceipts:         true,
 	TypingNotifications:  true,
+}
+
+var signalDisappearingCap = &event.DisappearingTimerCapability{
+	Types: []event.DisappearingType{event.DisappearingTypeAfterRead},
 }
 
 var signalCapsNoteToSelf *event.RoomFeatures
@@ -178,6 +180,24 @@ func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Por
 var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 	DisappearingMessages: true,
 	AggressiveUpdateInfo: true,
+	Provisioning: bridgev2.ProvisioningCapabilities{
+		ResolveIdentifier: bridgev2.ResolveIdentifierCapabilities{
+			CreateDM:       true,
+			LookupPhone:    true,
+			LookupUsername: false, // TODO implement
+			ContactList:    true,
+		},
+		GroupCreation: map[string]bridgev2.GroupTypeCapabilities{
+			"group": {
+				TypeDescription: "a group chat",
+
+				Name:         bridgev2.GroupFieldCapability{Allowed: true, Required: true, MaxLength: 32},
+				Avatar:       bridgev2.GroupFieldCapability{Allowed: true},
+				Disappear:    bridgev2.GroupFieldCapability{Allowed: true, DisappearSettings: signalDisappearingCap},
+				Participants: bridgev2.GroupFieldCapability{Allowed: true},
+			},
+		},
+	},
 }
 
 func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities {

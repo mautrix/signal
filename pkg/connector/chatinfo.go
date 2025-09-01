@@ -32,6 +32,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
+	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
@@ -236,9 +237,107 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 	}
 }
 
-func (s *SignalClient) CreateGroup(ctx context.Context, name string, users ...networkid.UserID) (*bridgev2.CreateChatResponse, error) {
-	//TODO implement me
-	return nil, fmt.Errorf("not implemented")
+func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCreateParams) (*bridgev2.CreateChatResponse, error) {
+	group := &signalmeow.Group{
+		Title:                        ptr.Val(params.Name).Name,
+		Members:                      make([]*signalmeow.GroupMember, len(params.Participants)+1),
+		Description:                  ptr.Val(params.Topic).Topic,
+		AnnouncementsOnly:            false,
+		DisappearingMessagesDuration: uint32(ptr.Val(params.Disappear).Timer.Seconds()),
+		AccessControl: &signalmeow.GroupAccessControl{
+			Members:           signalmeow.AccessControl_UNKNOWN,
+			AddFromInviteLink: signalmeow.AccessControl_UNSATISFIABLE,
+			Attributes:        signalmeow.AccessControl_ADMINISTRATOR,
+		},
+	}
+	var pl *event.PowerLevelsEventContent
+	// TODO actually get PLs
+	if pl != nil {
+		if pl.EventsDefault > pl.UsersDefault {
+			group.AnnouncementsOnly = true
+		}
+		if pl.Invite() > pl.UsersDefault {
+			group.AccessControl.Members = signalmeow.AccessControl_ADMINISTRATOR
+		}
+		if pl.GetEventLevel(event.StateRoomName) <= pl.UsersDefault {
+			group.AccessControl.Attributes = signalmeow.AccessControl_MEMBER
+		}
+	}
+	group.Members[0] = &signalmeow.GroupMember{
+		ACI:  s.Client.Store.ACI,
+		Role: signalmeow.GroupMember_ADMINISTRATOR,
+	}
+	for i, member := range params.Participants {
+		userID, err := signalid.ParseUserID(member)
+		if err != nil {
+			return nil, fmt.Errorf("invalid user ID %q: %w", member, err)
+		}
+		group.Members[i+1] = &signalmeow.GroupMember{
+			ACI:  userID,
+			Role: signalmeow.GroupMember_DEFAULT, // TODO set proper role from power levels
+		}
+	}
+	_, err := signalmeow.PrepareGroupCreation(group)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare group creation: %w", err)
+	}
+	var avatarBytes []byte
+	var avatarMXC id.ContentURIString
+	if params.Avatar != nil {
+		avatarMXC = params.Avatar.URL
+		avatarBytes, err = s.Main.Bridge.Bot.DownloadMedia(ctx, params.Avatar.URL, params.Avatar.MSC3414File)
+		if err != nil {
+			return nil, fmt.Errorf("failed to download avatar: %w", err)
+		}
+		group.AvatarPath, err = s.Client.UploadGroupAvatar(ctx, avatarBytes, group.GroupIdentifier)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload avatar: %w", err)
+		}
+	}
+	portal, err := s.Main.Bridge.GetPortalByKey(ctx, s.makePortalKey(string(group.GroupIdentifier)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get portal: %w", err)
+	}
+	if params.RoomID != "" {
+		err = portal.UpdateMatrixRoomID(ctx, params.RoomID, bridgev2.UpdateMatrixRoomIDParams{SyncDBMetadata: func() {
+			portal.Name = group.Title
+			portal.NameSet = true
+			portal.Topic = group.Description
+			portal.TopicSet = true
+			portal.AvatarHash = sha256.Sum256(avatarBytes)
+			portal.AvatarSet = true
+			portal.AvatarMXC = avatarMXC
+			portal.AvatarID = makeAvatarPathID(group.AvatarPath)
+			if group.DisappearingMessagesDuration > 0 {
+				portal.Disappear = database.DisappearingSetting{
+					Type:  event.DisappearingTypeAfterRead,
+					Timer: time.Duration(group.DisappearingMessagesDuration) * time.Second,
+				}
+			}
+		}})
+		if err != nil {
+			return nil, fmt.Errorf("failed to set portal room ID: %w", err)
+		}
+	}
+	resp, err := s.Client.CreateGroup(ctx, group, avatarBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create group: %w", err)
+	}
+	if params.RoomID != "" {
+		// UpdateMatrixRoomID could do this for us if we passed ChatInfoSource to it,
+		// but we only want to do it after the group is successfully created
+		portal.UpdateBridgeInfo(ctx)
+		portal.UpdateCapabilities(ctx, s.UserLogin, true)
+	}
+	wrappedInfo, err := s.wrapGroupInfo(ctx, resp, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to wrap group info for sync: %w", err)
+	}
+	return &bridgev2.CreateChatResponse{
+		PortalKey:  portal.PortalKey,
+		Portal:     portal,
+		PortalInfo: wrappedInfo,
+	}, nil
 }
 
 func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveIdentifierResponse, error) {

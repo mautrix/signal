@@ -280,28 +280,28 @@ func (cli *Client) uploadAttachmentTUS(
 	return nil
 }
 
-func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier) (*string, error) {
+func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gid types.GroupIdentifier) (string, error) {
 	log := zerolog.Ctx(ctx)
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		log.Err(err).Msg("Could not get master key from group id")
-		return nil, err
+		return "", err
 	}
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyToBytes(groupMasterKey))
 	if err != nil {
 		log.Err(err).Msg("Failed to get Authorization for today")
-		return nil, err
+		return "", err
 	}
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyToBytes(groupMasterKey))
 	if err != nil {
 		log.Err(err).Msg("Could not get groupSecretParams from master key")
-		return nil, err
+		return "", err
 	}
 	attributeBlob := signalpb.GroupAttributeBlob{Content: &signalpb.GroupAttributeBlob_Avatar{Avatar: avatarBytes}}
 	encryptedAvatar, err := encryptBlobIntoGroupProperty(groupSecretParams, &attributeBlob)
 	if err != nil {
 		log.Err(err).Msg("Could not encrypt avatar into Group Property")
-		return nil, err
+		return "", err
 	}
 
 	// Get upload form from Signal server
@@ -310,18 +310,18 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, formPath, opts)
 	if err != nil {
 		log.Err(err).Msg("Error sending request fetching avatar upload form")
-		return nil, err
+		return "", err
 	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		log.Err(err).Msg("Error decoding response body fetching upload attributes")
-		return nil, err
+		return "", err
 	}
 	uploadForm := signalpb.AvatarUploadAttributes{}
 	err = proto.Unmarshal(body, &uploadForm)
 	if err != nil {
 		log.Err(err).Msg("failed to unmarshal group avatar upload form")
-		return nil, err
+		return "", err
 	}
 	requestBody := &bytes.Buffer{}
 	w := multipart.NewWriter(requestBody)
@@ -345,14 +345,14 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 	})
 	if err != nil {
 		log.Err(err).Msg("Error sending request uploading attachment")
-		return nil, err
+		return "", err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		log.Error().Int("status_code", resp.StatusCode).Msg("Error uploading attachment")
-		return nil, fmt.Errorf("error uploading attachment: %s", resp.Status)
+		return "", fmt.Errorf("error uploading attachment: %s", resp.Status)
 	}
 
-	return &uploadForm.Key, nil
+	return uploadForm.Key, nil
 }
 
 func verifyMAC(key, body, mac []byte) bool {
