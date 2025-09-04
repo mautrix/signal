@@ -245,7 +245,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 		AnnouncementsOnly:            false,
 		DisappearingMessagesDuration: uint32(ptr.Val(params.Disappear).Timer.Seconds()),
 		AccessControl: &signalmeow.GroupAccessControl{
-			Members:           signalmeow.AccessControl_UNKNOWN,
+			Members:           signalmeow.AccessControl_MEMBER,
 			AddFromInviteLink: signalmeow.AccessControl_UNSATISFIABLE,
 			Attributes:        signalmeow.AccessControl_ADMINISTRATOR,
 		},
