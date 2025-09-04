@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -35,6 +34,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/random"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
@@ -338,8 +338,7 @@ func encryptString(key libsignalgo.ProfileKey, plaintext string, paddedLength in
 		return nil, errors.New("plaintext longer than paddedLength")
 	}
 	padded := append([]byte(plaintext), make([]byte, paddedLength-inputLength)...)
-	nonce := make([]byte, NONCE_LENGTH)
-	rand.Read(nonce)
+	nonce := random.Bytes(NONCE_LENGTH)
 	keyBytes := key[:]
 	ciphertext, err := AesgcmEncrypt(keyBytes, nonce, padded)
 	if err != nil {

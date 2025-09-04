@@ -101,6 +101,10 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve group by id: %w", err)
 	}
+	return s.wrapGroupInfo(ctx, groupInfo, backupChat)
+}
+
+func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.Group, backupChat *store.BackupChat) (*bridgev2.ChatInfo, error) {
 	members := &bridgev2.ChatMemberList{
 		IsFull:    true,
 		MemberMap: make(map[networkid.UserID]bridgev2.ChatMember, len(groupInfo.Members)+len(groupInfo.PendingMembers)+len(groupInfo.RequestingMembers)+len(groupInfo.BannedMembers)),
@@ -156,13 +160,14 @@ func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIden
 		}
 	}
 	if backupChat == nil {
+		var err error
 		// TODO allow using backup chat for data too instead of asking server?
-		backupChat, err = s.Client.Store.BackupStore.GetBackupChatByGroupID(ctx, groupID)
+		backupChat, err = s.Client.Store.BackupStore.GetBackupChatByGroupID(ctx, groupInfo.GroupIdentifier)
 		if err != nil {
 			zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to get backup chat for group")
 		}
 	}
-	avatar, err := s.makeGroupAvatar(ctx, groupID, &groupInfo.AvatarPath, groupInfo.GroupMasterKey)
+	avatar, err := s.makeGroupAvatar(ctx, groupInfo.GroupIdentifier, &groupInfo.AvatarPath, groupInfo.GroupMasterKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make group avatar: %w", err)
 	}

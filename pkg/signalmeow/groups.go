@@ -18,7 +18,6 @@ package signalmeow
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -32,6 +31,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
+	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -1558,10 +1559,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 		log.Err(err).Msg("Failed to retrieve Group")
 	}
 	if group.InviteLinkPassword == nil && groupChange.ModifyAddFromInviteLinkAccess != nil && groupChange.ModifyInviteLinkPassword != nil {
-		inviteLinkPasswordBytes := make([]byte, 16)
-		rand.Read(inviteLinkPasswordBytes)
-		inviteLinkPassword := InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
-		groupChange.ModifyInviteLinkPassword = &inviteLinkPassword
+		groupChange.ModifyInviteLinkPassword = ptr.Ptr(GenerateInviteLinkPassword())
 	}
 	groupChange.Revision = group.Revision + 1
 	for attempt := 0; attempt < 5; attempt++ {
@@ -1644,9 +1642,7 @@ func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, grou
 			AddFromInviteLink: signalpb.AccessControl_AccessRequired(decryptedGroup.AccessControl.AddFromInviteLink),
 		}
 		if decryptedGroup.AccessControl.AddFromInviteLink != AccessControl_UNSATISFIABLE {
-			inviteLinkPasswordBytes := make([]byte, 16)
-			rand.Read(inviteLinkPasswordBytes)
-			encryptedGroup.InviteLinkPassword = inviteLinkPasswordBytes
+			encryptedGroup.InviteLinkPassword = random.Bytes(16)
 		}
 	}
 	for _, member := range decryptedGroup.Members {
@@ -1671,41 +1667,52 @@ func (cli *Client) EncryptGroup(ctx context.Context, decryptedGroup *Group, grou
 	return encryptedGroup, nil
 }
 
+func PrepareGroupCreation(decryptedGroup *Group) (libsignalgo.GroupMasterKey, error) {
+	var masterKeyBytes libsignalgo.GroupMasterKey
+	if decryptedGroup.GroupMasterKey == "" {
+		masterKeyBytes = libsignalgo.GroupMasterKey(random.Bytes(32))
+		decryptedGroup.GroupMasterKey = masterKeyFromBytes(masterKeyBytes)
+	} else {
+		masterKeyBytes = masterKeyToBytes(decryptedGroup.GroupMasterKey)
+	}
+	if decryptedGroup.GroupIdentifier == "" {
+		var err error
+		decryptedGroup.GroupIdentifier, err = groupIdentifierFromMasterKey(decryptedGroup.GroupMasterKey)
+		if err != nil {
+			return masterKeyBytes, err
+		}
+	}
+	return masterKeyBytes, nil
+}
+
 func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "CreateGroupOnServer").Logger()
-	masterKeyByteArray := make([]byte, 32)
-	rand.Read(masterKeyByteArray)
-	masterKeyBytes := libsignalgo.GroupMasterKey(masterKeyByteArray)
-	groupMasterKey := masterKeyFromBytes(masterKeyBytes)
-	groupId, err := groupIdentifierFromMasterKey(groupMasterKey)
+	masterKeyBytes, err := PrepareGroupCreation(decryptedGroup)
 	if err != nil {
-		log.Err(err).Msg("Couldn't get gid from masterkey")
 		return nil, err
 	}
-	err = cli.Store.GroupStore.StoreMasterKey(ctx, groupId, groupMasterKey)
+	err = cli.Store.GroupStore.StoreMasterKey(ctx, decryptedGroup.GroupIdentifier, decryptedGroup.GroupMasterKey)
 	if err != nil {
 		return nil, fmt.Errorf("StoreMasterKey error: %w", err)
 	}
-	log.Debug().Msg(string(groupMasterKey))
 	groupSecretParams, err := libsignalgo.DeriveGroupSecretParamsFromMasterKey(masterKeyBytes)
 	if err != nil {
 		log.Err(err).Msg("DeriveGroupSecretParamsFromMasterKey error")
 		return nil, err
 	}
 	if len(avatarBytes) > 0 {
-		avatarPath, err := cli.UploadGroupAvatar(ctx, avatarBytes, groupId)
+		avatarPath, err := cli.UploadGroupAvatar(ctx, avatarBytes, decryptedGroup.GroupIdentifier)
 		if err != nil {
 			log.Err(err).Msg("Failed to upload group avatar")
 			return nil, err
 		}
-		decryptedGroup.AvatarPath = *avatarPath
+		decryptedGroup.AvatarPath = avatarPath
 	}
 	encryptedGroup, err := cli.EncryptGroup(ctx, decryptedGroup, groupSecretParams)
 	if err != nil {
 		log.Err(err).Msg("Failed to encrypt group")
 		return nil, err
 	}
-	log.Debug().Stringer("groupID", groupId)
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
 	if err != nil {
 		log.Err(err).Msg("Failed to get Authorization for today")
@@ -1744,18 +1751,15 @@ func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Grou
 	case http.StatusBadRequest:
 		return nil, fmt.Errorf("failed to put new group: bad request")
 	}
-	group, err := cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
+	group, err := cli.fetchGroupWithMasterKey(ctx, decryptedGroup.GroupMasterKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get new group: %w", err)
 	}
-	log.Debug().Stringer("group id", group.GroupIdentifier).Msg("new group created")
 	return group, nil
 }
 
 func GenerateInviteLinkPassword() types.SerializedInviteLinkPassword {
-	inviteLinkPasswordBytes := make([]byte, 16)
-	rand.Read(inviteLinkPasswordBytes)
-	return InviteLinkPasswordFromBytes(inviteLinkPasswordBytes)
+	return InviteLinkPasswordFromBytes(random.Bytes(16))
 }
 
 func (cli *Client) CreateGroup(ctx context.Context, decryptedGroup *Group, avatarBytes []byte) (*Group, error) {

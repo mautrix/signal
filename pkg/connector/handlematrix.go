@@ -365,11 +365,10 @@ func (s *SignalClient) HandleMatrixRoomAvatar(ctx context.Context, msg *bridgev2
 			return false, fmt.Errorf("failed to download avatar: %w", err)
 		}
 		avatarHash = sha256.Sum256(data)
-		avatarPathPtr, err := s.Client.UploadGroupAvatar(ctx, data, groupID)
+		avatarPath, err = s.Client.UploadGroupAvatar(ctx, data, groupID)
 		if err != nil {
 			return false, fmt.Errorf("failed to reupload avatar: %w", err)
 		}
-		avatarPath = *avatarPathPtr
 	}
 	return s.handleMatrixRoomMeta(ctx, msg.Portal, &signalmeow.GroupChange{
 		ModifyAvatar: &avatarPath,
