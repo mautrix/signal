@@ -190,8 +190,9 @@ func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.C
 		Type:  event.DisappearingTypeAfterRead,
 	}
 	if timer == 0 {
-		portal.Disappear.Type = ""
+		setting.Type = ""
 	}
+	part.DontBridge = setting == portal.Disappear
 	if timerVersion != nil {
 		portalMeta.ExpirationTimerVersion = *timerVersion
 	} else {
