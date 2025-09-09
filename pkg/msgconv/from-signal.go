@@ -171,11 +171,27 @@ func (mc *MessageConverter) ToMatrix(
 }
 
 func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.Context, timer uint32, timerVersion *uint32, ts time.Time) *bridgev2.ConvertedMessagePart {
+	portal := getPortal(ctx)
+	setting := database.DisappearingSetting{
+		Timer: time.Duration(timer) * time.Second,
+		Type:  event.DisappearingTypeAfterRead,
+	}
+	if timer == 0 {
+		setting.Type = ""
+	}
 	part := &bridgev2.ConvertedMessagePart{
 		Type:    event.EventMessage,
 		Content: bridgev2.DisappearingMessageNotice(time.Duration(timer)*time.Second, false),
+		Extra: map[string]any{
+			"com.beeper.action_message": map[string]any{
+				"type":       "disappearing_timer",
+				"timer":      setting.Timer.Milliseconds(),
+				"timer_type": setting.Type,
+				"implicit":   false,
+			},
+		},
+		DontBridge: setting == portal.Disappear,
 	}
-	portal := getPortal(ctx)
 	portalMeta := portal.Metadata.(*signalid.PortalMetadata)
 	if timerVersion != nil && portalMeta.ExpirationTimerVersion > *timerVersion {
 		zerolog.Ctx(ctx).Warn().
@@ -185,14 +201,6 @@ func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.C
 		part.Content.Body += " (change ignored)"
 		return part
 	}
-	setting := database.DisappearingSetting{
-		Timer: time.Duration(timer) * time.Second,
-		Type:  event.DisappearingTypeAfterRead,
-	}
-	if timer == 0 {
-		setting.Type = ""
-	}
-	part.DontBridge = setting == portal.Disappear
 	if timerVersion != nil {
 		portalMeta.ExpirationTimerVersion = *timerVersion
 	} else {
