@@ -24,6 +24,7 @@ import "C"
 import (
 	"runtime"
 	"time"
+	"unsafe"
 
 	"github.com/google/uuid"
 )
@@ -186,16 +187,24 @@ func (sc *SenderCertificate) GetKey() (*PublicKey, error) {
 	return wrapPublicKey(key.raw), nil
 }
 
-func (sc *SenderCertificate) Validate(trustRoot *PublicKey, ts time.Time) (bool, error) {
+func (sc *SenderCertificate) Validate(trustRoots []*PublicKey, ts time.Time) (bool, error) {
 	var valid C.bool
+	constRoots := make([]C.SignalConstPointerPublicKey, len(trustRoots))
+	for i, root := range trustRoots {
+		constRoots[i] = root.constPtr()
+	}
 	signalFfiError := C.signal_sender_certificate_validate(
 		&valid,
 		sc.constPtr(),
-		trustRoot.constPtr(),
+		// TODO this might not be correct
+		C.SignalBorrowedSliceOfConstPointerPublicKey{
+			base:   unsafe.SliceData(constRoots),
+			length: C.size_t(len(constRoots)),
+		},
 		C.uint64_t(ts.UnixMilli()),
 	)
 	runtime.KeepAlive(sc)
-	runtime.KeepAlive(trustRoot)
+	runtime.KeepAlive(constRoots)
 	if signalFfiError != nil {
 		return false, wrapError(signalFfiError)
 	}
