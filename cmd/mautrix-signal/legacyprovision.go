@@ -17,196 +17,15 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
-	"sync"
-	"sync/atomic"
 
 	"github.com/rs/zerolog"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
-	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/id"
-
-	"go.mau.fi/mautrix-signal/pkg/connector"
 )
-
-var legacyProvisionHandleID atomic.Uint32
-var loginSessions = make(map[uint32]*legacyLoginProcess)
-var loginSessionsLock sync.Mutex
-
-type legacyLoginProcess struct {
-	ID    uint32
-	Login bridgev2.LoginProcess
-	User  *bridgev2.User
-}
-
-func (llp *legacyLoginProcess) Delete() {
-	loginSessionsLock.Lock()
-	delete(loginSessions, llp.ID)
-	loginSessionsLock.Unlock()
-}
-
-func legacyProvLinkNew(w http.ResponseWriter, r *http.Request) {
-	handleID := legacyProvisionHandleID.Add(1)
-	user := m.Matrix.Provisioning.GetUser(r)
-	defLogin := user.GetDefaultLogin()
-	if defLogin != nil && defLogin.Client != nil && defLogin.Client.IsLoggedIn() {
-		JSONResponse(w, http.StatusConflict, &Error{
-			Error:   "Already logged in",
-			ErrCode: "FI.MAU.ALREADY_LOGGED_IN",
-		})
-		return
-	}
-	log := zerolog.Ctx(r.Context())
-	login, err := m.Connector.CreateLogin(r.Context(), user, "qr")
-	if err != nil {
-		log.Err(err).Msg("Failed to create login")
-		JSONResponse(w, http.StatusInternalServerError, &Error{
-			Error:   "Internal error starting login",
-			ErrCode: "M_UNKNOWN",
-		})
-		return
-	}
-	firstStep, err := login.Start(r.Context())
-	if err != nil {
-		log.Err(err).Msg("Failed to start login")
-		JSONResponse(w, http.StatusInternalServerError, &Error{
-			Error:   "Internal error starting login",
-			ErrCode: "M_UNKNOWN",
-		})
-		return
-	} else if firstStep.StepID != connector.LoginStepQR || firstStep.Type != bridgev2.LoginStepTypeDisplayAndWait || firstStep.DisplayAndWaitParams.Type != bridgev2.LoginDisplayTypeQR {
-		log.Error().Any("first_step", firstStep).Msg("Unexpected first step")
-		JSONResponse(w, http.StatusInternalServerError, &Error{
-			Error:   "Unexpected first login step",
-			ErrCode: "M_UNKNOWN",
-		})
-		return
-	}
-	loginSessionsLock.Lock()
-	loginSessions[handleID] = &legacyLoginProcess{
-		ID:    handleID,
-		Login: login,
-		User:  user,
-	}
-	loginSessionsLock.Unlock()
-	JSONResponse(w, http.StatusOK, Response{
-		Success:   true,
-		Status:    "provisioning_url_received",
-		SessionID: strconv.Itoa(int(handleID)),
-		URI:       firstStep.DisplayAndWaitParams.Data,
-	})
-}
-
-func getLoginProcess(w http.ResponseWriter, r *http.Request) *legacyLoginProcess {
-	var body LinkWaitForAccountRequest
-	err := json.NewDecoder(r.Body).Decode(&body)
-	if err != nil {
-		JSONResponse(w, http.StatusBadRequest, Error{
-			Success: false,
-			Error:   "Error decoding JSON body",
-			ErrCode: mautrix.MBadJSON.ErrCode,
-		})
-		return nil
-	}
-	sessionID, err := strconv.Atoi(body.SessionID)
-	if err != nil {
-		JSONResponse(w, http.StatusBadRequest, Error{
-			Success: false,
-			Error:   "Error decoding session ID in JSON body",
-			ErrCode: mautrix.MBadJSON.ErrCode,
-		})
-		return nil
-	}
-	process, ok := loginSessions[uint32(sessionID)]
-	user := m.Matrix.Provisioning.GetUser(r)
-	if !ok || process.User != user {
-		JSONResponse(w, http.StatusNotFound, Error{
-			Success: false,
-			Error:   "No session found",
-			ErrCode: mautrix.MNotFound.ErrCode,
-		})
-		return nil
-	}
-	return process
-}
-
-func legacyProvLinkWaitScan(w http.ResponseWriter, r *http.Request) {
-	login := getLoginProcess(w, r)
-	if login == nil {
-		return
-	}
-	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
-	if err != nil {
-		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to log in")
-		JSONResponse(w, http.StatusInternalServerError, Error{
-			Error:   "Failed to log in",
-			ErrCode: "M_UNKNOWN",
-		})
-		login.Delete()
-		return
-	} else if res.StepID != connector.LoginStepProcess {
-		zerolog.Ctx(r.Context()).Error().Any("first_step", res).Msg("Unexpected login step")
-		JSONResponse(w, http.StatusInternalServerError, Error{
-			Error:   "Unexpected login step",
-			ErrCode: "M_UNKNOWN",
-		})
-		login.Delete()
-		return
-	}
-	JSONResponse(w, http.StatusOK, Response{
-		Success: true,
-		Status:  "provisioning_data_received",
-	})
-}
-
-func legacyProvLinkWaitAccount(w http.ResponseWriter, r *http.Request) {
-	login := getLoginProcess(w, r)
-	if login == nil {
-		return
-	}
-	res, err := login.Login.(bridgev2.LoginProcessDisplayAndWait).Wait(r.Context())
-	if err != nil {
-		zerolog.Ctx(r.Context()).Err(err).Msg("Failed to log in")
-		JSONResponse(w, http.StatusInternalServerError, Error{
-			Error:   "Failed to log in",
-			ErrCode: "M_UNKNOWN",
-		})
-	} else if res.StepID != connector.LoginStepComplete || res.Type != bridgev2.LoginStepTypeComplete {
-		zerolog.Ctx(r.Context()).Error().Any("first_step", res).Msg("Unexpected login step")
-		JSONResponse(w, http.StatusInternalServerError, Error{
-			Error:   "Unexpected login step",
-			ErrCode: "M_UNKNOWN",
-		})
-	} else {
-		JSONResponse(w, http.StatusOK, Response{
-			Success: true,
-			Status:  "prekeys_registered",
-			UUID:    string(res.CompleteParams.UserLogin.ID),
-			Number:  res.CompleteParams.UserLogin.RemoteName,
-		})
-		go handleLoginComplete(context.WithoutCancel(r.Context()), login.User, res.CompleteParams.UserLogin)
-	}
-	login.Delete()
-}
-
-func handleLoginComplete(ctx context.Context, user *bridgev2.User, newLogin *bridgev2.UserLogin) {
-	allLogins := user.GetCachedUserLogins()
-	for _, login := range allLogins {
-		if login.ID != newLogin.ID {
-			login.Delete(ctx, status.BridgeState{StateEvent: status.StateLoggedOut, Reason: "LOGIN_OVERRIDDEN"}, bridgev2.DeleteOpts{})
-		}
-	}
-}
-
-func legacyProvLogout(w http.ResponseWriter, r *http.Request) {
-	// No-op for backwards compatibility
-	JSONResponse(w, http.StatusOK, nil)
-}
 
 func legacyResolveIdentifierOrStartChat(w http.ResponseWriter, r *http.Request, create bool) {
 	login := m.Matrix.Provisioning.GetLoginForRequest(w, r)
@@ -305,29 +124,8 @@ type Response struct {
 	Success bool   `json:"success"`
 	Status  string `json:"status"`
 
-	// For response in LinkNew
-	SessionID string `json:"session_id,omitempty"`
-	URI       string `json:"uri,omitempty"`
-
-	// For response in LinkWaitForAccount
-	UUID   string `json:"uuid,omitempty"`
-	Number string `json:"number,omitempty"`
-
 	// For response in ResolveIdentifier
 	*ResolveIdentifierResponse
-}
-
-type WhoAmIResponse struct {
-	Permissions int                   `json:"permissions"`
-	MXID        string                `json:"mxid"`
-	Signal      *WhoAmIResponseSignal `json:"signal,omitempty"`
-}
-
-type WhoAmIResponseSignal struct {
-	Number string `json:"number"`
-	UUID   string `json:"uuid"`
-	Name   string `json:"name"`
-	Ok     bool   `json:"ok"`
 }
 
 type ResolveIdentifierResponse struct {
@@ -346,13 +144,4 @@ type ResolveIdentifierResponseOtherUser struct {
 	MXID        id.UserID     `json:"mxid"`
 	DisplayName string        `json:"displayname"`
 	AvatarURL   id.ContentURI `json:"avatar_url"`
-}
-
-type LinkWaitForScanRequest struct {
-	SessionID string `json:"session_id"`
-}
-
-type LinkWaitForAccountRequest struct {
-	SessionID  string `json:"session_id"`
-	DeviceName string `json:"device_name"` // TODO this seems to not be used anywhere
 }

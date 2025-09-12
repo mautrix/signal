@@ -17,11 +17,9 @@
 package main
 
 import (
-	"maunium.net/go/mautrix/bridgev2/bridgeconfig"
 	"maunium.net/go/mautrix/bridgev2/matrix/mxmain"
 
 	"go.mau.fi/mautrix-signal/pkg/connector"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 )
 
 // Information to find out exactly which commit the bridge was built from.
@@ -42,23 +40,8 @@ var m = mxmain.BridgeMain{
 }
 
 func main() {
-	bridgeconfig.HackyMigrateLegacyNetworkConfig = migrateLegacyConfig
-	m.PostInit = func() {
-		signalmeow.SetLogger(m.Log.With().Str("component", "signalmeow").Logger())
-		m.CheckLegacyDB(
-			20,
-			"v0.5.1",
-			"v0.7.0",
-			m.LegacyMigrateSimple(legacyMigrateRenameTables, legacyMigrateCopyData, 21),
-			true,
-		)
-	}
 	m.PostStart = func() {
 		if m.Matrix.Provisioning != nil {
-			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/link/new", legacyProvLinkNew)
-			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/link/wait/scan", legacyProvLinkWaitScan)
-			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/link/wait/account", legacyProvLinkWaitAccount)
-			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/logout", legacyProvLogout)
 			m.Matrix.Provisioning.Router.HandleFunc("GET /v2/resolve_identifier/{phonenum}", legacyProvResolveIdentifier)
 			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/pm/{phonenum}", legacyProvPM)
 		}
