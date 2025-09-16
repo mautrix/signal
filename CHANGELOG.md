@@ -1,4 +1,4 @@
-# v0.8.7 (unreleased)
+# v0.8.7 (2025-09-16)
 
 * Removed legacy provisioning API and database legacy migration.
   Upgrading directly from versions prior to v0.7.0 is not supported.
