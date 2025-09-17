@@ -531,32 +531,6 @@ func ReadReceptMessageForTimestamps(timestamps []uint64) *signalpb.Content {
 	}
 }
 
-func DataMessageForReaction(reaction string, targetMessageSender uuid.UUID, targetMessageTimestamp uint64, removing bool) *signalpb.Content {
-	timestamp := currentMessageTimestamp()
-	dm := &signalpb.DataMessage{
-		Timestamp:               &timestamp,
-		RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
-		Reaction: &signalpb.DataMessage_Reaction{
-			Emoji:               proto.String(reaction),
-			Remove:              proto.Bool(removing),
-			TargetAuthorAci:     proto.String(targetMessageSender.String()),
-			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
-		},
-	}
-	return wrapDataMessageInContent(dm)
-}
-
-func DataMessageForDelete(targetMessageTimestamp uint64) *signalpb.Content {
-	timestamp := currentMessageTimestamp()
-	dm := &signalpb.DataMessage{
-		Timestamp: &timestamp,
-		Delete: &signalpb.DataMessage_Delete{
-			TargetSentTimestamp: proto.Uint64(targetMessageTimestamp),
-		},
-	}
-	return wrapDataMessageInContent(dm)
-}
-
 func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
 	return &signalpb.Content{
 		DataMessage: dm,
