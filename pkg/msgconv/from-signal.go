@@ -93,7 +93,9 @@ func (mc *MessageConverter) ToMatrix(
 		Parts:      make([]*bridgev2.ConvertedMessagePart, 0, calculateLength(dm)),
 	}
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
-		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(ctx, dm.GetExpireTimer(), dm.ExpireTimerVersion, time.UnixMilli(int64(dm.GetTimestamp()))))
+		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(
+			ctx, dm.GetExpireTimer(), dm.ExpireTimerVersion, time.UnixMilli(int64(dm.GetTimestamp())), attMap != nil,
+		))
 		// Don't allow any other parts in a disappearing timer change message
 		return cm
 	}
@@ -170,7 +172,9 @@ func (mc *MessageConverter) ToMatrix(
 	return cm
 }
 
-func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.Context, timer uint32, timerVersion *uint32, ts time.Time) *bridgev2.ConvertedMessagePart {
+func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(
+	ctx context.Context, timer uint32, timerVersion *uint32, ts time.Time, isBackfill bool,
+) *bridgev2.ConvertedMessagePart {
 	portal := getPortal(ctx)
 	setting := database.DisappearingSetting{
 		Timer: time.Duration(timer) * time.Second,
@@ -188,9 +192,13 @@ func (mc *MessageConverter) ConvertDisappearingTimerChangeToMatrix(ctx context.C
 				"timer":      setting.Timer.Milliseconds(),
 				"timer_type": setting.Type,
 				"implicit":   false,
+				"backfill":   isBackfill,
 			},
 		},
 		DontBridge: setting == portal.Disappear,
+	}
+	if isBackfill {
+		return part
 	}
 	portalMeta := portal.Metadata.(*signalid.PortalMetadata)
 	if timerVersion != nil && portalMeta.ExpirationTimerVersion > *timerVersion {
