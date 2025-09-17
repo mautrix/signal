@@ -631,8 +631,10 @@ func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *b
 			msg.Portal.Disappear = newSetting
 		})
 	} else {
+		ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 		res := s.Client.SendMessage(ctx, userID, &signalpb.Content{
 			DataMessage: &signalpb.DataMessage{
+				Timestamp:   ptr.Ptr(ts),
 				Flags:       ptr.Ptr(uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE)),
 				ExpireTimer: ptr.Ptr(uint32(msg.Content.Timer.Seconds())),
 			},
