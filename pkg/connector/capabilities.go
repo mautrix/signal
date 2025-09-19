@@ -180,6 +180,7 @@ func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Por
 var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 	DisappearingMessages: true,
 	AggressiveUpdateInfo: true,
+	ImplicitReadReceipts: true,
 	Provisioning: bridgev2.ProvisioningCapabilities{
 		ResolveIdentifier: bridgev2.ResolveIdentifierCapabilities{
 			CreateDM:       true,
