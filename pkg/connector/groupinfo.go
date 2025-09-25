@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -182,9 +183,15 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		Members:      members,
 		Type:         ptr.Ptr(database.RoomTypeDefault),
 		JoinRule:     &event.JoinRulesEventContent{JoinRule: joinRule},
-		ExtraUpdates: makeRevisionUpdater(groupInfo.Revision),
+		ExtraUpdates: bridgev2.MergeExtraUpdaters(makeRevisionUpdater(groupInfo.Revision), updatePortalSyncMeta),
 		CanBackfill:  backupChat != nil,
 	}, nil
+}
+
+func updatePortalSyncMeta(ctx context.Context, portal *bridgev2.Portal) bool {
+	meta := portal.Metadata.(*signalid.PortalMetadata)
+	meta.LastSync = jsontime.UnixNow()
+	return true
 }
 
 func (s *SignalClient) makeGroupAvatar(ctx context.Context, groupID types.GroupIdentifier, path *string, groupMasterKey types.SerializedGroupMasterKey) (*bridgev2.Avatar, error) {

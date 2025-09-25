@@ -32,6 +32,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/bridgev2/simplevent"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -577,35 +578,45 @@ func (s *SignalClient) HandleMatrixPowerLevels(ctx context.Context, msg *bridgev
 }
 
 func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev2.MatrixViewingChat) error {
-	if msg.Portal == nil || msg.Portal.OtherUserID == "" {
-		// Group chat changes are sent by Signal so no need to fetch them on view
+	if msg.Portal == nil {
 		return nil
 	}
 
-	// Sync other user ghost info in DM rooms
-	ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, msg.Portal.OtherUserID)
-	if err != nil {
-		return fmt.Errorf("failed to get ghost for sync: %w", err)
-	} else if ghost == nil {
-		zerolog.Ctx(ctx).Warn().
-			Str("other_user_id", string(msg.Portal.OtherUserID)).
-			Msg("No ghost found for other user in portal")
-		return nil
+	// Sync the other users ghost in DMs
+	if msg.Portal.OtherUserID != "" {
+		ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, msg.Portal.OtherUserID)
+		if err != nil {
+			return fmt.Errorf("failed to get ghost for sync: %w", err)
+		} else if ghost == nil {
+			zerolog.Ctx(ctx).Warn().
+				Str("other_user_id", string(msg.Portal.OtherUserID)).
+				Msg("No ghost found for other user in portal")
+		} else {
+			meta := ghost.Metadata.(*signalid.GhostMetadata)
+			if meta.ProfileFetchedAt.Time.Add(5 * time.Minute).Before(time.Now()) {
+				// Reset, but don't save, portal last sync time for immediate sync now
+				meta.ProfileFetchedAt.Time = time.Time{}
+				info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, 5*time.Minute)
+				if err != nil {
+					return fmt.Errorf("failed to get user info: %w", err)
+				}
+				ghost.UpdateInfo(ctx, info)
+			}
+		}
+	}
+	
+	// always resync the portal if its stale
+	portalMeta := msg.Portal.Metadata.(*signalid.PortalMetadata)
+	if portalMeta.LastSync.Add(24 * time.Hour).Before(time.Now()) {
+		s.UserLogin.QueueRemoteEvent(&simplevent.ChatResync{
+			EventMeta: simplevent.EventMeta{
+				Type:      bridgev2.RemoteEventChatResync,
+				PortalKey: msg.Portal.PortalKey,
+			},
+			GetChatInfoFunc: s.GetChatInfo,
+		})
 	}
 
-	meta := ghost.Metadata.(*signalid.GhostMetadata)
-	if meta.ProfileFetchedAt.Time.Add(5 * time.Minute).After(time.Now()) {
-		// Limit profile fetches to max one per 5 minutes
-		return nil
-	}
-
-	// Reset, but don't save, portal last sync time for immediate sync now
-	meta.ProfileFetchedAt.Time = time.Time{}
-	info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, 5*time.Minute)
-	if err != nil {
-		return fmt.Errorf("failed to get user info: %w", err)
-	}
-	ghost.UpdateInfo(ctx, info)
 	return nil
 }
 
