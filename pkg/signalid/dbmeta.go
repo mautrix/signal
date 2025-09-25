@@ -25,7 +25,6 @@ type PortalMetadata struct {
 	ExpirationTimerVersion uint32 `json:"expiration_timer_version,omitempty"`
 	// Lazy resync tracking
 	LastSync          jsontime.Unix `json:"last_sync,omitempty"`
-	BridgeCapsVersion int           `json:"bridge_caps_version,omitempty"`
 }
 
 type MessageMetadata struct {
