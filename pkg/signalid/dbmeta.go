@@ -23,6 +23,8 @@ import (
 type PortalMetadata struct {
 	Revision               uint32 `json:"revision,omitempty"`
 	ExpirationTimerVersion uint32 `json:"expiration_timer_version,omitempty"`
+	// Lazy resync tracking
+	LastSync jsontime.Unix `json:"last_sync,omitempty"`
 }
 
 type MessageMetadata struct {
