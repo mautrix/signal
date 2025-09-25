@@ -604,7 +604,7 @@ func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev
 			}
 		}
 	}
-	
+
 	// always resync the portal if its stale
 	portalMeta := msg.Portal.Metadata.(*signalid.PortalMetadata)
 	if portalMeta.LastSync.Add(24 * time.Hour).Before(time.Now()) {

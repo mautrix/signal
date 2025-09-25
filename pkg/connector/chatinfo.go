@@ -438,7 +438,7 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 			Type:    ptr.Ptr(database.RoomTypeDM),
 
 			CanBackfill: backupChat != nil,
-			
+
 			ExtraUpdates: updatePortalSyncMeta,
 		},
 	}
