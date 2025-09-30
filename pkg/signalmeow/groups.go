@@ -192,7 +192,7 @@ type GroupChange struct {
 	ModifyInviteLinkPassword           *types.SerializedInviteLinkPassword
 }
 
-func (groupChange *GroupChange) isEmptpy() bool {
+func (groupChange *GroupChange) isEmpty() bool {
 	return len(groupChange.AddMembers) == 0 &&
 		len(groupChange.DeleteMembers) == 0 &&
 		len(groupChange.ModifyMemberRoles) == 0 &&
@@ -638,6 +638,7 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 	}
 	return cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
 }
+
 func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey types.SerializedGroupMasterKey) (*Group, error) {
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
@@ -650,24 +651,28 @@ func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey t
 		ContentType: web.ContentTypeProtobuf,
 		Host:        web.StorageHostname,
 	}
-	response, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v1/groups", opts)
+	response, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v2/groups", opts)
 	if err != nil {
 		return nil, err
 	}
 	if response.StatusCode != 200 {
 		return nil, fmt.Errorf("fetchGroupByID SendHTTPRequest bad status: %d", response.StatusCode)
 	}
-	var encryptedGroup signalpb.Group
+	return cli.parseGroupResponse(ctx, response, groupMasterKey)
+}
+
+func (cli *Client) parseGroupResponse(ctx context.Context, response *http.Response, masterKey types.SerializedGroupMasterKey) (*Group, error) {
+	var groupResponse signalpb.GroupResponse
 	groupBytes, err := io.ReadAll(response.Body)
 	if err != nil {
 		return nil, err
 	}
-	err = proto.Unmarshal(groupBytes, &encryptedGroup)
+	err = proto.Unmarshal(groupBytes, &groupResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal group: %w", err)
 	}
 
-	group, err := decryptGroup(ctx, &encryptedGroup, groupMasterKey)
+	group, err := decryptGroup(ctx, groupResponse.Group, masterKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt group: %w", err)
 	}
@@ -1196,7 +1201,7 @@ func decryptRequestingMember(ctx context.Context, requestingMember *signalpb.Req
 	}, nil
 }
 
-func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroupChange *GroupChange, gid types.GroupIdentifier) (*signalpb.GroupChange, error) {
+func (cli *Client) EncryptAndSignGroupChange(ctx context.Context, decryptedGroupChange *GroupChange) (*signalpb.GroupChangeResponse, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "EncryptGroupChange").Logger()
 	groupMasterKey := decryptedGroupChange.GroupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
@@ -1479,7 +1484,7 @@ func (e RespError) Error() string {
 	return e.Err
 }
 
-func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupChange_Actions, groupMasterKey types.SerializedGroupMasterKey, groupLinkPassword []byte) (*signalpb.GroupChange, error) {
+func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupChange_Actions, groupMasterKey types.SerializedGroupMasterKey, groupLinkPassword []byte) (*signalpb.GroupChangeResponse, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "patchGroup").Logger()
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyToBytes(groupMasterKey))
 	if err != nil {
@@ -1488,9 +1493,9 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 	}
 	var path string
 	if groupLinkPassword == nil {
-		path = "/v1/groups/"
+		path = "/v2/groups/"
 	} else {
-		path = fmt.Sprintf("/v1/groups/?inviteLinkPassword=%s", base64.StdEncoding.EncodeToString(groupLinkPassword))
+		path = fmt.Sprintf("/v2/groups/?inviteLinkPassword=%s", base64.StdEncoding.EncodeToString(groupLinkPassword))
 	}
 	requestBody, err := proto.Marshal(groupChange)
 	if err != nil {
@@ -1535,70 +1540,78 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 	if err != nil {
 		return nil, fmt.Errorf("failed to read storage manifest response: %w", err)
 	}
-	signedGroupChange := signalpb.GroupChange{}
-	err = proto.Unmarshal(body, &signedGroupChange)
+	var changeResp signalpb.GroupChangeResponse
+	err = proto.Unmarshal(body, &changeResp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal signed groupChange: %w", err)
 	}
-	return &signedGroupChange, nil
+	return &changeResp, nil
 }
 
 func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) (uint32, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "UpdateGroup").Logger()
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
-		log.Err(err).Msg("Could not get master key from group id")
-		return 0, err
+		return 0, fmt.Errorf("failed to get master key for group: %w", err)
 	}
 	groupChange.GroupMasterKey = groupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	var refetchedAddMemberCredentials bool
-	var signedGroupChange *signalpb.GroupChange
+	var signedGroupChange *signalpb.GroupChangeResponse
 	group, err := cli.RetrieveGroupByID(ctx, gid, 0)
 	if err != nil {
-		log.Err(err).Msg("Failed to retrieve Group")
+		return 0, fmt.Errorf("failed to fetch group info to update: %w", err)
 	}
 	if group.InviteLinkPassword == nil && groupChange.ModifyAddFromInviteLinkAccess != nil && groupChange.ModifyInviteLinkPassword != nil {
 		groupChange.ModifyInviteLinkPassword = ptr.Ptr(GenerateInviteLinkPassword())
 	}
 	groupChange.Revision = group.Revision + 1
-	for attempt := 0; attempt < 5; attempt++ {
-		signedGroupChange, err = cli.EncryptAndSignGroupChange(ctx, groupChange, gid)
-		if errors.Is(err, GroupPatchNotAcceptedError) {
-			log.Warn().Str("Error applying GroupChange, retrying...", err.Error())
+	for attempt := 0; ; attempt++ {
+		signedGroupChange, err = cli.EncryptAndSignGroupChange(ctx, groupChange)
+		if err == nil {
+			break
+		} else if attempt >= 5 {
+			return 0, fmt.Errorf("failed to encrypt and sign group change after multiple retries: %w", err)
+		} else if errors.Is(err, GroupPatchNotAcceptedError) {
+			log.Err(err).Msg("Failed to apply group change, retrying...")
 			if len(groupChange.AddMembers) > 0 && !refetchedAddMemberCredentials {
 				refetchedAddMemberCredentials = true
 				// change = refetchAddMemberCredentials(change); TODO
 			} else {
-				return 0, fmt.Errorf("Group Change Failed: %w", err)
+				return 0, fmt.Errorf("failed to update group: %w", err)
 			}
 		} else if errors.Is(err, ConflictError) {
 			delete(cli.GroupCache.groups, gid)
 			delete(cli.GroupCache.lastFetched, gid)
 			delete(cli.GroupCache.activeCalls, gid)
 			group, err = cli.RetrieveGroupByID(ctx, gid, 0)
+			if err != nil {
+				return 0, fmt.Errorf("failed to fetch group after conflict: %w", err)
+			}
 			groupChange.resolveConflict(group)
-			if groupChange.isEmptpy() {
+			if groupChange.isEmpty() {
 				log.Debug().Msg("Change is empty after conflict resolution")
 			}
 			groupChange.Revision = group.Revision + 1
 		} else {
-			break
+			return 0, fmt.Errorf("unknown error encrypting and signing group change: %w", err)
 		}
 	}
 	delete(cli.GroupCache.groups, gid)
 	delete(cli.GroupCache.lastFetched, gid)
 	delete(cli.GroupCache.activeCalls, gid)
-	if err != nil {
-		log.Err(err).Msg("couldn't patch group on server")
-		return 0, err
+	if signedGroupChange == nil {
+		return 0, fmt.Errorf("no signed group change returned: %w", err)
 	}
-	groupChangeBytes, err := proto.Marshal(signedGroupChange)
+	groupChangeBytes, err := proto.Marshal(signedGroupChange.GroupChange)
 	if err != nil {
-		log.Err(err).Msg("Error marshalling signed GroupChange")
-		return 0, err
+		return 0, fmt.Errorf("failed to marshal signed group change: %w", err)
 	}
-	groupContext := &signalpb.GroupContextV2{Revision: &groupChange.Revision, GroupChange: groupChangeBytes, MasterKey: masterKeyBytes[:]}
+	groupContext := &signalpb.GroupContextV2{
+		Revision:    &groupChange.Revision,
+		GroupChange: groupChangeBytes,
+		MasterKey:   masterKeyBytes[:],
+	}
 	_, err = cli.SendGroupUpdate(ctx, group, groupContext, groupChange)
 	if err != nil {
 		log.Err(err).Msg("Error sending GroupChange to group members")
@@ -1718,7 +1731,7 @@ func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Grou
 		log.Err(err).Msg("Failed to get Authorization for today")
 		return nil, err
 	}
-	path := "/v1/groups/"
+	path := "/v2/groups/"
 	requestBody, err := proto.Marshal(encryptedGroup)
 	if err != nil {
 		log.Err(err).Msg("Failed to marshal request")
@@ -1751,11 +1764,7 @@ func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Grou
 	case http.StatusBadRequest:
 		return nil, fmt.Errorf("failed to put new group: bad request")
 	}
-	group, err := cli.fetchGroupWithMasterKey(ctx, decryptedGroup.GroupMasterKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get new group: %w", err)
-	}
-	return group, nil
+	return cli.parseGroupResponse(ctx, resp, decryptedGroup.GroupMasterKey)
 }
 
 func GenerateInviteLinkPassword() types.SerializedInviteLinkPassword {
@@ -1801,7 +1810,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		Host:        web.StorageHostname,
 	}
 	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
-	path := fmt.Sprintf("/v1/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
+	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
 	response, err := web.SendHTTPRequest(ctx, http.MethodGet, path, opts)
 	if err != nil {
 		return nil, err
