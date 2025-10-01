@@ -114,6 +114,7 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 				event.StatePowerLevels: moderatorPL,
 			},
 		},
+		ExcludeChangesFromTimeline: true,
 	}
 	applyAnnouncementsOnly(members.PowerLevels, groupInfo.AnnouncementsOnly)
 	joinRule := event.JoinRuleInvite
@@ -185,6 +186,8 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		JoinRule:     &event.JoinRulesEventContent{JoinRule: joinRule},
 		ExtraUpdates: bridgev2.MergeExtraUpdaters(makeRevisionUpdater(groupInfo.Revision), updatePortalSyncMeta),
 		CanBackfill:  backupChat != nil,
+
+		ExcludeChangesFromTimeline: true,
 	}, nil
 }
 
