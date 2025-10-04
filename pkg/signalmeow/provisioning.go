@@ -360,7 +360,7 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 
 var signalCapabilities = map[string]any{
 	"attachmentBackfill": true,
-	"sqpr":               true,
+	"spqr":               true,
 }
 
 var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))
