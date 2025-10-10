@@ -1,3 +1,9 @@
+# v25.10 (unreleased)
+
+* Switched to calendar versioning.
+* Updated libsignal to v0.84.0.
+* Fixed backfill creating incorrect disappearing timer change notices.
+
 # v0.8.7 (2025-09-16)
 
 * Removed legacy provisioning API and database legacy migration.
