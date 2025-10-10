@@ -893,6 +893,21 @@ typedef struct {
 typedef const SignalFfiError *SignalUnwindSafeArgSignalFfiError;
 
 typedef struct {
+  const char *first;
+  uint32_t second;
+} SignalPairOfc_charu32;
+
+typedef struct {
+  const char *first;
+  SignalOwnedBuffer second;
+} SignalPairOfc_charOwnedBufferOfc_uchar;
+
+typedef struct {
+  const char *first;
+  bool second;
+} SignalPairOfc_charbool;
+
+typedef struct {
   SignalFingerprint *raw;
 } SignalMutPointerFingerprint;
 
@@ -972,6 +987,11 @@ typedef struct {
 typedef struct {
   SignalHttpRequest *raw;
 } SignalMutPointerHttpRequest;
+
+typedef struct {
+  SignalMutPointerPublicKey first;
+  SignalMutPointerPrivateKey second;
+} SignalPairOfMutPointerPublicKeyMutPointerPrivateKey;
 
 typedef struct {
   const SignalPrivateKey *raw;
@@ -1680,15 +1700,15 @@ void signal_error_free(SignalFfiError *err);
 
 SignalFfiError *signal_error_get_address(SignalMutPointerProtocolAddress *out, SignalUnwindSafeArgSignalFfiError err);
 
-SignalFfiError *signal_error_get_invalid_protocol_address(const char **name_out, uint32_t *device_id_out, const SignalFfiError *err);
+SignalFfiError *signal_error_get_invalid_protocol_address(SignalPairOfc_charu32 *out, SignalUnwindSafeArgSignalFfiError err);
 
 SignalFfiError *signal_error_get_message(const char **out, SignalUnwindSafeArgSignalFfiError err);
 
 SignalFfiError *signal_error_get_our_fingerprint_version(uint32_t *out, SignalUnwindSafeArgSignalFfiError err);
 
-SignalFfiError *signal_error_get_rate_limit_challenge(const char **out_token, SignalOwnedBuffer *out_options, const SignalFfiError *err);
+SignalFfiError *signal_error_get_rate_limit_challenge(SignalPairOfc_charOwnedBufferOfc_uchar *out, SignalUnwindSafeArgSignalFfiError err);
 
-SignalFfiError *signal_error_get_registration_error_not_deliverable(const char **out_reason, bool *out_permanent, const SignalFfiError *err);
+SignalFfiError *signal_error_get_registration_error_not_deliverable(SignalPairOfc_charbool *out, SignalUnwindSafeArgSignalFfiError err);
 
 SignalFfiError *signal_error_get_registration_lock(uint64_t *out_time_remaining_seconds, const char **out_svr2_username, const char **out_svr2_password, const SignalFfiError *err);
 
@@ -1834,7 +1854,7 @@ SignalFfiError *signal_http_request_new_without_body(SignalMutPointerHttpRequest
 
 SignalFfiError *signal_identitykey_verify_alternate_identity(bool *out, SignalConstPointerPublicKey public_key, SignalConstPointerPublicKey other_identity, SignalBorrowedBuffer signature);
 
-SignalFfiError *signal_identitykeypair_deserialize(SignalMutPointerPrivateKey *private_key, SignalMutPointerPublicKey *public_key, SignalBorrowedBuffer input);
+SignalFfiError *signal_identitykeypair_deserialize(SignalPairOfMutPointerPublicKeyMutPointerPrivateKey *out, SignalBorrowedBuffer input);
 
 SignalFfiError *signal_identitykeypair_serialize(SignalOwnedBuffer *out, SignalConstPointerPublicKey public_key, SignalConstPointerPrivateKey private_key);
 

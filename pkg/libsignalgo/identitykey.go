@@ -114,14 +114,13 @@ func GenerateIdentityKeyPair() (*IdentityKeyPair, error) {
 }
 
 func DeserializeIdentityKeyPair(bytes []byte) (*IdentityKeyPair, error) {
-	var privateKey C.SignalMutPointerPrivateKey
-	var publicKey C.SignalMutPointerPublicKey
-	signalFfiError := C.signal_identitykeypair_deserialize(&privateKey, &publicKey, BytesToBuffer(bytes))
+	var keys C.SignalPairOfMutPointerPublicKeyMutPointerPrivateKey
+	signalFfiError := C.signal_identitykeypair_deserialize(&keys, BytesToBuffer(bytes))
 	runtime.KeepAlive(bytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return &IdentityKeyPair{publicKey: wrapPublicKey(publicKey.raw), privateKey: wrapPrivateKey(privateKey.raw)}, nil
+	return &IdentityKeyPair{publicKey: wrapPublicKey(keys.first.raw), privateKey: wrapPrivateKey(keys.second.raw)}, nil
 }
 
 func NewIdentityKeyPair(publicKey *PublicKey, privateKey *PrivateKey) (*IdentityKeyPair, error) {
