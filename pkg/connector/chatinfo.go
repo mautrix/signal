@@ -240,7 +240,7 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCreateParams) (*bridgev2.CreateChatResponse, error) {
 	group := &signalmeow.Group{
 		Title:                        ptr.Val(params.Name).Name,
-		Members:                      make([]*signalmeow.GroupMember, len(params.Participants)+1),
+		Members:                      make([]*signalmeow.GroupMember, 1, len(params.Participants)+1),
 		Description:                  ptr.Val(params.Topic).Topic,
 		AnnouncementsOnly:            false,
 		DisappearingMessagesDuration: uint32(ptr.Val(params.Disappear).Timer.Seconds()),
@@ -267,14 +267,25 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 		ACI:  s.Client.Store.ACI,
 		Role: signalmeow.GroupMember_ADMINISTRATOR,
 	}
-	for i, member := range params.Participants {
-		userID, err := signalid.ParseUserID(member)
+	currentTS := uint64(time.Now().UnixMilli())
+	for _, member := range params.Participants {
+		userID, err := signalid.ParseUserIDAsServiceID(member)
 		if err != nil {
 			return nil, fmt.Errorf("invalid user ID %q: %w", member, err)
 		}
-		group.Members[i+1] = &signalmeow.GroupMember{
-			ACI:  userID,
-			Role: signalmeow.GroupMember_DEFAULT, // TODO set proper role from power levels
+		if userID.Type == libsignalgo.ServiceIDTypeACI {
+			group.Members = append(group.Members, &signalmeow.GroupMember{
+				ACI:  userID.UUID,
+				Role: signalmeow.GroupMember_DEFAULT, // TODO set proper role from power levels
+			})
+		} else if userID.Type == libsignalgo.ServiceIDTypePNI {
+			// TODO check if this is correct
+			group.PendingMembers = append(group.PendingMembers, &signalmeow.PendingMember{
+				ServiceID:     userID,
+				Role:          signalmeow.GroupMember_DEFAULT,
+				AddedByUserID: s.Client.Store.ACI,
+				Timestamp:     currentTS,
+			})
 		}
 	}
 	_, err := signalmeow.PrepareGroupCreation(group)
