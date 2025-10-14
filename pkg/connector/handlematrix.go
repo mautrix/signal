@@ -52,6 +52,7 @@ var (
 	_ bridgev2.RoomTopicHandlingNetworkAPI      = (*SignalClient)(nil)
 	_ bridgev2.ChatViewingNetworkAPI            = (*SignalClient)(nil)
 	_ bridgev2.DisappearTimerChangingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI     = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -656,4 +657,91 @@ func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *b
 		msg.Portal.Disappear = newSetting
 		return true, nil
 	}
+}
+
+func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2.MatrixDeleteChat) error {
+	userID, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil {
+		return fmt.Errorf("failed to parse portal ID: %w", err)
+	}
+
+	// Build ConversationIdentifier based on portal type
+	var conversationID *signalpb.ConversationIdentifier
+	if msg.Portal.RoomType == database.RoomTypeDM {
+		conversationID = &signalpb.ConversationIdentifier{
+			Identifier: &signalpb.ConversationIdentifier_ThreadServiceId{
+				ThreadServiceId: userID.String(),
+			},
+		}
+	} else {
+		gid, err := groupID.Bytes()
+		if err != nil {
+			return fmt.Errorf("failed to parse group ID: %w", err)
+		}
+		conversationID = &signalpb.ConversationIdentifier{
+			Identifier: &signalpb.ConversationIdentifier_ThreadGroupId{
+				ThreadGroupId: gid[:],
+			},
+		}
+	}
+
+	// Retrieve most recent messages from the portal
+	var mostRecentMessages []*signalpb.AddressableMessage
+	dbMessages, err := s.Main.Bridge.DB.Message.GetMessagesBetweenTimeQuery(
+		ctx,
+		msg.Portal.PortalKey,
+		time.Now().Add(-30*24*time.Hour), // Last 30 days
+		time.Now(),
+	)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to get recent messages for conversation delete")
+	} else if len(dbMessages) > 0 {
+		// Limit to the 5 most recent messages overall
+		limit := 5
+		startIdx := 0
+		if len(dbMessages) > limit {
+			startIdx = len(dbMessages) - limit
+		}
+
+		// Create AddressableMessage for most recent messages
+		for _, dbMsg := range dbMessages[startIdx:] {
+			senderACI, timestamp, err := signalid.ParseMessageID(dbMsg.ID)
+			if err != nil {
+				continue
+			}
+
+			mostRecentMessages = append(mostRecentMessages, &signalpb.AddressableMessage{
+				Author: &signalpb.AddressableMessage_AuthorServiceId{
+					AuthorServiceId: senderACI.String(),
+				},
+				SentTimestamp: proto.Uint64(timestamp),
+			})
+		}
+	}
+
+	recipientID := s.Client.Store.ACIServiceID()
+	// Send DeleteForMe sync message to self
+	result := s.Client.SendMessage(ctx, recipientID, &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			DeleteForMe: &signalpb.SyncMessage_DeleteForMe{
+				ConversationDeletes: []*signalpb.SyncMessage_DeleteForMe_ConversationDelete{{
+					Conversation:       conversationID,
+					MostRecentMessages: mostRecentMessages,
+					IsFullDelete:       proto.Bool(true),
+				}},
+			},
+		},
+	})
+
+	zerolog.Ctx(ctx).Debug().
+		Str("portal_id", string(msg.Portal.ID)).
+		Int("recent_messages_count", len(mostRecentMessages)).
+		Msg("Sent conversation deletion to Signal")
+
+	if !result.WasSuccessful {
+		zerolog.Ctx(ctx).Debug().Any("result", result).Any("id", recipientID).Any("user_id", userID).Any("senderACI", mostRecentMessages[0].Author).Msg("Failed to send conversation delete sync message")
+		return fmt.Errorf("failed to send delete conversation sync message: %w %s %s", result.Error, userID, groupID)
+	}
+
+	return nil
 }
