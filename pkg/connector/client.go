@@ -189,7 +189,7 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 
 		case signalmeow.SignalConnectionEventError:
 			s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
-			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 
 		case signalmeow.SignalConnectionCleanShutdown:
 			if s.Client.IsLoggedIn() {
@@ -303,15 +303,14 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bo
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
-		if retryCount < 6 {
-			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
-			retryInSeconds := 2 << retryCount
-			zerolog.Ctx(ctx).Debug().Int("retry_in_seconds", retryInSeconds).Msg("Sleeping and retrying connection")
-			time.Sleep(time.Duration(retryInSeconds) * time.Second)
-			s.tryConnect(ctx, retryCount+1, doSync)
-		} else {
-			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+		retryInSeconds := 2 << retryCount
+		if retryInSeconds > 150 {
+			retryInSeconds = 150
 		}
+		zerolog.Ctx(ctx).Debug().Int("retry_in_seconds", retryInSeconds).Msg("Sleeping and retrying connection")
+		time.Sleep(time.Duration(retryInSeconds) * time.Second)
+		s.tryConnect(ctx, retryCount+1, doSync)
 	} else {
 		go s.bridgeStateLoop(ch)
 		if doSync {
