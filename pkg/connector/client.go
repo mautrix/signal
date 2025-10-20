@@ -188,8 +188,12 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 			}
 
 		case signalmeow.SignalConnectionEventError:
-			s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
+			s.UserLogin.Log.Debug().Msg("Sending TransientDisconnect BridgeState")
 			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
+
+		case signalmeow.SignalConnectionEventFatalError:
+			s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "unknown-websocket-error", Message: err.Error()})
 
 		case signalmeow.SignalConnectionCleanShutdown:
 			if s.Client.IsLoggedIn() {
@@ -233,7 +237,7 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 			case web.SignalWebsocketConnectionEventLoggedOut:
 				log.Err(status.Err).Msg("Authed websocket logged out")
 				return fmt.Errorf("authed websocket logged out: %w", status.Err)
-			case web.SignalWebsocketConnectionEventError:
+			case web.SignalWebsocketConnectionEventError, web.SignalWebsocketConnectionEventFatalError:
 				log.Err(status.Err).Msg("Authed websocket error")
 				return fmt.Errorf("authed websocket errored: %w", status.Err)
 			case web.SignalWebsocketConnectionEventCleanShutdown:
@@ -247,7 +251,7 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 				log.Err(status.Err).Msg("Unauthed websocket disconnected")
 			case web.SignalWebsocketConnectionEventLoggedOut:
 				log.Err(status.Err).Msg("Unauthed websocket logged out")
-			case web.SignalWebsocketConnectionEventError:
+			case web.SignalWebsocketConnectionEventError, web.SignalWebsocketConnectionEventFatalError:
 				log.Err(status.Err).Msg("Unauthed websocket error")
 			case web.SignalWebsocketConnectionEventCleanShutdown:
 				log.Info().Msg("Unauthed websocket clean shutdown")
