@@ -430,8 +430,8 @@ func (s *SignalClient) catchUpGroup(ctx context.Context, portal *bridgev2.Portal
 			chatInfoChange, err := s.groupChangeToChatInfoChange(ctx, types.GroupIdentifier(portal.ID), gc.GroupChange.Revision, gc.GroupChange)
 			if err != nil {
 				log.Err(err).Msg("Failed to convert group info")
-			} else if gc.GroupChange.SourceServiceID.Type == libsignalgo.ServiceIDTypeACI {
-				portal.ProcessChatInfoChange(ctx, s.makeEventSender(gc.GroupChange.SourceServiceID.UUID), s.UserLogin, chatInfoChange, time.UnixMilli(int64(ts)))
+			} else {
+				portal.ProcessChatInfoChange(ctx, s.makeEventSenderFromServiceID(gc.GroupChange.SourceServiceID), s.UserLogin, chatInfoChange, time.UnixMilli(int64(ts)))
 			}
 			if gc.GroupChange.Revision == toRevision {
 				break
