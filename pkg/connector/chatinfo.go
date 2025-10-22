@@ -175,7 +175,7 @@ func (s *SignalClient) CreateChatWithGhost(ctx context.Context, ghost *bridgev2.
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.ResolveIdentifier(ctx, string(ghost.ID), true)
+	resp, err := s.ResolveIdentifier(ctx, parsedID.String(), true)
 	if err != nil {
 		return nil, err
 	} else if resp == nil {
@@ -199,7 +199,7 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ b
 	var aci, pni uuid.UUID
 	var e164Number uint64
 	var recipient *types.Recipient
-	serviceID, err := libsignalgo.ServiceIDFromString(number)
+	serviceID, err := signalid.ParseUserIDAsServiceID(networkid.UserID(number))
 	if err != nil {
 		number, err = bridgev2.CleanPhoneNumber(number)
 		if err != nil {
