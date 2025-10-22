@@ -59,8 +59,15 @@ func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (uuid.U
 	}
 }
 
+const pniUserIDPrefix = "pni_"
+const pniServiceIDPrefix = "PNI:"
+
 func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {
-	return libsignalgo.ServiceIDFromString(string(userID))
+	userIDStr := string(userID)
+	if strings.HasPrefix(userIDStr, pniUserIDPrefix) {
+		userIDStr = pniServiceIDPrefix + userIDStr[len(pniUserIDPrefix):]
+	}
+	return libsignalgo.ServiceIDFromString(userIDStr)
 }
 
 func ParsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
@@ -103,7 +110,14 @@ func MakeUserID(user uuid.UUID) networkid.UserID {
 }
 
 func MakeUserIDFromServiceID(user libsignalgo.ServiceID) networkid.UserID {
-	return networkid.UserID(user.String())
+	switch user.Type {
+	case libsignalgo.ServiceIDTypeACI:
+		return MakeUserID(user.UUID)
+	case libsignalgo.ServiceIDTypePNI:
+		return networkid.UserID(pniUserIDPrefix + user.UUID.String())
+	default:
+		panic(fmt.Errorf("invalid service ID type %d", user.Type))
+	}
 }
 
 func MakeUserLoginID(user uuid.UUID) networkid.UserLoginID {

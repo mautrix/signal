@@ -123,43 +123,30 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		applyMembersAccess(members.PowerLevels, groupInfo.AccessControl.Members)
 		joinRule = inviteLinkToJoinRule(groupInfo.AccessControl.AddFromInviteLink)
 	}
-	for _, member := range groupInfo.Members {
-		evtSender := s.makeEventSender(member.ACI)
-		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
-			EventSender: evtSender,
-			PowerLevel:  roleToPL(member.Role),
-			Membership:  event.MembershipJoin,
-		}
+	for _, member := range groupInfo.RequestingMembers {
+		members.MemberMap.Set(bridgev2.ChatMember{
+			EventSender: s.makeEventSender(member.ACI),
+			Membership:  event.MembershipKnock,
+		})
 	}
 	for _, member := range groupInfo.PendingMembers {
-		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
-		if aci == nil {
-			continue
-		}
-		evtSender := s.makeEventSender(*aci)
-		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
-			EventSender: evtSender,
-			PowerLevel:  roleToPL(member.Role),
-			Membership:  event.MembershipInvite,
-		}
+		s.addChatMemberWithACIQuery(ctx, members.MemberMap, member.ServiceID, bridgev2.ChatMember{
+			PowerLevel:   roleToPL(member.Role),
+			Membership:   event.MembershipInvite,
+			MemberSender: s.makeEventSender(member.AddedByUserID),
+		})
 	}
-	for _, member := range groupInfo.RequestingMembers {
-		evtSender := s.makeEventSender(member.ACI)
-		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
-			EventSender: evtSender,
-			Membership:  event.MembershipKnock,
-		}
+	for _, member := range groupInfo.Members {
+		members.MemberMap.Set(bridgev2.ChatMember{
+			EventSender: s.makeEventSender(member.ACI),
+			PowerLevel:  roleToPL(member.Role),
+			Membership:  event.MembershipJoin,
+		})
 	}
 	for _, member := range groupInfo.BannedMembers {
-		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
-		if aci == nil {
-			continue
-		}
-		evtSender := s.makeEventSender(*aci)
-		members.MemberMap[evtSender.Sender] = bridgev2.ChatMember{
-			EventSender: evtSender,
-			Membership:  event.MembershipBan,
-		}
+		s.addChatMemberWithACIQuery(ctx, members.MemberMap, member.ServiceID, bridgev2.ChatMember{
+			Membership: event.MembershipBan,
+		})
 	}
 	if backupChat == nil {
 		var err error
@@ -189,6 +176,10 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 
 		ExcludeChangesFromTimeline: true,
 	}, nil
+}
+
+func addMemberToMap(mc map[networkid.UserID]bridgev2.ChatMember, member bridgev2.ChatMember) {
+	mc[member.EventSender.Sender] = member
 }
 
 func updatePortalSyncMeta(ctx context.Context, portal *bridgev2.Portal) bool {
@@ -286,131 +277,127 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 			JoinRule: inviteLinkToJoinRule(*groupChange.ModifyAddFromInviteLinkAccess),
 		}
 	}
-	var mc []bridgev2.ChatMember
-	for _, member := range groupChange.AddMembers {
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ACI),
-			PowerLevel:  roleToPL(member.Role),
-			Membership:  event.MembershipJoin,
-		})
-	}
-	for _, member := range groupChange.ModifyMemberRoles {
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(member.ACI),
-			PowerLevel:  roleToPL(member.Role),
-			Membership:  event.MembershipJoin,
-		})
-	}
-	bannedMembers := make(map[libsignalgo.ServiceID]bool)
-	for _, member := range groupChange.AddBannedMembers {
-		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
-		if aci == nil {
-			continue
-		}
-		bannedMembers[member.ServiceID] = true
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(*aci),
-			Membership:  event.MembershipBan,
-		})
-	}
-	for _, memberACI := range groupChange.DeleteMembers {
-		if bannedMembers[libsignalgo.NewACIServiceID(*memberACI)] {
-			continue
-		}
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender:    s.makeEventSender(*memberACI),
-			Membership:     event.MembershipLeave,
-			PrevMembership: event.MembershipJoin,
-		})
-	}
+	mc := make(bridgev2.ChatMemberMap)
 	for _, member := range groupChange.AddPendingMembers {
-		aci := s.maybeResolvePNItoACI(ctx, &member.ServiceID)
-		if aci == nil {
-			continue
-		}
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender: s.makeEventSender(*aci),
-			PowerLevel:  roleToPL(member.Role),
-			Membership:  event.MembershipInvite,
-		})
-	}
-	for _, memberServiceID := range groupChange.DeletePendingMembers {
-		if bannedMembers[*memberServiceID] {
-			continue
-		}
-		aci := s.maybeResolvePNItoACI(ctx, memberServiceID)
-		if aci == nil {
-			continue
-		}
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender:    s.makeEventSender(*aci),
-			Membership:     event.MembershipLeave,
-			PrevMembership: event.MembershipInvite,
+		s.addChatMemberWithACIQuery(ctx, mc, member.ServiceID, bridgev2.ChatMember{
+			PowerLevel:     roleToPL(member.Role),
+			Membership:     event.MembershipInvite,
+			PrevMembership: event.MembershipLeave,
+			MemberSender:   s.makeEventSender(member.AddedByUserID),
 		})
 	}
 	for _, member := range groupChange.AddRequestingMembers {
-		mc = append(mc, bridgev2.ChatMember{
+		mc.Set(bridgev2.ChatMember{
 			EventSender: s.makeEventSender(member.ACI),
 			Membership:  event.MembershipKnock,
 		})
 	}
+	for _, memberServiceID := range groupChange.DeletePendingMembers {
+		s.addChatMemberWithACIQuery(ctx, mc, *memberServiceID, bridgev2.ChatMember{
+			Membership:     event.MembershipLeave,
+			PrevMembership: event.MembershipInvite,
+		})
+	}
 	for _, memberACI := range groupChange.DeleteRequestingMembers {
-		if bannedMembers[libsignalgo.NewACIServiceID(*memberACI)] {
-			continue
-		}
-		mc = append(mc, bridgev2.ChatMember{
+		mc.Set(bridgev2.ChatMember{
 			EventSender:    s.makeEventSender(*memberACI),
 			Membership:     event.MembershipLeave,
 			PrevMembership: event.MembershipKnock,
 		})
 	}
+	for _, memberACI := range groupChange.DeleteMembers {
+		mc.Set(bridgev2.ChatMember{
+			EventSender:    s.makeEventSender(*memberACI),
+			Membership:     event.MembershipLeave,
+			PrevMembership: event.MembershipJoin,
+		})
+	}
 	for _, memberServiceID := range groupChange.DeleteBannedMembers {
-		aci := s.maybeResolvePNItoACI(ctx, memberServiceID)
-		if aci == nil {
-			continue
-		}
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender:    s.makeEventSender(*aci),
+		s.addChatMemberWithACIQuery(ctx, mc, *memberServiceID, bridgev2.ChatMember{
 			Membership:     event.MembershipLeave,
 			PrevMembership: event.MembershipBan,
 		})
 	}
+	for _, member := range groupChange.AddBannedMembers {
+		s.addChatMemberWithACIQuery(ctx, mc, member.ServiceID, bridgev2.ChatMember{
+			Membership: event.MembershipBan,
+		})
+	}
 	for _, member := range groupChange.PromotePendingMembers {
-		mc = append(mc, bridgev2.ChatMember{
+		mc.Set(bridgev2.ChatMember{
 			EventSender:    s.makeEventSender(member.ACI),
 			Membership:     event.MembershipJoin,
 			PrevMembership: event.MembershipInvite,
 		})
 	}
 	for _, member := range groupChange.PromotePendingPniAciMembers {
-		mc = append(mc, bridgev2.ChatMember{
-			EventSender:    s.makeEventSender(member.ACI),
-			Membership:     event.MembershipJoin,
+		mc.Set(bridgev2.ChatMember{
+			EventSender: s.makeEventSender(member.ACI),
+			Membership:  event.MembershipJoin,
+		})
+		mc.Set(bridgev2.ChatMember{
+			EventSender:    s.makePNIEventSender(member.PNI),
+			Membership:     event.MembershipLeave,
 			PrevMembership: event.MembershipInvite,
+			MemberEventExtra: map[string]any{
+				"com.beeper.exclude_from_timeline": true,
+			},
 		})
 	}
 	for _, member := range groupChange.PromoteRequestingMembers {
-		mc = append(mc, bridgev2.ChatMember{
+		mc.Set(bridgev2.ChatMember{
 			EventSender:    s.makeEventSender(member.ACI),
 			Membership:     event.MembershipJoin,
 			PrevMembership: event.MembershipKnock,
 		})
 	}
+	for _, member := range groupChange.AddMembers {
+		mc.Set(bridgev2.ChatMember{
+			EventSender: s.makeEventSender(member.ACI),
+			PowerLevel:  roleToPL(member.Role),
+			Membership:  event.MembershipJoin,
+		})
+	}
+	for _, member := range groupChange.ModifyMemberRoles {
+		mc.Set(bridgev2.ChatMember{
+			EventSender: s.makeEventSender(member.ACI),
+			PowerLevel:  roleToPL(member.Role),
+			Membership:  event.MembershipJoin,
+		})
+	}
 	if len(mc) > 0 || pls != nil {
-		ic.MemberChanges = &bridgev2.ChatMemberList{Members: mc, PowerLevels: pls}
+		ic.MemberChanges = &bridgev2.ChatMemberList{MemberMap: mc, PowerLevels: pls}
 	}
 	return ic, nil
 }
 
-func (s *SignalClient) maybeResolvePNItoACI(ctx context.Context, serviceID *libsignalgo.ServiceID) *uuid.UUID {
-	if serviceID.Type == libsignalgo.ServiceIDTypeACI {
-		return &serviceID.UUID
+func (s *SignalClient) addChatMemberWithACIQuery(
+	ctx context.Context, mc bridgev2.ChatMemberMap, serviceID libsignalgo.ServiceID, member bridgev2.ChatMember,
+) {
+	member.EventSender = s.makeEventSenderFromServiceID(serviceID)
+	mc.Set(member)
+	if aci := s.tryResolvePNItoLoggedInACI(ctx, serviceID); aci != nil {
+		member.EventSender = s.makeEventSender(*aci)
+		mc.Add(member)
 	}
-	device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, serviceID.UUID)
-	if err != nil || device == nil {
+}
+
+func (s *SignalClient) tryResolvePNItoLoggedInACI(ctx context.Context, serviceID libsignalgo.ServiceID) *uuid.UUID {
+	if serviceID.Type != libsignalgo.ServiceIDTypePNI {
 		return nil
+	} else if serviceID.UUID == s.Client.Store.PNI {
+		return &s.Client.Store.ACI
+	} else if s.Main.Bridge.Config.SplitPortals {
+		// When split portals is enabled, we don't care about anyone else's logins
+		return nil
+	} else if device, err := s.Client.Store.DeviceStore.DeviceByPNI(ctx, serviceID.UUID); err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get ACI for PNI")
+		return nil
+	} else if device == nil {
+		return nil
+	} else {
+		return &device.ACI
 	}
-	return &device.ACI
 }
 
 func (s *SignalClient) catchUpGroup(ctx context.Context, portal *bridgev2.Portal, fromRevision, toRevision uint32, ts uint64) {
