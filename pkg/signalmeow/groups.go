@@ -1805,6 +1805,10 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
 		Host:        web.StorageHostname,
+		Headers: map[string]string{
+			// TODO actually cache the data and provide real expiry timestamp
+			"Cached-Send-Endorsements": "0",
+		},
 	}
 	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
 	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
