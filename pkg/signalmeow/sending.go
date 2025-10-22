@@ -692,8 +692,8 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	}
 	isTypingOrReceipt := content.TypingMessage != nil || content.ReceiptMessage != nil
 	recipientData, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipientData *types.Recipient) (changed bool, err error) {
-		if recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature && !isTypingOrReceipt {
-			needsPNISignature = true
+		needsPNISignature = recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
+		if needsPNISignature && !isTypingOrReceipt {
 			zerolog.Ctx(ctx).Debug().
 				Stringer("recipient", recipientID).
 				Msg("Including PNI identity in message")
