@@ -831,9 +831,6 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		log.Err(err).Msg("Couldn't decrypt source serviceID")
 		return nil, err
 	}
-	if sourceServiceID.Type != libsignalgo.ServiceIDTypeACI {
-		return nil, fmt.Errorf("wrong serviceid kind: expected aci, got pni")
-	}
 	decryptedGroupChange := &GroupChange{
 		GroupMasterKey:  groupMasterKey,
 		Revision:        encryptedActions.Revision,
@@ -891,7 +888,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			return nil, err
 		}
 		if serviceID.Type != libsignalgo.ServiceIDTypeACI {
-			return nil, fmt.Errorf("Wrong ServiceID kind: expected ACI, got PNI")
+			return nil, fmt.Errorf("wrong ServiceID kind for delete member: expected ACI, got PNI")
 		}
 		decryptedGroupChange.DeleteMembers = append(decryptedGroupChange.DeleteMembers, &serviceID.UUID)
 	}
@@ -904,7 +901,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			return nil, err
 		}
 		if serviceID.Type != libsignalgo.ServiceIDTypeACI {
-			return nil, fmt.Errorf("Wrong ServiceID kind: expected ACI, got PNI")
+			return nil, fmt.Errorf("wrong ServiceID kind for modify member: expected ACI, got PNI")
 		}
 		decryptedGroupChange.ModifyMemberRoles = append(decryptedGroupChange.ModifyMemberRoles, &RoleMember{
 			ACI:  serviceID.UUID,
@@ -992,7 +989,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			return nil, err
 		}
 		if pniServiceID.Type != libsignalgo.ServiceIDTypePNI {
-			return nil, fmt.Errorf("Wrong ServiceID kind: expected PNI, got ACI")
+			return nil, fmt.Errorf("wrong ServiceID kind for promote pending pni->aci: expected PNI, got ACI")
 		}
 		decryptedGroupChange.PromotePendingPniAciMembers = append(decryptedGroupChange.PromotePendingPniAciMembers, &PromotePendingPniAciMember{
 			ACI:        *aci,
@@ -1147,7 +1144,7 @@ func decryptPKeyAndIDorPresentation(ctx context.Context, userID []byte, profileK
 		return nil, nil, err
 	}
 	if serviceID.Type == libsignalgo.ServiceIDTypePNI {
-		return nil, nil, fmt.Errorf("wrong serviceid kind, expected ACI, got PNI")
+		return nil, nil, fmt.Errorf("wrong serviceid kind for profile key: expected ACI, got PNI")
 	}
 	return &serviceID.UUID, profileKey, nil
 
@@ -1808,6 +1805,10 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
 		Host:        web.StorageHostname,
+		Headers: map[string]string{
+			// TODO actually cache the data and provide real expiry timestamp
+			"Cached-Send-Endorsements": "0",
+		},
 	}
 	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
 	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
