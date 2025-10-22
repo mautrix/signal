@@ -48,14 +48,21 @@ func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
 	return userID, nil
 }
 
-func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (uuid.UUID, error) {
+func toServiceID(id uuid.UUID, err error) (libsignalgo.ServiceID, error) {
+	if err != nil {
+		return libsignalgo.ServiceID{}, err
+	}
+	return libsignalgo.NewACIServiceID(id), nil
+}
+
+func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (libsignalgo.ServiceID, error) {
 	switch ghostOrUserLogin := ghostOrUserLogin.(type) {
 	case *bridgev2.UserLogin:
-		return ParseUserLoginID(ghostOrUserLogin.ID)
+		return toServiceID(ParseUserLoginID(ghostOrUserLogin.ID))
 	case *bridgev2.Ghost:
-		return ParseUserID(ghostOrUserLogin.ID)
+		return ParseUserIDAsServiceID(ghostOrUserLogin.ID)
 	default:
-		return uuid.Nil, fmt.Errorf("cannot parse ID: unknown type: %T", ghostOrUserLogin)
+		return libsignalgo.ServiceID{}, fmt.Errorf("cannot parse ID: unknown type: %T", ghostOrUserLogin)
 	}
 }
 
