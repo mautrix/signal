@@ -54,7 +54,7 @@ const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
 func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *bridgev2.Ghost, refreshAfter time.Duration) (*bridgev2.UserInfo, error) {
-	userID, err := signalid.ParseUserID(ghost.ID)
+	userID, err := signalid.ParseUserIDAsServiceID(ghost.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,12 +62,17 @@ func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *b
 		// Don't do unnecessary fetches in background mode
 		return nil, nil
 	}
-	contact, err := s.Client.ContactByACIWithRefreshAfter(ctx, userID, refreshAfter)
+	var contact *types.Recipient
+	if userID.Type == libsignalgo.ServiceIDTypePNI {
+		contact, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, uuid.Nil, userID.UUID, nil)
+	} else {
+		contact, err = s.Client.ContactByACIWithRefreshAfter(ctx, userID.UUID, refreshAfter)
+	}
 	if err != nil {
 		return nil, err
 	}
 	meta := ghost.Metadata.(*signalid.GhostMetadata)
-	if !s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt) {
+	if userID.Type != libsignalgo.ServiceIDTypePNI && (!s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt)) {
 		return nil, nil
 	}
 	return s.contactToUserInfo(ctx, contact)
