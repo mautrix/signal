@@ -1,3 +1,9 @@
+# v25.11 (unreleased)
+
+* Added support for bridging invite state in groups for phone number invites.
+* Fixed PNI signature not being sent when replying to message requests.
+* Fixed unnecessary repeating error notices when Signal is down.
+
 # v25.10
 
 * Switched to calendar versioning.
