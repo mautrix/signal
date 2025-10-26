@@ -155,6 +155,11 @@ var signalCaps = &event.RoomFeatures{
 	CustomEmojiReactions: false,
 	ReadReceipts:         true,
 	TypingNotifications:  true,
+
+	// Room management capabilities
+	ManageMembers: true,
+	SetRoomAvatar: true,
+	SetRoomTitle:  true,
 }
 
 var signalDisappearingCap = &event.DisappearingTimerCapability{
@@ -206,5 +211,6 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 5
+	// Bump capabilities version to resend updated room features
+	return 1, 6
 }
