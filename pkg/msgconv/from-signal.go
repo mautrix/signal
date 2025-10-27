@@ -441,10 +441,11 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 			},
 		}
 	}
-	// Signal stickers are 512x512, so tell Matrix clients to render them as 256x256
+	// Signal stickers are 512x512, so tell Matrix clients to render them as 200x200 to match Signal
+	// https://github.com/signalapp/Signal-Desktop/blob/v7.77.0-beta.1/ts/components/conversation/Message.dom.tsx#L135
 	if converted.Content.Info.Width == 512 && converted.Content.Info.Height == 512 {
-		converted.Content.Info.Width = 256
-		converted.Content.Info.Height = 256
+		converted.Content.Info.Width = 200
+		converted.Content.Info.Height = 200
 	}
 	converted.Content.Body = sticker.GetEmoji()
 	converted.Type = event.EventSticker
