@@ -25,6 +25,7 @@ import (
 	"go.mau.fi/util/ptr"
 
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
 )
@@ -37,7 +38,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_08_25"
+	base := "fi.mau.signal.capabilities.2025_10_27"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -136,6 +137,19 @@ var signalCaps = &event.RoomFeatures{
 			MaxSize: MaxFileSize,
 		},
 	},
+	State: event.StateFeatureMap{
+		event.StateRoomName.Type:                event.CapLevelFullySupported,
+		event.StateRoomAvatar.Type:              event.CapLevelFullySupported,
+		event.StateTopic.Type:                   event.CapLevelFullySupported,
+		event.StateBeeperDisappearingTimer.Type: event.CapLevelFullySupported,
+	},
+	MemberActions: event.MemberFeatureMap{
+		event.MemberActionInvite:       event.CapLevelFullySupported,
+		event.MemberActionRevokeInvite: event.CapLevelFullySupported,
+		event.MemberActionLeave:        event.CapLevelFullySupported,
+		event.MemberActionBan:          event.CapLevelFullySupported,
+		event.MemberActionKick:         event.CapLevelFullySupported,
+	},
 	MaxTextLength:     MaxTextLength, // TODO support arbitrary sized text messages with files
 	LocationMessage:   event.CapLevelPartialSupport,
 	Poll:              event.CapLevelRejected,
@@ -162,9 +176,16 @@ var signalDisappearingCap = &event.DisappearingTimerCapability{
 }
 
 var signalCapsNoteToSelf *event.RoomFeatures
+var signalCapsDM *event.RoomFeatures
 
 func init() {
-	signalCapsNoteToSelf = ptr.Clone(signalCaps)
+	signalCapsDM = ptr.Clone(signalCaps)
+	signalCapsDM.ID = capID() + "+dm"
+	signalCapsDM.MemberActions = nil
+	signalCapsDM.State = event.StateFeatureMap{
+		event.StateBeeperDisappearingTimer.Type: event.CapLevelFullySupported,
+	}
+	signalCapsNoteToSelf = ptr.Clone(signalCapsDM)
 	signalCapsNoteToSelf.EditMaxAge = nil
 	signalCapsNoteToSelf.DeleteMaxAge = nil
 	signalCapsNoteToSelf.ID = capID() + "+note_to_self"
@@ -173,6 +194,8 @@ func init() {
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
 	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
 		return signalCapsNoteToSelf
+	} else if portal.RoomType == database.RoomTypeDM {
+		return signalCapsDM
 	}
 	return signalCaps
 }
@@ -206,5 +229,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 5
+	return 1, 6
 }
