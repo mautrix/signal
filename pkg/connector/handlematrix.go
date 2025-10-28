@@ -513,8 +513,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	case bridgev2.Unban:
 		gc.DeleteBannedMembers = []*libsignalgo.ServiceID{&targetSignalID}
 	default:
-		log.Debug().Msg("unsupported membership change")
-		return false, nil
+		return false, fmt.Errorf("unsupported membership change: %s -> %s", msg.Type.From, msg.Type.To)
 	}
 	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
 	if err != nil || groupID == "" {
