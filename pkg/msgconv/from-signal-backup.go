@@ -81,6 +81,16 @@ func BackupToDataMessage(ci *backuppb.ChatItem, attMap AttachmentMap) (*signalpb
 			Emoji:     ti.StickerMessage.Sticker.Emoji,
 			Data:      backupToSignalAttachment(ti.StickerMessage.Sticker.Data, 0, uuid.New(), attMap),
 		}
+	case *backuppb.ChatItem_Poll:
+		dm.PollCreate = &signalpb.DataMessage_PollCreate{
+			Question:      &ti.Poll.Question,
+			AllowMultiple: &ti.Poll.AllowMultiple,
+			Options: exslices.CastFunc(ti.Poll.Options, func(from *backuppb.Poll_PollOption) string {
+				return from.Option
+			}),
+		}
+		// TODO handle votes
+		// TODO handle hasEnded somehow?
 	case *backuppb.ChatItem_RemoteDeletedMessage:
 		// TODO handle some other way? (also disappeared view-once messages)
 		return nil, nil
