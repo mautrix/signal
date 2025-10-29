@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-62fdf3d1aa9f637729ae67b55aadcc24f38f0117}
-DESKTOP_GIT_REVISION=${1:-203a1cc5e3f9c1533a58caff72e13aa6eaeeddc7}
+ANDROID_GIT_REVISION=${1:-d261f3ebf51864da067b968ee3366ed3e7369c78}
+DESKTOP_GIT_REVISION=${1:-fb566c48e0fa146dfe0bea077ecdb3ff846ef80a}
 
 update_proto() {
   case "$1" in
@@ -38,6 +38,7 @@ update_proto Signal-Android-App Backup.proto
 mv Backup.proto backuppb/Backup.proto
 
 update_proto Signal-Desktop DeviceName.proto
-update_proto Signal-Desktop UnidentifiedDelivery.proto
+# TODO this was moved to libsignal only
+#update_proto Signal-Desktop UnidentifiedDelivery.proto
 # Android has CDSI.proto too, but the types have more generic names (since android uses a different package name)
 update_proto Signal-Desktop ContactDiscovery.proto
