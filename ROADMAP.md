@@ -5,7 +5,7 @@
     * [x] Text
     * [x] Formatting
     * [x] Mentions
-    * [ ] Polls
+    * [x] Polls
     * [x] Media
       * [x] Images
       * [x] Audio files

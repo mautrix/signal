@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -52,6 +53,7 @@ var (
 	_ bridgev2.RoomTopicHandlingNetworkAPI      = (*SignalClient)(nil)
 	_ bridgev2.ChatViewingNetworkAPI            = (*SignalClient)(nil)
 	_ bridgev2.DisappearTimerChangingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI           = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -116,9 +118,27 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	if err != nil {
 		return nil, err
 	}
+	return s.doSendMessage(ctx, ts, msg, converted, &signalid.MessageMetadata{
+		ContainsAttachments: len(converted.Attachments) > 0,
+	})
+}
+
+func (s *SignalClient) doSendMessage(
+	ctx context.Context,
+	ts uint64,
+	msg *bridgev2.MatrixMessage,
+	converted *signalpb.DataMessage,
+	meta *signalid.MessageMetadata,
+) (*bridgev2.MatrixMessageResponse, error) {
+	if ts == 0 {
+		ts = getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
+	}
+	if meta == nil {
+		meta = &signalid.MessageMetadata{}
+	}
 	msgID := signalid.MakeMessageID(s.Client.Store.ACI, ts)
 	msg.AddPendingToIgnore(networkid.TransactionID(msgID))
-	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
+	err := s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
 	if err != nil {
 		return nil, bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
@@ -126,9 +146,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		ID:        msgID,
 		SenderID:  signalid.MakeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(ts)),
-		Metadata: &signalid.MessageMetadata{
-			ContainsAttachments: len(converted.Attachments) > 0,
-		},
+		Metadata:  meta,
 	}
 	return &bridgev2.MatrixMessageResponse{
 		DB:            dbMsg,
@@ -678,4 +696,52 @@ func (s *SignalClient) HandleMatrixDisappearingTimer(ctx context.Context, msg *b
 		msg.Portal.Disappear = newSetting
 		return true, nil
 	}
+}
+
+func (s *SignalClient) HandleMatrixPollStart(ctx context.Context, msg *bridgev2.MatrixPollStart) (*bridgev2.MatrixMessageResponse, error) {
+	optionNames := make([]string, len(msg.Content.PollStart.Answers))
+	optionIDs := make([]string, len(msg.Content.PollStart.Answers))
+	for i, option := range msg.Content.PollStart.Answers {
+		optionNames[i] = option.Text
+		optionIDs[i] = option.ID
+	}
+	converted := &signalpb.DataMessage{
+		PollCreate: &signalpb.DataMessage_PollCreate{
+			Question:      ptr.Ptr(msg.Content.PollStart.Question.Text),
+			AllowMultiple: ptr.Ptr(msg.Content.PollStart.MaxSelections != 1),
+			Options:       optionNames,
+		},
+		RequiredProtocolVersion: ptr.Ptr(uint32(signalpb.DataMessage_POLLS)),
+	}
+	return s.doSendMessage(ctx, 0, &msg.MatrixMessage, converted, &signalid.MessageMetadata{
+		MatrixPollOptionIDs: optionIDs,
+	})
+}
+
+func (s *SignalClient) HandleMatrixPollVote(ctx context.Context, msg *bridgev2.MatrixPollVote) (*bridgev2.MatrixMessageResponse, error) {
+	senderACI, msgTS, err := signalid.ParseMessageID(msg.VoteTo.ID)
+	if err != nil {
+		return nil, err
+	}
+	mxOptions := msg.VoteTo.Metadata.(*signalid.MessageMetadata).MatrixPollOptionIDs
+	optionIndexes := make([]uint32, len(msg.Content.Response.Answers))
+	for i, answer := range msg.Content.Response.Answers {
+		if idx := slices.Index(mxOptions, answer); idx >= 0 {
+			optionIndexes[i] = uint32(idx)
+		} else if idx, err = strconv.Atoi(answer); err == nil && idx >= 0 {
+			optionIndexes[i] = uint32(idx)
+		} else {
+			return nil, fmt.Errorf("unknown poll answer ID: %s", answer)
+		}
+	}
+	converted := &signalpb.DataMessage{
+		PollVote: &signalpb.DataMessage_PollVote{
+			TargetAuthorAciBinary: senderACI[:],
+			TargetSentTimestamp:   &msgTS,
+			OptionIndexes:         optionIndexes,
+			VoteCount:             nil, // TODO
+		},
+		RequiredProtocolVersion: ptr.Ptr(uint32(signalpb.DataMessage_POLLS)),
+	}
+	return s.doSendMessage(ctx, 0, &msg.MatrixMessage, converted, nil)
 }
