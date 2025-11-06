@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -51,7 +52,7 @@ func calculateLength(dm *signalpb.DataMessage) int {
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		return 1
 	}
-	if dm.Sticker != nil {
+	if dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil {
 		return 1
 	}
 	length := len(dm.Attachments) + len(dm.Contact)
@@ -80,6 +81,7 @@ func (mc *MessageConverter) ToMatrix(
 	ctx context.Context,
 	client *signalmeow.Client,
 	portal *bridgev2.Portal,
+	sender uuid.UUID,
 	intent bridgev2.MatrixAPI,
 	dm *signalpb.DataMessage,
 	attMap AttachmentMap,
@@ -106,6 +108,18 @@ func (mc *MessageConverter) ToMatrix(
 	if dm.Sticker != nil {
 		cm.Parts = append(cm.Parts, mc.convertStickerToMatrix(ctx, dm.Sticker, attMap))
 		// Don't allow any other parts in a sticker message
+		return cm
+	}
+	if dm.PollVote != nil {
+		cm.Parts = append(cm.Parts, mc.convertPollVoteToMatrix(ctx, dm.PollVote))
+		return cm
+	}
+	if dm.PollCreate != nil {
+		cm.Parts = append(cm.Parts, mc.convertPollCreateToMatrix(dm.PollCreate))
+		return cm
+	}
+	if dm.PollTerminate != nil {
+		cm.Parts = append(cm.Parts, mc.convertPollTerminateToMatrix(ctx, sender, dm.PollTerminate))
 		return cm
 	}
 	for i, att := range dm.GetAttachments() {
@@ -441,10 +455,11 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 			},
 		}
 	}
-	// Signal stickers are 512x512, so tell Matrix clients to render them as 256x256
+	// Signal stickers are 512x512, so tell Matrix clients to render them as 200x200 to match Signal
+	// https://github.com/signalapp/Signal-Desktop/blob/v7.77.0-beta.1/ts/components/conversation/Message.dom.tsx#L135
 	if converted.Content.Info.Width == 512 && converted.Content.Info.Height == 512 {
-		converted.Content.Info.Width = 256
-		converted.Content.Info.Height = 256
+		converted.Content.Info.Width = 200
+		converted.Content.Info.Height = 200
 	}
 	converted.Content.Body = sticker.GetEmoji()
 	converted.Type = event.EventSticker
@@ -600,4 +615,127 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		Content: content,
 		Extra:   extra,
 	}, nil
+}
+
+func (mc *MessageConverter) convertPollCreateToMatrix(create *signalpb.DataMessage_PollCreate) *bridgev2.ConvertedMessagePart {
+	evtType := event.EventMessage
+	if mc.ExtEvPolls {
+		evtType = event.EventUnstablePollStart
+	}
+	maxChoices := 1
+	if create.GetAllowMultiple() {
+		maxChoices = len(create.GetOptions())
+	}
+	msc3381Answers := make([]map[string]any, len(create.GetOptions()))
+	optionsListText := make([]string, len(create.GetOptions()))
+	optionsListHTML := make([]string, len(create.GetOptions()))
+	for i, option := range create.GetOptions() {
+		msc3381Answers[i] = map[string]any{
+			"id":                      strconv.Itoa(i),
+			"org.matrix.msc1767.text": option,
+		}
+		optionsListText[i] = fmt.Sprintf("%d. %s\n", i+1, option)
+		optionsListHTML[i] = fmt.Sprintf("<li>%s</li>", event.TextToHTML(option))
+	}
+	body := fmt.Sprintf("%s\n\n%s\n\n(This message is a poll. Please open Signal to vote.)", create.GetQuestion(), strings.Join(optionsListText, "\n"))
+	formattedBody := fmt.Sprintf("<p>%s</p><ol>%s</ol><p>(This message is a poll. Please open Signal to vote.)</p>", event.TextToHTML(create.GetQuestion()), strings.Join(optionsListHTML, ""))
+	return &bridgev2.ConvertedMessagePart{
+		Type: evtType,
+		Content: &event.MessageEventContent{
+			MsgType:       event.MsgText,
+			Body:          body,
+			Format:        event.FormatHTML,
+			FormattedBody: formattedBody,
+		},
+		Extra: map[string]any{
+			"fi.mau.signal.poll": map[string]any{
+				"question":       create.GetQuestion(),
+				"allow_multiple": create.GetAllowMultiple(),
+				"options":        create.GetOptions(),
+			},
+			"org.matrix.msc1767.message": []map[string]any{
+				{"mimetype": "text/html", "body": formattedBody},
+				{"mimetype": "text/plain", "body": body},
+			},
+			"org.matrix.msc3381.poll.start": map[string]any{
+				"kind":           "org.matrix.msc3381.poll.disclosed",
+				"max_selections": maxChoices,
+				"question": map[string]any{
+					"org.matrix.msc1767.text": create.GetQuestion(),
+				},
+				"answers": msc3381Answers,
+			},
+		},
+		DBMetadata: nil,
+		DontBridge: false,
+	}
+}
+
+func (mc *MessageConverter) convertPollTerminateToMatrix(ctx context.Context, senderACI uuid.UUID, terminate *signalpb.DataMessage_PollTerminate) *bridgev2.ConvertedMessagePart {
+	pollMessageID := signalid.MakeMessageID(senderACI, terminate.GetTargetSentTimestamp())
+	pollMessage, err := mc.Bridge.DB.Message.GetPartByID(ctx, getPortal(ctx).Receiver, pollMessageID, "")
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get poll terminate target message")
+		return &bridgev2.ConvertedMessagePart{
+			Type:       event.EventUnstablePollEnd,
+			Content:    &event.MessageEventContent{},
+			DontBridge: true,
+		}
+	}
+	return &bridgev2.ConvertedMessagePart{
+		Type: event.EventUnstablePollEnd,
+		Content: &event.MessageEventContent{
+			RelatesTo: &event.RelatesTo{
+				Type:    event.RelReference,
+				EventID: pollMessage.MXID,
+			},
+		},
+		Extra: map[string]any{
+			"org.matrix.msc3381.poll.end": map[string]any{},
+		},
+	}
+}
+
+var invalidPollVote = &bridgev2.ConvertedMessagePart{
+	Type:       event.EventUnstablePollResponse,
+	Content:    &event.MessageEventContent{},
+	DontBridge: true,
+}
+
+func (mc *MessageConverter) convertPollVoteToMatrix(ctx context.Context, vote *signalpb.DataMessage_PollVote) *bridgev2.ConvertedMessagePart {
+	if len(vote.GetTargetAuthorAciBinary()) != 16 {
+		zerolog.Ctx(ctx).Debug().
+			Str("author_aci_b64", base64.StdEncoding.EncodeToString(vote.GetTargetAuthorAciBinary())).
+			Msg("Invalid author ACI in poll vote")
+		return invalidPollVote
+	}
+	pollMessageID := signalid.MakeMessageID(uuid.UUID(vote.GetTargetAuthorAciBinary()), vote.GetTargetSentTimestamp())
+	pollMessage, err := mc.Bridge.DB.Message.GetPartByID(ctx, getPortal(ctx).Receiver, pollMessageID, "")
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get poll vote target message")
+		return invalidPollVote
+	}
+	mxOptionIDs := pollMessage.Metadata.(*signalid.MessageMetadata).MatrixPollOptionIDs
+	optionIDs := make([]string, len(vote.GetOptionIndexes()))
+	for i, optionIndex := range vote.GetOptionIndexes() {
+		if int(optionIndex) < len(mxOptionIDs) {
+			optionIDs[i] = mxOptionIDs[optionIndex]
+		} else {
+			optionIDs[i] = strconv.Itoa(int(optionIndex))
+		}
+	}
+	return &bridgev2.ConvertedMessagePart{
+		Type: event.EventUnstablePollResponse,
+		Content: &event.MessageEventContent{
+			RelatesTo: &event.RelatesTo{
+				Type:    event.RelReference,
+				EventID: pollMessage.MXID,
+			},
+		},
+		Extra: map[string]any{
+			"org.matrix.msc3381.poll.response": map[string]any{
+				"answers": optionIDs,
+			},
+		},
+	}
 }

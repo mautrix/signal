@@ -48,6 +48,7 @@ type MessageConverter struct {
 	LocationFormat    string
 	DisappearViewOnce bool
 	DirectMedia       bool
+	ExtEvPolls        bool
 }
 
 func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {

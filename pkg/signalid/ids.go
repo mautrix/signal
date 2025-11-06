@@ -48,19 +48,33 @@ func ParseUserLoginID(userLoginID networkid.UserLoginID) (uuid.UUID, error) {
 	return userID, nil
 }
 
-func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (uuid.UUID, error) {
+func toServiceID(id uuid.UUID, err error) (libsignalgo.ServiceID, error) {
+	if err != nil {
+		return libsignalgo.ServiceID{}, err
+	}
+	return libsignalgo.NewACIServiceID(id), nil
+}
+
+func ParseGhostOrUserLoginID(ghostOrUserLogin bridgev2.GhostOrUserLogin) (libsignalgo.ServiceID, error) {
 	switch ghostOrUserLogin := ghostOrUserLogin.(type) {
 	case *bridgev2.UserLogin:
-		return ParseUserLoginID(ghostOrUserLogin.ID)
+		return toServiceID(ParseUserLoginID(ghostOrUserLogin.ID))
 	case *bridgev2.Ghost:
-		return ParseUserID(ghostOrUserLogin.ID)
+		return ParseUserIDAsServiceID(ghostOrUserLogin.ID)
 	default:
-		return uuid.Nil, fmt.Errorf("cannot parse ID: unknown type: %T", ghostOrUserLogin)
+		return libsignalgo.ServiceID{}, fmt.Errorf("cannot parse ID: unknown type: %T", ghostOrUserLogin)
 	}
 }
 
+const pniUserIDPrefix = "pni_"
+const pniServiceIDPrefix = "PNI:"
+
 func ParseUserIDAsServiceID(userID networkid.UserID) (libsignalgo.ServiceID, error) {
-	return libsignalgo.ServiceIDFromString(string(userID))
+	userIDStr := string(userID)
+	if strings.HasPrefix(userIDStr, pniUserIDPrefix) {
+		userIDStr = pniServiceIDPrefix + userIDStr[len(pniUserIDPrefix):]
+	}
+	return libsignalgo.ServiceIDFromString(userIDStr)
 }
 
 func ParsePortalID(portalID networkid.PortalID) (userID libsignalgo.ServiceID, groupID types.GroupIdentifier, err error) {
@@ -103,7 +117,14 @@ func MakeUserID(user uuid.UUID) networkid.UserID {
 }
 
 func MakeUserIDFromServiceID(user libsignalgo.ServiceID) networkid.UserID {
-	return networkid.UserID(user.String())
+	switch user.Type {
+	case libsignalgo.ServiceIDTypeACI:
+		return MakeUserID(user.UUID)
+	case libsignalgo.ServiceIDTypePNI:
+		return networkid.UserID(pniUserIDPrefix + user.UUID.String())
+	default:
+		panic(fmt.Errorf("invalid service ID type %d", user.Type))
+	}
 }
 
 func MakeUserLoginID(user uuid.UUID) networkid.UserLoginID {

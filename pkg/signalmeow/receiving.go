@@ -46,6 +46,7 @@ const (
 	SignalConnectionEventDisconnected
 	SignalConnectionEventLoggedOut
 	SignalConnectionEventError
+	SignalConnectionEventFatalError
 	SignalConnectionCleanShutdown
 )
 
@@ -56,6 +57,7 @@ var signalConnectionEventNames = map[SignalConnectionEvent]string{
 	SignalConnectionEventDisconnected: "SignalConnectionEventDisconnected",
 	SignalConnectionEventLoggedOut:    "SignalConnectionEventLoggedOut",
 	SignalConnectionEventError:        "SignalConnectionEventError",
+	SignalConnectionEventFatalError:   "SignalConnectionEventFatalError",
 	SignalConnectionCleanShutdown:     "SignalConnectionCleanShutdown",
 }
 
@@ -164,6 +166,8 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 					//StopReceiveLoops(d)
 				case web.SignalWebsocketConnectionEventError:
 					log.Err(status.Err).Msg("Authed websocket error")
+				case web.SignalWebsocketConnectionEventFatalError:
+					log.Err(status.Err).Msg("Authed websocket fatal error")
 				case web.SignalWebsocketConnectionEventCleanShutdown:
 					log.Info().Msg("Authed websocket clean shutdown")
 				}
@@ -192,6 +196,8 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 					log.Err(status.Err).Msg("Unauthed websocket logged out ** THIS SHOULD BE IMPOSSIBLE **")
 				case web.SignalWebsocketConnectionEventError:
 					log.Err(status.Err).Msg("Unauthed websocket error")
+				case web.SignalWebsocketConnectionEventFatalError:
+					log.Err(status.Err).Msg("Unauthed websocket fatal error")
 				case web.SignalWebsocketConnectionEventCleanShutdown:
 					log.Info().Msg("Unauthed websocket clean shutdown")
 				}
@@ -219,6 +225,11 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			} else if currentStatus.Event == web.SignalWebsocketConnectionEventError {
 				statusToSend = SignalConnectionStatus{
 					Event: SignalConnectionEventError,
+					Err:   currentStatus.Err,
+				}
+			} else if currentStatus.Event == web.SignalWebsocketConnectionEventFatalError {
+				statusToSend = SignalConnectionStatus{
+					Event: SignalConnectionEventFatalError,
 					Err:   currentStatus.Err,
 				}
 			} else if currentStatus.Event == web.SignalWebsocketConnectionEventCleanShutdown {

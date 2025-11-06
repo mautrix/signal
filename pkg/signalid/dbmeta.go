@@ -28,7 +28,8 @@ type PortalMetadata struct {
 }
 
 type MessageMetadata struct {
-	ContainsAttachments bool `json:"contains_attachments,omitempty"`
+	ContainsAttachments bool     `json:"contains_attachments,omitempty"`
+	MatrixPollOptionIDs []string `json:"matrix_poll_option_ids,omitempty"`
 }
 
 type UserLoginMetadata struct {

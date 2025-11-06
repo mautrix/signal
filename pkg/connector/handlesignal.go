@@ -327,7 +327,7 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 	if !ok {
 		return nil, fmt.Errorf("ConvertMessage() called for non-DataMessage event")
 	}
-	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, intent, dataMsg, nil)
+	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, evt.Info.Sender, intent, dataMsg, nil)
 	if converted.Disappear.Type != "" {
 		evtTS := evt.GetTimestamp()
 		if !dataMsg.GetIsViewOnce() {
@@ -352,7 +352,7 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 		return nil, fmt.Errorf("ConvertEdit() called for non-EditMessage event")
 	}
 	// TODO tell converter about existing parts to avoid reupload?
-	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, intent, editMsg.GetDataMessage(), nil)
+	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, evt.Info.Sender, intent, editMsg.GetDataMessage(), nil)
 	// TODO can anything other than the text be edited?
 	editPart := converted.Parts[len(converted.Parts)-1].ToEditPart(existing[len(existing)-1])
 	editPart.Part.EditCount++

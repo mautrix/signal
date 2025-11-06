@@ -73,6 +73,7 @@ const (
 	SignalWebsocketConnectionEventDisconnected
 	SignalWebsocketConnectionEventLoggedOut
 	SignalWebsocketConnectionEventError
+	SignalWebsocketConnectionEventFatalError
 	SignalWebsocketConnectionEventCleanShutdown
 )
 
@@ -83,6 +84,7 @@ var signalWebsocketConnectionEventNames = map[SignalWebsocketConnectionEvent]str
 	SignalWebsocketConnectionEventDisconnected:  "SignalWebsocketConnectionEventDisconnected",
 	SignalWebsocketConnectionEventLoggedOut:     "SignalWebsocketConnectionEventLoggedOut",
 	SignalWebsocketConnectionEventError:         "SignalWebsocketConnectionEventError",
+	SignalWebsocketConnectionEventFatalError:    "SignalWebsocketConnectionEventFatalError",
 	SignalWebsocketConnectionEventCleanShutdown: "SignalWebsocketConnectionEventCleanShutdown",
 }
 
@@ -275,7 +277,7 @@ func (s *SignalWebsocket) connectLoop(
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
 					// Unexpected status code
-					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected status opening websocket: %v", resp.Status))
+					s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("unexpected status opening websocket: %v", resp.Status))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
 					// Something is very wrong

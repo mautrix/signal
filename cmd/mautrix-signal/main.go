@@ -34,7 +34,8 @@ var m = mxmain.BridgeMain{
 	Name:        "mautrix-signal",
 	URL:         "https://github.com/mautrix/signal",
 	Description: "A Matrix-Signal puppeting bridge.",
-	Version:     "0.8.7",
+	Version:     "25.10",
+	SemCalVer:   true,
 
 	Connector: &connector.SignalConnector{},
 }

@@ -42,6 +42,7 @@ type SignalConfig struct {
 	NoteToSelfAvatar      id.ContentURIString `yaml:"note_to_self_avatar"`
 	LocationFormat        string              `yaml:"location_format"`
 	DisappearViewOnce     bool                `yaml:"disappear_view_once"`
+	ExtEvPolls            bool                `yaml:"extev_polls"`
 
 	displaynameTemplate *template.Template `yaml:"-"`
 }
@@ -103,6 +104,7 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Str, "note_to_self_avatar")
 	helper.Copy(up.Str, "location_format")
 	helper.Copy(up.Bool, "disappear_view_once")
+	helper.Copy(up.Bool, "extev_polls")
 }
 
 func (s *SignalConnector) GetConfig() (string, any, up.Upgrader) {

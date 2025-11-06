@@ -5,6 +5,7 @@
     * [x] Text
     * [x] Formatting
     * [x] Mentions
+    * [x] Polls
     * [x] Media
       * [x] Images
       * [x] Audio files
@@ -34,6 +35,7 @@
     * [x] Text
     * [x] Formatting
     * [x] Mentions
+    * [x] Polls
     * [ ] Media
       * [x] Images
       * [x] Voice notes
@@ -65,8 +67,8 @@
   * [ ] Delivery receipts (there's no good way to bridge these)
   * [x] Disappearing messages
 * Misc
-  * [ ] Automatic portal creation
-    * [ ] After login
+  * [x] Automatic portal creation
+    * [x] After login
     * [x] When receiving message
   * [x] Linking as secondary device
   * [ ] Registering as primary device

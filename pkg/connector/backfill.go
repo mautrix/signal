@@ -151,7 +151,7 @@ func (s *SignalClient) FetchMessages(ctx context.Context, params bridgev2.FetchM
 		if dm == nil {
 			continue
 		}
-		cm := s.Main.MsgConv.ToMatrix(ctx, s.Client, params.Portal, s.Main.Bridge.Bot, dm, attMap)
+		cm := s.Main.MsgConv.ToMatrix(ctx, s.Client, params.Portal, senderACI, s.Main.Bridge.Bot, dm, attMap)
 		convertedReactions := make([]*bridgev2.BackfillReaction, 0, len(reactions))
 		for _, reaction := range reactions {
 			reactionSenderACI, err := getRecipientACI(reaction.AuthorId)

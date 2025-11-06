@@ -17,6 +17,8 @@
 package connector
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -46,5 +48,22 @@ func (s *SignalClient) makeEventSender(sender uuid.UUID) bridgev2.EventSender {
 		IsFromMe:    sender == s.Client.Store.ACI,
 		SenderLogin: signalid.MakeUserLoginID(sender),
 		Sender:      signalid.MakeUserID(sender),
+	}
+}
+
+func (s *SignalClient) makePNIEventSender(sender uuid.UUID) bridgev2.EventSender {
+	return bridgev2.EventSender{
+		Sender: signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(sender)),
+	}
+}
+
+func (s *SignalClient) makeEventSenderFromServiceID(serviceID libsignalgo.ServiceID) bridgev2.EventSender {
+	switch serviceID.Type {
+	case libsignalgo.ServiceIDTypeACI:
+		return s.makeEventSender(serviceID.UUID)
+	case libsignalgo.ServiceIDTypePNI:
+		return s.makePNIEventSender(serviceID.UUID)
+	default:
+		panic(fmt.Errorf("invalid service ID type %d", serviceID.Type))
 	}
 }

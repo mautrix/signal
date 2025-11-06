@@ -21,6 +21,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 	"time"
 
@@ -53,6 +54,7 @@ var (
 	_ bridgev2.ChatViewingNetworkAPI            = (*SignalClient)(nil)
 	_ bridgev2.DisappearTimerChangingNetworkAPI = (*SignalClient)(nil)
 	_ bridgev2.DeleteChatHandlingNetworkAPI     = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI           = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -117,9 +119,27 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	if err != nil {
 		return nil, err
 	}
+	return s.doSendMessage(ctx, ts, msg, converted, &signalid.MessageMetadata{
+		ContainsAttachments: len(converted.Attachments) > 0,
+	})
+}
+
+func (s *SignalClient) doSendMessage(
+	ctx context.Context,
+	ts uint64,
+	msg *bridgev2.MatrixMessage,
+	converted *signalpb.DataMessage,
+	meta *signalid.MessageMetadata,
+) (*bridgev2.MatrixMessageResponse, error) {
+	if ts == 0 {
+		ts = getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
+	}
+	if meta == nil {
+		meta = &signalid.MessageMetadata{}
+	}
 	msgID := signalid.MakeMessageID(s.Client.Store.ACI, ts)
 	msg.AddPendingToIgnore(networkid.TransactionID(msgID))
-	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
+	err := s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{DataMessage: converted})
 	if err != nil {
 		return nil, bridgev2.WrapErrorInStatus(err).WithSendNotice(true)
 	}
@@ -127,9 +147,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		ID:        msgID,
 		SenderID:  signalid.MakeUserID(s.Client.Store.ACI),
 		Timestamp: time.UnixMilli(int64(ts)),
-		Metadata: &signalid.MessageMetadata{
-			ContainsAttachments: len(converted.Attachments) > 0,
-		},
+		Metadata:  meta,
 	}
 	return &bridgev2.MatrixMessageResponse{
 		DB:            dbMsg,
@@ -388,7 +406,7 @@ func (s *SignalClient) HandleMatrixRoomTopic(ctx context.Context, msg *bridgev2.
 
 func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2.MatrixMembershipChange) (bool, error) {
 	var targetIntent bridgev2.MatrixAPI
-	var targetSignalID uuid.UUID
+	var targetSignalID libsignalgo.ServiceID
 	var err error
 	if msg.Portal.RoomType == database.RoomTypeDM {
 		//TODO: this probably needs to revert some changes and clean up the portal on leaves
@@ -435,21 +453,35 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	}
 	switch msg.Type {
 	case bridgev2.AcceptInvite:
+		if targetSignalID.Type != libsignalgo.ServiceIDTypeACI {
+			return false, fmt.Errorf("can't accept invite for non-ACI service ID")
+		}
 		gc.PromotePendingMembers = []*signalmeow.PromotePendingMember{{
-			ACI: targetSignalID,
+			ACI: targetSignalID.UUID,
 		}}
 	case bridgev2.RevokeInvite, bridgev2.RejectInvite:
-		deletePendingMember := libsignalgo.NewACIServiceID(targetSignalID)
-		gc.DeletePendingMembers = []*libsignalgo.ServiceID{&deletePendingMember}
+		gc.DeletePendingMembers = []*libsignalgo.ServiceID{&targetSignalID}
 	case bridgev2.Leave, bridgev2.Kick:
-		gc.DeleteMembers = []*uuid.UUID{&targetSignalID}
+		if targetSignalID.Type != libsignalgo.ServiceIDTypeACI {
+			return false, fmt.Errorf("can't kick non-ACI service ID")
+		}
+		gc.DeleteMembers = []*uuid.UUID{&targetSignalID.UUID}
 	case bridgev2.Invite:
-		gc.AddMembers = []*signalmeow.AddMember{{
-			GroupMember: signalmeow.GroupMember{
-				ACI:  targetSignalID,
-				Role: role,
-			},
-		}}
+		if targetSignalID.Type == libsignalgo.ServiceIDTypeACI {
+			gc.AddMembers = []*signalmeow.AddMember{{
+				GroupMember: signalmeow.GroupMember{
+					ACI:  targetSignalID.UUID,
+					Role: role,
+				},
+			}}
+		} else {
+			gc.AddPendingMembers = []*signalmeow.PendingMember{{
+				ServiceID:     targetSignalID,
+				Role:          role,
+				AddedByUserID: s.Client.Store.ACI,
+				Timestamp:     uint64(msg.Event.Timestamp),
+			}}
+		}
 	// TODO: joining and knocking requires a way to obtain the invite link
 	// because the joining/knocking member doesn't have the GroupMasterKey yet
 	// case bridgev2.Join:
@@ -466,32 +498,41 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	// 		Timestamp: uint64(time.Now().UnixMilli()),
 	// 	}}
 	case bridgev2.AcceptKnock:
+		if targetSignalID.Type != libsignalgo.ServiceIDTypeACI {
+			return false, fmt.Errorf("can't accept knock from non-ACI service ID")
+		}
 		gc.PromoteRequestingMembers = []*signalmeow.RoleMember{{
-			ACI:  targetSignalID,
+			ACI:  targetSignalID.UUID,
 			Role: role,
 		}}
 	case bridgev2.RetractKnock, bridgev2.RejectKnock:
-		gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID}
+		if targetSignalID.Type != libsignalgo.ServiceIDTypeACI {
+			return false, fmt.Errorf("can't reject knock from non-ACI service ID")
+		}
+		gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID.UUID}
 	case bridgev2.BanKnocked, bridgev2.BanInvited, bridgev2.BanJoined, bridgev2.BanLeft:
 		gc.AddBannedMembers = []*signalmeow.BannedMember{{
-			ServiceID: libsignalgo.NewACIServiceID(targetSignalID),
+			ServiceID: targetSignalID,
 			Timestamp: uint64(time.Now().UnixMilli()),
 		}}
 		switch msg.Type {
 		case bridgev2.BanJoined:
-			gc.DeleteMembers = []*uuid.UUID{&targetSignalID}
+			if targetSignalID.Type != libsignalgo.ServiceIDTypeACI {
+				return false, fmt.Errorf("can't ban joined non-ACI service ID")
+			}
+			gc.DeleteMembers = []*uuid.UUID{&targetSignalID.UUID}
 		case bridgev2.BanInvited:
-			deletePendingMember := libsignalgo.NewACIServiceID(targetSignalID)
-			gc.DeletePendingMembers = []*libsignalgo.ServiceID{&deletePendingMember}
+			gc.DeletePendingMembers = []*libsignalgo.ServiceID{&targetSignalID}
 		case bridgev2.BanKnocked:
-			gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID}
+			if targetSignalID.Type != libsignalgo.ServiceIDTypeACI {
+				return false, fmt.Errorf("can't ban knocked non-ACI service ID")
+			}
+			gc.DeleteRequestingMembers = []*uuid.UUID{&targetSignalID.UUID}
 		}
 	case bridgev2.Unban:
-		unbanUser := libsignalgo.NewACIServiceID(targetSignalID)
-		gc.DeleteBannedMembers = []*libsignalgo.ServiceID{&unbanUser}
+		gc.DeleteBannedMembers = []*libsignalgo.ServiceID{&targetSignalID}
 	default:
-		log.Debug().Msg("unsupported membership change")
-		return false, nil
+		return false, fmt.Errorf("unsupported membership change: %s -> %s", msg.Type.From, msg.Type.To)
 	}
 	_, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
 	if err != nil || groupID == "" {
@@ -502,7 +543,7 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	if err != nil {
 		return false, err
 	}
-	if msg.Type == bridgev2.Invite {
+	if msg.Type == bridgev2.Invite && targetSignalID.Type != libsignalgo.ServiceIDTypePNI {
 		err = targetIntent.EnsureJoined(ctx, msg.Portal.MXID)
 		if err != nil {
 			return false, err
@@ -541,18 +582,17 @@ func (s *SignalClient) HandleMatrixPowerLevels(ctx context.Context, msg *bridgev
 	if msg.Portal.RoomType == database.RoomTypeDM {
 		return false, nil
 	}
-	log := zerolog.Ctx(ctx)
 	gc := &signalmeow.GroupChange{}
 	for _, plc := range msg.Users {
 		if !hasAdminChanged(&plc.SinglePowerLevelChange) {
 			continue
 		}
-		aci, err := signalid.ParseGhostOrUserLoginID(plc.Target)
-		if err != nil {
-			log.Err(err).Msg("Couldn't parse user id")
+		serviceID, err := signalid.ParseGhostOrUserLoginID(plc.Target)
+		if err != nil || serviceID.Type != libsignalgo.ServiceIDTypeACI {
+			continue
 		}
 		gc.ModifyMemberRoles = append(gc.ModifyMemberRoles, &signalmeow.RoleMember{
-			ACI:  aci,
+			ACI:  serviceID.UUID,
 			Role: plToRole(plc.NewLevel),
 		})
 	}
@@ -744,4 +784,52 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 	}
 
 	return nil
+}
+
+func (s *SignalClient) HandleMatrixPollStart(ctx context.Context, msg *bridgev2.MatrixPollStart) (*bridgev2.MatrixMessageResponse, error) {
+	optionNames := make([]string, len(msg.Content.PollStart.Answers))
+	optionIDs := make([]string, len(msg.Content.PollStart.Answers))
+	for i, option := range msg.Content.PollStart.Answers {
+		optionNames[i] = option.Text
+		optionIDs[i] = option.ID
+	}
+	converted := &signalpb.DataMessage{
+		PollCreate: &signalpb.DataMessage_PollCreate{
+			Question:      ptr.Ptr(msg.Content.PollStart.Question.Text),
+			AllowMultiple: ptr.Ptr(msg.Content.PollStart.MaxSelections != 1),
+			Options:       optionNames,
+		},
+		RequiredProtocolVersion: ptr.Ptr(uint32(signalpb.DataMessage_POLLS)),
+	}
+	return s.doSendMessage(ctx, 0, &msg.MatrixMessage, converted, &signalid.MessageMetadata{
+		MatrixPollOptionIDs: optionIDs,
+	})
+}
+
+func (s *SignalClient) HandleMatrixPollVote(ctx context.Context, msg *bridgev2.MatrixPollVote) (*bridgev2.MatrixMessageResponse, error) {
+	senderACI, msgTS, err := signalid.ParseMessageID(msg.VoteTo.ID)
+	if err != nil {
+		return nil, err
+	}
+	mxOptions := msg.VoteTo.Metadata.(*signalid.MessageMetadata).MatrixPollOptionIDs
+	optionIndexes := make([]uint32, len(msg.Content.Response.Answers))
+	for i, answer := range msg.Content.Response.Answers {
+		if idx := slices.Index(mxOptions, answer); idx >= 0 {
+			optionIndexes[i] = uint32(idx)
+		} else if idx, err = strconv.Atoi(answer); err == nil && idx >= 0 {
+			optionIndexes[i] = uint32(idx)
+		} else {
+			return nil, fmt.Errorf("unknown poll answer ID: %s", answer)
+		}
+	}
+	converted := &signalpb.DataMessage{
+		PollVote: &signalpb.DataMessage_PollVote{
+			TargetAuthorAciBinary: senderACI[:],
+			TargetSentTimestamp:   &msgTS,
+			OptionIndexes:         optionIndexes,
+			VoteCount:             nil, // TODO
+		},
+		RequiredProtocolVersion: ptr.Ptr(uint32(signalpb.DataMessage_POLLS)),
+	}
+	return s.doSendMessage(ctx, 0, &msg.MatrixMessage, converted, nil)
 }

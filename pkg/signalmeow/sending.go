@@ -690,9 +690,10 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	} else if recipientID.Type == libsignalgo.ServiceIDTypePNI {
 		pni = recipientID.UUID
 	}
+	isTypingOrReceipt := content.TypingMessage != nil || content.ReceiptMessage != nil
 	recipientData, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipientData *types.Recipient) (changed bool, err error) {
-		if recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature {
-			needsPNISignature = true
+		needsPNISignature = recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
+		if needsPNISignature && !isTypingOrReceipt {
 			zerolog.Ctx(ctx).Debug().
 				Stringer("recipient", recipientID).
 				Msg("Including PNI identity in message")
@@ -713,7 +714,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to get message recipient data")
 	}
 	// Treat needs PNI signature as "this is a message request" and don't send receipts/typing
-	if needsPNISignature && (content.TypingMessage != nil || content.ReceiptMessage != nil) {
+	if needsPNISignature && isTypingOrReceipt {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {

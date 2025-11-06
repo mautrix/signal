@@ -45,13 +45,16 @@ var (
 	_ bridgev2.IdentifierResolvingNetworkAPI = (*SignalClient)(nil)
 	_ bridgev2.GroupCreatingNetworkAPI       = (*SignalClient)(nil)
 	_ bridgev2.ContactListingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.GhostDMCreatingNetworkAPI     = (*SignalClient)(nil)
 )
+
+var _ bridgev2.IdentifierValidatingNetwork = (*SignalConnector)(nil)
 
 const PrivateChatTopic = "Signal private chat"
 const NoteToSelfName = "Signal Note to Self"
 
 func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *bridgev2.Ghost, refreshAfter time.Duration) (*bridgev2.UserInfo, error) {
-	userID, err := signalid.ParseUserID(ghost.ID)
+	userID, err := signalid.ParseUserIDAsServiceID(ghost.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,12 +62,17 @@ func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *b
 		// Don't do unnecessary fetches in background mode
 		return nil, nil
 	}
-	contact, err := s.Client.ContactByACIWithRefreshAfter(ctx, userID, refreshAfter)
+	var contact *types.Recipient
+	if userID.Type == libsignalgo.ServiceIDTypePNI {
+		contact, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, uuid.Nil, userID.UUID, nil)
+	} else {
+		contact, err = s.Client.ContactByACIWithRefreshAfter(ctx, userID.UUID, refreshAfter)
+	}
 	if err != nil {
 		return nil, err
 	}
 	meta := ghost.Metadata.(*signalid.GhostMetadata)
-	if !s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt) {
+	if userID.Type != libsignalgo.ServiceIDTypePNI && (!s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt)) {
 		return nil, nil
 	}
 	return s.contactToUserInfo(ctx, contact)
@@ -157,18 +165,41 @@ func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Rec
 	return ui, nil
 }
 
-var _ bridgev2.IdentifierValidatingNetwork = (*SignalConnector)(nil)
-
 func (s *SignalConnector) ValidateUserID(id networkid.UserID) bool {
 	_, err := signalid.ParseUserIDAsServiceID(id)
 	return err == nil
 }
 
-func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, createChat bool) (*bridgev2.ResolveIdentifierResponse, error) {
+func (s *SignalClient) CreateChatWithGhost(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.CreateChatResponse, error) {
+	parsedID, err := signalid.ParseUserIDAsServiceID(ghost.ID)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.ResolveIdentifier(ctx, parsedID.String(), true)
+	if err != nil {
+		return nil, err
+	} else if resp == nil {
+		return nil, nil
+	}
+	resultID, err := signalid.ParseUserIDAsServiceID(resp.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse result user ID: %w", err)
+	}
+	if parsedID.Type == libsignalgo.ServiceIDTypePNI {
+		if resultID.Type == libsignalgo.ServiceIDTypeACI && !resultID.IsEmpty() {
+			resp.Chat.DMRedirectedTo = resp.UserID
+		} else {
+			resp.Chat.DMRedirectedTo = bridgev2.SpecialValueDMRedirectedToBot
+		}
+	}
+	return resp.Chat, nil
+}
+
+func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ bool) (*bridgev2.ResolveIdentifierResponse, error) {
 	var aci, pni uuid.UUID
 	var e164Number uint64
 	var recipient *types.Recipient
-	serviceID, err := libsignalgo.ServiceIDFromString(number)
+	serviceID, err := signalid.ParseUserIDAsServiceID(networkid.UserID(number))
 	if err != nil {
 		number, err = bridgev2.CleanPhoneNumber(number)
 		if err != nil {
@@ -216,25 +247,23 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, cre
 		return nil, fmt.Errorf("failed to convert contact: %w", err)
 	}
 
-	// createChat is a no-op: chats don't need to be created, and we always return chat info
+	var userID networkid.UserID
 	if aci != uuid.Nil {
-		ghost, err := s.Main.Bridge.GetGhostByID(ctx, signalid.MakeUserID(aci))
-		if err != nil {
-			return nil, fmt.Errorf("failed to get ghost: %w", err)
-		}
-		return &bridgev2.ResolveIdentifierResponse{
-			UserID:   signalid.MakeUserID(aci),
-			UserInfo: userInfo,
-			Ghost:    ghost,
-			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
-		}, nil
+		userID = signalid.MakeUserID(aci)
 	} else {
-		return &bridgev2.ResolveIdentifierResponse{
-			UserID:   signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni)),
-			UserInfo: userInfo,
-			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
-		}, nil
+		userID = signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(pni))
 	}
+	// createChat is a no-op: chats don't need to be created, and we always return chat info
+	resp := &bridgev2.ResolveIdentifierResponse{
+		UserID:   userID,
+		UserInfo: userInfo,
+		Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
+	}
+	resp.Ghost, err = s.Main.Bridge.GetGhostByID(ctx, resp.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ghost: %w", err)
+	}
+	return resp, nil
 }
 
 func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCreateParams) (*bridgev2.CreateChatResponse, error) {

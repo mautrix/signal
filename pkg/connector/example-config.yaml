@@ -24,3 +24,5 @@ note_to_self_avatar: mxc://maunium.net/REBIVrqjZwmaWpssCZpBlmlL
 location_format: 'https://www.google.com/maps/place/%[1]s,%[2]s'
 # Should view-once messages disappear shortly after sending a read receipt on Matrix?
 disappear_view_once: false
+# Should polls be sent using unstable MSC3381 event types?
+extev_polls: false
