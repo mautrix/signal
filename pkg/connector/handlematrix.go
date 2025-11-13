@@ -779,7 +779,6 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 		Msg("Sent conversation deletion to Signal")
 
 	if !result.WasSuccessful {
-		zerolog.Ctx(ctx).Debug().Any("result", result).Any("id", recipientID).Any("user_id", userID).Any("senderACI", mostRecentMessages[0].Author).Msg("Failed to send conversation delete sync message")
 		return fmt.Errorf("failed to send delete conversation sync message: %w %s %s", result.Error, userID, groupID)
 	}
 

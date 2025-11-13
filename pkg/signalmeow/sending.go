@@ -660,6 +660,8 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 			syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result)
 		} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
 			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.Recipient)
+		} else if content.GetSyncMessage() != nil {
+			syncContent = content
 		}
 		if syncContent != nil {
 			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true, false)
