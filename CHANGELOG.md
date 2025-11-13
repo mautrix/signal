@@ -1,8 +1,12 @@
 # v25.11 (unreleased)
 
+* Updated libsignal to v0.86.2.
 * Added support for bridging invite state in groups for phone number invites.
+* Added support for polls.
 * Fixed PNI signature not being sent when replying to message requests.
 * Fixed unnecessary repeating error notices when Signal is down.
+* Fixed sticker size metadata on Matrix not matching how native Signal Desktop
+  renders them.
 
 # v25.10
 
