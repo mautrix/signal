@@ -707,7 +707,7 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 
 	// Build ConversationIdentifier based on portal type
 	var conversationID *signalpb.ConversationIdentifier
-	if msg.Portal.RoomType == database.RoomTypeDM {
+	if groupID == "" {
 		conversationID = &signalpb.ConversationIdentifier{
 			Identifier: &signalpb.ConversationIdentifier_ThreadServiceId{
 				ThreadServiceId: userID.String(),
