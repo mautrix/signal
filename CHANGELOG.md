@@ -1,4 +1,4 @@
-# v25.11 (unreleased)
+# v25.11
 
 * Updated libsignal to v0.86.4.
 * Added support for bridging invite state in groups for phone number invites.
