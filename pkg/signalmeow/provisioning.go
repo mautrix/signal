@@ -299,7 +299,7 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
 	}
 
-	linkCapabilities := []string{"backup4", "backup5"}
+	linkCapabilities := []string{"backup4,backup5"}
 	if !allowBackup {
 		linkCapabilities = []string{}
 	}
