@@ -417,8 +417,17 @@ func (cli *Client) handleDecryptedResult(
 		}()
 	}
 
-	theirServiceID, err := result.SenderAddress.NameServiceID()
-	if err != nil {
+	var theirServiceID libsignalgo.ServiceID
+	var err error
+	if result.SenderAddress == nil {
+		log.Err(result.Err).
+			Bool("urgent", envelope.GetUrgent()).
+			Stringer("content_hint", result.ContentHint).
+			Uint64("server_ts", envelope.GetServerTimestamp()).
+			Uint64("client_ts", envelope.GetTimestamp()).
+			Msg("No sender address received")
+		return nil
+	} else if theirServiceID, err = result.SenderAddress.NameServiceID(); err != nil {
 		log.Warn().
 			Uint64("server_ts", envelope.GetServerTimestamp()).
 			Uint64("client_ts", envelope.GetTimestamp()).
@@ -437,17 +446,7 @@ func (cli *Client) handleDecryptedResult(
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {
-		logEvt := log.Err(result.Err).
-			Bool("urgent", envelope.GetUrgent()).
-			Stringer("content_hint", result.ContentHint).
-			Uint64("server_ts", envelope.GetServerTimestamp()).
-			Uint64("client_ts", envelope.GetTimestamp())
-		if result.SenderAddress == nil {
-			logEvt.Msg("Decryption error with unknown sender")
-			return nil
-		}
 		if errors.Is(result.Err, EventAlreadyProcessed) {
-			logEvt.Discard().Msg("")
 			log.Debug().Err(result.Err).
 				Bool("urgent", envelope.GetUrgent()).
 				Stringer("content_hint", result.ContentHint).
@@ -457,7 +456,13 @@ func (cli *Client) handleDecryptedResult(
 				Msg("Ignoring already processed event")
 			return nil
 		}
-		logEvt.Stringer("sender", theirServiceID).Msg("Decryption error with known sender")
+		log.Err(result.Err).
+			Bool("urgent", envelope.GetUrgent()).
+			Stringer("content_hint", result.ContentHint).
+			Uint64("server_ts", envelope.GetServerTimestamp()).
+			Uint64("client_ts", envelope.GetTimestamp()).
+			Stringer("sender", theirServiceID).
+			Msg("Decryption error with known sender")
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
 		if envelope.GetUrgent() &&
