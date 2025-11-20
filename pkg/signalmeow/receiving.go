@@ -417,6 +417,22 @@ func (cli *Client) handleDecryptedResult(
 		}()
 	}
 
+	theirServiceID, err := result.SenderAddress.NameServiceID()
+	if err != nil {
+		log.Warn().
+			Uint64("server_ts", envelope.GetServerTimestamp()).
+			Uint64("client_ts", envelope.GetTimestamp()).
+			Msg("Failed to get sender name as service ID")
+		return fmt.Errorf("failed to get sender name as service ID: %w", err)
+	} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
+		log.Warn().
+			Any("their_service_id", theirServiceID).
+			Uint64("server_ts", envelope.GetServerTimestamp()).
+			Uint64("client_ts", envelope.GetTimestamp()).
+			Msg("Dropping message from non-ACI sender")
+		return nil
+	}
+
 	handlerSuccess := true
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
@@ -429,12 +445,6 @@ func (cli *Client) handleDecryptedResult(
 		if result.SenderAddress == nil {
 			logEvt.Msg("Decryption error with unknown sender")
 			return nil
-		}
-		theirServiceID, err := result.SenderAddress.NameServiceID()
-		if err != nil {
-			log.Err(err).Msg("Name error handling decryption error")
-		} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
-			log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
 		}
 		if errors.Is(result.Err, EventAlreadyProcessed) {
 			logEvt.Discard().Msg("")
@@ -471,12 +481,11 @@ func (cli *Client) handleDecryptedResult(
 		return nil
 	}
 
-	name, _ := result.SenderAddress.Name()
-	deviceId, _ := result.SenderAddress.DeviceID()
-	log.Trace().Any("raw_data", content).Str("sender", name).Uint("sender_device", deviceId).Msg("Raw event data")
+	deviceID, _ := result.SenderAddress.DeviceID()
+	log.Trace().Any("raw_data", content).Stringer("sender", theirServiceID).Uint("sender_device", deviceID).Msg("Raw event data")
 	newLog := log.With().
-		Str("sender_name", name).
-		Uint("sender_device_id", deviceId).
+		Stringer("sender_name", theirServiceID).
+		Uint("sender_device_id", deviceID).
 		Str("destination_service_id", destinationServiceID.String()).
 		Logger()
 	log = &newLog
@@ -507,15 +516,6 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
-	theirServiceID, err := result.SenderAddress.NameServiceID()
-	if err != nil {
-		log.Err(err).Msg("Name error")
-		return err
-	} else if theirServiceID.Type != libsignalgo.ServiceIDTypeACI {
-		log.Warn().Any("their_service_id", theirServiceID).Msg("Sender ServiceID is not an ACI")
-		return nil
-	}
-
 	if destinationServiceID == cli.Store.PNIServiceID() {
 		_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, theirServiceID.UUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
 			if !recipient.NeedsPNISignature {
@@ -541,118 +541,11 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
-	// TODO: handle more sync messages
-	if content.SyncMessage != nil {
-		if content.SyncMessage.Keys != nil {
-			aep := libsignalgo.AccountEntropyPool(content.SyncMessage.Keys.GetAccountEntropyPool())
-			cli.Store.MasterKey = content.SyncMessage.Keys.GetMaster()
-			if aep != "" {
-				aepMasterKey, err := aep.DeriveSVRKey()
-				if err != nil {
-					log.Err(err).Msg("Failed to derive master key from account entropy pool")
-				} else if cli.Store.MasterKey == nil {
-					cli.Store.MasterKey = aepMasterKey
-					log.Debug().Msg("Derived master key from account entropy pool (no master key in sync message)")
-				} else if !bytes.Equal(aepMasterKey, cli.Store.MasterKey) {
-					log.Warn().Msg("Derived master key doesn't match one in sync message")
-				} else {
-					log.Debug().Msg("Derived master key matches one in sync message")
-				}
-			} else {
-				log.Debug().Msg("No account entropy pool in sync message")
-			}
-			err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
-			if err != nil {
-				log.Err(err).Msg("Failed to save device after receiving master key")
-			} else {
-				log.Info().Msg("Received master key")
-				go cli.SyncStorage(ctx)
-			}
-		} else if content.SyncMessage.GetFetchLatest().GetType() == signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST {
-			log.Debug().Msg("Received storage manifest fetch latest notice")
-			go cli.SyncStorage(ctx)
+	if content.SyncMessage != nil && theirServiceID == cli.Store.ACIServiceID() {
+		handlerSuccess, err = cli.handleSyncMessage(ctx, content.SyncMessage, envelope)
+		if err != nil {
+			return err
 		}
-		syncSent := content.SyncMessage.GetSent()
-		if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
-			destination := syncSent.DestinationServiceId
-			var syncDestinationServiceID libsignalgo.ServiceID
-			if destination != nil {
-				syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
-				if err != nil {
-					log.Err(err).Msg("Sync message destination parse error")
-					return err
-				}
-				if syncSent.GetDestinationE164() != "" {
-					aci, pni := syncDestinationServiceID.ToACIAndPNI()
-					_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
-					if err != nil {
-						log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
-					}
-				}
-			}
-			if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
-				log.Warn().Msg("sync message sent destination is nil")
-			} else if content.SyncMessage.Sent.Message != nil {
-				// TODO handle expiration start ts, and maybe the sync message ts?
-				cli.incomingDataMessage(ctx, content.SyncMessage.Sent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
-			} else if content.SyncMessage.Sent.EditMessage != nil {
-				cli.incomingEditMessage(ctx, content.SyncMessage.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
-			}
-		}
-		if content.SyncMessage.Contacts != nil {
-			log.Debug().Msg("Recieved sync message contacts")
-			blob := content.SyncMessage.Contacts.Blob
-			if blob != nil {
-				contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil)
-				if err != nil {
-					log.Err(err).Msg("Contacts Sync DownloadAttachment error")
-				}
-				// unmarshall contacts
-				contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
-				if err != nil {
-					log.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
-				}
-				log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
-				convertedContacts := make([]*types.Recipient, 0, len(contacts))
-				err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
-					for i, signalContact := range contacts {
-						if signalContact.Aci == nil || *signalContact.Aci == "" {
-							// TODO lookup PNI via CDSI and store that when ACI is missing?
-							log.Info().
-								Any("contact", signalContact).
-								Msg("Signal Contact UUID is nil, skipping")
-							continue
-						}
-						contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
-						if err != nil {
-							return err
-						}
-						convertedContacts = append(convertedContacts, contact)
-					}
-					return nil
-				})
-				if err != nil {
-					log.Err(err).Msg("Error storing contacts")
-				} else {
-					handlerSuccess = cli.handleEvent(&events.ContactList{
-						Contacts: convertedContacts,
-					})
-				}
-			}
-		}
-		if content.SyncMessage.Read != nil {
-			handlerSuccess = cli.handleEvent(&events.ReadSelf{
-				Timestamp: envelope.GetTimestamp(),
-				Messages:  content.SyncMessage.GetRead(),
-			})
-		}
-		if content.SyncMessage.DeleteForMe != nil {
-			handlerSuccess = cli.handleEvent(&events.DeleteForMe{
-				Timestamp:               envelope.GetTimestamp(),
-				SyncMessage_DeleteForMe: content.SyncMessage.DeleteForMe,
-			})
-		}
-
 	}
 
 	sendDeliveryReceipt := true
@@ -723,6 +616,122 @@ func groupOrUserID(groupID types.GroupIdentifier, userID libsignalgo.ServiceID) 
 		return userID.String()
 	}
 	return string(groupID)
+}
+
+func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMessage, envelope *signalpb.Envelope) (handlerSuccess bool, err error) {
+	// TODO: handle more sync messages
+	handlerSuccess = true
+	log := zerolog.Ctx(ctx)
+	if msg.Keys != nil {
+		aep := libsignalgo.AccountEntropyPool(msg.Keys.GetAccountEntropyPool())
+		cli.Store.MasterKey = msg.Keys.GetMaster()
+		if aep != "" {
+			aepMasterKey, err := aep.DeriveSVRKey()
+			if err != nil {
+				log.Err(err).Msg("Failed to derive master key from account entropy pool")
+			} else if cli.Store.MasterKey == nil {
+				cli.Store.MasterKey = aepMasterKey
+				log.Debug().Msg("Derived master key from account entropy pool (no master key in sync message)")
+			} else if !bytes.Equal(aepMasterKey, cli.Store.MasterKey) {
+				log.Warn().Msg("Derived master key doesn't match one in sync message")
+			} else {
+				log.Debug().Msg("Derived master key matches one in sync message")
+			}
+		} else {
+			log.Debug().Msg("No account entropy pool in sync message")
+		}
+		err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
+		if err != nil {
+			log.Err(err).Msg("Failed to save device after receiving master key")
+		} else {
+			log.Info().Msg("Received master key")
+			go cli.SyncStorage(ctx)
+		}
+	} else if msg.GetFetchLatest().GetType() == signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST {
+		log.Debug().Msg("Received storage manifest fetch latest notice")
+		go cli.SyncStorage(ctx)
+	}
+	syncSent := msg.GetSent()
+	if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
+		destination := syncSent.DestinationServiceId
+		var syncDestinationServiceID libsignalgo.ServiceID
+		if destination != nil {
+			syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
+			if err != nil {
+				log.Err(err).Msg("Sync message destination parse error")
+				return
+			}
+			if syncSent.GetDestinationE164() != "" {
+				aci, pni := syncDestinationServiceID.ToACIAndPNI()
+				_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
+				if err != nil {
+					log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
+				}
+			}
+		}
+		if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
+			log.Warn().Msg("sync message sent destination is nil")
+		} else if msg.Sent.Message != nil {
+			// TODO handle expiration start ts, and maybe the sync message ts?
+			cli.incomingDataMessage(ctx, msg.Sent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
+		} else if msg.Sent.EditMessage != nil {
+			cli.incomingEditMessage(ctx, msg.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
+		}
+	}
+	if msg.Contacts != nil {
+		log.Debug().Msg("Recieved sync message contacts")
+		blob := msg.Contacts.Blob
+		if blob != nil {
+			contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil)
+			if err != nil {
+				log.Err(err).Msg("Contacts Sync DownloadAttachment error")
+			}
+			// unmarshall contacts
+			contacts, avatars, err := unmarshalContactDetailsMessages(contactsBytes)
+			if err != nil {
+				log.Err(err).Msg("Contacts Sync unmarshalContactDetailsMessages error")
+			}
+			log.Debug().Int("contact_count", len(contacts)).Msg("Contacts Sync received contacts")
+			convertedContacts := make([]*types.Recipient, 0, len(contacts))
+			err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
+				for i, signalContact := range contacts {
+					if signalContact.Aci == nil || *signalContact.Aci == "" {
+						// TODO lookup PNI via CDSI and store that when ACI is missing?
+						log.Info().
+							Any("contact", signalContact).
+							Msg("Signal Contact UUID is nil, skipping")
+						continue
+					}
+					contact, err := cli.StoreContactDetailsAsContact(ctx, signalContact, &avatars[i])
+					if err != nil {
+						return err
+					}
+					convertedContacts = append(convertedContacts, contact)
+				}
+				return nil
+			})
+			if err != nil {
+				log.Err(err).Msg("Error storing contacts")
+			} else {
+				handlerSuccess = cli.handleEvent(&events.ContactList{
+					Contacts: convertedContacts,
+				})
+			}
+		}
+	}
+	if msg.Read != nil {
+		handlerSuccess = cli.handleEvent(&events.ReadSelf{
+			Timestamp: envelope.GetTimestamp(),
+			Messages:  msg.GetRead(),
+		})
+	}
+	if msg.DeleteForMe != nil {
+		handlerSuccess = cli.handleEvent(&events.DeleteForMe{
+			Timestamp:               envelope.GetTimestamp(),
+			SyncMessage_DeleteForMe: msg.DeleteForMe,
+		})
+	}
+	return
 }
 
 func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsignalgo.ServiceID, msg *signalpb.PniSignatureMessage) error {
