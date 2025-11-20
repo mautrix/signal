@@ -548,13 +548,20 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
-	sendDeliveryReceipt := true
+	isBlocked, err := cli.Store.RecipientStore.IsBlocked(ctx, theirServiceID.UUID)
+	if err != nil {
+		log.Err(err).Stringer("sender", theirServiceID).Msg("Failed to check if sender is blocked")
+	}
+
+	var sendDeliveryReceipt bool
 	if content.DataMessage != nil {
-		handlerSuccess = cli.incomingDataMessage(ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
+		handlerSuccess, sendDeliveryReceipt = cli.incomingDataMessage(
+			ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked,
+		)
 	} else if content.EditMessage != nil {
-		handlerSuccess = cli.incomingEditMessage(ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp())
-	} else {
-		sendDeliveryReceipt = false
+		handlerSuccess, sendDeliveryReceipt = cli.incomingEditMessage(
+			ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked,
+		)
 	}
 	if sendDeliveryReceipt && handlerSuccess {
 		err = cli.sendDeliveryReceipts(ctx, []uint64{content.DataMessage.GetTimestamp()}, theirServiceID.UUID)
@@ -563,7 +570,7 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
-	if content.TypingMessage != nil {
+	if content.TypingMessage != nil && (!isBlocked || content.TypingMessage.GetGroupId() != nil) {
 		var groupID types.GroupIdentifier
 		if content.TypingMessage.GetGroupId() != nil {
 			gidBytes := content.TypingMessage.GetGroupId()
@@ -581,7 +588,7 @@ func (cli *Client) handleDecryptedResult(
 	}
 
 	// DM call message (group call is an opaque callMessage and a groupCallUpdate in a dataMessage)
-	if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
+	if content.CallMessage != nil && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) && !isBlocked {
 		handlerSuccess = cli.handleEvent(&events.Call{
 			Info: events.MessageInfo{
 				Sender:          theirServiceID.UUID,
@@ -673,9 +680,9 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			log.Warn().Msg("sync message sent destination is nil")
 		} else if msg.Sent.Message != nil {
 			// TODO handle expiration start ts, and maybe the sync message ts?
-			cli.incomingDataMessage(ctx, msg.Sent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
+			cli.incomingDataMessage(ctx, msg.Sent.Message, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp(), false)
 		} else if msg.Sent.EditMessage != nil {
-			cli.incomingEditMessage(ctx, msg.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp())
+			cli.incomingEditMessage(ctx, msg.Sent.EditMessage, cli.Store.ACI, syncDestinationServiceID, envelope.GetServerTimestamp(), false)
 		}
 	}
 	if msg.Contacts != nil {
@@ -784,7 +791,14 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 	return nil
 }
 
-func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalpb.EditMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID, serverTimestamp uint64) bool {
+func (cli *Client) incomingEditMessage(
+	ctx context.Context,
+	editMessage *signalpb.EditMessage,
+	messageSenderACI uuid.UUID,
+	chatRecipient libsignalgo.ServiceID,
+	serverTimestamp uint64,
+	isBlocked bool,
+) (handlerSuccess, sendDeliveryReceipt bool) {
 	// If it's a group message, get the ID and invalidate cache if necessary
 	var groupID types.GroupIdentifier
 	var groupRevision uint32
@@ -796,9 +810,12 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 		groupID, err = cli.StoreMasterKey(ctx, masterKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreMasterKey error")
-			return false
+			return
 		}
 		groupRevision = editMessage.GetDataMessage().GetGroupV2().GetRevision()
+	} else if isBlocked {
+		zerolog.Ctx(ctx).Debug().Msg("Dropping direct message from blocked user")
+		return true, false
 	}
 	return cli.handleEvent(&events.ChatEvent{
 		Info: events.MessageInfo{
@@ -808,17 +825,24 @@ func (cli *Client) incomingEditMessage(ctx context.Context, editMessage *signalp
 			ServerTimestamp: serverTimestamp,
 		},
 		Event: editMessage,
-	})
+	}), true
 }
 
-func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalpb.DataMessage, messageSenderACI uuid.UUID, chatRecipient libsignalgo.ServiceID, serverTimestamp uint64) bool {
+func (cli *Client) incomingDataMessage(
+	ctx context.Context,
+	dataMessage *signalpb.DataMessage,
+	messageSenderACI uuid.UUID,
+	chatRecipient libsignalgo.ServiceID,
+	serverTimestamp uint64,
+	isBlocked bool,
+) (handlerSuccess, sendDeliveryReceipt bool) {
 	// If there's a profile key, save it
 	if dataMessage.ProfileKey != nil {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
 		err := cli.Store.RecipientStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
-			return false
+			return
 		}
 	}
 
@@ -833,9 +857,12 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 		groupID, err = cli.StoreMasterKey(ctx, masterKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreMasterKey error")
-			return false
+			return
 		}
 		groupRevision = dataMessage.GetGroupV2().GetRevision()
+	} else if isBlocked {
+		zerolog.Ctx(ctx).Debug().Msg("Dropping direct message from blocked user")
+		return true, false
 	}
 
 	evtInfo := events.MessageInfo{
@@ -851,12 +878,12 @@ func (cli *Client) incomingDataMessage(ctx context.Context, dataMessage *signalp
 			Info:      evtInfo,
 			Timestamp: dataMessage.GetTimestamp(),
 			IsRinging: isRinging,
-		})
+		}), true
 	} else {
 		return cli.handleEvent(&events.ChatEvent{
 			Info:  evtInfo,
 			Event: dataMessage,
-		})
+		}), true
 	}
 }
 

@@ -18,6 +18,9 @@ type sqlStore struct {
 	AccountID uuid.UUID
 
 	contactLock sync.Mutex
+
+	blockCacheLock sync.RWMutex
+	blockCache     map[uuid.UUID]bool
 }
 
 type scopedSQLStore struct {

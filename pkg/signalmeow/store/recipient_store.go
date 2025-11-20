@@ -38,6 +38,7 @@ type RecipientStore interface {
 	MyProfileKey(ctx context.Context) (*libsignalgo.ProfileKey, error)
 
 	LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUID, updater RecipientUpdaterFunc) (*types.Recipient, error)
+	IsBlocked(ctx context.Context, aci uuid.UUID) (bool, error)
 	LoadRecipientByE164(ctx context.Context, e164 string) (*types.Recipient, error)
 	StoreRecipient(ctx context.Context, recipient *types.Recipient) error
 	UpdateRecipientE164(ctx context.Context, aci, pni uuid.UUID, e164 string) (*types.Recipient, error)
@@ -62,7 +63,8 @@ const (
 			profile_about_emoji,
 			profile_avatar_path,
 			profile_fetched_at,
-			needs_pni_signature
+			needs_pni_signature,
+			blocked
 		FROM signalmeow_recipients
 		WHERE account_id = $1
 	`
@@ -87,9 +89,10 @@ const (
 			profile_about_emoji,
 			profile_avatar_path,
 			profile_fetched_at,
-			needs_pni_signature
+			needs_pni_signature,
+			blocked
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		ON CONFLICT (account_id, aci_uuid) DO UPDATE SET
 			pni_uuid = excluded.pni_uuid,
 			e164_number = excluded.e164_number,
@@ -102,7 +105,8 @@ const (
 			profile_about_emoji = excluded.profile_about_emoji,
 			profile_avatar_path = excluded.profile_avatar_path,
 			profile_fetched_at = excluded.profile_fetched_at,
-			needs_pni_signature = excluded.needs_pni_signature
+			needs_pni_signature = excluded.needs_pni_signature,
+			blocked = excluded.blocked
 	`
 	upsertPNIRecipientQuery = `
 		INSERT INTO signalmeow_recipients (
@@ -139,6 +143,7 @@ func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 		&recipient.Profile.AvatarPath,
 		&profileFetchedAt,
 		&recipient.NeedsPNISignature,
+		&recipient.Blocked,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -208,6 +213,13 @@ func (s *sqlStore) LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUI
 			return false, nil
 		}
 	}
+	defer func() {
+		if outRecipient != nil && outRecipient.ACI != uuid.Nil && outErr == nil {
+			s.blockCacheLock.Lock()
+			s.blockCache[outRecipient.ACI] = outRecipient.Blocked
+			s.blockCacheLock.Unlock()
+		}
+	}()
 	if ctx.Value(contextKeyContactLock) == nil {
 		s.contactLock.Lock()
 		defer s.contactLock.Unlock()
@@ -295,6 +307,20 @@ func (s *sqlStore) LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUI
 	return
 }
 
+func (s *sqlStore) IsBlocked(ctx context.Context, aci uuid.UUID) (bool, error) {
+	s.blockCacheLock.RLock()
+	cachedVal, ok := s.blockCache[aci]
+	s.blockCacheLock.RUnlock()
+	if ok {
+		return cachedVal, nil
+	}
+	recipient, err := s.LoadAndUpdateRecipient(ctx, aci, uuid.Nil, nil)
+	if err != nil {
+		return false, err
+	}
+	return recipient.Blocked, nil
+}
+
 func (s *sqlStore) UpdateRecipientE164(ctx context.Context, aci, pni uuid.UUID, e164 string) (*types.Recipient, error) {
 	return s.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (bool, error) {
 		if recipient.E164 != e164 {
@@ -341,7 +367,11 @@ func (s *sqlStore) StoreRecipient(ctx context.Context, recipient *types.Recipien
 			recipient.Profile.AvatarPath,
 			dbutil.UnixMilliPtr(recipient.Profile.FetchedAt),
 			recipient.NeedsPNISignature,
+			recipient.Blocked,
 		)
+		s.blockCacheLock.Lock()
+		s.blockCache[recipient.ACI] = recipient.Blocked
+		s.blockCacheLock.Unlock()
 	} else if recipient.PNI != uuid.Nil {
 		_, err = s.db.Exec(
 			ctx,
