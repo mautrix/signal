@@ -44,7 +44,6 @@ func (mc *MessageConverter) ToSignal(
 	portal *bridgev2.Portal,
 	evt *event.Event,
 	content *event.MessageEventContent,
-	timestamp uint64,
 	relaybotFormatted bool,
 	replyTo *database.Message,
 ) (*signalpb.DataMessage, error) {
@@ -55,8 +54,7 @@ func (mc *MessageConverter) ToSignal(
 	}
 
 	dm := &signalpb.DataMessage{
-		Timestamp: &timestamp,
-		Preview:   mc.convertURLPreviewToSignal(ctx, content),
+		Preview: mc.convertURLPreviewToSignal(ctx, content),
 	}
 	if replyTo != nil {
 		authorACI, messageID, err := signalid.ParseMessageID(replyTo.ID)

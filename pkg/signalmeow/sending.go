@@ -824,7 +824,6 @@ func (cli *Client) sendContent(
 		Uint64("timestamp", messageTimestamp).
 		Logger()
 	ctx = log.WithContext(ctx)
-	log.Trace().Any("raw_content", content).Stringer("recipient", recipient).Msg("Raw data of outgoing message")
 
 	// If it's a data message, add our profile key
 	if content.DataMessage != nil {
@@ -835,6 +834,8 @@ func (cli *Client) sendContent(
 			content.DataMessage.ProfileKey = profileKey.Slice()
 		}
 	}
+
+	log.Trace().Any("raw_content", content).Stringer("recipient", recipient).Msg("Raw data of outgoing message")
 
 	if retryCount > 3 {
 		log.Error().Int("retry_count", retryCount).Msg("sendContent too many retries")

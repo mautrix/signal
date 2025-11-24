@@ -112,28 +112,25 @@ func getTimestampForEvent(txnID networkid.RawTransactionID, evt *event.Event, or
 }
 
 func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
-	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
 	converted, err := s.Main.MsgConv.ToSignal(
-		ctx, s.Client, msg.Portal, msg.Event, msg.Content, ts, msg.OrigSender != nil, msg.ReplyTo,
+		ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, msg.ReplyTo,
 	)
 	if err != nil {
 		return nil, err
 	}
-	return s.doSendMessage(ctx, ts, msg, converted, &signalid.MessageMetadata{
+	return s.doSendMessage(ctx, msg, converted, &signalid.MessageMetadata{
 		ContainsAttachments: len(converted.Attachments) > 0,
 	})
 }
 
 func (s *SignalClient) doSendMessage(
 	ctx context.Context,
-	ts uint64,
 	msg *bridgev2.MatrixMessage,
 	converted *signalpb.DataMessage,
 	meta *signalid.MessageMetadata,
 ) (*bridgev2.MatrixMessageResponse, error) {
-	if ts == 0 {
-		ts = getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-	}
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
+	converted.Timestamp = &ts
 	if meta == nil {
 		meta = &signalid.MessageMetadata{}
 	}
@@ -169,11 +166,12 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 			return fmt.Errorf("failed to get message reply target: %w", err)
 		}
 	}
-	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, ts, msg.OrigSender != nil, replyTo)
+	converted, err := s.Main.MsgConv.ToSignal(ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, replyTo)
 	if err != nil {
 		return err
 	}
+	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
+	converted.Timestamp = &ts
 	err = s.sendMessage(ctx, msg.Portal.ID, &signalpb.Content{EditMessage: &signalpb.EditMessage{
 		TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 		DataMessage:         converted,
@@ -800,7 +798,7 @@ func (s *SignalClient) HandleMatrixPollStart(ctx context.Context, msg *bridgev2.
 		},
 		RequiredProtocolVersion: ptr.Ptr(uint32(signalpb.DataMessage_POLLS)),
 	}
-	return s.doSendMessage(ctx, 0, &msg.MatrixMessage, converted, &signalid.MessageMetadata{
+	return s.doSendMessage(ctx, &msg.MatrixMessage, converted, &signalid.MessageMetadata{
 		MatrixPollOptionIDs: optionIDs,
 	})
 }
@@ -826,9 +824,9 @@ func (s *SignalClient) HandleMatrixPollVote(ctx context.Context, msg *bridgev2.M
 			TargetAuthorAciBinary: senderACI[:],
 			TargetSentTimestamp:   &msgTS,
 			OptionIndexes:         optionIndexes,
-			VoteCount:             nil, // TODO
+			VoteCount:             proto.Uint32(1), // TODO
 		},
-		RequiredProtocolVersion: ptr.Ptr(uint32(signalpb.DataMessage_POLLS)),
+		RequiredProtocolVersion: proto.Uint32(0),
 	}
-	return s.doSendMessage(ctx, 0, &msg.MatrixMessage, converted, nil)
+	return s.doSendMessage(ctx, &msg.MatrixMessage, converted, nil)
 }
