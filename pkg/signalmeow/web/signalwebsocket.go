@@ -388,7 +388,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Clean up
 		ws.Close(websocket.StatusGoingAway, "Going away")
-		for _, responseChannel := range responseChannels.Iter() {
+		for _, responseChannel := range responseChannels.SwapData(nil) {
 			close(responseChannel)
 		}
 		loopCancel(nil)
@@ -447,7 +447,7 @@ func readLoop(
 			if msg.Response.Id == nil {
 				log.Fatal().Msg("Received response with no id")
 			}
-			responseChannel, ok := responseChannels.Get(*msg.Response.Id)
+			responseChannel, ok := responseChannels.Pop(*msg.Response.Id)
 			if !ok {
 				log.Warn().
 					Uint64("response_id", *msg.Response.Id).
@@ -459,10 +459,6 @@ func readLoop(
 				Uint32("response_status", *msg.Response.Status).
 				Msg("Received WS response")
 			responseChannel <- msg.Response
-			responseChannels.Delete(*msg.Response.Id)
-			log.Debug().
-				Uint64("response_id", *msg.Response.Id).
-				Msg("Deleted response channel for ID")
 			close(responseChannel)
 		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
 			return fmt.Errorf("received message with unknown type: %v", *msg.Type)
