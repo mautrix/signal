@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"time"
@@ -41,25 +41,6 @@ type GeneratedPreKeys struct {
 	PreKeys      []*libsignalgo.PreKeyRecord
 	KyberPreKeys []*libsignalgo.KyberPreKeyRecord
 	IdentityKey  []uint8
-}
-
-func (cli *Client) GenerateAndRegisterPreKeys(ctx context.Context, pks store.PreKeyStore) error {
-	_, err := cli.GenerateAndSaveNextPreKeyBatch(ctx, pks, 0)
-	if err != nil {
-		return fmt.Errorf("failed to generate and save next prekey batch: %w", err)
-	}
-	_, err = cli.GenerateAndSaveNextKyberPreKeyBatch(ctx, pks, 0)
-	if err != nil {
-		return fmt.Errorf("failed to generate and save next kyber prekey batch: %w", err)
-	}
-
-	// We need to upload all currently valid prekeys, not just the ones we just generated
-	err = cli.RegisterAllPreKeys(ctx, pks)
-	if err != nil {
-		return fmt.Errorf("failed to register prekey batches: %w", err)
-	}
-
-	return err
 }
 
 func (cli *Client) RegisterAllPreKeys(ctx context.Context, pks store.PreKeyStore) error {
@@ -97,8 +78,10 @@ func (cli *Client) RegisterAllPreKeys(ctx context.Context, pks store.PreKeyStore
 		KyberPreKeys: kyberPreKeys,
 		IdentityKey:  identityKey,
 	}
-	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
-	log.Debug().Int("num_prekeys", len(preKeys)).Int("num_kyber_prekeys", len(kyberPreKeys)).Msg("Registering prekeys")
+	zerolog.Ctx(ctx).Debug().
+		Int("num_prekeys", len(preKeys)).
+		Int("num_kyber_prekeys", len(kyberPreKeys)).
+		Msg("Registering all prekeys")
 	err = cli.RegisterPreKeys(ctx, &generatedPreKeys, pni)
 	if err != nil {
 		return fmt.Errorf("failed to register prekeys: %w", err)
@@ -596,23 +579,29 @@ func (cli *Client) keyCheckLoop(ctx context.Context) {
 	log := zerolog.Ctx(ctx).With().Str("action", "start key check loop").Logger()
 
 	// Do the initial check in 5-10 minutes after starting the loop
-	window_start := 0
-	window_size := 1
+	windowStart := 0
+	windowSize := 1
+	firstRun := true
 	for {
-		random_minutes_in_window := rand.Intn(window_size) + window_start
-		check_time := time.Duration(random_minutes_in_window) * time.Minute
-		log.Debug().Dur("check_time", check_time).Msg("Waiting to check for new prekeys")
+		randomMinutesInWindow := rand.IntN(windowSize) + windowStart
+		checkTime := time.Duration(randomMinutesInWindow) * time.Minute
+		if firstRun {
+			checkTime = 0
+			firstRun = false
+		} else {
+			log.Debug().Dur("check_time", checkTime).Msg("Waiting to check for new prekeys")
+		}
 
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(check_time):
+		case <-time.After(checkTime):
 			err := cli.CheckAndUploadNewPreKeys(ctx, cli.Store.ACIPreKeyStore)
 			if err != nil {
 				log.Err(err).Msg("Error checking and uploading new prekeys for ACI identity")
 				// Retry within half an hour
-				window_start = 5
-				window_size = 25
+				windowStart = 5
+				windowSize = 25
 				continue
 			}
 			err = cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
@@ -628,13 +617,13 @@ func (cli *Client) keyCheckLoop(ctx context.Context) {
 				}
 				log.Err(err).Msg("Error checking and uploading new prekeys for PNI identity")
 				// Retry within half an hour
-				window_start = 5
-				window_size = 25
+				windowStart = 5
+				windowSize = 25
 				continue
 			}
 			// After a successful check, check again in 36 to 60 hours
-			window_start = 36 * 60
-			window_size = 24 * 60
+			windowStart = 36 * 60
+			windowSize = 24 * 60
 		}
 	}
 }

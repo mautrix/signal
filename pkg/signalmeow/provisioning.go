@@ -22,7 +22,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	mrand "math/rand"
+	mrand "math/rand/v2"
 	"net/http"
 	"net/url"
 	"time"
@@ -54,7 +54,6 @@ const (
 	StateProvisioningError ProvisioningState = iota
 	StateProvisioningURLReceived
 	StateProvisioningDataReceived
-	StateProvisioningPreKeysRegistered
 )
 
 func (s ProvisioningState) String() string {
@@ -65,8 +64,6 @@ func (s ProvisioningState) String() string {
 		return "StateProvisioningURLReceived"
 	case StateProvisioningDataReceived:
 		return "StateProvisioningDataReceived"
-	case StateProvisioningPreKeysRegistered:
-		return "StateProvisioningPreKeysRegistered"
 	default:
 		return fmt.Sprintf("ProvisioningState(%d)", s)
 	}
@@ -128,8 +125,8 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		username := *provisioningMessage.Number
 		password := random.String(22)
 		code := provisioningMessage.ProvisioningCode
-		aciRegistrationID := mrand.Intn(16383) + 1
-		pniRegistrationID := mrand.Intn(16383) + 1
+		aciRegistrationID := mrand.IntN(16383) + 1
+		pniRegistrationID := mrand.IntN(16383) + 1
 		aciSignedPreKey := GenerateSignedPreKey(1, aciIdentityKeyPair)
 		pniSignedPreKey := GenerateSignedPreKey(1, pniIdentityKeyPair)
 		aciPQLastResortPreKey := GenerateKyberPreKeys(1, 1, aciIdentityKeyPair)[0]
@@ -250,28 +247,6 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 
 		// Return the provisioning data
 		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
-
-		// Generate, store, and register prekeys
-		// TODO hacky client construction
-		cli := &Client{Store: device}
-		err = cli.GenerateAndRegisterPreKeys(ctx, device.ACIPreKeyStore)
-		if err != nil {
-			c <- ProvisioningResponse{
-				State: StateProvisioningError,
-				Err:   fmt.Errorf("error generating and registering ACI prekeys: %w", err),
-			}
-			return
-		}
-		err = cli.GenerateAndRegisterPreKeys(ctx, device.PNIPreKeyStore)
-		if err != nil {
-			c <- ProvisioningResponse{
-				State: StateProvisioningError,
-				Err:   fmt.Errorf("error generating and registering PNI prekeys: %w", err),
-			}
-			return
-		}
-
-		c <- ProvisioningResponse{State: StateProvisioningPreKeysRegistered}
 	}()
 	return c
 }

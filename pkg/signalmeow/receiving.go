@@ -261,6 +261,12 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				} else {
 					zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
 				}
+				// Start loop to check for and upload more prekeys
+				cli.loopWg.Add(1)
+				go func() {
+					defer cli.loopWg.Done()
+					cli.keyCheckLoop(loopCtx)
+				}()
 				// TODO hacky
 				if cli.SyncContactsOnConnect {
 					cli.SendContactSyncRequest(loopCtx)
@@ -271,13 +277,6 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				return
 			}
 		}
-	}()
-
-	// Start loop to check for and upload more prekeys
-	cli.loopWg.Add(1)
-	go func() {
-		defer cli.loopWg.Done()
-		cli.keyCheckLoop(loopCtx)
 	}()
 
 	return statusChan, nil
