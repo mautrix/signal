@@ -19,9 +19,9 @@ package signalmeow
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -36,30 +36,21 @@ type ReqRegisterAPNs struct {
 }
 
 func (cli *Client) registerPush(ctx context.Context, pushType string, data any) error {
-	username, password := cli.Store.BasicAuthCreds()
-	req := &web.HTTPReqOpt{
-		Username: &username,
-		Password: &password,
-	}
-	var method string
+	var resp *signalpb.WebSocketResponseMessage
+	var err error
 	if data != nil {
-		method = http.MethodPut
-		req.ContentType = web.ContentTypeJSON
-		var err error
-		req.Body, err = json.Marshal(data)
+		body, err := json.Marshal(data)
 		if err != nil {
 			return err
 		}
+		resp, err = cli.AuthedWS.SendRequest(ctx, http.MethodPut, "/v1/accounts/"+pushType, body, nil)
 	} else {
-		method = http.MethodDelete
+		resp, err = cli.AuthedWS.SendRequest(ctx, http.MethodDelete, "/v1/accounts/"+pushType, nil, nil)
 	}
-	resp, err := web.SendHTTPRequest(ctx, method, "/v1/accounts/"+pushType, req)
 	if err != nil {
 		return err
-	} else if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
-	return nil
+	return web.DecodeWSResponseBody(ctx, nil, resp)
 }
 
 func (cli *Client) RegisterFCM(ctx context.Context, token string) error {

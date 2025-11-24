@@ -648,9 +648,8 @@ func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey t
 		Username:    &groupAuth.Username,
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
-		Host:        web.StorageHostname,
 	}
-	response, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v2/groups", opts)
+	response, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, "/v2/groups", opts)
 	if err != nil {
 		return nil, err
 	}
@@ -695,11 +694,10 @@ func (cli *Client) parseGroupResponse(ctx context.Context, response *http.Respon
 func (cli *Client) DownloadGroupAvatar(ctx context.Context, avatarPath string, groupMasterKey types.SerializedGroupMasterKey) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
-		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, avatarPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, web.CDN1Hostname, http.MethodGet, avatarPath, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -1503,9 +1501,8 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
 		Body:        requestBody,
-		Host:        web.StorageHostname,
 	}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPatch, path, opts)
+	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodPatch, path, opts)
 	if err != nil {
 		return nil, fmt.Errorf("SendRequest error: %w", err)
 	}
@@ -1738,9 +1735,8 @@ func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Grou
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
 		Body:        requestBody,
-		Host:        web.StorageHostname,
 	}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, path, opts)
+	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodPut, path, opts)
 	if err != nil {
 		return nil, fmt.Errorf("SendRequest error: %w", err)
 	}
@@ -1803,7 +1799,6 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		Username:    &groupAuth.Username,
 		Password:    &groupAuth.Password,
 		ContentType: web.ContentTypeProtobuf,
-		Host:        web.StorageHostname,
 		Headers: map[string]string{
 			// TODO actually cache the data and provide real expiry timestamp
 			"Cached-Send-Endorsements": "0",
@@ -1811,7 +1806,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 	}
 	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
 	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
-	response, err := web.SendHTTPRequest(ctx, http.MethodGet, path, opts)
+	response, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, path, opts)
 	if err != nil {
 		return nil, err
 	}

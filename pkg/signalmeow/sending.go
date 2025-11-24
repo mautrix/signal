@@ -70,17 +70,15 @@ func (cli *Client) senderCertificate(ctx context.Context, e164 bool) (*libsignal
 	}
 	var r response
 
-	username, password := cli.Store.BasicAuthCreds()
-	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
 	var query string
 	if !e164 {
 		query = "?includeE164=false"
 	}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, "/v1/certificate/delivery"+query, opts)
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, "/v1/certificate/delivery"+query, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	err = web.DecodeHTTPResponseBody(ctx, &r, resp)
+	err = web.DecodeWSResponseBody(ctx, &r, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -886,14 +884,15 @@ func (cli *Client) sendContent(
 	path := fmt.Sprintf("/v1/messages/%s", recipient)
 
 	var response *signalpb.WebSocketResponseMessage
+	header := http.Header{}
+	header.Set("Content-Type", string(web.ContentTypeJSON))
 	if useUnidentifiedSender {
 		log.Trace().Msg("Sending message over unidentified WS")
-		response, err = cli.UnauthedWS.SendRequest(ctx, http.MethodPut, path, jsonBytes, http.Header{
-			"Unidentified-Access-Key": []string{base64.StdEncoding.EncodeToString(accessKey[:])},
-		})
+		header.Set("Unidentified-Access-Key", base64.StdEncoding.EncodeToString(accessKey[:]))
+		response, err = cli.UnauthedWS.SendRequest(ctx, http.MethodPut, path, jsonBytes, header)
 	} else {
 		log.Trace().Msg("Sending message over authed WS")
-		response, err = cli.AuthedWS.SendRequest(ctx, http.MethodPut, path, jsonBytes, nil)
+		response, err = cli.AuthedWS.SendRequest(ctx, http.MethodPut, path, jsonBytes, header)
 	}
 	sentUnidentified = useUnidentifiedSender
 	if err != nil {

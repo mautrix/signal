@@ -229,7 +229,7 @@ func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID u
 	}
 	var profile types.Profile
 	profile.FetchedAt = time.Now()
-	logEvt := log.Trace().Uint32("status_code", resp.GetStatus())
+	logEvt := log.Trace().Uint32("status_code", resp.GetStatus()).Str("resp_message", resp.GetMessage())
 	if logEvt.Enabled() {
 		if json.Valid(resp.Body) {
 			logEvt.RawJSON("response_data", resp.Body)
@@ -288,11 +288,10 @@ func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID u
 func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, profileKey libsignalgo.ProfileKey) ([]byte, error) {
 	username, password := cli.Store.BasicAuthCreds()
 	opts := &web.HTTPReqOpt{
-		Host:     web.CDN1Hostname,
 		Username: &username,
 		Password: &password,
 	}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, avatarPath, opts)
+	resp, err := web.SendHTTPRequest(ctx, web.CDN1Hostname, http.MethodGet, avatarPath, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}

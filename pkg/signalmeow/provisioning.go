@@ -366,36 +366,19 @@ var signalCapabilities = map[string]any{
 var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))
 
 func (cli *Client) RegisterCapabilities(ctx context.Context) error {
-	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, "/v1/devices/capabilities", &web.HTTPReqOpt{
-		Body:        signalCapabilitiesBody,
-		Username:    &username,
-		Password:    &password,
-		ContentType: web.ContentTypeJSON,
-	})
-	if resp != nil {
-		_ = resp.Body.Close()
-	}
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodPut, "/v1/devices/capabilities", signalCapabilitiesBody, nil)
 	if err != nil {
 		return err
-	} else if resp.StatusCode >= 400 {
-		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
-	return nil
+	return web.DecodeWSResponseBody(ctx, nil, resp)
 }
 
 func (cli *Client) Unlink(ctx context.Context) error {
-	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(ctx, http.MethodDelete, fmt.Sprintf("/v1/devices/%d", cli.Store.DeviceID), &web.HTTPReqOpt{
-		Username: &username,
-		Password: &password,
-	})
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodDelete, fmt.Sprintf("/v1/devices/%d", cli.Store.DeviceID), nil, nil)
 	if err != nil {
 		return err
-	} else if resp.StatusCode >= 400 {
-		return fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
-	return nil
+	return web.DecodeWSResponseBody(ctx, nil, resp)
 }
 
 func confirmDevice(

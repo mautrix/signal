@@ -243,11 +243,10 @@ func (cli *Client) fetchStorageManifest(ctx context.Context, storageKey []byte, 
 	}
 	var encryptedManifest signalpb.StorageManifest
 	var manifestRecord signalpb.ManifestRecord
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, path, &web.HTTPReqOpt{
+	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, path, &web.HTTPReqOpt{
 		Username:    &storageCreds.Username,
 		Password:    &storageCreds.Password,
 		ContentType: web.ContentTypeProtobuf,
-		Host:        web.StorageHostname,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch storage manifest: %w", err)
@@ -349,12 +348,11 @@ func (cli *Client) fetchStorageItemsChunk(ctx context.Context, recordKeys [][]by
 		return nil, fmt.Errorf("failed to marshal read operation: %w", err)
 	}
 	var storageItems signalpb.StorageItems
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, "/v1/storage/read", &web.HTTPReqOpt{
+	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodPut, "/v1/storage/read", &web.HTTPReqOpt{
 		Username:    &storageCreds.Username,
 		Password:    &storageCreds.Password,
 		Body:        body,
 		ContentType: web.ContentTypeProtobuf,
-		Host:        web.StorageHostname,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch storage records: %w", err)

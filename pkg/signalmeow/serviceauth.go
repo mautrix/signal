@@ -58,20 +58,14 @@ func (cli *Client) getCredentialsWithCache(ctx context.Context, cache **basicExp
 }
 
 func (cli *Client) getCredentialsFromServer(ctx context.Context, path string) (*basicExpiringCredentials, error) {
-	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, path, &web.HTTPReqOpt{
-		Username: &username,
-		Password: &password,
-	})
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, err
-	} else if resp.StatusCode >= 300 || resp.StatusCode < 200 {
-		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
 	}
 
 	var auth basicExpiringCredentials
 	auth.CreatedAt = time.Now()
-	err = web.DecodeHTTPResponseBody(ctx, &auth, resp)
+	err = web.DecodeWSResponseBody(ctx, &auth, resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}

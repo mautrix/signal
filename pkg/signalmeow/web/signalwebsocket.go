@@ -569,10 +569,17 @@ func (s *SignalWebsocket) SendRequest(
 		return nil, errors.New("websocket is nil")
 	}
 	headerArray := make([]string, len(headers))
+	var hasContentType bool
 	for key, values := range headers {
+		if strings.ToLower(key) == "content-type" {
+			hasContentType = true
+		}
 		for _, value := range values {
 			headerArray = append(headerArray, fmt.Sprintf("%s:%s", strings.ToLower(key), value))
 		}
+	}
+	if !hasContentType && body != nil {
+		headerArray = append(headerArray, "content-type:application/json")
 	}
 	return s.sendRequestInternal(ctx, &signalpb.WebSocketRequestMessage{
 		Verb:    &method,

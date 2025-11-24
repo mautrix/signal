@@ -97,10 +97,9 @@ func (cli *Client) RegisterAllPreKeys(ctx context.Context, pks store.PreKeyStore
 		KyberPreKeys: kyberPreKeys,
 		IdentityKey:  identityKey,
 	}
-	preKeyUsername := fmt.Sprintf("%s.%d", cli.Store.ACI, cli.Store.DeviceID)
 	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
 	log.Debug().Int("num_prekeys", len(preKeys)).Int("num_kyber_prekeys", len(kyberPreKeys)).Msg("Registering prekeys")
-	err = RegisterPreKeys(ctx, &generatedPreKeys, pni, preKeyUsername, cli.Store.Password)
+	err = cli.RegisterPreKeys(ctx, &generatedPreKeys, pni)
 	if err != nil {
 		return fmt.Errorf("failed to register prekeys: %w", err)
 	}
@@ -346,11 +345,11 @@ func KyberPreKeyToJSON(kyberPreKey *libsignalgo.KyberPreKeyRecord) (map[string]i
 
 var errPrekeyUpload422 = errors.New("http 422 while registering prekeys")
 
-func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pni bool, username string, password string) error {
+func (cli *Client) RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pni bool) error {
 	log := zerolog.Ctx(ctx).With().Str("action", "register prekeys").Logger()
 	// Convert generated prekeys to JSON
-	preKeysJson := []map[string]interface{}{}
-	kyberPreKeysJson := []map[string]interface{}{}
+	preKeysJson := []map[string]any{}
+	kyberPreKeysJson := []map[string]any{}
 	for _, preKey := range generatedPreKeys.PreKeys {
 		preKeyJson, err := PreKeyToJSON(preKey)
 		if err != nil {
@@ -367,32 +366,27 @@ func RegisterPreKeys(ctx context.Context, generatedPreKeys *GeneratedPreKeys, pn
 	}
 
 	identityKey := generatedPreKeys.IdentityKey
-	register_json := map[string]interface{}{
+	registerJSON := map[string]any{
 		"preKeys":     preKeysJson,
 		"pqPreKeys":   kyberPreKeysJson,
 		"identityKey": base64.StdEncoding.EncodeToString(identityKey),
 	}
 
 	// Send request
-	jsonBytes, err := json.Marshal(register_json)
+	jsonBytes, err := json.Marshal(registerJSON)
 	if err != nil {
 		log.Err(err).Msg("Error marshalling register JSON")
 		return err
 	}
-	opts := &web.HTTPReqOpt{Body: jsonBytes, Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, keysPath(pni), opts)
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodPut, keysPath(pni), jsonBytes, nil)
 	if err != nil {
 		log.Err(err).Msg("Error sending request")
 		return err
 	}
-	defer resp.Body.Close()
-	// status code not 2xx
-	if resp.StatusCode == 422 {
+	if resp.GetStatus() == 422 {
 		return errPrekeyUpload422
-	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("error registering prekeys: %v", resp.Status)
 	}
-	return err
+	return web.DecodeWSResponseBody(ctx, nil, resp)
 }
 
 type prekeyResponse struct {
@@ -434,18 +428,17 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID lib
 		deviceIDPath = "/" + fmt.Sprint(specificDeviceID)
 	}
 	path := "/v2/keys/" + theirServiceID.String() + deviceIDPath + "?pq=true"
-	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, path, &web.HTTPReqOpt{Username: &username, Password: &password})
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return fmt.Errorf("error sending request: %w", err)
 	}
-	var prekeyResponse prekeyResponse
-	err = web.DecodeHTTPResponseBody(ctx, &prekeyResponse, resp)
+	var respData prekeyResponse
+	err = web.DecodeWSResponseBody(ctx, &respData, resp)
 	if err != nil {
 		return fmt.Errorf("error decoding response body: %w", err)
 	}
 
-	rawIdentityKey, err := addBase64PaddingAndDecode(prekeyResponse.IdentityKey)
+	rawIdentityKey, err := addBase64PaddingAndDecode(respData.IdentityKey)
 	if err != nil {
 		return fmt.Errorf("error decoding identity key: %w", err)
 	}
@@ -458,7 +451,7 @@ func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID lib
 	}
 
 	// Process each prekey in response (should only be one at the moment)
-	for _, d := range prekeyResponse.Devices {
+	for _, d := range respData.Devices {
 		var publicKey *libsignalgo.PublicKey
 		var preKeyID uint32
 		if d.PreKey != nil {
@@ -555,19 +548,18 @@ func keysPath(pni bool) string {
 
 func (cli *Client) GetMyKeyCounts(ctx context.Context, pni bool) (int, int, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "get my key counts").Logger()
-	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, keysPath(pni), &web.HTTPReqOpt{Username: &username, Password: &password})
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, keysPath(pni), nil, nil)
 	if err != nil {
 		log.Err(err).Msg("Error sending request")
 		return 0, 0, err
 	}
-	var preKeyCountResponse preKeyCountResponse
-	err = web.DecodeHTTPResponseBody(ctx, &preKeyCountResponse, resp)
+	var respData preKeyCountResponse
+	err = web.DecodeWSResponseBody(ctx, &respData, resp)
 	if err != nil {
 		log.Err(err).Msg("Fetching prekey counts, error with response body")
 		return 0, 0, err
 	}
-	return preKeyCountResponse.Count, preKeyCountResponse.PQCount, err
+	return respData.Count, respData.PQCount, err
 }
 
 func (cli *Client) CheckAndUploadNewPreKeys(ctx context.Context, pks store.PreKeyStore) error {

@@ -239,7 +239,7 @@ func (cli *Client) deriveTransferKeys() (aesKey, hmacKey [32]byte, err error) {
 }
 
 func downloadTransferArchive(ctx context.Context, meta *TransferArchiveMetadata, writeTo io.Writer) error {
-	resp, err := web.GetAttachment(ctx, getAttachmentPath(0, meta.Key), meta.CDN, nil)
+	resp, err := web.GetAttachment(ctx, getAttachmentPath(0, meta.Key), meta.CDN)
 	if err != nil {
 		return fmt.Errorf("failed to download transfer archive: %w", err)
 	}
@@ -291,21 +291,14 @@ func (cli *Client) tryRequestTransferArchive(ctx context.Context, timeout time.D
 	reqCtx, cancel := context.WithTimeout(ctx, timeout+15*time.Second)
 	defer cancel()
 	path := "/v1/devices/transfer_archive?timeout=" + strconv.Itoa(int(timeout.Seconds()))
-	username, password := cli.Store.BasicAuthCreds()
-	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(reqCtx, http.MethodGet, path, opts)
-	defer func() {
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
-		}
-	}()
+	resp, err := cli.AuthedWS.SendRequest(reqCtx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, err
-	} else if resp.StatusCode == http.StatusNoContent {
+	} else if resp.GetStatus() == http.StatusNoContent {
 		return nil, nil
-	} else if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
-	} else if err = json.NewDecoder(resp.Body).Decode(&respBody); err != nil {
+	} else if resp.GetStatus() != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d", resp.GetStatus())
+	} else if err = json.Unmarshal(resp.Body, &respBody); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	} else {
 		return respBody, nil

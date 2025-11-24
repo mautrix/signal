@@ -34,6 +34,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
 
 const proxyUrlStr = "" // Set this to proxy requests
@@ -106,25 +107,21 @@ type HTTPReqOpt struct {
 	Username    *string
 	Password    *string
 	ContentType ContentType
-	Host        string
 	Headers     map[string]string
 	OverrideURL string // Override the full URL, if set ignores path and Host
 }
 
 var httpReqCounter = 0
 
-func SendHTTPRequest(ctx context.Context, method string, path string, opt *HTTPReqOpt) (*http.Response, error) {
+func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPReqOpt) (*http.Response, error) {
 	// Set defaults
 	if opt == nil {
 		opt = &HTTPReqOpt{}
 	}
-	if opt.Host == "" {
-		opt.Host = APIHostname
-	}
 	if len(path) > 0 && path[0] != '/' {
 		path = "/" + path
 	}
-	urlStr := "https://" + opt.Host + path
+	urlStr := "https://" + host + path
 	if opt.OverrideURL != "" {
 		urlStr = opt.OverrideURL
 	}
@@ -169,6 +166,22 @@ func SendHTTPRequest(ctx context.Context, method string, path string, opt *HTTPR
 	return resp, nil
 }
 
+func DecodeWSResponseBody(ctx context.Context, out any, resp *signalpb.WebSocketResponseMessage) error {
+	if resp.GetStatus() < 200 || resp.GetStatus() >= 300 {
+		zerolog.Ctx(ctx).Debug().
+			Bytes("body", resp.Body).
+			Str("resp_message", resp.GetMessage()).
+			Strs("headers", resp.Headers).
+			Uint32("status_code", resp.GetStatus()).
+			Msg("Unexpected status code")
+		return fmt.Errorf("unexpected response status %d", resp.GetStatus())
+	}
+	if out == nil {
+		return nil
+	}
+	return json.Unmarshal(resp.Body, &out)
+}
+
 // DecodeHTTPResponseBody checks status code, reads an http.Response's Body and decodes it into the provided interface.
 func DecodeHTTPResponseBody(ctx context.Context, out any, resp *http.Response) error {
 	defer resp.Body.Close()
@@ -192,37 +205,33 @@ func DecodeHTTPResponseBody(ctx context.Context, out any, resp *http.Response) e
 	return nil
 }
 
-func GetAttachment(ctx context.Context, path string, cdnNumber uint32, opt *HTTPReqOpt) (*http.Response, error) {
+func GetAttachment(ctx context.Context, path string, cdnNumber uint32) (*http.Response, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "get_attachment").
 		Str("path", path).
 		Uint32("cdn_number", cdnNumber).
 		Logger()
-	if opt == nil {
-		opt = &HTTPReqOpt{}
+	var host string
+	if int(cdnNumber) > len(CDNHosts) {
+		log.Warn().Msg("Invalid CDN index")
+		host = CDN1Hostname
+	} else {
+		host = CDNHosts[cdnNumber]
 	}
-	if opt.Host == "" {
-		if int(cdnNumber) > len(CDNHosts) {
-			log.Warn().Msg("Invalid CDN index")
-			opt.Host = CDN1Hostname
-		} else {
-			opt.Host = CDNHosts[cdnNumber]
-		}
-		if cdnNumber == 0 {
-			// This is basically a fallback if cdnNumber is not set
-			// but it also seems to be the right host if cdnNumber == 0
-			opt.Host = CDNHosts[0]
-		} else if cdnNumber > 0 && int(cdnNumber) <= len(CDNHosts) {
-			// Pull CDN hosts from array (cdnNumber is 1-indexed, but we have a placeholder host at index 0)
-			// (the 1-indexed is just an assumption, other clients seem to only explicitly handle cdnNumber == 0 and 2)
-			opt.Host = CDNHosts[cdnNumber]
-		} else {
-			opt.Host = CDNHosts[0]
-			log.Warn().Msg("Invalid CDN index")
-		}
+	if cdnNumber == 0 {
+		// This is basically a fallback if cdnNumber is not set,
+		// but it also seems to be the right host if cdnNumber == 0
+		host = CDNHosts[0]
+	} else if cdnNumber > 0 && int(cdnNumber) <= len(CDNHosts) {
+		// Pull CDN hosts from array (cdnNumber is 1-indexed, but we have a placeholder host at index 0)
+		// (the 1-indexed is just an assumption, other clients seem to only explicitly handle cdnNumber == 0 and 2)
+		host = CDNHosts[cdnNumber]
+	} else {
+		host = CDNHosts[0]
+		log.Warn().Msg("Invalid CDN index")
 	}
-	log.Debug().Str("host", opt.Host).Msg("getting attachment")
-	urlStr := "https://" + opt.Host + path
+	log.Debug().Str("host", host).Msg("getting attachment")
+	urlStr := "https://" + host + path
 	req, err := http.NewRequest(http.MethodGet, urlStr, nil)
 	if err != nil {
 		return nil, err

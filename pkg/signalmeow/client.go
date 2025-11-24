@@ -18,7 +18,9 @@ package signalmeow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -109,4 +111,12 @@ func (cli *Client) connectUnauthedWS(ctx context.Context) (chan web.SignalWebsoc
 
 func (cli *Client) IsLoggedIn() bool {
 	return cli.Store != nil && cli.Store.IsDeviceLoggedIn()
+}
+
+func (cli *Client) GetRemoteConfig(ctx context.Context) (json.RawMessage, error) {
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, "/v2/config", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Body, web.DecodeWSResponseBody(ctx, nil, resp)
 }

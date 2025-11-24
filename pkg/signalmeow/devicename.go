@@ -30,7 +30,6 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
-	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 func hmacSHA256(key, input []byte) []byte {
@@ -63,18 +62,12 @@ func (cli *Client) updateDeviceName(ctx context.Context, encryptedName []byte) e
 	if err != nil {
 		return fmt.Errorf("failed to marshal device name update request: %w", err)
 	}
-	username, password := cli.Store.BasicAuthCreds()
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPut, "/v1/accounts/name", &web.HTTPReqOpt{
-		Body:     reqData,
-		Username: &username,
-		Password: &password,
-	})
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodPut, "/v1/accounts/name", reqData, nil)
 	if err != nil {
 		return fmt.Errorf("failed to send device name update request: %w", err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("device name update request returned status %d", resp.StatusCode)
+	if resp.GetStatus() < 200 || resp.GetStatus() >= 300 {
+		return fmt.Errorf("device name update request returned status %d", resp.GetStatus())
 	}
 	return nil
 }

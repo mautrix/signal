@@ -70,8 +70,7 @@ func DownloadAttachmentWithPointer(ctx context.Context, a *signalpb.AttachmentPo
 }
 
 func DownloadAttachment(ctx context.Context, cdnID uint64, cdnKey string, cdnNumber uint32, key, digest []byte, plaintextDigest bool, size uint32) ([]byte, error) {
-	path := getAttachmentPath(cdnID, cdnKey)
-	resp, err := web.GetAttachment(ctx, path, cdnNumber, nil)
+	resp, err := web.GetAttachment(ctx, getAttachmentPath(cdnID, cdnKey), cdnNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -174,15 +173,13 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 
 	// Get upload attributes from Signal server
 	attributesPath := "/v4/attachments/form/upload"
-	username, password := cli.Store.BasicAuthCreds()
-	opts := &web.HTTPReqOpt{Username: &username, Password: &password}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, attributesPath, opts)
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, attributesPath, nil, nil)
 	if err != nil {
 		log.Err(err).Msg("Failed to request upload attributes")
 		return nil, fmt.Errorf("failed to request upload attributes: %w", err)
 	}
 	var uploadAttributes attachmentV4UploadAttributes
-	err = web.DecodeHTTPResponseBody(ctx, &uploadAttributes, resp)
+	err = web.DecodeWSResponseBody(ctx, &uploadAttributes, resp)
 	if err != nil {
 		log.Err(err).Msg("Failed to decode upload attributes")
 		return nil, fmt.Errorf("failed to decode upload attributes: %w", err)
@@ -192,7 +189,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 		err = cli.uploadAttachmentTUS(ctx, uploadAttributes, encryptedWithMAC)
 	} else {
 		log.Trace().Msg("Using legacy upload")
-		err = cli.uploadAttachmentLegacy(ctx, uploadAttributes, encryptedWithMAC, username, password)
+		err = cli.uploadAttachmentLegacy(ctx, uploadAttributes, encryptedWithMAC)
 	}
 	if err != nil {
 		log.Err(err).Msg("Failed to upload attachment")
@@ -218,11 +215,10 @@ func (cli *Client) uploadAttachmentLegacy(
 	ctx context.Context,
 	uploadAttributes attachmentV4UploadAttributes,
 	encryptedWithMAC []byte,
-	username string,
-	password string,
 ) error {
+	username, password := cli.Store.BasicAuthCreds()
 	// Allocate attachment on CDN
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
+	resp, err := web.SendHTTPRequest(ctx, "", http.MethodPost, "", &web.HTTPReqOpt{
 		OverrideURL: uploadAttributes.SignedUploadLocation,
 		ContentType: web.ContentTypeOctetStream,
 		Headers:     uploadAttributes.Headers,
@@ -236,7 +232,7 @@ func (cli *Client) uploadAttachmentLegacy(
 	}
 
 	// Upload attachment to CDN
-	resp, err = web.SendHTTPRequest(ctx, http.MethodPut, "", &web.HTTPReqOpt{
+	resp, err = web.SendHTTPRequest(ctx, "", http.MethodPut, "", &web.HTTPReqOpt{
 		OverrideURL: resp.Header.Get("Location"),
 		Body:        encryptedWithMAC,
 		ContentType: web.ContentTypeOctetStream,
@@ -260,7 +256,7 @@ func (cli *Client) uploadAttachmentTUS(
 	uploadAttributes.Headers["Upload-Length"] = fmt.Sprintf("%d", len(encryptedWithMAC))
 	uploadAttributes.Headers["Upload-Metadata"] = "filename " + base64.StdEncoding.EncodeToString([]byte(uploadAttributes.Key))
 
-	resp, err := web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
+	resp, err := web.SendHTTPRequest(ctx, "", http.MethodPost, "", &web.HTTPReqOpt{
 		OverrideURL: uploadAttributes.SignedUploadLocation,
 		Body:        encryptedWithMAC,
 		ContentType: web.ContentTypeOffsetOctetStream,
@@ -306,8 +302,8 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 
 	// Get upload form from Signal server
 	formPath := "/v2/groups/avatar/form"
-	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, ContentType: web.ContentTypeProtobuf, Host: web.StorageHostname}
-	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, formPath, opts)
+	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, ContentType: web.ContentTypeProtobuf}
+	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, formPath, opts)
 	if err != nil {
 		log.Err(err).Msg("Error sending request fetching avatar upload form")
 		return "", err
@@ -338,10 +334,9 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 	w.Close()
 
 	// Upload avatar to CDN
-	resp, err = web.SendHTTPRequest(ctx, http.MethodPost, "", &web.HTTPReqOpt{
+	resp, err = web.SendHTTPRequest(ctx, web.CDN1Hostname, http.MethodPost, "", &web.HTTPReqOpt{
 		Body:        requestBody.Bytes(),
 		ContentType: web.ContentType(w.FormDataContentType()),
-		Host:        web.CDN1Hostname,
 	})
 	if err != nil {
 		log.Err(err).Msg("Error sending request uploading attachment")
