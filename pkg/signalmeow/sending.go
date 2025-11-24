@@ -884,17 +884,16 @@ func (cli *Client) sendContent(
 		return false, err
 	}
 	path := fmt.Sprintf("/v1/messages/%s", recipient)
-	request := web.CreateWSRequest(http.MethodPut, path, jsonBytes, nil, nil)
 
 	var response *signalpb.WebSocketResponseMessage
 	if useUnidentifiedSender {
 		log.Trace().Msg("Sending message over unidentified WS")
-		base64AccessKey := base64.StdEncoding.EncodeToString(accessKey[:])
-		request.Headers = append(request.Headers, "unidentified-access-key:"+base64AccessKey)
-		response, err = cli.UnauthedWS.SendRequest(ctx, request)
+		response, err = cli.UnauthedWS.SendRequest(ctx, http.MethodPut, path, jsonBytes, http.Header{
+			"Unidentified-Access-Key": []string{base64.StdEncoding.EncodeToString(accessKey[:])},
+		})
 	} else {
 		log.Trace().Msg("Sending message over authed WS")
-		response, err = cli.AuthedWS.SendRequest(ctx, request)
+		response, err = cli.AuthedWS.SendRequest(ctx, http.MethodPut, path, jsonBytes, nil)
 	}
 	sentUnidentified = useUnidentifiedSender
 	if err != nil {

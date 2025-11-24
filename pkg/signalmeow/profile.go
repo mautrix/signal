@@ -218,12 +218,12 @@ func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID u
 		path += "/" + string(credentialRequest)
 		path += "?credentialType=expiringProfileKey"
 	}
-	profileRequest := web.CreateWSRequest(http.MethodGet, path, nil, nil, nil)
+	headers := http.Header{}
 	if useUnidentified {
-		profileRequest.Headers = append(profileRequest.Headers, "unidentified-access-key:"+base64AccessKey)
-		profileRequest.Headers = append(profileRequest.Headers, "accept-language:en-CA")
+		headers.Set("Unidentified-Access-Key", base64AccessKey)
+		headers.Set("Accept-Language", "en-US")
 	}
-	resp, err := cli.UnauthedWS.SendRequest(ctx, profileRequest)
+	resp, err := cli.UnauthedWS.SendRequest(ctx, http.MethodGet, path, nil, headers)
 	if err != nil {
 		return nil, fmt.Errorf("error sending request: %w", err)
 	}

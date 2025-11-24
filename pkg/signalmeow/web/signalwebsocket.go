@@ -560,13 +560,26 @@ func writeLoop(
 
 func (s *SignalWebsocket) SendRequest(
 	ctx context.Context,
-	request *signalpb.WebSocketRequestMessage,
+	method,
+	path string,
+	body []byte,
+	headers http.Header,
 ) (*signalpb.WebSocketResponseMessage, error) {
 	if s == nil {
 		return nil, errors.New("websocket is nil")
 	}
-	startTime := time.Now()
-	return s.sendRequestInternal(ctx, request, startTime, 0)
+	headerArray := make([]string, len(headers))
+	for key, values := range headers {
+		for _, value := range values {
+			headerArray = append(headerArray, fmt.Sprintf("%s:%s", strings.ToLower(key), value))
+		}
+	}
+	return s.sendRequestInternal(ctx, &signalpb.WebSocketRequestMessage{
+		Verb:    &method,
+		Path:    &path,
+		Body:    body,
+		Headers: headerArray,
+	}, time.Now(), 0)
 }
 
 func (s *SignalWebsocket) sendRequestInternal(
