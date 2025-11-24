@@ -305,7 +305,7 @@ func (s *SignalWebsocket) connectLoop(
 		retrying = false
 		backoff = initialBackoff
 
-		responseChannels := make(map[uint64]chan *signalpb.WebSocketResponseMessage)
+		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
 		var wg sync.WaitGroup
 		wg.Add(3)
@@ -388,7 +388,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Clean up
 		ws.Close(websocket.StatusGoingAway, "Going away")
-		for _, responseChannel := range responseChannels {
+		for _, responseChannel := range responseChannels.Iter() {
 			close(responseChannel)
 		}
 		loopCancel(nil)
@@ -407,7 +407,7 @@ func readLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	incomingRequestChan chan *signalpb.WebSocketRequestMessage,
-	responseChannels map[uint64]chan *signalpb.WebSocketResponseMessage,
+	responseChannels *exsync.Map[uint64, chan *signalpb.WebSocketResponseMessage],
 ) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_read_loop").
@@ -447,7 +447,7 @@ func readLoop(
 			if msg.Response.Id == nil {
 				log.Fatal().Msg("Received response with no id")
 			}
-			responseChannel, ok := responseChannels[*msg.Response.Id]
+			responseChannel, ok := responseChannels.Get(*msg.Response.Id)
 			if !ok {
 				log.Warn().
 					Uint64("response_id", *msg.Response.Id).
@@ -459,7 +459,7 @@ func readLoop(
 				Uint32("response_status", *msg.Response.Status).
 				Msg("Received WS response")
 			responseChannel <- msg.Response
-			delete(responseChannels, *msg.Response.Id)
+			responseChannels.Delete(*msg.Response.Id)
 			log.Debug().
 				Uint64("response_id", *msg.Response.Id).
 				Msg("Deleted response channel for ID")
@@ -486,7 +486,7 @@ func writeLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	sendChannel chan SignalWebsocketSendMessage,
-	responseChannels map[uint64]chan *signalpb.WebSocketResponseMessage,
+	responseChannels *exsync.Map[uint64, chan *signalpb.WebSocketResponseMessage],
 ) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_write_loop").
@@ -509,7 +509,7 @@ func writeLoop(
 					Request: request.RequestMessage,
 				}
 				request.RequestMessage.Id = &i
-				responseChannels[i] = request.ResponseChannel
+				responseChannels.Set(i, request.ResponseChannel)
 				path := *request.RequestMessage.Path
 				if len(path) > 30 {
 					path = path[:40]
