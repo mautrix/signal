@@ -305,7 +305,7 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 	}
 
 	// Get upload form from Signal server
-	formPath := "/v1/groups/avatar/form"
+	formPath := "/v2/groups/avatar/form"
 	opts := &web.HTTPReqOpt{Username: &groupAuth.Username, Password: &groupAuth.Password, ContentType: web.ContentTypeProtobuf, Host: web.StorageHostname}
 	resp, err := web.SendHTTPRequest(ctx, http.MethodGet, formPath, opts)
 	if err != nil {

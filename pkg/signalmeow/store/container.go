@@ -85,7 +85,7 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.AccountEntropyPool = libsignalgo.AccountEntropyPool(accountEntropyPool.String)
 	device.EphemeralBackupKey = libsignalgo.BytesToBackupKey(ephemeralBackupKey)
 	device.MediaRootBackupKey = libsignalgo.BytesToBackupKey(mediaRootBackupKey)
-	baseStore := &sqlStore{Container: c, AccountID: device.ACI}
+	baseStore := &sqlStore{Container: c, AccountID: device.ACI, blockCache: make(map[uuid.UUID]bool)}
 	aciStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.ACIServiceID()}
 	pniStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.PNIServiceID()}
 	device.ACIPreKeyStore = aciStore

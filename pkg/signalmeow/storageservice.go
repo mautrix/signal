@@ -99,6 +99,10 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					changed = changed || recipient.E164 != contact.E164
 					recipient.E164 = contact.E164
 				}
+				if contact.Blocked != recipient.Blocked {
+					changed = true
+					recipient.Blocked = contact.Blocked
+				}
 				topLevelChanged = changed
 				return
 			})

@@ -55,6 +55,7 @@ type Recipient struct {
 	Profile       Profile
 
 	NeedsPNISignature bool
+	Blocked           bool
 }
 
 type ContactAvatar struct {

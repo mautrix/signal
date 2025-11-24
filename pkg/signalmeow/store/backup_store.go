@@ -161,9 +161,11 @@ func (s *sqlStore) AddBackupRecipient(ctx context.Context, recipient *backuppb.R
 				if dest.Contact.ProfileGivenName != nil || dest.Contact.ProfileFamilyName != nil {
 					recipient.Profile.Name = strings.TrimSpace(fmt.Sprintf("%s %s", dest.Contact.GetProfileGivenName(), dest.Contact.GetProfileFamilyName()))
 				}
+				recipient.Blocked = dest.Contact.Blocked
 				changed = oldRecipient.E164 != recipient.E164 ||
 					oldRecipient.Profile.Key != recipient.Profile.Key ||
-					oldRecipient.Profile.Name != recipient.Profile.Name
+					oldRecipient.Profile.Name != recipient.Profile.Name ||
+					oldRecipient.Blocked != recipient.Blocked
 				return
 			})
 			if err != nil {
