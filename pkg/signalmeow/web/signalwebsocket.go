@@ -619,7 +619,8 @@ func (s *SignalWebsocket) sendRequestInternal(
 	}
 	response := <-responseChannel
 
-	if response == nil {
+	isSelfDelete := request.GetVerb() == http.MethodDelete && strings.HasPrefix(request.GetPath(), "/v1/devices/")
+	if response == nil && !isSelfDelete {
 		// If out of retries, return error no matter what
 		if retryCount >= 3 {
 			// TODO: I think error isn't getting passed in this context (as it's not the one in writeLoop)

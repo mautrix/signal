@@ -167,6 +167,9 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 }
 
 func DecodeWSResponseBody(ctx context.Context, out any, resp *signalpb.WebSocketResponseMessage) error {
+	if resp == nil {
+		return nil
+	}
 	if resp.GetStatus() < 200 || resp.GetStatus() >= 300 {
 		zerolog.Ctx(ctx).Warn().
 			Bytes("body", resp.Body).
