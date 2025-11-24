@@ -249,32 +249,29 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	cli.loopWg.Add(1)
 	go func() {
 		defer cli.loopWg.Done()
-		for {
-			select {
-			case <-loopCtx.Done():
-				return
-			case <-initialConnectChan:
-				log.Info().Msg("Both websockets connected, sending contacts sync request")
-				err = cli.RegisterCapabilities(ctx)
-				if err != nil {
-					zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
-				} else {
-					zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
-				}
-				// Start loop to check for and upload more prekeys
-				cli.loopWg.Add(1)
-				go func() {
-					defer cli.loopWg.Done()
-					cli.keyCheckLoop(loopCtx)
-				}()
-				// TODO hacky
-				if cli.SyncContactsOnConnect {
-					cli.SendContactSyncRequest(loopCtx)
-				}
-				if cli.Store.MasterKey == nil {
-					cli.SendStorageMasterKeyRequest(loopCtx)
-				}
-				return
+		select {
+		case <-loopCtx.Done():
+			return
+		case <-initialConnectChan:
+			log.Info().Msg("Both websockets connected, sending contacts sync request")
+			err = cli.RegisterCapabilities(ctx)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
+			} else {
+				zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
+			}
+			// Start loop to check for and upload more prekeys
+			cli.loopWg.Add(1)
+			go func() {
+				defer cli.loopWg.Done()
+				cli.keyCheckLoop(loopCtx)
+			}()
+			// TODO hacky
+			if cli.SyncContactsOnConnect {
+				cli.SendContactSyncRequest(loopCtx)
+			}
+			if cli.Store.MasterKey == nil {
+				cli.SendStorageMasterKeyRequest(loopCtx)
 			}
 		}
 	}()
