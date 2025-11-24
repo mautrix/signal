@@ -623,14 +623,13 @@ func (cli *Client) sendToGroup(ctx context.Context, recipients []*libsignalgo.Se
 		}
 	}
 
-	// No need to send to ourselves if we don't have any other devices
-	if cli.howManyOtherDevicesDoWeHave(ctx) > 0 {
-		var syncContent *signalpb.Content
-		if content.GetDataMessage() != nil {
-			syncContent = syncMessageFromGroupDataMessage(content.DataMessage, result.SuccessfullySentTo)
-		} else if content.GetEditMessage() != nil {
-			syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
-		}
+	var syncContent *signalpb.Content
+	if content.GetDataMessage() != nil {
+		syncContent = syncMessageFromGroupDataMessage(content.DataMessage, result.SuccessfullySentTo)
+	} else if content.GetEditMessage() != nil {
+		syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
+	}
+	if syncContent != nil {
 		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true, true)
 		if selfSendErr != nil {
 			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
@@ -649,25 +648,22 @@ func (cli *Client) sendToGroup(ctx context.Context, recipients []*libsignalgo.Se
 }
 
 func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, messageTS uint64, result *SuccessfulSendResult) bool {
-	// If we have other devices, send Sync messages to them too
-	if cli.howManyOtherDevicesDoWeHave(ctx) > 0 {
-		var syncContent *signalpb.Content
-		if content.GetDataMessage() != nil {
-			syncContent = syncMessageFromSoloDataMessage(content.DataMessage, *result)
-		} else if content.GetEditMessage() != nil {
-			syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result)
-		} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
-			syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.Recipient)
-		} else if content.GetSyncMessage() != nil {
-			syncContent = content
-		}
-		if syncContent != nil {
-			_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true, false)
-			if selfSendErr != nil {
-				zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
-			} else {
-				return true
-			}
+	var syncContent *signalpb.Content
+	if content.GetDataMessage() != nil {
+		syncContent = syncMessageFromSoloDataMessage(content.DataMessage, *result)
+	} else if content.GetEditMessage() != nil {
+		syncContent = syncMessageFromSoloEditMessage(content.EditMessage, *result)
+	} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+		syncContent = syncMessageFromReadReceiptMessage(ctx, content.ReceiptMessage, result.Recipient)
+	} else if content.GetSyncMessage() != nil {
+		syncContent = content
+	}
+	if syncContent != nil {
+		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true, false)
+		if selfSendErr != nil {
+			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
+		} else {
+			return true
 		}
 	}
 	return false
