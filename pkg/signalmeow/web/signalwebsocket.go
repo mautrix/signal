@@ -19,6 +19,7 @@ package web
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -454,10 +455,19 @@ func readLoop(
 					Msg("Received response with unknown id")
 				continue
 			}
-			log.Debug().
-				Uint64("response_id", *msg.Response.Id).
-				Uint32("response_status", *msg.Response.Status).
-				Msg("Received WS response")
+			logEvt := log.Debug().
+				Uint64("response_id", msg.Response.GetId()).
+				Uint32("response_status", msg.Response.GetStatus()).
+				Str("response_message", msg.Response.GetMessage())
+			if log.GetLevel() == zerolog.TraceLevel {
+				logEvt.Strs("response_headers", msg.Response.Headers)
+				if json.Valid(msg.Response.Body) {
+					logEvt.RawJSON("response_body", msg.Response.Body)
+				} else {
+					logEvt.Str("response_body", base64.StdEncoding.EncodeToString(msg.Response.Body))
+				}
+			}
+			logEvt.Msg("Received WS response")
 			responseChannel <- msg.Response
 			close(responseChannel)
 		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
