@@ -40,7 +40,8 @@ import (
 const proxyUrlStr = "" // Set this to proxy requests
 const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmproxy)
 
-var UserAgent = "signalmeow/0.1.0 libsignal/" + libsignalgo.Version + " go/" + strings.TrimPrefix(runtime.Version(), "go")
+var BaseUserAgent = "libsignal/" + libsignalgo.Version + " go/" + strings.TrimPrefix(runtime.Version(), "go")
+var UserAgent = "signalmeow/0.1.0 " + BaseUserAgent
 var SignalAgent = "MAU"
 
 const (

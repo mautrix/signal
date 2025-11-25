@@ -17,9 +17,12 @@
 package main
 
 import (
+	"fmt"
+
 	"maunium.net/go/mautrix/bridgev2/matrix/mxmain"
 
 	"go.mau.fi/mautrix-signal/pkg/connector"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 // Information to find out exactly which commit the bridge was built from.
@@ -41,6 +44,7 @@ var m = mxmain.BridgeMain{
 }
 
 func main() {
+	web.UserAgent = fmt.Sprintf("mautrix-signal/%s %s", m.Version, web.BaseUserAgent)
 	m.PostStart = func() {
 		if m.Matrix.Provisioning != nil {
 			m.Matrix.Provisioning.Router.HandleFunc("GET /v2/resolve_identifier/{phonenum}", legacyProvResolveIdentifier)
