@@ -30,6 +30,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
@@ -37,14 +38,14 @@ type Client struct {
 	Store *store.Device
 	Log   zerolog.Logger
 
-	SenderCertificateWithE164 *libsignalgo.SenderCertificate
-	SenderCertificateNoE164   *libsignalgo.SenderCertificate
-	GroupCredentials          *GroupCredentials
-	GroupCache                *GroupCache
-	ProfileCache              *ProfileCache
-	GroupCallCache            *map[string]bool
-	LastContactRequestTime    time.Time
-	SyncContactsOnConnect     bool
+	senderCertificateWithE164 *libsignalgo.SenderCertificate
+	senderCertificateNoE164   *libsignalgo.SenderCertificate
+	senderCertificateCache    sync.Mutex
+
+	GroupCache             *GroupCache
+	ProfileCache           *ProfileCache
+	LastContactRequestTime time.Time
+	SyncContactsOnConnect  bool
 
 	encryptionLock sync.Mutex
 
@@ -64,6 +65,20 @@ type Client struct {
 	cdToken         []byte
 
 	writeCallbackCounter chan time.Time
+}
+
+func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.SignalEvent) bool) *Client {
+	return &Client{
+		Store:        device,
+		Log:          log,
+		EventHandler: evtHandler,
+		GroupCache:   NewGroupCache(),
+		ProfileCache: &ProfileCache{
+			profiles:    make(map[string]*types.Profile),
+			errors:      make(map[string]*error),
+			lastFetched: make(map[string]time.Time),
+		},
+	}
 }
 
 func (cli *Client) handleEvent(evt events.SignalEvent) bool {

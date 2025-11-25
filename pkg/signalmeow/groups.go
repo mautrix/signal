@@ -114,6 +114,15 @@ func (group *Group) GetInviteLink() (string, error) {
 	return "https://signal.group/#" + inviteLinkPath, nil
 }
 
+func (group *Group) findMemberOrEmpty(aci uuid.UUID) *GroupMember {
+	for _, member := range group.Members {
+		if member.ACI == aci {
+			return member
+		}
+	}
+	return &GroupMember{}
+}
+
 type GroupAccessControl struct {
 	Members           AccessControl
 	AddFromInviteLink AccessControl
@@ -328,51 +337,22 @@ func (cli *Client) fetchNewGroupCreds(ctx context.Context, today time.Time) (*Gr
 		log.Err(err).Msg("json.Unmarshal error")
 		return nil, err
 	}
-	// make sure pni matches device pni
 	if creds.PNI != cli.Store.PNI {
-		err := fmt.Errorf("creds.PNI != d.PNI")
-		log.Err(err).Msg("creds.PNI != d.PNI")
-		return nil, err
+		return nil, fmt.Errorf("mismatching PNI in group credentials: %s != %s", creds.PNI, cli.Store.PNI)
 	}
 	return &creds, nil
-}
-
-func (cli *Client) getCachedAuthorizationForToday(today time.Time) *GroupCredential {
-	if cli.GroupCredentials == nil {
-		// No cached credentials
-		return nil
-	}
-	allCreds := cli.GroupCredentials
-	// Get the credential for today
-	for _, cred := range allCreds.Credentials {
-		if cred.RedemptionTime == today.Unix() {
-			return &cred
-		}
-	}
-	return nil
 }
 
 func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsignalgo.GroupMasterKey) (*GroupAuth, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "get authorization for today").
 		Logger()
-	// Timestamps for the start of today, and 7 days later
-	today := time.Now().Truncate(24 * time.Hour)
 
-	todayCred := cli.getCachedAuthorizationForToday(today)
-	if todayCred == nil {
-		creds, err := cli.fetchNewGroupCreds(ctx, today)
-		if err != nil {
-			return nil, fmt.Errorf("fetchNewGroupCreds error: %w", err)
-		}
-		cli.GroupCredentials = creds
-		todayCred = cli.getCachedAuthorizationForToday(today)
-	}
-	if todayCred == nil {
-		return nil, fmt.Errorf("couldn't get credential for today")
+	todayCred, err := cli.GroupCache.GetCredentials(ctx, cli.fetchNewGroupCreds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get group credentials: %w", err)
 	}
 
-	//TODO: cache cred after unmarshalling
 	redemptionTime := uint64(todayCred.RedemptionTime)
 	credential := todayCred.Credential
 	authCredentialResponse, err := libsignalgo.NewAuthCredentialWithPniResponse(credential)
@@ -674,6 +654,7 @@ func (cli *Client) parseGroupResponse(ctx context.Context, response *http.Respon
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt group: %w", err)
 	}
+	cli.GroupCache.Put(group, groupResponse.GroupSendEndorsementsResponse)
 
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
@@ -717,22 +698,11 @@ func (cli *Client) DownloadGroupAvatar(ctx context.Context, avatarPath string, g
 }
 
 func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentifier, revision uint32) (*Group, error) {
-	cli.initGroupCache()
-
-	lastFetched, ok := cli.GroupCache.lastFetched[gid]
-	if ok && time.Since(lastFetched) < 1*time.Hour {
-		group, ok := cli.GroupCache.groups[gid]
-		if ok && group.Revision >= revision {
-			return group, nil
-		}
+	cached, ok := cli.GroupCache.Get(gid)
+	if ok && cached.Revision >= revision {
+		return cached, nil
 	}
-	group, err := cli.fetchGroupByID(ctx, gid)
-	if err != nil {
-		return nil, err
-	}
-	cli.GroupCache.groups[gid] = group
-	cli.GroupCache.lastFetched[gid] = time.Now()
-	return group, nil
+	return cli.fetchGroupByID(ctx, gid)
 }
 
 // We should store the group master key in the group store as soon as we see it,
@@ -748,40 +718,6 @@ func (cli *Client) StoreMasterKey(ctx context.Context, groupMasterKey types.Seri
 		return groupIdentifier, fmt.Errorf("StoreMasterKey error: %w", err)
 	}
 	return groupIdentifier, nil
-}
-
-// We need to track active calls so we don't send too many IncomingSignalMessageCalls
-// Of course for group calls Signal doesn't tell us *anything* so we're mostly just inferring
-// So we just jam a new call ID in, and return true if we *think* this is a new incoming call
-func (cli *Client) UpdateActiveCalls(gid types.GroupIdentifier, callID string) (isActive bool) {
-	cli.initGroupCache()
-	// Check to see if we currently have an active call for this group
-	currentCallID, ok := cli.GroupCache.activeCalls[gid]
-	if ok {
-		// If we do, then this must be ending the call
-		if currentCallID == callID {
-			delete(cli.GroupCache.activeCalls, gid)
-			return false
-		}
-	}
-	cli.GroupCache.activeCalls[gid] = callID
-	return true
-}
-
-func (cli *Client) initGroupCache() {
-	if cli.GroupCache == nil {
-		cli.GroupCache = &GroupCache{
-			groups:      make(map[types.GroupIdentifier]*Group),
-			lastFetched: make(map[types.GroupIdentifier]time.Time),
-			activeCalls: make(map[types.GroupIdentifier]string),
-		}
-	}
-}
-
-type GroupCache struct {
-	groups      map[types.GroupIdentifier]*Group
-	lastFetched map[types.GroupIdentifier]time.Time
-	activeCalls map[types.GroupIdentifier]string
 }
 
 func (cli *Client) DecryptGroupChange(ctx context.Context, groupContext *signalpb.GroupContextV2) (*GroupChange, error) {
@@ -801,6 +737,15 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	log := zerolog.Ctx(ctx).With().Str("action", "decrypt group change").Logger()
 	serverSignature := encryptedGroupChange.ServerSignature
 	encryptedActionsBytes := encryptedGroupChange.Actions
+	var success bool
+	defer func() {
+		if !success {
+			rawGroupID, _ := masterKeyToBytes(groupMasterKey).GroupIdentifier()
+			if rawGroupID != nil {
+				cli.GroupCache.Delete(types.GroupIdentifier(rawGroupID.String()))
+			}
+		}
+	}()
 
 	var err error
 	if verifySignature {
@@ -1102,6 +1047,9 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		inviteLinkPassword := InviteLinkPasswordFromBytes(encryptedActions.ModifyInviteLinkPassword.InviteLinkPassword)
 		decryptedGroupChange.ModifyInviteLinkPassword = &inviteLinkPassword
 	}
+
+	success = true
+	cli.GroupCache.ApplyUpdate(decryptedGroupChange, nil)
 
 	return decryptedGroupChange, nil
 }
@@ -1574,9 +1522,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 				return 0, fmt.Errorf("failed to update group: %w", err)
 			}
 		} else if errors.Is(err, ConflictError) {
-			delete(cli.GroupCache.groups, gid)
-			delete(cli.GroupCache.lastFetched, gid)
-			delete(cli.GroupCache.activeCalls, gid)
+			cli.GroupCache.Delete(gid)
 			group, err = cli.RetrieveGroupByID(ctx, gid, 0)
 			if err != nil {
 				return 0, fmt.Errorf("failed to fetch group after conflict: %w", err)
@@ -1590,12 +1536,10 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 			return 0, fmt.Errorf("unknown error encrypting and signing group change: %w", err)
 		}
 	}
-	delete(cli.GroupCache.groups, gid)
-	delete(cli.GroupCache.lastFetched, gid)
-	delete(cli.GroupCache.activeCalls, gid)
 	if signedGroupChange == nil {
 		return 0, fmt.Errorf("no signed group change returned: %w", err)
 	}
+	cli.GroupCache.ApplyUpdate(groupChange, signedGroupChange.GroupSendEndorsementsResponse)
 	groupChangeBytes, err := proto.Marshal(signedGroupChange.GroupChange)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal signed group change: %w", err)

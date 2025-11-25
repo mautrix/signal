@@ -42,15 +42,17 @@ import (
 // Sending
 
 func (cli *Client) senderCertificate(ctx context.Context, e164 bool) (*libsignalgo.SenderCertificate, error) {
-	cached := cli.SenderCertificateNoE164
+	cli.senderCertificateCache.Lock()
+	defer cli.senderCertificateCache.Unlock()
+	cached := cli.senderCertificateNoE164
 	if e164 {
-		cached = cli.SenderCertificateWithE164
+		cached = cli.senderCertificateWithE164
 	}
 	setCache := func(val *libsignalgo.SenderCertificate) {
 		if e164 {
-			cli.SenderCertificateWithE164 = val
+			cli.senderCertificateWithE164 = val
 		} else {
-			cli.SenderCertificateNoE164 = val
+			cli.senderCertificateNoE164 = val
 		}
 	}
 	if cached != nil {

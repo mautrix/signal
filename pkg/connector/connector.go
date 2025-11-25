@@ -94,13 +94,12 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 		queueEmptyWaiter: exsync.NewEvent(),
 	}
 	if device != nil {
-		sc.Client = &signalmeow.Client{
-			Store:        device,
-			Log:          sc.UserLogin.Log.With().Str("component", "signalmeow").Logger(),
-			EventHandler: sc.handleSignalEvent,
-
-			SyncContactsOnConnect: s.Config.SyncContactsOnStartup,
-		}
+		sc.Client = signalmeow.NewClient(
+			device,
+			sc.UserLogin.Log.With().Str("component", "signalmeow").Logger(),
+			sc.handleSignalEvent,
+		)
+		sc.Client.SyncContactsOnConnect = s.Config.SyncContactsOnStartup
 	}
 	login.Client = sc
 	return nil

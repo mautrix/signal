@@ -134,14 +134,6 @@ func (cli *Client) getCachedProfileByID(signalID uuid.UUID, refreshAfter time.Du
 }
 
 func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID, refreshAfter time.Duration) (*types.Profile, error) {
-	if cli.ProfileCache == nil {
-		cli.ProfileCache = &ProfileCache{
-			profiles:    make(map[string]*types.Profile),
-			errors:      make(map[string]*error),
-			lastFetched: make(map[string]time.Time),
-		}
-	}
-
 	// Check if we have a cached profile that is less than an hour old
 	// or if we have a cached error that is less than an hour old
 	profile, err := cli.getCachedProfileByID(signalID, refreshAfter)
