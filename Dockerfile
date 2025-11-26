@@ -12,7 +12,7 @@ RUN ./build-rust.sh
 
 # -- Build mautrix-signal (with Go) --
 FROM golang:1-alpine3.22 AS go-builder
-RUN apk add --no-cache git ca-certificates build-base olm-dev
+RUN apk add --no-cache git ca-certificates build-base olm-dev zlib-dev
 
 WORKDIR /build
 # Copy all files needed for Go build, and no Rust files
