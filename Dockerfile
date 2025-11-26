@@ -33,6 +33,7 @@ RUN <<EOF
 if [ "$DBG" = 1 ]; then
     go install github.com/go-delve/delve/cmd/dlv@latest
 else
+    mkdir -p /go/bin
     touch /go/bin/dlv
 fi
 EOF
