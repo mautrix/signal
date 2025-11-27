@@ -73,17 +73,17 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 			Int("failed_to_send_to_count", len(result.FailedToSendTo)).
 			Int("successfully_sent_to_count", len(result.SuccessfullySentTo)).
 			Logger()
-		if len(result.FailedToSendTo) > 0 {
-			log.Error().Msg("Failed to send event to some members of Signal group")
-		}
 		if len(result.SuccessfullySentTo) == 0 && len(result.FailedToSendTo) == 0 {
 			log.Debug().Msg("No successes or failures - Probably sent to myself")
 		} else if len(result.SuccessfullySentTo) == 0 {
 			log.Error().Msg("Failed to send event to all members of Signal group")
 			return errors.New("failed to send to any members of Signal group")
-
 		} else if len(result.SuccessfullySentTo) < totalRecipients {
-			log.Warn().Msg("Only sent event to some members of Signal group")
+			if len(result.FailedToSendTo) > 0 {
+				log.Warn().Msg("Failed to send event to some members of Signal group")
+			} else {
+				log.Warn().Msg("Only sent event to some members of Signal group")
+			}
 		} else {
 			log.Debug().Msg("Sent event to all members of Signal group")
 		}
