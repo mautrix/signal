@@ -24,6 +24,7 @@ import "C"
 import (
 	"context"
 	"runtime"
+	"unsafe"
 
 	"github.com/google/uuid"
 )
@@ -78,8 +79,50 @@ func SealedSenderEncrypt(ctx context.Context, usmc *UnidentifiedSenderMessageCon
 	return CopySignalOwnedBufferToBytes(encrypted), nil
 }
 
-func SealedSenderMultiRecipientEncrypt(messageContent *UnidentifiedSenderMessageContent, forRecipients []*Address, identityStore IdentityKeyStore, sessionStore SessionStore, ctx *CallbackContext) ([]byte, error) {
-	panic("not implemented")
+type SessionAddressTuple struct {
+	ServiceID ServiceID
+	DeviceID  int
+	Address   *Address
+	Record    *SessionRecord
+}
+
+func SealedSenderMultiRecipientEncrypt(
+	ctx context.Context,
+	usmc *UnidentifiedSenderMessageContent,
+	recipients []SessionAddressTuple,
+	identityStore IdentityKeyStore,
+) ([]byte, error) {
+	var encrypted C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	callbackCtx := NewCallbackContext(ctx)
+	defer callbackCtx.Unref()
+	recipientAddresses := make([]C.SignalConstPointerProtocolAddress, len(recipients))
+	recipientSessions := make([]C.SignalConstPointerSessionRecord, len(recipients))
+	for i, recipient := range recipients {
+		recipientAddresses[i] = recipient.Address.constPtr()
+		recipientSessions[i] = recipient.Record.constPtr()
+	}
+	signalFfiError := C.signal_sealed_sender_multi_recipient_encrypt(
+		&encrypted,
+		C.SignalBorrowedSliceOfConstPointerProtocolAddress{
+			base:   unsafe.SliceData(recipientAddresses),
+			length: C.size_t(len(recipientAddresses)),
+		},
+		C.SignalBorrowedSliceOfConstPointerSessionRecord{
+			base:   unsafe.SliceData(recipientSessions),
+			length: C.size_t(len(recipientSessions)),
+		},
+		BytesToBuffer(nil),
+		usmc.constPtr(),
+		callbackCtx.wrapIdentityKeyStore(identityStore),
+	)
+	runtime.KeepAlive(usmc)
+	runtime.KeepAlive(recipients)
+	runtime.KeepAlive(recipientAddresses)
+	runtime.KeepAlive(recipientSessions)
+	if signalFfiError != nil {
+		return nil, callbackCtx.wrapError(signalFfiError)
+	}
+	return CopySignalOwnedBufferToBytes(encrypted), nil
 }
 
 type SealedSenderResult struct {

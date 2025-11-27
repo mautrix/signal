@@ -404,16 +404,24 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(data)
 }
 
+var (
+	ErrUnregisteredUser = errors.New("got 404 when fetching prekey, user is unregistered")
+	ErrDevicesChanged   = errors.New("device list changed while sending skdm")
+)
+
 func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, specificDeviceID int) error {
 	// Fetch prekey
 	deviceIDPath := "/*"
 	if specificDeviceID >= 0 {
 		deviceIDPath = "/" + fmt.Sprint(specificDeviceID)
 	}
+	// TODO this should be done via the unauthed websocket if possible
 	path := "/v2/keys/" + theirServiceID.String() + deviceIDPath + "?pq=true"
 	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return fmt.Errorf("error sending request: %w", err)
+	} else if resp.GetStatus() == 404 {
+		return ErrUnregisteredUser
 	}
 	var respData prekeyResponse
 	err = web.DecodeWSResponseBody(ctx, &respData, resp)

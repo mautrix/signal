@@ -97,10 +97,11 @@ func init() {
 type ContentType string
 
 const (
-	ContentTypeJSON              ContentType = "application/json"
-	ContentTypeProtobuf          ContentType = "application/x-protobuf"
-	ContentTypeOctetStream       ContentType = "application/octet-stream"
-	ContentTypeOffsetOctetStream ContentType = "application/offset+octet-stream"
+	ContentTypeJSON                  ContentType = "application/json"
+	ContentTypeProtobuf              ContentType = "application/x-protobuf"
+	ContentTypeOctetStream           ContentType = "application/octet-stream"
+	ContentTypeOffsetOctetStream     ContentType = "application/offset+octet-stream"
+	ContentTypeMultiRecipientMessage ContentType = "application/vnd.signal-messenger.mrm"
 )
 
 type HTTPReqOpt struct {

@@ -94,6 +94,15 @@ CREATE TABLE signalmeow_sender_keys (
     FOREIGN KEY (account_id) REFERENCES signalmeow_device (aci_uuid) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
+CREATE TABLE signalmeow_outbound_sender_key_info (
+    account_id      TEXT  NOT NULL,
+    group_id        TEXT  NOT NULL,
+    distribution_id TEXT  NOT NULL,
+    shared_with     jsonb NOT NULL,
+
+    PRIMARY KEY (account_id, group_id)
+);
+
 CREATE TABLE signalmeow_groups (
     account_id       TEXT NOT NULL,
     group_identifier TEXT NOT NULL,

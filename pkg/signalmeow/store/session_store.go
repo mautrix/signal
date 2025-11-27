@@ -30,40 +30,49 @@ import (
 var _ SessionStore = (*scopedSQLStore)(nil)
 
 const (
-	loadSessionQuery  = `SELECT their_device_id, record FROM signalmeow_sessions WHERE account_id=$1 AND service_id=$2 AND their_service_id=$3 AND their_device_id=$4`
+	loadSessionQuery  = `SELECT their_service_id, their_device_id, record FROM signalmeow_sessions WHERE account_id=$1 AND service_id=$2 AND their_service_id=$3 AND their_device_id=$4`
 	storeSessionQuery = `
 		INSERT INTO signalmeow_sessions (account_id, service_id, their_service_id, their_device_id, record)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (account_id, service_id, their_service_id, their_device_id) DO UPDATE SET record=excluded.record
 	`
-	allSessionsQuery       = `SELECT their_device_id, record FROM signalmeow_sessions WHERE account_id=$1 AND service_id=$2 AND their_service_id=$3`
-	removeSessionQuery     = `DELETE FROM signalmeow_sessions WHERE account_id=$1 AND service_id=$2 AND their_service_id=$3 AND their_device_id=$4`
-	deleteAllSessionsQuery = "DELETE FROM signalmeow_sessions WHERE account_id=$1"
+	allSessionsQuery                = `SELECT their_service_id, their_device_id, record FROM signalmeow_sessions WHERE account_id=$1 AND service_id=$2 AND their_service_id=$3`
+	removeSessionQuery              = `DELETE FROM signalmeow_sessions WHERE account_id=$1 AND service_id=$2 AND their_service_id=$3 AND their_device_id=$4`
+	removeSessionsForRecipientQuery = "DELETE FROM signalmeow_sessions WHERE account_id=$1 AND their_service_id=$2"
+	deleteAllSessionsQuery          = "DELETE FROM signalmeow_sessions WHERE account_id=$1"
 )
+
+type SessionAddressTuple = libsignalgo.SessionAddressTuple
 
 type SessionStore interface {
 	libsignalgo.SessionStore
 	ServiceScopedStore
 
 	// AllSessionsForServiceID returns all sessions for the given service ID.
-	AllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error)
+	AllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) ([]SessionAddressTuple, error)
 	// RemoveSession removes the session for the given address.
 	RemoveSession(ctx context.Context, address *libsignalgo.Address) error
+	RemoveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error
 	// RemoveAllSessions removes all sessions for our ACI UUID
 	RemoveAllSessions(ctx context.Context) error
 }
 
-func scanSessionRecord(row dbutil.Scannable) (int, *libsignalgo.SessionRecord, error) {
-	var record []byte
-	var deviceID int
-	err := row.Scan(&deviceID, &record)
+func scanSessionRecord(row dbutil.Scannable) (tuple SessionAddressTuple, err error) {
+	var rawServiceID string
+	var rawRecord []byte
+	err = row.Scan(&rawServiceID, &tuple.DeviceID, &rawRecord)
 	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil, nil
+		err = nil
 	} else if err != nil {
-		return 0, nil, err
+		// return error as-is
+	} else if tuple.Record, err = libsignalgo.DeserializeSessionRecord(rawRecord); err != nil {
+		err = fmt.Errorf("failed to deserialize session record: %w", err)
+	} else if tuple.ServiceID, err = libsignalgo.ServiceIDFromString(rawServiceID); err != nil {
+		err = fmt.Errorf("failed to parse service ID: %w", err)
+	} else if tuple.Address, err = tuple.ServiceID.Address(uint(tuple.DeviceID)); err != nil {
+		err = fmt.Errorf("failed to construct address: %w", err)
 	}
-	sessionRecord, err := libsignalgo.DeserializeSessionRecord(record)
-	return deviceID, sessionRecord, err
+	return
 }
 
 func (s *scopedSQLStore) RemoveSession(ctx context.Context, address *libsignalgo.Address) error {
@@ -79,27 +88,17 @@ func (s *scopedSQLStore) RemoveSession(ctx context.Context, address *libsignalgo
 	return err
 }
 
-func (s *scopedSQLStore) AllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) ([]*libsignalgo.Address, []*libsignalgo.SessionRecord, error) {
+func (s *scopedSQLStore) AllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) ([]SessionAddressTuple, error) {
 	rows, err := s.db.Query(ctx, allSessionsQuery, s.AccountID, s.ServiceID, theirID)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	defer rows.Close()
-	var records []*libsignalgo.SessionRecord
-	var addresses []*libsignalgo.Address
-	for rows.Next() {
-		deviceID, record, err := scanSessionRecord(rows)
-		if err != nil {
-			return nil, nil, err
-		}
-		records = append(records, record)
-		address, err := theirID.Address(uint(deviceID))
-		if err != nil {
-			return nil, nil, err
-		}
-		addresses = append(addresses, address)
-	}
-	return addresses, records, rows.Err()
+	return dbutil.NewRowIterWithError(rows, scanSessionRecord, err).AsList()
+}
+
+func (s *scopedSQLStore) RemoveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error {
+	_, err := s.db.Exec(ctx, removeSessionsForRecipientQuery, s.AccountID, theirID)
+	return err
 }
 
 func (s *scopedSQLStore) LoadSession(ctx context.Context, address *libsignalgo.Address) (*libsignalgo.SessionRecord, error) {
@@ -111,8 +110,8 @@ func (s *scopedSQLStore) LoadSession(ctx context.Context, address *libsignalgo.A
 	if err != nil {
 		return nil, fmt.Errorf("failed to get their device ID: %w", err)
 	}
-	_, record, err := scanSessionRecord(s.db.QueryRow(ctx, loadSessionQuery, s.AccountID, s.ServiceID, theirServiceID, deviceID))
-	return record, err
+	tuple, err := scanSessionRecord(s.db.QueryRow(ctx, loadSessionQuery, s.AccountID, s.ServiceID, theirServiceID, deviceID))
+	return tuple.Record, err
 }
 
 func (s *scopedSQLStore) StoreSession(ctx context.Context, address *libsignalgo.Address, record *libsignalgo.SessionRecord) error {

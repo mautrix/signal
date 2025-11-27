@@ -23,6 +23,7 @@ package libsignalgo
 */
 import "C"
 import (
+	"encoding/base64"
 	"errors"
 	"runtime"
 	"unsafe"
@@ -54,10 +55,6 @@ func (pk *ProfileKey) IsEmpty() bool {
 	return pk == nil || *pk == blankProfileKey
 }
 
-func (ak *AccessKey) String() string {
-	return string(ak[:])
-}
-
 func (pv *ProfileKeyVersion) String() string {
 	return string(pv[:])
 }
@@ -67,6 +64,23 @@ func (pk *ProfileKey) Slice() []byte {
 		return nil
 	}
 	return pk[:]
+}
+
+func (ak *AccessKey) Xor(other *AccessKey) *AccessKey {
+	if ak == nil {
+		return other
+	} else if other == nil {
+		return ak
+	}
+	var result AccessKey
+	for i := 0; i < C.SignalACCESS_KEY_LEN; i++ {
+		result[i] = ak[i] ^ other[i]
+	}
+	return &result
+}
+
+func (ak *AccessKey) String() string {
+	return base64.StdEncoding.EncodeToString(ak[:])
 }
 
 func (pk *ProfileKey) GetCommitment(u uuid.UUID) (*ProfileKeyCommitment, error) {

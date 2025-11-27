@@ -76,7 +76,7 @@ type Device struct {
 	ACIIdentityStore libsignalgo.IdentityKeyStore
 	PNIIdentityStore libsignalgo.IdentityKeyStore
 	IdentityKeyStore IdentityKeyStore
-	SenderKeyStore   libsignalgo.SenderKeyStore
+	SenderKeyStore   SenderKeyStore
 
 	GroupStore     GroupStore
 	RecipientStore RecipientStore

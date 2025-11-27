@@ -118,6 +118,19 @@ func (s ServiceID) GoString() string {
 	return fmt.Sprintf(`libsignalgo.ServiceID{Type: %#v, UUID: uuid.MustParse("%s")}`, s.Type, s.UUID)
 }
 
+func (s ServiceID) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+func (s *ServiceID) UnmarshalText(text []byte) error {
+	parsed, err := ServiceIDFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*s = parsed
+	return nil
+}
+
 func (s ServiceID) MarshalZerologObject(e *zerolog.Event) {
 	e.Stringer("type", s.Type)
 	e.Stringer("uuid", s.UUID)
