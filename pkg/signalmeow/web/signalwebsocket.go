@@ -516,10 +516,6 @@ func writeLoop(
 				}
 				request.RequestMessage.Id = &i
 				responseChannels.Set(i, request.ResponseChannel)
-				path := *request.RequestMessage.Path
-				if len(path) > 30 {
-					path = path[:40]
-				}
 				if !request.RequestTime.IsZero() {
 					elapsed := time.Since(request.RequestTime)
 					if elapsed > 1*time.Minute {
@@ -528,14 +524,14 @@ func writeLoop(
 						log.Warn().
 							Uint64("request_id", i).
 							Str("request_verb", *request.RequestMessage.Verb).
-							Str("request_path", path).
+							Str("request_path", *request.RequestMessage.Path).
 							Dur("elapsed", elapsed).
 							Msg("Sending WS request")
 					} else {
 						log.Debug().
 							Uint64("request_id", i).
 							Str("request_verb", *request.RequestMessage.Verb).
-							Str("request_path", path).
+							Str("request_path", *request.RequestMessage.Path).
 							Dur("elapsed", elapsed).
 							Msg("Sending WS request")
 					}
