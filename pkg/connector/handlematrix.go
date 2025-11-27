@@ -380,8 +380,8 @@ func (s *SignalClient) HandleMatrixRoomAvatar(ctx context.Context, msg *bridgev2
 	}
 	var avatarPath string
 	var avatarHash [32]byte
-	if msg.Content.URL != "" {
-		data, err := s.Main.Bridge.Bot.DownloadMedia(ctx, msg.Content.URL, nil)
+	if msg.Content.URL != "" || msg.Content.MSC3414File != nil {
+		data, err := s.Main.Bridge.Bot.DownloadMedia(ctx, msg.Content.URL, msg.Content.MSC3414File)
 		if err != nil {
 			return false, fmt.Errorf("failed to download avatar: %w", err)
 		}
