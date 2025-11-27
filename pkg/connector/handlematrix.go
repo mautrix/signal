@@ -319,17 +319,20 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 }
 
 func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.MatrixTyping) error {
-	userID, _, err := signalid.ParsePortalID(typing.Portal.ID)
+	userID, groupID, err := signalid.ParsePortalID(typing.Portal.ID)
 	if err != nil {
 		return err
 	}
-	// Only send typing notifications in DMs for now
-	// Sending efficiently to groups requires implementing the proper SenderKey stuff first
+	typingMessage := signalmeow.TypingMessage(typing.IsTyping)
 	if !userID.IsEmpty() && userID.Type == libsignalgo.ServiceIDTypeACI {
-		typingMessage := signalmeow.TypingMessage(typing.IsTyping)
 		result := s.Client.SendMessage(ctx, userID, typingMessage)
 		if !result.WasSuccessful {
 			return result.Error
+		}
+	} else if groupID != "" {
+		_, err = s.Client.SendGroupMessage(ctx, groupID, typingMessage)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
