@@ -159,7 +159,6 @@ func (cli *Client) buildMessagesToSend(
 		// No sessions, make one with prekey
 		err = cli.FetchAndProcessPreKey(ctx, recipient, -1)
 		if err != nil {
-			// TODO flag 404s as unregistered
 			return nil, err
 		}
 		sessions, err = cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
@@ -952,12 +951,12 @@ func (cli *Client) sendContent(
 			return sentUnidentified, err
 		}
 	} else if *response.Status == 404 {
-		// TODO flag recipient as unregistered
 		err = cli.Store.ACISessionStore.RemoveAllSessionsForServiceID(ctx, recipient)
 		if err != nil {
 			log.Err(err).Msg("Failed to remove sessions after 404")
 		}
-		return sentUnidentified, ErrUnregisteredUser
+		cli.Store.RecipientStore.MarkUnregistered(ctx, recipient, true)
+		return sentUnidentified, fmt.Errorf("%w (send returned 404)", ErrUnregisteredUser)
 	} else if *response.Status != 200 {
 		return sentUnidentified, fmt.Errorf("unexpected status code while sending: %d", *response.Status)
 	}

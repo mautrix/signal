@@ -443,6 +443,7 @@ func (cli *Client) handleDecryptedResult(
 			Msg("Dropping message from non-ACI sender")
 		return nil
 	}
+	cli.Store.RecipientStore.MarkUnregistered(ctx, theirServiceID, false)
 
 	handlerSuccess := true
 	// result.Err is set if there was an error during decryption and we

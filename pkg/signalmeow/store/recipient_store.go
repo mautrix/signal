@@ -43,6 +43,9 @@ type RecipientStore interface {
 	StoreRecipient(ctx context.Context, recipient *types.Recipient) error
 	UpdateRecipientE164(ctx context.Context, aci, pni uuid.UUID, e164 string) (*types.Recipient, error)
 
+	IsUnregistered(ctx context.Context, serviceID libsignalgo.ServiceID) bool
+	MarkUnregistered(ctx context.Context, serviceID libsignalgo.ServiceID, unregistered bool)
+
 	LoadAllContacts(ctx context.Context) ([]*types.Recipient, error)
 }
 
@@ -386,4 +389,36 @@ func (s *sqlStore) StoreRecipient(ctx context.Context, recipient *types.Recipien
 		err = fmt.Errorf("no ACI or PNI provided in StoreRecipient call")
 	}
 	return
+}
+
+const (
+	isUnregisteredQuery   = `SELECT 1 FROM signalmeow_unregistered_users WHERE aci_uuid=$1`
+	markUnregisteredQuery = `INSERT INTO signalmeow_unregistered_users (aci_uuid) VALUES ($1) ON CONFLICT (aci_uuid) DO NOTHING`
+	markRegisteredQuery   = `DELETE FROM signalmeow_unregistered_users WHERE aci_uuid=$1`
+)
+
+func (s *sqlStore) IsUnregistered(ctx context.Context, serviceID libsignalgo.ServiceID) (unregistered bool) {
+	if serviceID.Type != libsignalgo.ServiceIDTypeACI {
+		return
+	}
+	_ = s.db.QueryRow(ctx, isUnregisteredQuery, serviceID.UUID).Scan(&unregistered)
+	return
+}
+
+func (s *sqlStore) MarkUnregistered(ctx context.Context, serviceID libsignalgo.ServiceID, unregistered bool) {
+	if serviceID.Type != libsignalgo.ServiceIDTypeACI {
+		return
+	}
+	var err error
+	if unregistered {
+		_, err = s.db.Exec(ctx, markUnregisteredQuery, serviceID.UUID)
+	} else {
+		_, err = s.db.Exec(ctx, markRegisteredQuery, serviceID.UUID)
+	}
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).
+			Stringer("service_id", serviceID).
+			Bool("unregistered", unregistered).
+			Msg("Failed to mark recipient as unregistered")
+	}
 }

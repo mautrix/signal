@@ -1,4 +1,4 @@
--- v0 -> v24 (compatible with v13+): Latest revision
+-- v0 -> v25 (compatible with v13+): Latest revision
 CREATE TABLE signalmeow_device (
     aci_uuid              TEXT PRIMARY KEY,
 
@@ -132,6 +132,10 @@ CREATE TABLE signalmeow_recipients (
         ON DELETE CASCADE ON UPDATE CASCADE,
     CONSTRAINT signalmeow_contacts_aci_unique UNIQUE (account_id, aci_uuid),
     CONSTRAINT signalmeow_contacts_pni_unique UNIQUE (account_id, pni_uuid)
+);
+
+CREATE TABLE signalmeow_unregistered_users (
+    aci_uuid uuid PRIMARY KEY
 );
 
 CREATE TABLE signalmeow_backup_recipient (

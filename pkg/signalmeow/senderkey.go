@@ -200,12 +200,12 @@ func (cli *Client) sendToGroupWithSenderKey(
 			Msg("Got successful multi-recipient send response")
 		for serviceID := range deviceIDs {
 			if slices.Contains(respData.UUIDs404, serviceID) {
-				// TODO flag recipient as unregistered
 				err = cli.Store.ACISessionStore.RemoveAllSessionsForServiceID(ctx, serviceID)
 				if err != nil {
 					log.Err(err).Stringer("recipient_id", serviceID).
 						Msg("Failed to remove sessions after 404")
 				}
+				cli.Store.RecipientStore.MarkUnregistered(ctx, serviceID, true)
 				result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
 					Recipient: serviceID,
 					Error:     fmt.Errorf("multi-recipient send 404"),
