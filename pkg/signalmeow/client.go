@@ -72,7 +72,7 @@ func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.
 		Store:        device,
 		Log:          log,
 		EventHandler: evtHandler,
-		GroupCache:   NewGroupCache(),
+		GroupCache:   NewGroupCache(device.ACIServiceID()),
 		ProfileCache: &ProfileCache{
 			profiles:    make(map[string]*types.Profile),
 			errors:      make(map[string]*error),

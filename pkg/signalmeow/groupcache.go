@@ -29,14 +29,31 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
+type SendEndorsementCache struct {
+	SendEndorsement    libsignalgo.GroupSendEndorsement
+	MemberEndorsements map[libsignalgo.ServiceID]libsignalgo.GroupSendEndorsement
+	Expiration         time.Time
+	SecretParams       *libsignalgo.GroupSecretParams
+}
+
+func (sec *SendEndorsementCache) GetToken() (libsignalgo.GroupSendFullToken, error) {
+	return sec.GetTokenWith(sec.SendEndorsement)
+}
+
+func (sec *SendEndorsementCache) GetTokenWith(altToken libsignalgo.GroupSendEndorsement) (libsignalgo.GroupSendFullToken, error) {
+	return altToken.ToFullToken(sec.SecretParams, sec.Expiration)
+}
+
 type cachedGroup struct {
 	*Group
-	SendEndorsement []byte
-	FetchedAt       time.Time
-	UpdatedAt       time.Time
+	*SendEndorsementCache
+	FetchedAt time.Time
+	UpdatedAt time.Time
 }
 
 type GroupCache struct {
+	serviceID libsignalgo.ServiceID
+
 	credentials     *GroupCredentials
 	credentialsLock sync.RWMutex
 
@@ -47,8 +64,9 @@ type GroupCache struct {
 	callsLock   sync.RWMutex
 }
 
-func NewGroupCache() *GroupCache {
+func NewGroupCache(serviceID libsignalgo.ServiceID) *GroupCache {
 	return &GroupCache{
+		serviceID:   serviceID,
 		data:        make(map[types.GroupIdentifier]*cachedGroup),
 		activeCalls: make(map[types.GroupIdentifier]string),
 	}
@@ -111,14 +129,14 @@ func (gc *GroupCache) UpdateActiveCall(id types.GroupIdentifier, callID string) 
 	return true
 }
 
-func (gc *GroupCache) Get(id types.GroupIdentifier) (*Group, bool) {
+func (gc *GroupCache) Get(id types.GroupIdentifier) (*Group, *SendEndorsementCache, bool) {
 	gc.lock.RLock()
 	defer gc.lock.RUnlock()
 	c, ok := gc.data[id]
-	if !ok {
-		return nil, false
+	if !ok || time.Until(c.Expiration) < 5*time.Minute {
+		return nil, nil, false
 	}
-	return c.Group, true
+	return c.Group, c.SendEndorsementCache, true
 }
 
 func (gc *GroupCache) Delete(id types.GroupIdentifier) {
@@ -127,26 +145,50 @@ func (gc *GroupCache) Delete(id types.GroupIdentifier) {
 	delete(gc.data, id)
 }
 
-func (gc *GroupCache) Put(data *Group, endorsementResponse []byte) {
+func (gc *GroupCache) Put(data *Group, endorsementResponse libsignalgo.GroupSendEndorsementsResponse) error {
+	gsp, err := masterKeyToBytes(data.GroupMasterKey).SecretParams()
+	if err != nil {
+		return fmt.Errorf("failed to get secret params: %w", err)
+	}
+	expiration, err := endorsementResponse.GetExpiration()
+	if err != nil {
+		return fmt.Errorf("failed to get endorsement expiration: %w", err)
+	}
+	endorsement, memberEndorsements, err := endorsementResponse.ReceiveWithServiceIDs(data.getMemberServiceIDs(), gc.serviceID, &gsp, prodServerPublicParams)
+	if err != nil {
+		return fmt.Errorf("failed to receive endorsements: %w", err)
+	}
+
 	gc.lock.Lock()
 	defer gc.lock.Unlock()
 	cached, exists := gc.data[data.GroupIdentifier]
 	if exists && cached.Revision > data.Revision {
-		return
+		return nil
 	}
 	gc.data[data.GroupIdentifier] = &cachedGroup{
 		Group:     data,
 		FetchedAt: time.Now(),
 		UpdatedAt: time.Now(),
 
-		//SendEndorsement: endorsementResponse,
+		SendEndorsementCache: &SendEndorsementCache{
+			Expiration:         expiration,
+			SendEndorsement:    endorsement,
+			MemberEndorsements: memberEndorsements,
+			SecretParams:       &gsp,
+		},
 	}
+	return nil
 }
 
-func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse []byte) {
-	rawGroupID, err := masterKeyToBytes(change.GroupMasterKey).GroupIdentifier()
+func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse libsignalgo.GroupSendEndorsementsResponse) error {
+	mkBytes := masterKeyToBytes(change.GroupMasterKey)
+	rawGroupID, err := mkBytes.GroupIdentifier()
 	if err != nil {
-		return
+		return fmt.Errorf("failed to get group identifier: %w", err)
+	}
+	gsp, err := mkBytes.SecretParams()
+	if err != nil {
+		return fmt.Errorf("failed to get secret params: %w", err)
 	}
 	id := types.GroupIdentifier(rawGroupID.String())
 
@@ -155,11 +197,11 @@ func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse []byt
 
 	cached, exists := gc.data[id]
 	if !exists || cached.Revision >= change.Revision {
-		return
+		return nil
 	} else if cached.Revision < change.Revision-1 {
 		// We missed an update, evict
 		delete(gc.data, id)
-		return
+		return nil
 	}
 
 	// Pending member adds, promotes and removes
@@ -275,7 +317,30 @@ func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse []byt
 		cached.AccessControl.AddFromInviteLink = *change.ModifyAddFromInviteLinkAccess
 	}
 
-	// TODO handle endorsement responses
 	cached.UpdatedAt = time.Now()
 	cached.Revision = change.Revision
+	endorsement, memberEndorsements, err := endorsementResponse.ReceiveWithServiceIDs(
+		cached.getMemberServiceIDs(),
+		gc.serviceID,
+		&gsp,
+		prodServerPublicParams,
+	)
+	if err != nil {
+		delete(gc.data, id)
+		return fmt.Errorf("failed to receive endorsements: %w", err)
+	}
+	expiration, err := endorsementResponse.GetExpiration()
+	if err != nil {
+		delete(gc.data, id)
+		return fmt.Errorf("failed to get endorsement expiration: %w", err)
+	}
+	// TODO do these responses overwrite the entire thing?
+	cached.SendEndorsementCache = &SendEndorsementCache{
+		SendEndorsement:    endorsement,
+		MemberEndorsements: memberEndorsements,
+		Expiration:         expiration,
+		SecretParams:       &gsp,
+	}
+
+	return nil
 }

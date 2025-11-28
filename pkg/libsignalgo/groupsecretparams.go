@@ -76,6 +76,10 @@ func (gmk GroupMasterKey) GroupIdentifier() (*GroupIdentifier, error) {
 	}
 }
 
+func (gmk GroupMasterKey) SecretParams() (GroupSecretParams, error) {
+	return DeriveGroupSecretParamsFromMasterKey(gmk)
+}
+
 func GenerateGroupSecretParamsWithRandomness(randomness Randomness) (GroupSecretParams, error) {
 	var params [C.SignalGROUP_SECRET_PARAMS_LEN]C.uchar
 	signalFfiError := C.signal_group_secret_params_generate_deterministic(&params, (*[C.SignalRANDOMNESS_LEN]C.uint8_t)(unsafe.Pointer(&randomness)))

@@ -50,6 +50,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 	ctx context.Context,
 	groupID types.GroupIdentifier,
 	allRecipients []libsignalgo.ServiceID,
+	sec SendEndorsementCache,
 	content *signalpb.Content,
 	messageTimestamp uint64,
 	retries int,
@@ -78,7 +79,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 		FailedToSendTo:     make([]FailedSendResult, 0),
 	}
 
-	deviceIDs, senderKeyRecipients, fallbackRecipients := cli.getDevicesIDs(ctx, allRecipients, result)
+	deviceIDs, senderKeyRecipients, fallbackRecipients := cli.getDevicesIDs(ctx, allRecipients, sec, result)
 	ski, err := cli.Store.SenderKeyStore.GetSenderKeyInfo(ctx, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender key info: %w", err)
@@ -148,7 +149,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 		}
 		if needsRetry {
 			doUnlock()
-			return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, content, messageTimestamp, retries+1)
+			return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
 		}
 	}
 	ssCiphertext, err := cli.encryptWithSenderKey(ctx, groupID, ski.DistributionID, myAddress, senderKeyRecipients, content)
@@ -157,11 +158,27 @@ func (cli *Client) sendToGroupWithSenderKey(
 	}
 	header := http.Header{}
 	header.Set("Content-Type", string(web.ContentTypeMultiRecipientMessage))
-	//if groupSendToken != nil {
-	//	header.Set("Group-Send-Token", groupSendToken.String())
-	//} else {
-	header.Set("Unidentified-Access-Key", xak.String())
-	//}
+	if sec.SendEndorsement != nil {
+		wantedEndorsements := make([]libsignalgo.GroupSendEndorsement, 0, len(deviceIDs))
+		for serviceID := range deviceIDs {
+			endorsement, ok := sec.MemberEndorsements[serviceID]
+			if !ok {
+				return nil, fmt.Errorf("missing group send endorsement for service ID %s", serviceID.String())
+			}
+			wantedEndorsements = append(wantedEndorsements, endorsement)
+		}
+		combinedEndorsement, err := libsignalgo.GroupSendEndorsementCombine(wantedEndorsements...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to combine group send endorsements: %w", err)
+		}
+		groupSendToken, err := sec.GetTokenWith(combinedEndorsement)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create group send full token: %w", err)
+		}
+		header.Set("Group-Send-Token", groupSendToken.String())
+	} else {
+		header.Set("Unidentified-Access-Key", xak.String())
+	}
 	path := fmt.Sprintf(
 		"/v1/messages/multi_recipient?ts=%d&urgent=%t&online=false",
 		messageTimestamp, isUrgent(content),
@@ -218,7 +235,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 		}
 		doUnlock()
 		// Retry recursively after fixing device lists
-		return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, content, messageTimestamp, retries+1)
+		return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
 	default:
 		return nil, fmt.Errorf("unexpected status code %d in multi-recipient send", resp.GetStatus())
 	}
@@ -305,8 +322,15 @@ type senderKeySendMeta struct {
 	AccessKey *libsignalgo.AccessKey
 }
 
-func (cli *Client) getDevicesIDs(ctx context.Context, recipients []libsignalgo.ServiceID, result *GroupMessageSendResult) (
-	map[libsignalgo.ServiceID]senderKeySendMeta, []store.SessionAddressTuple, []libsignalgo.ServiceID,
+func (cli *Client) getDevicesIDs(
+	ctx context.Context,
+	recipients []libsignalgo.ServiceID,
+	sendEndorsement SendEndorsementCache,
+	result *GroupMessageSendResult,
+) (
+	map[libsignalgo.ServiceID]senderKeySendMeta,
+	[]store.SessionAddressTuple,
+	[]libsignalgo.ServiceID,
 ) {
 	log := zerolog.Ctx(ctx)
 	out := make(map[libsignalgo.ServiceID]senderKeySendMeta)
@@ -319,6 +343,10 @@ func (cli *Client) getDevicesIDs(ctx context.Context, recipients []libsignalgo.S
 		}
 		fallbackRecipients = append(fallbackRecipients, recipient)
 		if recipient.Type != libsignalgo.ServiceIDTypeACI {
+			continue
+		}
+		_, hasEndorsement := sendEndorsement.MemberEndorsements[recipient]
+		if !hasEndorsement {
 			continue
 		}
 		profileKey, err := cli.Store.RecipientStore.LoadProfileKey(ctx, recipient.UUID)

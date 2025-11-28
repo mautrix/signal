@@ -39,3 +39,17 @@ func CopySignalOwnedBufferToBytes(buffer C.SignalOwnedBuffer) (b []byte) {
 	C.signal_free_buffer(buffer.base, buffer.length)
 	return
 }
+
+func CopySignalBytestringArray[T ~[]byte](buffer C.SignalBytestringArray) (b []T) {
+	concatted := C.GoBytes(unsafe.Pointer(buffer.bytes.base), C.int(buffer.bytes.length))
+	b = make([]T, int(buffer.lengths.length))
+	sizeTSize := unsafe.Sizeof(C.size_t(0))
+	offset := 0
+	for i := 0; i < int(buffer.lengths.length); i++ {
+		length := int(*(*C.size_t)(unsafe.Add(unsafe.Pointer(buffer.lengths.base), uintptr(i)*sizeTSize)))
+		b[i] = concatted[offset : offset+length]
+		offset += length
+	}
+	C.signal_free_bytestring_array(buffer)
+	return
+}

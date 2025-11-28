@@ -21,6 +21,8 @@ package libsignalgo
 */
 import "C"
 import (
+	"fmt"
+	"runtime"
 	"unsafe"
 )
 
@@ -40,6 +42,22 @@ func BytesToBuffer(data []byte) C.SignalBorrowedBuffer {
 		buf.base = (*C.uchar)(unsafe.Pointer(&data[0]))
 	}
 	return buf
+}
+
+func ManyBytesToBuffer[T ~[]byte](datas []T) (C.SignalBorrowedSliceOfBuffers, func()) {
+	buffers := make([]C.SignalBorrowedBuffer, len(datas))
+	var pinner runtime.Pinner
+	for i, data := range datas {
+		if len(data) == 0 {
+			panic(fmt.Errorf("empty slice passed to ManyBytesToBuffer at index %d", i))
+		}
+		pinner.Pin(&data[0])
+		buffers[i] = BytesToBuffer(data)
+	}
+	return C.SignalBorrowedSliceOfBuffers{
+		base:   unsafe.SliceData(buffers),
+		length: C.size_t(len(buffers)),
+	}, pinner.Unpin
 }
 
 func EmptyBorrowedBuffer() C.SignalBorrowedBuffer {

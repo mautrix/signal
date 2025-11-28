@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exslices"
 	"go.mau.fi/util/ptr"
 	"go.mau.fi/util/random"
 	"google.golang.org/protobuf/proto"
@@ -88,6 +89,12 @@ type Group struct {
 	BannedMembers                []*BannedMember
 	InviteLinkPassword           *types.SerializedInviteLinkPassword
 	//PublicKey                  *libsignalgo.PublicKey
+}
+
+func (group *Group) getMemberServiceIDs() []libsignalgo.ServiceID {
+	return exslices.CastFunc(group.Members, func(from *GroupMember) libsignalgo.ServiceID {
+		return libsignalgo.NewACIServiceID(from.ACI)
+	})
 }
 
 func (group *Group) GetInviteLink() (string, error) {
@@ -654,7 +661,10 @@ func (cli *Client) parseGroupResponse(ctx context.Context, response *http.Respon
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt group: %w", err)
 	}
-	cli.GroupCache.Put(group, groupResponse.GroupSendEndorsementsResponse)
+	err = cli.GroupCache.Put(group, groupResponse.GroupSendEndorsementsResponse)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to cache group response")
+	}
 
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
@@ -697,12 +707,21 @@ func (cli *Client) DownloadGroupAvatar(ctx context.Context, avatarPath string, g
 	return decrypted, nil
 }
 
-func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentifier, revision uint32) (*Group, error) {
-	cached, ok := cli.GroupCache.Get(gid)
+func (cli *Client) RetrieveGroupByID(ctx context.Context, gid types.GroupIdentifier, revision uint32) (*Group, *SendEndorsementCache, error) {
+	cached, endorsement, ok := cli.GroupCache.Get(gid)
 	if ok && cached.Revision >= revision {
-		return cached, nil
+		return cached, endorsement, nil
 	}
-	return cli.fetchGroupByID(ctx, gid)
+	group, err := cli.fetchGroupByID(ctx, gid)
+	if err != nil {
+		return nil, nil, err
+	}
+	cached, endorsement, ok = cli.GroupCache.Get(gid)
+	if !ok {
+		zerolog.Ctx(ctx).Warn().Msg("Group not found in cache after fetching")
+		return group, nil, nil
+	}
+	return cached, endorsement, nil
 }
 
 // We should store the group master key in the group store as soon as we see it,
@@ -1049,7 +1068,10 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 	}
 
 	success = true
-	cli.GroupCache.ApplyUpdate(decryptedGroupChange, nil)
+	err = cli.GroupCache.ApplyUpdate(decryptedGroupChange, nil)
+	if err != nil {
+		log.Err(err).Msg("Failed to apply group change to cache")
+	}
 
 	return decryptedGroupChange, nil
 }
@@ -1499,7 +1521,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	var refetchedAddMemberCredentials bool
 	var signedGroupChange *signalpb.GroupChangeResponse
-	group, err := cli.RetrieveGroupByID(ctx, gid, 0)
+	group, _, err := cli.RetrieveGroupByID(ctx, gid, 0)
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch group info to update: %w", err)
 	}
@@ -1523,7 +1545,7 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 			}
 		} else if errors.Is(err, ConflictError) {
 			cli.GroupCache.Delete(gid)
-			group, err = cli.RetrieveGroupByID(ctx, gid, 0)
+			group, _, err = cli.RetrieveGroupByID(ctx, gid, 0)
 			if err != nil {
 				return 0, fmt.Errorf("failed to fetch group after conflict: %w", err)
 			}
@@ -1539,7 +1561,10 @@ func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gi
 	if signedGroupChange == nil {
 		return 0, fmt.Errorf("no signed group change returned: %w", err)
 	}
-	cli.GroupCache.ApplyUpdate(groupChange, signedGroupChange.GroupSendEndorsementsResponse)
+	err = cli.GroupCache.ApplyUpdate(groupChange, signedGroupChange.GroupSendEndorsementsResponse)
+	if err != nil {
+		log.Err(err).Msg("Failed to apply group change to cache")
+	}
 	groupChangeBytes, err := proto.Marshal(signedGroupChange.GroupChange)
 	if err != nil {
 		return 0, fmt.Errorf("failed to marshal signed group change: %w", err)

@@ -98,7 +98,7 @@ func inviteLinkToJoinRule(inviteLinkAccess signalmeow.AccessControl) event.JoinR
 }
 
 func (s *SignalClient) getGroupInfo(ctx context.Context, groupID types.GroupIdentifier, minRevision uint32, backupChat *store.BackupChat) (*bridgev2.ChatInfo, error) {
-	groupInfo, err := s.Client.RetrieveGroupByID(ctx, groupID, minRevision)
+	groupInfo, _, err := s.Client.RetrieveGroupByID(ctx, groupID, minRevision)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve group by id: %w", err)
 	}

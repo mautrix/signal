@@ -543,11 +543,10 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		Stringer("group_id", gid).
 		Logger()
 	ctx = log.WithContext(ctx)
-	group, err := cli.RetrieveGroupByID(ctx, gid, 0)
+	group, endorsement, err := cli.RetrieveGroupByID(ctx, gid, 0)
 	if err != nil {
 		return nil, err
 	}
-
 	var messageTimestamp uint64
 	if content.GetDataMessage() != nil {
 		messageTimestamp = content.DataMessage.GetTimestamp()
@@ -568,7 +567,7 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 		recipients = append(recipients, member.UserServiceID())
 	}
 	if enableSenderKeySend {
-		return cli.sendToGroupWithSenderKey(ctx, gid, recipients, content, messageTimestamp, 0)
+		return cli.sendToGroupWithSenderKey(ctx, gid, recipients, ptr.Val(endorsement), content, messageTimestamp, 0)
 	}
 	return cli.sendToGroup(ctx, recipients, content, messageTimestamp, nil)
 }
