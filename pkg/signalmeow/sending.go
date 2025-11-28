@@ -534,7 +534,7 @@ func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupConte
 	return cli.sendToGroup(ctx, recipients, content, timestamp, nil)
 }
 
-const enableSenderKeySend = false
+const enableSenderKeySend = true
 
 func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifier, content *signalpb.Content) (*GroupMessageSendResult, error) {
 	log := zerolog.Ctx(ctx).With().
