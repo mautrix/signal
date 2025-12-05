@@ -212,7 +212,7 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ b
 		e164String := fmt.Sprintf("+%d", e164Number)
 		if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {
 			return nil, fmt.Errorf("error looking up number in local contact list: %w", err)
-		} else if recipient != nil {
+		} else if recipient != nil && (recipient.ACI == uuid.Nil || !s.Client.Store.RecipientStore.IsUnregistered(ctx, libsignalgo.NewACIServiceID(recipient.ACI))) {
 			aci = recipient.ACI
 			pni = recipient.PNI
 		} else if resp, err := s.Client.LookupPhone(ctx, e164Number); err != nil {
@@ -228,6 +228,9 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ b
 				zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
 			}
 			aci, pni = recipient.ACI, recipient.PNI
+			if aci != uuid.Nil {
+				s.Client.Store.RecipientStore.MarkUnregistered(ctx, libsignalgo.NewACIServiceID(aci), false)
+			}
 		}
 	} else {
 		aci, pni = serviceID.ToACIAndPNI()
