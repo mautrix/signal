@@ -147,7 +147,9 @@ func (cli *Client) buildMessagesToSend(
 	ctx context.Context,
 	recipient libsignalgo.ServiceID,
 	content *signalpb.Content,
-	unauthenticated, isGroup bool,
+	unauthenticated bool,
+	groupID *libsignalgo.GroupIdentifier,
+	ctmOverride *libsignalgo.CiphertextMessage,
 ) ([]MyMessage, error) {
 	if ctx.Value(contextKeyEncryptionLock) != true {
 		cli.encryptionLock.Lock()
@@ -179,26 +181,19 @@ func (cli *Client) buildMessagesToSend(
 			continue
 		}
 
-		// Build message payload
 		serializedMessage, err := proto.Marshal(content)
 		if err != nil {
 			return nil, err
 		}
-		paddedMessage, err := addPadding(3, serializedMessage) // TODO: figure out how to get actual version
+		paddedMessage, err := addPadding(3, serializedMessage)
 		if err != nil {
 			return nil, err
 		}
 
-		var envelopeType int
-		var encryptedPayload []byte
-		if unauthenticated {
-			includeE164 := !isGroup && cli.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY
-			envelopeType, encryptedPayload, err = cli.buildSSMessageToSend(
-				ctx, tuple.Address, paddedMessage, getContentHint(content), includeE164,
-			)
-		} else {
-			envelopeType, encryptedPayload, err = cli.buildAuthedMessageToSend(ctx, tuple.Address, paddedMessage)
-		}
+		includeE164 := groupID == nil && cli.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY
+		envelopeType, encryptedPayload, err := cli.buildMessageToSend(
+			ctx, tuple.Address, paddedMessage, getContentHint(content), ctmOverride, groupID, includeE164, unauthenticated,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -208,7 +203,7 @@ func (cli *Client) buildMessagesToSend(
 			return nil, err
 		}
 		outgoingMessage := MyMessage{
-			Type:                      envelopeType,
+			Type:                      int(envelopeType),
 			DestinationDeviceID:       tuple.DeviceID,
 			DestinationRegistrationID: int(destinationRegistrationID),
 			Content:                   base64.StdEncoding.EncodeToString(encryptedPayload),
@@ -219,54 +214,59 @@ func (cli *Client) buildMessagesToSend(
 	return messages, nil
 }
 
-func (cli *Client) buildAuthedMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte) (envelopeType int, encryptedPayload []byte, err error) {
-	cipherTextMessage, err := libsignalgo.Encrypt(
-		ctx,
-		paddedMessage,
-		recipientAddress,
-		cli.Store.ACISessionStore,
-		cli.Store.ACIIdentityStore,
-	)
-	if err != nil {
-		return 0, nil, err
+func ctmTypeToEnvelopeType(ctmType libsignalgo.CiphertextMessageType) signalpb.Envelope_Type {
+	switch ctmType {
+	case libsignalgo.CiphertextMessageTypeWhisper:
+		return signalpb.Envelope_CIPHERTEXT // 2 -> 1
+	case libsignalgo.CiphertextMessageTypePreKey:
+		return signalpb.Envelope_PREKEY_BUNDLE // 3 -> 3
+	case libsignalgo.CiphertextMessageTypeSenderKey:
+		return signalpb.Envelope_SENDERKEY_MESSAGE // 7 -> 7
+	case libsignalgo.CiphertextMessageTypePlaintext:
+		return signalpb.Envelope_PLAINTEXT_CONTENT // 8 -> 8
+	default:
+		return signalpb.Envelope_UNKNOWN
 	}
-	encryptedPayload, err = cipherTextMessage.Serialize()
-	if err != nil {
-		return 0, nil, err
-	}
-
-	// OMG Signal are you serious why can't your magic numbers just align
-	cipherMessageType, _ := cipherTextMessage.MessageType()
-	if cipherMessageType == libsignalgo.CiphertextMessageTypePreKey { // 3 -> 3
-		envelopeType = int(signalpb.Envelope_PREKEY_BUNDLE)
-	} else if cipherMessageType == libsignalgo.CiphertextMessageTypeWhisper { // 2 -> 1
-		envelopeType = int(signalpb.Envelope_CIPHERTEXT)
-	} else {
-		return 0, nil, fmt.Errorf("unknown message type: %v", cipherMessageType)
-	}
-	return envelopeType, encryptedPayload, nil
 }
 
-func (cli *Client) buildSSMessageToSend(ctx context.Context, recipientAddress *libsignalgo.Address, paddedMessage []byte, contentHint libsignalgo.UnidentifiedSenderMessageContentHint, includeE164 bool) (envelopeType int, encryptedPayload []byte, err error) {
+func (cli *Client) buildMessageToSend(
+	ctx context.Context,
+	recipientAddress *libsignalgo.Address,
+	paddedMessage []byte,
+	contentHint libsignalgo.UnidentifiedSenderMessageContentHint,
+	ciphertextMessage *libsignalgo.CiphertextMessage,
+	groupID *libsignalgo.GroupIdentifier,
+	includeE164, sealedSender bool,
+) (envelopeType signalpb.Envelope_Type, encryptedPayload []byte, err error) {
+	if ciphertextMessage == nil {
+		ciphertextMessage, err = libsignalgo.Encrypt(
+			ctx,
+			paddedMessage,
+			recipientAddress,
+			cli.Store.ACISessionStore,
+			cli.Store.ACIIdentityStore,
+		)
+		if err != nil {
+			return 0, nil, err
+		}
+	}
+	cipherMessageType, _ := ciphertextMessage.MessageType()
+	envelopeType = ctmTypeToEnvelopeType(cipherMessageType)
+	if !sealedSender {
+		encryptedPayload, err = ciphertextMessage.Serialize()
+		return
+	}
 	cert, err := cli.senderCertificate(ctx, includeE164)
 	if err != nil {
 		return 0, nil, err
 	}
-	encryptedPayload, err = libsignalgo.SealedSenderEncryptPlaintext(
-		ctx,
-		paddedMessage,
-		contentHint,
-		recipientAddress,
-		cert,
-		cli.Store.ACISessionStore,
-		cli.Store.ACIIdentityStore,
-	)
+	usmc, err := libsignalgo.NewUnidentifiedSenderMessageContent(ciphertextMessage, cert, contentHint, groupID)
 	if err != nil {
 		return 0, nil, err
 	}
-	envelopeType = int(signalpb.Envelope_UNIDENTIFIED_SENDER)
-
-	return envelopeType, encryptedPayload, nil
+	encryptedPayload, err = libsignalgo.SealedSenderEncrypt(ctx, usmc, recipientAddress, cli.Store.ACIIdentityStore)
+	envelopeType = signalpb.Envelope_UNIDENTIFIED_SENDER
+	return
 }
 
 type SuccessfulSendResult struct {
@@ -427,7 +427,7 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 				Type: signalpb.SyncMessage_Request_CONTACTS.Enum(),
 			},
 		},
-	}, 0, false, false)
+	}, 0, false, nil, nil)
 	if err != nil {
 		log.Err(err).Msg("Failed to send contact sync request message to myself")
 		return err
@@ -447,7 +447,7 @@ func (cli *Client) SendStorageMasterKeyRequest(ctx context.Context) error {
 				Type: signalpb.SyncMessage_Request_KEYS.Enum(),
 			},
 		},
-	}, 0, false, false)
+	}, 0, false, nil, nil)
 	if err != nil {
 		log.Err(err).Msg("Failed to send key sync request message to myself")
 		return err
@@ -502,11 +502,23 @@ func wrapDataMessageInContent(dm *signalpb.DataMessage) *signalpb.Content {
 	}
 }
 
+func (cli *Client) addSendCache(recipient libsignalgo.ServiceID, groupID types.GroupIdentifier, ts uint64, content *signalpb.Content) {
+	cli.sendCache.Push(sendCacheKey{
+		recipient: recipient,
+		groupID:   groupID,
+		timestamp: ts,
+	}, content)
+}
+
 func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupContext *signalpb.GroupContextV2, groupChange *GroupChange) (*GroupMessageSendResult, error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send group change message").
 		Stringer("group_id", group.GroupIdentifier).
 		Logger()
+	gidBytes, err := group.GroupIdentifier.Bytes()
+	if err != nil {
+		return nil, err
+	}
 	ctx = log.WithContext(ctx)
 	timestamp := currentMessageTimestamp()
 	dm := &signalpb.DataMessage{
@@ -518,20 +530,24 @@ func (cli *Client) SendGroupUpdate(ctx context.Context, group *Group, groupConte
 	for _, member := range group.Members {
 		serviceID := member.UserServiceID()
 		recipients = append(recipients, serviceID)
+		cli.addSendCache(serviceID, group.GroupIdentifier, timestamp, content)
 	}
 	for _, member := range group.PendingMembers {
 		recipients = append(recipients, member.ServiceID)
+		cli.addSendCache(member.ServiceID, group.GroupIdentifier, timestamp, content)
 	}
 	if groupChange != nil {
 		for _, member := range groupChange.AddPendingMembers {
 			recipients = append(recipients, member.ServiceID)
+			cli.addSendCache(member.ServiceID, group.GroupIdentifier, timestamp, content)
 		}
 		for _, member := range groupChange.AddMembers {
 			serviceID := member.UserServiceID()
 			recipients = append(recipients, serviceID)
+			cli.addSendCache(serviceID, group.GroupIdentifier, timestamp, content)
 		}
 	}
-	return cli.sendToGroup(ctx, recipients, content, timestamp, nil)
+	return cli.sendToGroup(ctx, recipients, content, timestamp, nil, &gidBytes)
 }
 
 const enableSenderKeySend = true
@@ -565,10 +581,14 @@ func (cli *Client) SendGroupMessage(ctx context.Context, gid types.GroupIdentifi
 	for _, member := range group.Members {
 		recipients = append(recipients, member.UserServiceID())
 	}
-	if enableSenderKeySend {
-		return cli.sendToGroupWithSenderKey(ctx, gid, recipients, ptr.Val(endorsement), content, messageTimestamp, 0)
+	gidBytes, err := gid.Bytes()
+	if err != nil {
+		return nil, err
 	}
-	return cli.sendToGroup(ctx, recipients, content, messageTimestamp, nil)
+	if enableSenderKeySend {
+		return cli.sendToGroupWithSenderKey(ctx, &gidBytes, recipients, ptr.Val(endorsement), content, messageTimestamp, 0)
+	}
+	return cli.sendToGroup(ctx, recipients, content, messageTimestamp, nil, &gidBytes)
 }
 
 func (cli *Client) sendToGroup(
@@ -577,6 +597,7 @@ func (cli *Client) sendToGroup(
 	content *signalpb.Content,
 	messageTimestamp uint64,
 	result *GroupMessageSendResult,
+	groupID *libsignalgo.GroupIdentifier,
 ) (*GroupMessageSendResult, error) {
 	if result == nil {
 		result = &GroupMessageSendResult{
@@ -595,7 +616,7 @@ func (cli *Client) sendToGroup(
 		}
 		log := zerolog.Ctx(ctx).With().Stringer("member", recipient).Logger()
 		ctx := log.WithContext(ctx)
-		sentUnidentified, err := cli.sendContent(ctx, recipient, messageTimestamp, content, 0, true, true)
+		sentUnidentified, err := cli.sendContent(ctx, recipient, messageTimestamp, content, 0, true, groupID, nil)
 		if err != nil {
 			result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
 				Recipient: recipient,
@@ -611,7 +632,7 @@ func (cli *Client) sendToGroup(
 		}
 	}
 
-	cli.sendGroupSyncCopy(ctx, content, messageTimestamp, result)
+	cli.sendGroupSyncCopy(ctx, content, messageTimestamp, result, groupID)
 
 	if len(result.FailedToSendTo) == 0 && len(result.SuccessfullySentTo) == 0 {
 		return result, nil // I only sent to myself
@@ -629,6 +650,7 @@ func (cli *Client) sendGroupSyncCopy(
 	content *signalpb.Content,
 	messageTimestamp uint64,
 	result *GroupMessageSendResult,
+	groupID *libsignalgo.GroupIdentifier,
 ) {
 	var syncContent *signalpb.Content
 	if content.GetDataMessage() != nil {
@@ -637,7 +659,7 @@ func (cli *Client) sendGroupSyncCopy(
 		syncContent = syncMessageFromGroupEditMessage(content.EditMessage, result.SuccessfullySentTo)
 	}
 	if syncContent != nil {
-		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true, true)
+		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTimestamp, syncContent, 0, true, groupID, nil)
 		if selfSendErr != nil {
 			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 		}
@@ -656,7 +678,7 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 		syncContent = content
 	}
 	if syncContent != nil {
-		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true, false)
+		_, selfSendErr := cli.sendContent(ctx, cli.Store.ACIServiceID(), messageTS, syncContent, 0, true, nil, nil)
 		if selfSendErr != nil {
 			zerolog.Ctx(ctx).Err(selfSendErr).Msg("Failed to send sync message to myself")
 		} else {
@@ -740,8 +762,9 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		}
 	}
 
+	cli.addSendCache(recipientID, "", messageTimestamp, content)
 	// Send to the recipient
-	sentUnidentified, err := cli.sendContent(ctx, recipientID, messageTimestamp, content, 0, true, false)
+	sentUnidentified, err := cli.sendContent(ctx, recipientID, messageTimestamp, content, 0, true, nil, nil)
 	if err != nil {
 		return SendMessageResult{
 			WasSuccessful: false,
@@ -793,8 +816,7 @@ func isUrgent(content *signalpb.Content) bool {
 
 func getContentHint(content *signalpb.Content) libsignalgo.UnidentifiedSenderMessageContentHint {
 	if content.DataMessage != nil || content.EditMessage != nil {
-		// TODO add support for resending before setting this
-		//return libsignalgo.UnidentifiedSenderMessageContentHintResendable
+		return libsignalgo.UnidentifiedSenderMessageContentHintResendable
 	}
 	if content.TypingMessage != nil || content.ReceiptMessage != nil {
 		return libsignalgo.UnidentifiedSenderMessageContentHintImplicit
@@ -809,7 +831,8 @@ func (cli *Client) sendContent(
 	content *signalpb.Content,
 	retryCount int,
 	useUnidentifiedSender bool,
-	isGroup bool,
+	groupID *libsignalgo.GroupIdentifier,
+	ctmOverride *libsignalgo.CiphertextMessage,
 ) (sentUnidentified bool, err error) {
 	log := zerolog.Ctx(ctx).With().
 		Str("action", "send content").
@@ -862,7 +885,7 @@ func (cli *Client) sendContent(
 	}
 
 	var messages []MyMessage
-	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender, isGroup)
+	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender, groupID, ctmOverride)
 	if err != nil {
 		log.Err(err).Msg("Error building messages to send")
 		return false, err
@@ -934,7 +957,7 @@ func (cli *Client) sendContent(
 			return false, err
 		}
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, sentUnidentified, isGroup)
+		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, sentUnidentified, groupID, ctmOverride)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err
@@ -945,7 +968,7 @@ func (cli *Client) sendContent(
 		}
 		log.Debug().Msg("Retrying send without sealed sender")
 		// Try to send again (**RECURSIVELY**)
-		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, false, isGroup)
+		sentUnidentified, err = cli.sendContent(ctx, recipient, messageTimestamp, content, retryCount+1, false, groupID, ctmOverride)
 		if err != nil {
 			log.Err(err).Msg("2nd try sendMessage error")
 			return sentUnidentified, err

@@ -40,6 +40,11 @@ type DecryptionResult struct {
 	ContentHint    signalpb.UnidentifiedSenderMessage_Message_ContentHint
 	Err            error
 	GroupID        *libsignalgo.GroupIdentifier
+	Unencrypted    bool
+
+	Retriable      bool
+	Ciphertext     []byte
+	CiphertextType libsignalgo.CiphertextMessageType
 }
 
 func (cli *Client) decryptEnvelope(
@@ -80,12 +85,30 @@ func (cli *Client) decryptEnvelope(
 			bundleType = "ciphertext"
 		}
 		if err != nil {
-			return DecryptionResult{Err: fmt.Errorf("failed to decrypt %s envelope: %w", bundleType, err), SenderAddress: sender}
+			return DecryptionResult{
+				SenderAddress:  sender,
+				Err:            fmt.Errorf("failed to decrypt %s envelope: %w", bundleType, err),
+				Retriable:      true, // TODO should these ever be not retriable?
+				Ciphertext:     envelope.Content,
+				CiphertextType: libsignalgo.CiphertextMessageType(envelope.GetType()),
+			}
 		}
 		return *result
 
 	case signalpb.Envelope_PLAINTEXT_CONTENT:
-		return DecryptionResult{Err: fmt.Errorf("plaintext messages are not supported")}
+		addr, err := libsignalgo.NewUUIDAddressFromString(envelope.GetSourceServiceId(), uint(envelope.GetSourceDevice()))
+		if err != nil {
+			return DecryptionResult{Err: fmt.Errorf("failed to wrap address: %v", err)}
+		}
+		content, err := stripPadding(envelope.GetContent())
+		if err != nil {
+			return DecryptionResult{Err: fmt.Errorf("failed to strip padding: %w", err)}
+		}
+		return DecryptionResult{
+			SenderAddress: addr,
+			Content:       &signalpb.Content{DecryptionErrorMessage: content},
+			Unencrypted:   true,
+		}
 
 	case signalpb.Envelope_SERVER_DELIVERY_RECEIPT:
 		return DecryptionResult{Err: fmt.Errorf("server delivery receipt envelopes are not yet supported")}
@@ -342,6 +365,8 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	if err != nil {
 		return result, fmt.Errorf("failed to get USMC contents: %w", err)
 	}
+	result.Ciphertext = usmcContents
+	result.CiphertextType = messageType
 	newLog := log.With().
 		Stringer("sender_uuid", senderUUID).
 		Stringer("group_id", result.GroupID).
@@ -369,13 +394,20 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	case libsignalgo.CiphertextMessageTypeWhisper:
 		resultPtr, err = cli.decryptCiphertextEnvelope(ctx, destinationServiceID, senderAddress, usmcContents, envelope.GetServerTimestamp())
 	case libsignalgo.CiphertextMessageTypePlaintext:
-		// TODO: handle plaintext (usually DecryptionErrorMessage) and retries
-		//       when implementing SenderKey groups
-		return result, fmt.Errorf("unsupported plaintext sealed sender message")
+		usmcContents, err = stripPadding(usmcContents)
+		if err != nil {
+			err = fmt.Errorf("failed to strip padding: %w", err)
+		}
+		result.Unencrypted = true
+		result.Content = &signalpb.Content{
+			DecryptionErrorMessage: usmcContents,
+		}
+		return result, err
 	default:
 		return result, fmt.Errorf("unsupported sealed sender message type %d", messageType)
 	}
 	if err != nil {
+		result.Retriable = result.ContentHint == signalpb.UnidentifiedSenderMessage_Message_RESENDABLE
 		return result, err
 	}
 	resultPtr.GroupID = result.GroupID

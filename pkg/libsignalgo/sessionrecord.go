@@ -83,6 +83,9 @@ func (sr *SessionRecord) ArchiveCurrentState() error {
 }
 
 func (sr *SessionRecord) CurrentRatchetKeyMatches(key *PublicKey) (bool, error) {
+	if sr == nil || key == nil {
+		return false, nil
+	}
 	var result C.bool
 	signalFfiError := C.signal_session_record_current_ratchet_key_matches(
 		&result,

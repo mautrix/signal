@@ -397,7 +397,7 @@ func (cli *Client) handleDecryptedResult(
 	result DecryptionResult,
 	envelope *signalpb.Envelope,
 	destinationServiceID libsignalgo.ServiceID,
-) error {
+) (retErr error) {
 	if errors.Is(result.Err, context.Canceled) {
 		return result.Err
 	} else if ctx.Err() != nil {
@@ -446,6 +446,11 @@ func (cli *Client) handleDecryptedResult(
 	cli.Store.RecipientStore.MarkUnregistered(ctx, theirServiceID, false)
 
 	handlerSuccess := true
+	defer func() {
+		if retErr == nil && !handlerSuccess {
+			retErr = ErrHandlerFailed
+		}
+	}()
 	// result.Err is set if there was an error during decryption and we
 	// should notifiy the user that the message could not be decrypted
 	if result.Err != nil {
@@ -477,6 +482,14 @@ func (cli *Client) handleDecryptedResult(
 				Timestamp: envelope.GetTimestamp(),
 			})
 		}
+		if result.Retriable {
+			go func() {
+				err := cli.sendRetryRequest(ctx, result, envelope.GetTimestamp())
+				if err != nil {
+					log.Err(err).Msg("Failed to send retry request in background")
+				}
+			}()
+		}
 		if !handlerSuccess {
 			return ErrHandlerFailed
 		}
@@ -490,7 +503,11 @@ func (cli *Client) handleDecryptedResult(
 	}
 
 	deviceID, _ := result.SenderAddress.DeviceID()
-	log.Trace().Any("raw_data", content).Stringer("sender", theirServiceID).Uint("sender_device", deviceID).Msg("Raw event data")
+	log.Trace().
+		Any("raw_data", content).
+		Stringer("sender", theirServiceID).
+		Uint("sender_device", deviceID).
+		Msg("Raw event data")
 	newLog := log.With().
 		Stringer("sender_name", theirServiceID).
 		Uint("sender_device_id", deviceID).
@@ -502,7 +519,26 @@ func (cli *Client) handleDecryptedResult(
 	if result.CiphertextHash != nil {
 		logEvt = logEvt.Hex("ciphertext_hash", result.CiphertextHash[:])
 	}
-	logEvt.Msg("Decrypted message")
+	logEvt.Bool("unencrypted", result.Unencrypted).Msg("Decrypted message")
+
+	if content.DecryptionErrorMessage != nil {
+		handlerSuccess = true
+		dem, err := libsignalgo.DeserializeDecryptionErrorMessage(content.DecryptionErrorMessage)
+		if err != nil {
+			log.Warn().Err(err).Msg("Failed to unmarshal decryption error message")
+		} else {
+			go func() {
+				err := cli.handleRetryRequest(ctx, result, dem)
+				if err != nil {
+					log.Err(err).Msg("Failed to handle decryption error message in background")
+				}
+			}()
+		}
+		return
+	} else if result.Unencrypted {
+		log.Warn().Msg("Unexpected non-decryption-error content in unencrypted message")
+		return nil
+	}
 
 	// If there's a sender key distribution message, process it
 	if content.GetSenderKeyDistributionMessage() != nil {
@@ -538,22 +574,20 @@ func (cli *Client) handleDecryptedResult(
 		}
 	}
 
-	if content.GetPniSignatureMessage() != nil {
+	if content.PniSignatureMessage != nil {
 		log.Debug().Msg("Content includes PNI signature message")
-		err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.GetPniSignatureMessage())
+		err = cli.handlePNISignatureMessage(ctx, theirServiceID, content.PniSignatureMessage)
 		if err != nil {
 			log.Err(err).
-				Hex("pni_raw", content.GetPniSignatureMessage().GetPni()).
+				Hex("pni_raw", content.PniSignatureMessage.GetPni()).
 				Stringer("aci", theirServiceID.UUID).
 				Msg("Failed to verify ACI-PNI mapping")
 		}
 	}
 
 	if content.SyncMessage != nil && theirServiceID == cli.Store.ACIServiceID() {
-		handlerSuccess, err = cli.handleSyncMessage(ctx, content.SyncMessage, envelope)
-		if err != nil {
-			return err
-		}
+		handlerSuccess = cli.handleSyncMessage(ctx, content.SyncMessage, envelope)
+		return nil
 	}
 
 	isBlocked, err := cli.Store.RecipientStore.IsBlocked(ctx, theirServiceID.UUID)
@@ -620,9 +654,6 @@ func (cli *Client) handleDecryptedResult(
 			Content: content.ReceiptMessage,
 		}) && handlerSuccess
 	}
-	if !handlerSuccess {
-		return ErrHandlerFailed
-	}
 	return nil
 }
 
@@ -633,7 +664,7 @@ func groupOrUserID(groupID types.GroupIdentifier, userID libsignalgo.ServiceID) 
 	return string(groupID)
 }
 
-func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMessage, envelope *signalpb.Envelope) (handlerSuccess bool, err error) {
+func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMessage, envelope *signalpb.Envelope) (handlerSuccess bool) {
 	// TODO: handle more sync messages
 	handlerSuccess = true
 	log := zerolog.Ctx(ctx)
@@ -655,7 +686,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		} else {
 			log.Debug().Msg("No account entropy pool in sync message")
 		}
-		err = cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
+		err := cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
 		if err != nil {
 			log.Err(err).Msg("Failed to save device after receiving master key")
 		} else {
@@ -671,6 +702,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		destination := syncSent.DestinationServiceId
 		var syncDestinationServiceID libsignalgo.ServiceID
 		if destination != nil {
+			var err error
 			syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
 			if err != nil {
 				log.Err(err).Msg("Sync message destination parse error")

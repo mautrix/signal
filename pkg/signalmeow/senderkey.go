@@ -48,7 +48,7 @@ const (
 
 func (cli *Client) sendToGroupWithSenderKey(
 	ctx context.Context,
-	groupID types.GroupIdentifier,
+	groupID *libsignalgo.GroupIdentifier,
 	allRecipients []libsignalgo.ServiceID,
 	sec SendEndorsementCache,
 	content *signalpb.Content,
@@ -56,7 +56,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 	retries int,
 ) (*GroupMessageSendResult, error) {
 	if retries >= 3 {
-		return cli.sendToGroup(ctx, allRecipients, content, messageTimestamp, nil)
+		return cli.sendToGroup(ctx, allRecipients, content, messageTimestamp, nil, groupID)
 	}
 	myAddress, err := cli.Store.ACIServiceID().Address(uint(cli.Store.DeviceID))
 	if err != nil {
@@ -79,8 +79,9 @@ func (cli *Client) sendToGroupWithSenderKey(
 		FailedToSendTo:     make([]FailedSendResult, 0),
 	}
 
+	groupIDStr := types.GroupIdentifier(groupID.String())
 	deviceIDs, senderKeyRecipients, fallbackRecipients := cli.getDevicesIDs(ctx, allRecipients, sec, result)
-	ski, err := cli.Store.SenderKeyStore.GetSenderKeyInfo(ctx, groupID)
+	ski, err := cli.Store.SenderKeyStore.GetSenderKeyInfo(ctx, groupIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender key info: %w", err)
 	} else if ski == nil || time.Since(ski.CreatedAt) > SenderKeyMaxAge {
@@ -127,7 +128,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 			log := log.With().Str("subaction", "skdm").Stringer("recipient_id", recipient).Logger()
 			_, err = cli.sendContent(log.WithContext(ctx), recipient, messageTimestamp, &signalpb.Content{
 				SenderKeyDistributionMessage: skdmBytes,
-			}, 0, true, true)
+			}, 0, true, groupID, nil)
 			if errors.Is(err, ErrDevicesChanged) || errors.Is(err, ErrUnregisteredUser) {
 				log.Warn().Err(err).Msg("Failed to send sender key distribution message due to device changes, will retry")
 				needsRetry = true
@@ -143,7 +144,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 				ski.SharedWith[recipient] = deviceIDs[recipient].DeviceIDs
 			}
 		}
-		err = cli.Store.SenderKeyStore.PutSenderKeyInfo(ctx, groupID, ski)
+		err = cli.Store.SenderKeyStore.PutSenderKeyInfo(ctx, groupIDStr, ski)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store updated sender key info: %w", err)
 		}
@@ -155,6 +156,9 @@ func (cli *Client) sendToGroupWithSenderKey(
 	ssCiphertext, err := cli.encryptWithSenderKey(ctx, groupID, ski.DistributionID, myAddress, senderKeyRecipients, content)
 	if err != nil {
 		return nil, err
+	}
+	for recipientID := range ski.SharedWith {
+		cli.addSendCache(recipientID, groupIDStr, messageTimestamp, content)
 	}
 	header := http.Header{}
 	header.Set("Content-Type", string(web.ContentTypeMultiRecipientMessage))
@@ -219,13 +223,13 @@ func (cli *Client) sendToGroupWithSenderKey(
 		}
 		doUnlock()
 		// Send with fallback for any recipients that couldn't do sender key, plus our own sync copy
-		return cli.sendToGroup(ctx, fallbackRecipients, content, messageTimestamp, result)
+		return cli.sendToGroup(ctx, fallbackRecipients, content, messageTimestamp, result, groupID)
 	case 401, 404:
 		log.Warn().Uint32("status_code", resp.GetStatus()).
 			Msg("Multi-recipient send failed, falling back to normal send")
 		doUnlock()
 		// Fall back to normal send for all recipients
-		return cli.sendToGroup(ctx, allRecipients, content, messageTimestamp, nil)
+		return cli.sendToGroup(ctx, allRecipients, content, messageTimestamp, nil, groupID)
 	case 409, 410:
 		log.Warn().Uint32("status_code", resp.GetStatus()).
 			Msg("Multi-recipient send failed due to outdated device list, refreshing and retrying")
@@ -243,7 +247,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 
 func (cli *Client) encryptWithSenderKey(
 	ctx context.Context,
-	groupID types.GroupIdentifier,
+	groupID *libsignalgo.GroupIdentifier,
 	distributionID uuid.UUID,
 	myAddress *libsignalgo.Address,
 	senderKeyRecipients []store.SessionAddressTuple,
@@ -265,11 +269,7 @@ func (cli *Client) encryptWithSenderKey(
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender certificate: %w", err)
 	}
-	groupIDBytes, err := groupID.Bytes()
-	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize group ID: %w", err)
-	}
-	usmc, err := libsignalgo.NewUnidentifiedSenderMessageContent(ciphertext, cert, getContentHint(content), groupIDBytes[:])
+	usmc, err := libsignalgo.NewUnidentifiedSenderMessageContent(ciphertext, cert, getContentHint(content), groupID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unidentified sender message content: %w", err)
 	}

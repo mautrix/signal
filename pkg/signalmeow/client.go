@@ -26,9 +26,11 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exsync"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
+	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -41,6 +43,8 @@ type Client struct {
 	senderCertificateWithE164 *libsignalgo.SenderCertificate
 	senderCertificateNoE164   *libsignalgo.SenderCertificate
 	senderCertificateCache    sync.Mutex
+
+	sendCache *exsync.RingBuffer[sendCacheKey, *signalpb.Content]
 
 	GroupCache             *GroupCache
 	ProfileCache           *ProfileCache
@@ -67,6 +71,11 @@ type Client struct {
 	writeCallbackCounter chan time.Time
 }
 
+// InMemorySendCacheSize specifies how large the cache for sent messages is, which is used to respond to retry receipts.
+// The cache is large because every group member will be listed separately.
+// 2k entries should hold at least 2 messages in max size groups.
+var InMemorySendCacheSize = 2048
+
 func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.SignalEvent) bool) *Client {
 	return &Client{
 		Store:        device,
@@ -78,6 +87,7 @@ func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
 		},
+		sendCache: exsync.NewRingBuffer[sendCacheKey, *signalpb.Content](InMemorySendCacheSize),
 	}
 }
 

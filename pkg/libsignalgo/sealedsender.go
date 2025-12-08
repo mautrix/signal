@@ -44,7 +44,7 @@ func NewSealedSenderAddress(e164 string, uuid uuid.UUID, deviceID uint32) *Seale
 	}
 }
 
-func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, contentHint UnidentifiedSenderMessageContentHint, forAddress *Address, fromSenderCert *SenderCertificate, sessionStore SessionStore, identityStore IdentityKeyStore) ([]byte, error) {
+func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, contentHint UnidentifiedSenderMessageContentHint, forAddress *Address, fromSenderCert *SenderCertificate, sessionStore SessionStore, identityStore IdentityKeyStore, groupID *GroupIdentifier) ([]byte, error) {
 	ciphertextMessage, err := Encrypt(ctx, message, forAddress, sessionStore, identityStore)
 	if err != nil {
 		return nil, err
@@ -54,7 +54,7 @@ func SealedSenderEncryptPlaintext(ctx context.Context, message []byte, contentHi
 		ciphertextMessage,
 		fromSenderCert,
 		contentHint,
-		nil,
+		groupID,
 	)
 	if err != nil {
 		return nil, err
@@ -170,18 +170,22 @@ func wrapUnidentifiedSenderMessageContent(ptr *C.SignalUnidentifiedSenderMessage
 	return messageContent
 }
 
-func NewUnidentifiedSenderMessageContent(message *CiphertextMessage, senderCertificate *SenderCertificate, contentHint UnidentifiedSenderMessageContentHint, groupID []byte) (*UnidentifiedSenderMessageContent, error) {
+func NewUnidentifiedSenderMessageContent(message *CiphertextMessage, senderCertificate *SenderCertificate, contentHint UnidentifiedSenderMessageContentHint, groupID *GroupIdentifier) (*UnidentifiedSenderMessageContent, error) {
 	var usmc C.SignalMutPointerUnidentifiedSenderMessageContent
+	var groupIDBytes []byte
+	if groupID != nil {
+		groupIDBytes = groupID[:]
+	}
 	signalFfiError := C.signal_unidentified_sender_message_content_new(
 		&usmc,
 		message.constPtr(),
 		senderCertificate.constPtr(),
 		C.uint32_t(contentHint),
-		BytesToBuffer(groupID),
+		BytesToBuffer(groupIDBytes),
 	)
 	runtime.KeepAlive(message)
 	runtime.KeepAlive(senderCertificate)
-	runtime.KeepAlive(groupID)
+	runtime.KeepAlive(groupIDBytes)
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}

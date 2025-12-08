@@ -29,6 +29,9 @@ type PublicKey struct {
 }
 
 func wrapPublicKey(ptr *C.SignalPublicKey) *PublicKey {
+	if ptr == nil {
+		return nil
+	}
 	publicKey := &PublicKey{ptr: ptr}
 	runtime.SetFinalizer(publicKey, (*PublicKey).Destroy)
 	return publicKey

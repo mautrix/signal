@@ -23,7 +23,6 @@ package libsignalgo
 import "C"
 import (
 	"runtime"
-	"time"
 )
 
 type DecryptionErrorMessage struct {
@@ -49,7 +48,7 @@ func DeserializeDecryptionErrorMessage(messageBytes []byte) (*DecryptionErrorMes
 	return wrapDecryptionErrorMessage(dem.raw), nil
 }
 
-func DecryptionErrorMessageForOriginalMessage(originalBytes []byte, originalType uint8, originalTs uint64, originalSenderDeviceID uint) (*DecryptionErrorMessage, error) {
+func DecryptionErrorMessageForOriginalMessage(originalBytes []byte, originalType CiphertextMessageType, originalTs uint64, originalSenderDeviceID uint) (*DecryptionErrorMessage, error) {
 	var dem C.SignalMutPointerDecryptionErrorMessage
 	signalFfiError := C.signal_decryption_error_message_for_original_message(
 		&dem,
@@ -112,14 +111,14 @@ func (dem *DecryptionErrorMessage) Serialize() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(serialized), nil
 }
 
-func (dem *DecryptionErrorMessage) GetTimestamp() (time.Time, error) {
+func (dem *DecryptionErrorMessage) GetTimestamp() (uint64, error) {
 	var ts C.uint64_t
 	signalFfiError := C.signal_decryption_error_message_get_timestamp(&ts, dem.constPtr())
 	runtime.KeepAlive(dem)
 	if signalFfiError != nil {
-		return time.Time{}, wrapError(signalFfiError)
+		return 0, wrapError(signalFfiError)
 	}
-	return time.UnixMilli(int64(ts)), nil
+	return uint64(ts), nil
 }
 
 func (dem *DecryptionErrorMessage) GetDeviceID() (uint32, error) {

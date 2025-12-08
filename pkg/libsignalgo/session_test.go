@@ -241,7 +241,7 @@ func TestSealedSenderEncrypt_Repeated(t *testing.T) {
 	}()
 	for i := 0; i < 100; i++ {
 		message := []byte(fmt.Sprintf("%04d vision", i))
-		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(ctx, message, libsignalgo.UnidentifiedSenderMessageContentHintDefault, bobAddress, senderCert, aliceStore, aliceStore)
+		ciphertext, err := libsignalgo.SealedSenderEncryptPlaintext(ctx, message, libsignalgo.UnidentifiedSenderMessageContentHintDefault, bobAddress, senderCert, aliceStore, aliceStore, nil)
 		require.NoError(t, err)
 		assert.NotNil(t, ciphertext)
 	}
