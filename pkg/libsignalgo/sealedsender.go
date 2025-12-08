@@ -24,10 +24,14 @@ import "C"
 import (
 	"context"
 	"fmt"
+	"maps"
 	"runtime"
+	"slices"
 	"unsafe"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
 )
 
 type SealedSenderAddress struct {
@@ -98,9 +102,30 @@ func SealedSenderMultiRecipientEncrypt(
 	defer callbackCtx.Unref()
 	recipientAddresses := make([]C.SignalConstPointerProtocolAddress, len(recipients))
 	recipientSessions := make([]C.SignalConstPointerSessionRecord, len(recipients))
+
+	type dedupTuple struct {
+		Name     string
+		DeviceID uint
+	}
+	deviceDedup := make(map[dedupTuple]struct{})
+	var duplicateFound *dedupTuple
+
 	for i, recipient := range recipients {
+		name := exerrors.Must(recipient.Address.Name())
+		deviceID := exerrors.Must(recipient.Address.DeviceID())
+		dedupKey := dedupTuple{name, deviceID}
+		if _, exists := deviceDedup[dedupKey]; exists {
+			duplicateFound = &dedupKey
+		}
 		recipientAddresses[i] = recipient.Address.constPtr()
 		recipientSessions[i] = recipient.Record.constPtr()
+	}
+	if duplicateFound != nil {
+		zerolog.Ctx(ctx).Debug().
+			Any("full_list", slices.Collect(maps.Keys(deviceDedup))).
+			Any("last_duplicate", *duplicateFound).
+			Msg("Duplicate debug data")
+		return nil, fmt.Errorf("duplicate recipient addresses found in SealedSenderMultiRecipientEncrypt")
 	}
 	signalFfiError := C.signal_sealed_sender_multi_recipient_encrypt(
 		&encrypted,
