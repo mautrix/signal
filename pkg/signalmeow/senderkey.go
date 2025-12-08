@@ -46,6 +46,24 @@ const (
 	contextKeyEncryptionLock contextKey = iota
 )
 
+func (cli *Client) ResetSenderKey(ctx context.Context, groupID types.GroupIdentifier) (uuid.UUID, error) {
+	cli.encryptionLock.Lock()
+	defer cli.encryptionLock.Unlock()
+	info, err := cli.Store.SenderKeyStore.GetSenderKeyInfo(ctx, groupID)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("failed to get sender key info: %w", err)
+	} else if info == nil {
+		return uuid.Nil, nil
+	} else if myAddress, err := cli.Store.ACIServiceID().Address(uint(cli.Store.DeviceID)); err != nil {
+		return uuid.Nil, fmt.Errorf("failed to get own address: %w", err)
+	} else if err = cli.Store.SenderKeyStore.DeleteSenderKey(ctx, myAddress, info.DistributionID); err != nil {
+		return info.DistributionID, fmt.Errorf("failed to delete sender key: %w", err)
+	} else if err = cli.Store.SenderKeyStore.DeleteSenderKeyInfo(ctx, groupID); err != nil {
+		return info.DistributionID, fmt.Errorf("failed to delete sender key info: %w", err)
+	}
+	return info.DistributionID, nil
+}
+
 func (cli *Client) sendToGroupWithSenderKey(
 	ctx context.Context,
 	groupID *libsignalgo.GroupIdentifier,

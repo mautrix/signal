@@ -26,6 +26,7 @@ import (
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridgev2"
+	"maunium.net/go/mautrix/bridgev2/commands"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -64,6 +65,7 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 	s.MsgConv.LocationFormat = s.Config.LocationFormat
 	s.MsgConv.DisappearViewOnce = s.Config.DisappearViewOnce
 	s.MsgConv.ExtEvPolls = s.Config.ExtEvPolls
+	bridge.Commands.(*commands.Processor).AddHandlers(CmdDiscardSenderKey)
 }
 
 func (s *SignalConnector) SetMaxFileSize(maxSize int64) {

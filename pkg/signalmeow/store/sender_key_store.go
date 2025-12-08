@@ -34,6 +34,7 @@ type SenderKeyStore interface {
 	libsignalgo.SenderKeyStore
 	DeleteSenderKey(ctx context.Context, address *libsignalgo.Address, distributionID uuid.UUID) error
 	GetSenderKeyInfo(ctx context.Context, groupID types.GroupIdentifier) (*SenderKeyInfo, error)
+	DeleteSenderKeyInfo(ctx context.Context, groupID types.GroupIdentifier) error
 	PutSenderKeyInfo(ctx context.Context, groupID types.GroupIdentifier, info *SenderKeyInfo) error
 }
 
@@ -54,6 +55,10 @@ const (
 		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (account_id, group_id) DO UPDATE
 			SET distribution_id=excluded.distribution_id, shared_with=excluded.shared_with
+	`
+	deleteSenderKeyInfoQuery = `
+		DELETE FROM signalmeow_outbound_sender_key_info
+		WHERE account_id=$1 AND group_id=$2
 	`
 )
 
@@ -133,5 +138,10 @@ func (s *sqlStore) GetSenderKeyInfo(ctx context.Context, groupID types.GroupIden
 
 func (s *sqlStore) PutSenderKeyInfo(ctx context.Context, groupID types.GroupIdentifier, info *SenderKeyInfo) error {
 	_, err := s.db.Exec(ctx, putSenderKeyInfoQuery, s.AccountID, groupID, info.DistributionID, dbutil.JSON{Data: info})
+	return err
+}
+
+func (s *sqlStore) DeleteSenderKeyInfo(ctx context.Context, groupID types.GroupIdentifier) error {
+	_, err := s.db.Exec(ctx, deleteSenderKeyInfoQuery, s.AccountID, groupID)
 	return err
 }
