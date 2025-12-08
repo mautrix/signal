@@ -39,6 +39,7 @@ type DecryptionResult struct {
 	Content        *signalpb.Content
 	ContentHint    signalpb.UnidentifiedSenderMessage_Message_ContentHint
 	Err            error
+	GroupID        *libsignalgo.GroupIdentifier
 }
 
 func (cli *Client) decryptEnvelope(
@@ -315,6 +316,10 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	if err != nil {
 		return result, fmt.Errorf("failed to get content hint: %w", err)
 	}
+	result.GroupID, err = usmc.GetGroupID()
+	if err != nil {
+		return result, fmt.Errorf("failed to get group ID: %w", err)
+	}
 	result.ContentHint = signalpb.UnidentifiedSenderMessage_Message_ContentHint(contentHint)
 	senderUUID, err := senderCertificate.GetSenderUUID()
 	if err != nil {
@@ -339,6 +344,7 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	}
 	newLog := log.With().
 		Stringer("sender_uuid", senderUUID).
+		Stringer("group_id", result.GroupID).
 		Uint32("sender_device_id", senderDeviceID).
 		Str("sender_e164", senderE164).
 		Uint8("sealed_sender_type", uint8(messageType)).
@@ -372,6 +378,7 @@ func (cli *Client) decryptUnidentifiedSenderEnvelope(ctx context.Context, destin
 	if err != nil {
 		return result, err
 	}
+	resultPtr.GroupID = result.GroupID
 	return *resultPtr, nil
 }
 

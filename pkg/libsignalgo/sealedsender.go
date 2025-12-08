@@ -23,6 +23,7 @@ package libsignalgo
 import "C"
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"unsafe"
 
@@ -252,18 +253,21 @@ func (usmc *UnidentifiedSenderMessageContent) GetContents() ([]byte, error) {
 	return CopySignalOwnedBufferToBytes(contents), nil
 }
 
-//func (usmc *UnidentifiedSenderMessageContent) GetGroupID() ([]byte, error) {
-//	var groupID *C.uchar
-//	var length C.ulong
-//	signalFfiError := C.signal_unidentified_sender_message_content_get_group_id(&groupID, &length, usmc.ptr)
-//	if signalFfiError != nil {
-//		return nil, wrapError(signalFfiError)
-//	}
-//	if groupID == nil {
-//		return nil, nil
-//	}
-//	return CopyBufferToBytes(groupID, length), nil
-//}
+func (usmc *UnidentifiedSenderMessageContent) GetGroupID() (*GroupIdentifier, error) {
+	var contents C.SignalOwnedBuffer = C.SignalOwnedBuffer{}
+	signalFfiError := C.signal_unidentified_sender_message_content_get_group_id_or_empty(&contents, usmc.constPtr())
+	runtime.KeepAlive(usmc)
+	if signalFfiError != nil {
+		return nil, wrapError(signalFfiError)
+	}
+	bytes := CopySignalOwnedBufferToBytes(contents)
+	if len(bytes) == 0 {
+		return nil, nil
+	} else if len(bytes) != GroupIdentifierLength {
+		return nil, fmt.Errorf("unexpected group ID length: %d", len(bytes))
+	}
+	return (*GroupIdentifier)(bytes), nil
+}
 
 func (usmc *UnidentifiedSenderMessageContent) GetSenderCertificate() (*SenderCertificate, error) {
 	var senderCertificate C.SignalMutPointerSenderCertificate
