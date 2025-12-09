@@ -298,6 +298,9 @@ func (s *SignalClient) postLoginConnect() {
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bool) {
+	if retryCount == 0 {
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
+	}
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
