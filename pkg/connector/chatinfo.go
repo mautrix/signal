@@ -480,9 +480,9 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 			Members: members,
 			Type:    ptr.Ptr(database.RoomTypeDM),
 
-			CanBackfill: backupChat != nil,
-
-			ExtraUpdates: updatePortalSyncMeta,
+			MessageRequest: ptr.Ptr(recipient.ACI != uuid.Nil && recipient.NeedsPNISignature),
+			CanBackfill:    backupChat != nil,
+			ExtraUpdates:   updatePortalSyncMeta,
 		},
 	}
 }

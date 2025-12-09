@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exzerolog"
+	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -52,6 +53,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		return s.handleSignalReadSelf(evt)
 	case *events.DeleteForMe:
 		return s.handleSignalDeleteForMe(evt)
+	case *events.MessageRequestResponse:
+		return s.handleSignalMessageRequestResponse(evt)
 	case *events.Call:
 		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapCallEvent(evt)).Success
 	case *events.ContactList:
@@ -618,6 +621,35 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 		}
 	}
 	return true
+}
+
+func (s *SignalClient) handleSignalMessageRequestResponse(evt *events.MessageRequestResponse) bool {
+	if evt.Type != signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
+		// TODO do we need to do anything with blocks/deletes here or are they sent as normal delete events?
+		return true
+	}
+	var portalKey networkid.PortalKey
+	if evt.GroupID != nil {
+		portalKey = s.makePortalKey(evt.GroupID.String())
+	} else if evt.ThreadACI != uuid.Nil {
+		portalKey = s.makeDMPortalKey(libsignalgo.NewACIServiceID(evt.ThreadACI))
+	} else {
+		return true
+	}
+	res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
+		EventMeta: simplevent.EventMeta{
+			Type:        bridgev2.RemoteEventChatInfoChange,
+			PortalKey:   portalKey,
+			Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
+			StreamOrder: int64(evt.Timestamp),
+		},
+		ChatInfoChange: &bridgev2.ChatInfoChange{
+			ChatInfo: &bridgev2.ChatInfo{
+				MessageRequest: ptr.Ptr(false),
+			},
+		},
+	})
+	return res.Success
 }
 
 func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {

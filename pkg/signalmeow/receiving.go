@@ -778,6 +778,32 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			SyncMessage_DeleteForMe: msg.DeleteForMe,
 		})
 	}
+	if msg.MessageRequestResponse != nil {
+		aciUUID, _ := uuid.Parse(msg.MessageRequestResponse.GetThreadAci())
+		if aciUUID != uuid.Nil && msg.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
+			_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aciUUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
+				if recipient.NeedsPNISignature {
+					recipient.NeedsPNISignature = false
+					return true, nil
+				}
+				return false, nil
+			})
+			if err != nil {
+				log.Err(err).Msg("Failed to clear needs_pni_signature flag after message request accept")
+			}
+		}
+		var groupID *libsignalgo.GroupIdentifier
+		if len(msg.MessageRequestResponse.GroupId) == libsignalgo.GroupIdentifierLength {
+			groupID = (*libsignalgo.GroupIdentifier)(msg.MessageRequestResponse.GroupId)
+		}
+		handlerSuccess = cli.handleEvent(&events.MessageRequestResponse{
+			Timestamp: envelope.GetTimestamp(),
+			ThreadACI: aciUUID,
+			GroupID:   groupID,
+			Type:      msg.MessageRequestResponse.GetType(),
+			Raw:       msg.MessageRequestResponse,
+		})
+	}
 	return
 }
 

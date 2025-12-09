@@ -28,16 +28,17 @@ type SignalEvent interface {
 	isSignalEvent()
 }
 
-func (*ChatEvent) isSignalEvent()       {}
-func (*DecryptionError) isSignalEvent() {}
-func (*Receipt) isSignalEvent()         {}
-func (*ReadSelf) isSignalEvent()        {}
-func (*Call) isSignalEvent()            {}
-func (*ContactList) isSignalEvent()     {}
-func (*ACIFound) isSignalEvent()        {}
-func (*DeleteForMe) isSignalEvent()     {}
-func (*QueueEmpty) isSignalEvent()      {}
-func (*LoggedOut) isSignalEvent()       {}
+func (*ChatEvent) isSignalEvent()              {}
+func (*DecryptionError) isSignalEvent()        {}
+func (*Receipt) isSignalEvent()                {}
+func (*ReadSelf) isSignalEvent()               {}
+func (*Call) isSignalEvent()                   {}
+func (*ContactList) isSignalEvent()            {}
+func (*ACIFound) isSignalEvent()               {}
+func (*DeleteForMe) isSignalEvent()            {}
+func (*MessageRequestResponse) isSignalEvent() {}
+func (*QueueEmpty) isSignalEvent()             {}
+func (*LoggedOut) isSignalEvent()              {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -87,6 +88,14 @@ type ACIFound struct {
 type DeleteForMe struct {
 	Timestamp uint64
 	*signalpb.SyncMessage_DeleteForMe
+}
+
+type MessageRequestResponse struct {
+	Timestamp uint64
+	ThreadACI uuid.UUID
+	GroupID   *libsignalgo.GroupIdentifier
+	Type      signalpb.SyncMessage_MessageRequestResponse_Type
+	Raw       *signalpb.SyncMessage_MessageRequestResponse
 }
 
 type QueueEmpty struct{}

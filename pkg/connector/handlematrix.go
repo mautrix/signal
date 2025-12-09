@@ -43,18 +43,19 @@ import (
 )
 
 var (
-	_ bridgev2.EditHandlingNetworkAPI           = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI    = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI         = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI     = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.DisappearTimerChangingNetworkAPI = (*SignalClient)(nil)
-	_ bridgev2.DeleteChatHandlingNetworkAPI     = (*SignalClient)(nil)
-	_ bridgev2.PollHandlingNetworkAPI           = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI            = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI     = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI          = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.DisappearTimerChangingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI            = (*SignalClient)(nil)
+	_ bridgev2.MessageRequestAcceptingNetworkAPI = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -705,6 +706,14 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 		return fmt.Errorf("failed to parse portal ID: %w", err)
 	}
 
+	if msg.Content.FromMessageRequest {
+		// TODO block and delete support?
+		err = s.syncMessageRequestResponse(ctx, msg.Portal, signalpb.SyncMessage_MessageRequestResponse_DELETE)
+		if err != nil {
+			return fmt.Errorf("failed to send message request delete sync: %w", err)
+		}
+	}
+
 	// Build ConversationIdentifier based on portal type
 	var conversationID *signalpb.ConversationIdentifier
 	if groupID == "" {
@@ -831,4 +840,81 @@ func (s *SignalClient) HandleMatrixPollVote(ctx context.Context, msg *bridgev2.M
 		RequiredProtocolVersion: proto.Uint32(0),
 	}
 	return s.doSendMessage(ctx, &msg.MatrixMessage, converted, nil)
+}
+
+func (s *SignalClient) syncMessageRequestResponse(
+	ctx context.Context,
+	portal *bridgev2.Portal,
+	respType signalpb.SyncMessage_MessageRequestResponse_Type,
+) error {
+	userID, groupID, err := signalid.ParsePortalID(portal.ID)
+	if err != nil {
+		return err
+	}
+	accept := &signalpb.SyncMessage_MessageRequestResponse{
+		Type: respType.Enum(),
+	}
+	if groupID != "" {
+		gidBytes, err := groupID.Bytes()
+		if err != nil {
+			return fmt.Errorf("failed to parse group ID: %w", err)
+		}
+		accept.GroupId = gidBytes[:]
+	} else if userID.Type == libsignalgo.ServiceIDTypeACI {
+		accept.ThreadAci = ptr.Ptr(userID.UUID.String())
+	} else {
+		return fmt.Errorf("invalid portal ID for message request response: %s", portal.ID)
+	}
+	res := s.Client.SendMessage(ctx, libsignalgo.NewACIServiceID(s.Client.Store.ACI), &signalpb.Content{
+		SyncMessage: &signalpb.SyncMessage{
+			MessageRequestResponse: accept,
+		},
+	})
+	if !res.WasSuccessful {
+		return res.Error
+	}
+	return nil
+}
+
+func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg *bridgev2.MatrixAcceptMessageRequest) error {
+	userID, _, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil {
+		return err
+	}
+	err = s.syncMessageRequestResponse(ctx, msg.Portal, signalpb.SyncMessage_MessageRequestResponse_ACCEPT)
+	if err != nil {
+		return fmt.Errorf("failed to sync message request acceptance: %w", err)
+	}
+	if userID.Type == libsignalgo.ServiceIDTypeACI {
+		profileKey, err := s.Client.ProfileKeyForSignalID(ctx, s.Client.Store.ACI)
+		if err != nil {
+			return fmt.Errorf("failed to get own profile key: %w", err)
+		}
+		var pniSig *signalpb.PniSignatureMessage
+		if s.Client.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY {
+			sig, err := s.Client.Store.PNIIdentityKeyPair.SignAlternateIdentity(s.Client.Store.ACIIdentityKeyPair.GetIdentityKey())
+			if err != nil {
+				return fmt.Errorf("failed to generate PNI signature: %w", err)
+			}
+			pniSig = &signalpb.PniSignatureMessage{
+				Pni:       s.Client.Store.PNI[:],
+				Signature: sig,
+			}
+		}
+		res := s.Client.SendMessage(ctx, userID, &signalpb.Content{
+			DataMessage: &signalpb.DataMessage{
+				Flags:      proto.Uint32(uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE)),
+				ProfileKey: profileKey.Slice(),
+				Timestamp:  proto.Uint64(getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)),
+
+				RequiredProtocolVersion: proto.Uint32(0),
+			},
+			PniSignatureMessage: pniSig,
+		})
+		if !res.WasSuccessful {
+			return fmt.Errorf("failed to share profile key to accept message request: %w", res.Error)
+		}
+		// TODO send read receipts too?
+	}
+	return nil
 }

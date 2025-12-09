@@ -38,7 +38,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_10_28"
+	base := "fi.mau.signal.capabilities.2025_12_09"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -171,6 +171,10 @@ var signalCaps = &event.RoomFeatures{
 	TypingNotifications:  true,
 
 	DeleteChat: true,
+	MessageRequest: &event.MessageRequestFeatures{
+		AcceptWithMessage: event.CapLevelPartialSupport,
+		AcceptWithButton:  event.CapLevelFullySupported,
+	},
 }
 
 var signalDisappearingCap = &event.DisappearingTimerCapability{

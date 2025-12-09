@@ -708,7 +708,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	isTypingOrReceipt := content.TypingMessage != nil || content.ReceiptMessage != nil
 	recipientData, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipientData *types.Recipient) (changed bool, err error) {
 		needsPNISignature = recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
-		if needsPNISignature && !isTypingOrReceipt {
+		if needsPNISignature && !isTypingOrReceipt && content.PniSignatureMessage == nil {
 			zerolog.Ctx(ctx).Debug().
 				Stringer("recipient", recipientID).
 				Msg("Including PNI identity in message")
@@ -721,6 +721,9 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 				Pni:       cli.Store.PNI[:],
 				Signature: sig,
 			}
+			return true, nil
+		} else if needsPNISignature && content.PniSignatureMessage != nil {
+			recipientData.NeedsPNISignature = false
 			return true, nil
 		}
 		return false, nil
@@ -842,7 +845,7 @@ func (cli *Client) sendContent(
 	ctx = log.WithContext(ctx)
 
 	// If it's a data message, add our profile key
-	if content.DataMessage != nil {
+	if content.DataMessage != nil && content.DataMessage.ProfileKey == nil {
 		profileKey, err := cli.ProfileKeyForSignalID(ctx, cli.Store.ACI)
 		if err != nil {
 			log.Err(err).Msg("Error getting profile key, not adding to outgoing message")
