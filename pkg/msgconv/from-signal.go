@@ -714,6 +714,9 @@ func (mc *MessageConverter) convertPollVoteToMatrix(ctx context.Context, vote *s
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to get poll vote target message")
 		return invalidPollVote
+	} else if pollMessage == nil {
+		zerolog.Ctx(ctx).Warn().Msg("Poll vote target message not found")
+		return invalidPollVote
 	}
 	mxOptionIDs := pollMessage.Metadata.(*signalid.MessageMetadata).MatrixPollOptionIDs
 	optionIDs := make([]string, len(vote.GetOptionIndexes()))
