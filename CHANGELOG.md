@@ -1,3 +1,13 @@
+# v25.12 (unreleased)
+
+* Updated libsignal to v0.86.8.
+* Added support for dropping incoming DMs from blocked contacts on Signal.
+* Added support for sender key encryption when sending to groups, which makes
+  sending much faster and enables sending typing notifications.
+* Added support for encryption retry receipts.
+* Fixed bugs with handling poll votes.
+* Fixed history transfer option not showing up when pairing with Signal Android.
+
 # v25.11
 
 * Updated libsignal to v0.86.4.
