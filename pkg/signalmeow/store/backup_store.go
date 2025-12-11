@@ -161,11 +161,13 @@ func (s *sqlStore) AddBackupRecipient(ctx context.Context, recipient *backuppb.R
 				if dest.Contact.ProfileGivenName != nil || dest.Contact.ProfileFamilyName != nil {
 					recipient.Profile.Name = strings.TrimSpace(fmt.Sprintf("%s %s", dest.Contact.GetProfileGivenName(), dest.Contact.GetProfileFamilyName()))
 				}
+				recipient.NeedsPNISignature = dest.Contact.GetVisibility() == backuppb.Contact_HIDDEN_MESSAGE_REQUEST
 				recipient.Blocked = dest.Contact.Blocked
 				changed = oldRecipient.E164 != recipient.E164 ||
 					oldRecipient.Profile.Key != recipient.Profile.Key ||
 					oldRecipient.Profile.Name != recipient.Profile.Name ||
-					oldRecipient.Blocked != recipient.Blocked
+					oldRecipient.Blocked != recipient.Blocked ||
+					oldRecipient.NeedsPNISignature != recipient.NeedsPNISignature
 				return
 			})
 			if err != nil {
@@ -176,6 +178,9 @@ func (s *sqlStore) AddBackupRecipient(ctx context.Context, recipient *backuppb.R
 				Uint64("recipient_id", recipient.Id).
 				Any("entry", dest.Contact).
 				Msg("Both ACI and PNI are invalid for registered contact recipient")
+		}
+		if aci != uuid.Nil {
+			s.MarkUnregistered(ctx, libsignalgo.NewACIServiceID(aci), dest.Contact.GetNotRegistered() != nil)
 		}
 	case *backuppb.Recipient_Group:
 		groupMasterKey = types.SerializedGroupMasterKey(base64.StdEncoding.EncodeToString(dest.Group.MasterKey))
