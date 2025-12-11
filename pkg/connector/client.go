@@ -287,10 +287,12 @@ func (s *SignalClient) postLoginConnect() {
 	s.tryConnect(ctx, 0, false)
 	if s.Client.Store.EphemeralBackupKey != nil {
 		go func() {
-			s.syncChats(ctx)
 			if s.Client.Store.MasterKey != nil {
 				s.Client.SyncStorage(ctx)
+			} else {
+				s.UserLogin.Log.Warn().Msg("No master key for storage sync before backup sync")
 			}
+			s.syncChats(ctx)
 		}()
 	} else if s.Client.Store.MasterKey != nil {
 		go s.Client.SyncStorage(ctx)

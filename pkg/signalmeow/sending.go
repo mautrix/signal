@@ -698,7 +698,6 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	} else {
 		messageTimestamp = currentMessageTimestamp()
 	}
-	needsPNISignature := false
 	var aci, pni uuid.UUID
 	if recipientID.Type == libsignalgo.ServiceIDTypeACI {
 		aci = recipientID.UUID
@@ -707,7 +706,10 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	}
 	isTypingOrReceipt := content.TypingMessage != nil || content.ReceiptMessage != nil
 	recipientData, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipientData *types.Recipient) (changed bool, err error) {
-		needsPNISignature = recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
+		if content.GetDataMessage().GetFlags() == uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE) {
+			recipientData.Whitelisted = ptr.Ptr(true)
+		}
+		needsPNISignature := recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
 		if needsPNISignature && !isTypingOrReceipt && content.PniSignatureMessage == nil {
 			zerolog.Ctx(ctx).Debug().
 				Stringer("recipient", recipientID).
@@ -732,7 +734,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to get message recipient data")
 	}
 	// Treat needs PNI signature as "this is a message request" and don't send receipts/typing
-	if needsPNISignature && isTypingOrReceipt {
+	if recipientData.ProbablyMessageRequest() && isTypingOrReceipt {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {

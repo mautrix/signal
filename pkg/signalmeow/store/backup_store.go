@@ -161,13 +161,16 @@ func (s *sqlStore) AddBackupRecipient(ctx context.Context, recipient *backuppb.R
 				if dest.Contact.ProfileGivenName != nil || dest.Contact.ProfileFamilyName != nil {
 					recipient.Profile.Name = strings.TrimSpace(fmt.Sprintf("%s %s", dest.Contact.GetProfileGivenName(), dest.Contact.GetProfileFamilyName()))
 				}
-				recipient.NeedsPNISignature = dest.Contact.GetVisibility() == backuppb.Contact_HIDDEN_MESSAGE_REQUEST
+				if dest.Contact.ProfileSharing && !ptr.Val(recipient.Whitelisted) {
+					recipient.Whitelisted = ptr.Ptr(true)
+					changed = true
+				}
 				recipient.Blocked = dest.Contact.Blocked
-				changed = oldRecipient.E164 != recipient.E164 ||
+				changed = changed ||
+					oldRecipient.E164 != recipient.E164 ||
 					oldRecipient.Profile.Key != recipient.Profile.Key ||
 					oldRecipient.Profile.Name != recipient.Profile.Name ||
-					oldRecipient.Blocked != recipient.Blocked ||
-					oldRecipient.NeedsPNISignature != recipient.NeedsPNISignature
+					oldRecipient.Blocked != recipient.Blocked
 				return
 			})
 			if err != nil {

@@ -29,6 +29,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/ptr"
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -562,12 +563,17 @@ func (cli *Client) handleDecryptedResult(
 
 	if destinationServiceID == cli.Store.PNIServiceID() {
 		_, err = cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, theirServiceID.UUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
+			if recipient.Whitelisted == nil {
+				log.Debug().Msg("Marking recipient as not whitelisted")
+				recipient.Whitelisted = ptr.Ptr(false)
+				changed = true
+			}
 			if !recipient.NeedsPNISignature {
 				log.Debug().Msg("Marking recipient as needing PNI signature")
 				recipient.NeedsPNISignature = true
-				return true, nil
+				changed = true
 			}
-			return false, nil
+			return
 		})
 		if err != nil {
 			log.Err(err).Msg("Failed to set needs_pni_signature flag after receiving message to PNI service ID")
@@ -782,11 +788,10 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		aciUUID, _ := uuid.Parse(msg.MessageRequestResponse.GetThreadAci())
 		if aciUUID != uuid.Nil && msg.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
 			_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aciUUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
-				if recipient.NeedsPNISignature {
-					recipient.NeedsPNISignature = false
-					return true, nil
-				}
-				return false, nil
+				changed = !ptr.Val(recipient.Whitelisted) || recipient.NeedsPNISignature
+				recipient.Whitelisted = ptr.Ptr(true)
+				recipient.NeedsPNISignature = false
+				return
 			})
 			if err != nil {
 				log.Err(err).Msg("Failed to clear needs_pni_signature flag after message request accept")

@@ -642,6 +642,9 @@ func (s *SignalClient) handleSignalMessageRequestResponse(evt *events.MessageReq
 			PortalKey:   portalKey,
 			Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
 			StreamOrder: int64(evt.Timestamp),
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.Str("action", "unmark message request").Str("source", "sync message")
+			},
 		},
 		ChatInfoChange: &bridgev2.ChatInfoChange{
 			ChatInfo: &bridgev2.ChatInfo{
@@ -705,6 +708,28 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 		ghost.UpdateInfo(ctx, userInfo)
 		if contact.ACI == s.Client.Store.ACI {
 			s.updateRemoteProfile(ctx, true)
+		}
+		if ptr.Val(contact.Whitelisted) {
+			portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, s.makeDMPortalKey(libsignalgo.NewACIServiceID(contact.ACI)))
+			if err != nil {
+				log.Err(err).Msg("Failed to get existing portal to update contact info")
+				continue
+			} else if portal != nil && portal.MessageRequest {
+				s.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
+					EventMeta: simplevent.EventMeta{
+						Type: bridgev2.RemoteEventChatInfoChange,
+						LogContext: func(c zerolog.Context) zerolog.Context {
+							return c.Str("action", "unmark message request").Str("source", "contact list")
+						},
+						PortalKey: portal.PortalKey,
+					},
+					ChatInfoChange: &bridgev2.ChatInfoChange{
+						ChatInfo: &bridgev2.ChatInfo{
+							MessageRequest: ptr.Ptr(false),
+						},
+					},
+				})
+			}
 		}
 	}
 }

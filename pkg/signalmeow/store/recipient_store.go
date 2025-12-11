@@ -67,7 +67,8 @@ const (
 			profile_avatar_path,
 			profile_fetched_at,
 			needs_pni_signature,
-			blocked
+			blocked,
+			whitelisted
 		FROM signalmeow_recipients
 		WHERE account_id = $1
 	`
@@ -93,9 +94,10 @@ const (
 			profile_avatar_path,
 			profile_fetched_at,
 			needs_pni_signature,
-			blocked
+			blocked,
+			whitelisted
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (account_id, aci_uuid) DO UPDATE SET
 			pni_uuid = excluded.pni_uuid,
 			e164_number = excluded.e164_number,
@@ -109,7 +111,8 @@ const (
 			profile_avatar_path = excluded.profile_avatar_path,
 			profile_fetched_at = excluded.profile_fetched_at,
 			needs_pni_signature = excluded.needs_pni_signature,
-			blocked = excluded.blocked
+			blocked = excluded.blocked,
+			whitelisted = excluded.whitelisted
 	`
 	upsertPNIRecipientQuery = `
 		INSERT INTO signalmeow_recipients (
@@ -147,6 +150,7 @@ func scanRecipient(row dbutil.Scannable) (*types.Recipient, error) {
 		&profileFetchedAt,
 		&recipient.NeedsPNISignature,
 		&recipient.Blocked,
+		&recipient.Whitelisted,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -371,6 +375,7 @@ func (s *sqlStore) StoreRecipient(ctx context.Context, recipient *types.Recipien
 			dbutil.UnixMilliPtr(recipient.Profile.FetchedAt),
 			recipient.NeedsPNISignature,
 			recipient.Blocked,
+			recipient.Whitelisted,
 		)
 		s.blockCacheLock.Lock()
 		s.blockCache[recipient.ACI] = recipient.Blocked

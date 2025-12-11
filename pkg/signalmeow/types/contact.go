@@ -56,6 +56,11 @@ type Recipient struct {
 
 	NeedsPNISignature bool
 	Blocked           bool
+	Whitelisted       *bool
+}
+
+func (r *Recipient) ProbablyMessageRequest() bool {
+	return r != nil && (r.NeedsPNISignature || (r.Whitelisted != nil && !*r.Whitelisted))
 }
 
 type ContactAvatar struct {
