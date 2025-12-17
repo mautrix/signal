@@ -312,7 +312,12 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bo
 			retryInSeconds = 150
 		}
 		zerolog.Ctx(ctx).Debug().Int("retry_in_seconds", retryInSeconds).Msg("Sleeping and retrying connection")
-		time.Sleep(time.Duration(retryInSeconds) * time.Second)
+		select {
+		case <-time.After(time.Duration(retryInSeconds) * time.Second):
+		case <-ctx.Done():
+			zerolog.Ctx(ctx).Info().Msg("Context canceled, exit tryConnect")
+			return
+		}
 		s.tryConnect(ctx, retryCount+1, doSync)
 	} else {
 		go s.bridgeStateLoop(ch)
