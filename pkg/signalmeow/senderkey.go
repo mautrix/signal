@@ -352,8 +352,8 @@ func (cli *Client) getDevicesIDs(
 ) {
 	log := zerolog.Ctx(ctx)
 	out := make(map[libsignalgo.ServiceID]senderKeySendMeta)
-	fallbackRecipients := recipients[:0]
 	senderKeyRecipients := make([]store.SessionAddressTuple, 0, len(recipients))
+	fallbackRecipients := make([]libsignalgo.ServiceID, 0)
 	for _, recipient := range recipients {
 		if recipient == cli.Store.ACIServiceID() {
 			// We'll send a sync copy to ourselves, not sender key and no need to include in fallback recipients either
