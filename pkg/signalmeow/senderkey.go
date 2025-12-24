@@ -99,6 +99,11 @@ func (cli *Client) sendToGroupWithSenderKey(
 
 	groupIDStr := types.GroupIdentifier(groupID.String())
 	deviceIDs, senderKeyRecipients, fallbackRecipients := cli.getDevicesIDs(ctx, allRecipients, sec, result)
+	if len(senderKeyRecipients) == 0 {
+		doUnlock()
+		log.Debug().Msg("No sender key recipients, falling back to normal send")
+		return cli.sendToGroup(ctx, allRecipients, content, messageTimestamp, result, groupID)
+	}
 	ski, err := cli.Store.SenderKeyStore.GetSenderKeyInfo(ctx, groupIDStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get sender key info: %w", err)
