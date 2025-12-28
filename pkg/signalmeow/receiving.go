@@ -722,6 +722,19 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 				}
 			}
 		}
+		for _, unident := range syncSent.GetUnidentifiedStatus() {
+			changed, err := cli.saveSyncPNIIdentityKey(ctx, unident.GetDestinationServiceId(), unident.GetDestinationPniIdentityKey())
+			if err != nil {
+				log.Err(err).
+					Str("destination_service_id", unident.GetDestinationServiceId()).
+					Msg("Failed to save PNI identity key from sync message")
+			} else if changed {
+				log.Debug().
+					Str("destination_service_id", unident.GetDestinationServiceId()).
+					Msg("Saved new PNI identity key from sync message")
+			}
+		}
+
 		if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
 			log.Warn().Msg("sync message sent destination is nil")
 		} else if msg.Sent.Message != nil {
@@ -810,6 +823,27 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		})
 	}
 	return
+}
+
+func (cli *Client) saveSyncPNIIdentityKey(ctx context.Context, serviceIDString string, identityKeyBytes []byte) (bool, error) {
+	if identityKeyBytes == nil {
+		return false, nil
+	}
+	identityKey, err := libsignalgo.DeserializeIdentityKey(identityKeyBytes)
+	if err != nil {
+		return false, fmt.Errorf("failed to deserialize PNI identity key: %w", err)
+	}
+	serviceID, err := libsignalgo.ServiceIDFromString(serviceIDString)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse PNI service ID: %w", err)
+	} else if serviceID.Type != libsignalgo.ServiceIDTypePNI {
+		return false, nil
+	}
+	changed, err := cli.Store.IdentityKeyStore.SaveIdentityKey(ctx, serviceID, identityKey)
+	if err != nil {
+		return false, fmt.Errorf("failed to save PNI identity key: %w", err)
+	}
+	return changed, nil
 }
 
 func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsignalgo.ServiceID, msg *signalpb.PniSignatureMessage) error {
