@@ -326,9 +326,9 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 	}
 	var avatarBytes []byte
 	var avatarMXC id.ContentURIString
-	if params.Avatar != nil {
+	if params.Avatar != nil && params.Avatar.URL != "" {
 		avatarMXC = params.Avatar.URL
-		avatarBytes, err = s.Main.Bridge.Bot.DownloadMedia(ctx, params.Avatar.URL, params.Avatar.MSC3414File)
+		avatarBytes, err = s.Main.Bridge.Bot.DownloadMedia(ctx, params.Avatar.URL, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to download avatar: %w", err)
 		}
