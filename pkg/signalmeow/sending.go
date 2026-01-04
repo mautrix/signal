@@ -691,12 +691,22 @@ func (cli *Client) sendSyncCopy(ctx context.Context, content *signalpb.Content, 
 func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.ServiceID, content *signalpb.Content) SendMessageResult {
 	// Assemble the content to send
 	var messageTimestamp uint64
-	if content.GetDataMessage() != nil {
+	switch {
+	case content.DataMessage != nil:
 		messageTimestamp = *content.DataMessage.Timestamp
-	} else if content.GetEditMessage().GetDataMessage() != nil {
+	case content.EditMessage != nil:
 		messageTimestamp = *content.EditMessage.DataMessage.Timestamp
-	} else {
+	case content.TypingMessage != nil:
+		messageTimestamp = *content.TypingMessage.Timestamp
+	case content.SyncMessage != nil,
+		content.NullMessage != nil,
+		content.ReceiptMessage != nil,
+		content.PniSignatureMessage != nil,
+		content.SenderKeyDistributionMessage != nil,
+		content.DecryptionErrorMessage != nil:
 		messageTimestamp = currentMessageTimestamp()
+	default:
+		panic(fmt.Errorf("unsupported payload in SendMessage"))
 	}
 	var aci, pni uuid.UUID
 	if recipientID.Type == libsignalgo.ServiceIDTypeACI {
