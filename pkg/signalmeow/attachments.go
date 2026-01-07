@@ -225,6 +225,7 @@ func (cli *Client) uploadAttachmentLegacy(
 		Username:    &username,
 		Password:    &password,
 	})
+	web.CloseBody(resp)
 	if err != nil {
 		return fmt.Errorf("failed to send allocate request: %w", err)
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -239,6 +240,7 @@ func (cli *Client) uploadAttachmentLegacy(
 		Username:    &username,
 		Password:    &password,
 	})
+	web.CloseBody(resp)
 	if err != nil {
 		return fmt.Errorf("failed to send upload request: %w", err)
 	} else if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -262,6 +264,7 @@ func (cli *Client) uploadAttachmentTUS(
 		ContentType: web.ContentTypeOffsetOctetStream,
 		Headers:     uploadAttributes.Headers,
 	})
+	web.CloseBody(resp)
 	// TODO actually support resuming on error
 	if err != nil {
 		return fmt.Errorf("failed to send upload request: %w", err)
@@ -309,6 +312,7 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 		return "", err
 	}
 	body, err := io.ReadAll(resp.Body)
+	web.CloseBody(resp)
 	if err != nil {
 		log.Err(err).Msg("Error decoding response body fetching upload attributes")
 		return "", err
@@ -338,6 +342,7 @@ func (cli *Client) UploadGroupAvatar(ctx context.Context, avatarBytes []byte, gi
 		Body:        requestBody.Bytes(),
 		ContentType: web.ContentType(w.FormDataContentType()),
 	})
+	web.CloseBody(resp)
 	if err != nil {
 		log.Err(err).Msg("Error sending request uploading attachment")
 		return "", err

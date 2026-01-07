@@ -287,7 +287,7 @@ func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, pr
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer web.CloseBody(resp)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("unexpected response status %d", resp.StatusCode)
 	}

@@ -168,6 +168,12 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 	return resp, nil
 }
 
+func CloseBody(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}
+
 func DecodeWSResponseBody(ctx context.Context, out any, resp *signalpb.WebSocketResponseMessage) error {
 	if resp == nil {
 		return nil
@@ -189,7 +195,7 @@ func DecodeWSResponseBody(ctx context.Context, out any, resp *signalpb.WebSocket
 
 // DecodeHTTPResponseBody checks status code, reads an http.Response's Body and decodes it into the provided interface.
 func DecodeHTTPResponseBody(ctx context.Context, out any, resp *http.Response) error {
-	defer resp.Body.Close()
+	defer CloseBody(resp)
 
 	// Check if status code indicates success
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

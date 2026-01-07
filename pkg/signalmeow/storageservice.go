@@ -257,6 +257,7 @@ func (cli *Client) fetchStorageManifest(ctx context.Context, storageKey []byte, 
 		Password:    &storageCreds.Password,
 		ContentType: web.ContentTypeProtobuf,
 	})
+	defer web.CloseBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch storage manifest: %w", err)
 	} else if resp.StatusCode == http.StatusNoContent {
@@ -363,11 +364,12 @@ func (cli *Client) fetchStorageItemsChunk(ctx context.Context, recordKeys [][]by
 		Body:        body,
 		ContentType: web.ContentTypeProtobuf,
 	})
+	defer web.CloseBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch storage records: %w", err)
 	} else if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status code %d fetching storage records", resp.StatusCode)
-	} else if body, err := io.ReadAll(resp.Body); err != nil {
+	} else if body, err = io.ReadAll(resp.Body); err != nil {
 		return nil, fmt.Errorf("failed to read storage manifest response: %w", err)
 	} else if err = proto.Unmarshal(body, &storageItems); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal encrypted storage manifest: %w", err)

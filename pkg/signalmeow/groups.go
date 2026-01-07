@@ -637,6 +637,7 @@ func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey t
 		ContentType: web.ContentTypeProtobuf,
 	}
 	response, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, "/v2/groups", opts)
+	defer web.CloseBody(response)
 	if err != nil {
 		return nil, err
 	}
@@ -689,6 +690,7 @@ func (cli *Client) DownloadGroupAvatar(ctx context.Context, avatarPath string, g
 		Password: &password,
 	}
 	resp, err := web.SendHTTPRequest(ctx, web.CDN1Hostname, http.MethodGet, avatarPath, opts)
+	defer web.CloseBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
@@ -1473,6 +1475,7 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 		Body:        requestBody,
 	}
 	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodPatch, path, opts)
+	defer web.CloseBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("SendRequest error: %w", err)
 	}
@@ -1706,6 +1709,7 @@ func (cli *Client) createGroupOnServer(ctx context.Context, decryptedGroup *Grou
 		Body:        requestBody,
 	}
 	resp, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodPut, path, opts)
+	defer web.CloseBody(resp)
 	if err != nil {
 		return nil, fmt.Errorf("SendRequest error: %w", err)
 	}
@@ -1776,6 +1780,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
 	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 5, includeFirstState)
 	response, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, path, opts)
+	defer web.CloseBody(response)
 	if err != nil {
 		return nil, err
 	}
