@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exzerolog"
+	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/ptr"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
@@ -731,6 +732,11 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 				})
 			}
 		}
+	}
+	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).LastContactSync = jsontime.UnixMilliNow()
+	err := s.UserLogin.Save(ctx)
+	if err != nil {
+		log.Err(err).Msg("Failed to update last contact sync time")
 	}
 }
 

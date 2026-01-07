@@ -33,7 +33,8 @@ type MessageMetadata struct {
 }
 
 type UserLoginMetadata struct {
-	ChatsSynced bool `json:"chats_synced,omitempty"`
+	ChatsSynced     bool               `json:"chats_synced,omitempty"`
+	LastContactSync jsontime.UnixMilli `json:"last_contact_sync,omitempty"`
 }
 
 type GhostMetadata struct {

@@ -32,6 +32,7 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/mautrix-signal/pkg/msgconv"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 )
@@ -101,7 +102,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 			sc.UserLogin.Log.With().Str("component", "signalmeow").Logger(),
 			sc.handleSignalEvent,
 		)
-		sc.Client.SyncContactsOnConnect = s.Config.SyncContactsOnStartup
+		sc.Client.SyncContactsOnConnect = s.Config.SyncContactsOnStartup &&
+			time.Since(login.Metadata.(*signalid.UserLoginMetadata).LastContactSync.Time) > 3*24*time.Hour
 	}
 	login.Client = sc
 	return nil
