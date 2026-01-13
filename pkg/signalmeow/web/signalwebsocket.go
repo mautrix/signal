@@ -55,6 +55,7 @@ type SignalWebsocket struct {
 	closeEvt      *exsync.Event
 	closeCalled   atomic.Bool
 	cancel        atomic.Pointer[context.CancelFunc]
+	cancelConn    atomic.Pointer[context.CancelCauseFunc]
 }
 
 func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
@@ -154,6 +155,19 @@ func (s *SignalWebsocket) pushOutgoing(ctx context.Context, send SignalWebsocket
 	case <-s.closeEvt.GetChan():
 		return errors.New("connection closed before send could be queued")
 	}
+}
+
+var ErrForcedReconnect = errors.New("forced reconnect")
+
+func (s *SignalWebsocket) ForceReconnect() {
+	if s == nil {
+		return
+	}
+	cancelFn := s.cancelConn.Load()
+	if cancelFn == nil {
+		return
+	}
+	(*cancelFn)(ErrForcedReconnect)
 }
 
 func (s *SignalWebsocket) connectLoop(
@@ -308,6 +322,7 @@ func (s *SignalWebsocket) connectLoop(
 
 		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
+		s.cancelConn.Store(&loopCancel)
 		var wg sync.WaitGroup
 		wg.Add(3)
 

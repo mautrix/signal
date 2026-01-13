@@ -26,8 +26,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"os"
 	"runtime"
 	"strings"
 
@@ -36,9 +34,6 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
-
-const proxyUrlStr = "" // Set this to proxy requests
-const caCertPath = ""  // Set this to trust a self-signed cert (ie. for mitmproxy)
 
 var BaseUserAgent = "libsignal/" + libsignalgo.Version + " go/" + strings.TrimPrefix(runtime.Version(), "go")
 var UserAgent = "signalmeow/0.1.0 " + BaseUserAgent
@@ -61,11 +56,11 @@ var CDNHosts = []string{
 
 //go:embed signal-root.crt.der
 var signalRootCertBytes []byte
+var SignalCertPool = x509.NewCertPool()
+var SignalTLSConfig = &tls.Config{RootCAs: SignalCertPool}
 var signalTransport = &http.Transport{
 	ForceAttemptHTTP2: true,
-	TLSClientConfig: &tls.Config{
-		RootCAs: x509.NewCertPool(),
-	},
+	TLSClientConfig:   SignalTLSConfig,
 }
 var SignalHTTPClient = &http.Client{
 	Transport: signalTransport,
@@ -76,22 +71,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	signalTransport.TLSClientConfig.RootCAs.AddCert(cert)
-
-	if proxyUrlStr != "" {
-		proxyURL, err := url.Parse(proxyUrlStr)
-		if err != nil {
-			panic(err)
-		}
-		signalTransport.Proxy = http.ProxyURL(proxyURL)
-	}
-	if caCertPath != "" {
-		caCert, err := os.ReadFile(caCertPath)
-		if err != nil {
-			panic(err)
-		}
-		signalTransport.TLSClientConfig.RootCAs.AppendCertsFromPEM(caCert)
-	}
+	SignalCertPool.AddCert(cert)
 }
 
 type ContentType string

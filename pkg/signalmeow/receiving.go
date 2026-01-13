@@ -280,6 +280,11 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 	return statusChan, nil
 }
 
+func (cli *Client) ForceReconnect() {
+	cli.AuthedWS.ForceReconnect()
+	cli.UnauthedWS.ForceReconnect()
+}
+
 func (cli *Client) StopReceiveLoops() error {
 	defer func() {
 		cli.AuthedWS = nil
