@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
+	"go.mau.fi/util/exhttp"
 	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/commands"
@@ -35,6 +36,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
 type SignalConnector struct {
@@ -74,11 +76,32 @@ func (s *SignalConnector) SetMaxFileSize(maxSize int64) {
 }
 
 func (s *SignalConnector) Start(ctx context.Context) error {
+	s.ResetHTTPTransport()
 	err := s.Store.Upgrade(ctx)
 	if err != nil {
 		return bridgev2.DBUpgradeError{Err: err, Section: "signalmeow"}
 	}
 	return nil
+}
+
+func (s *SignalConnector) ResetHTTPTransport() {
+	settings := exhttp.SensibleClientSettings
+	hs, ok := s.Bridge.Matrix.(bridgev2.MatrixConnectorWithHTTPSettings)
+	if ok {
+		settings = hs.GetHTTPClientSettings()
+	}
+	oldClient := web.SignalHTTPClient
+	web.SignalHTTPClient = settings.WithTLSConfig(web.SignalTLSConfig).Compile()
+	oldClient.CloseIdleConnections()
+}
+
+func (s *SignalConnector) ResetNetworkConnections() {
+	for _, login := range s.Bridge.GetAllCachedUserLogins() {
+		c := login.Client.(*SignalClient)
+		if c.Client != nil {
+			c.Client.ForceReconnect()
+		}
+	}
 }
 
 func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.UserLogin) error {
