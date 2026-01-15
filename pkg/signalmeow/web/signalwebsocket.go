@@ -37,6 +37,10 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/wspb"
 )
 
+var WebsocketPingInterval = 30 * time.Second
+var WebsocketPingTimeout = 20 * time.Second
+var WebsocketPingTimeoutLimit = 5
+
 const WebsocketProvisioningPath = "/v1/websocket/provisioning/"
 const WebsocketPath = "/v1/websocket/"
 
@@ -357,20 +361,20 @@ func (s *SignalWebsocket) connectLoop(
 		// Ping loop (send a keepalive Ping every 30s)
 		go func() {
 			defer wg.Done()
-			ticker := time.NewTicker(30 * time.Second)
+			ticker := time.NewTicker(WebsocketPingInterval)
 			defer ticker.Stop()
 
 			pingTimeoutCount := 0
 			for {
 				select {
 				case <-ticker.C:
-					pingCtx, cancel := context.WithTimeout(loopCtx, 20*time.Second)
+					pingCtx, cancel := context.WithTimeout(loopCtx, WebsocketPingTimeout)
 					err := ws.Ping(pingCtx)
 					cancel()
 					if err != nil {
 						pingTimeoutCount++
 						log.Err(err).Msg("Failed to send ping")
-						if pingTimeoutCount >= 5 {
+						if pingTimeoutCount >= WebsocketPingTimeoutLimit {
 							log.Warn().Msg("Ping timeout count exceeded, closing websocket")
 							err = ws.Close(websocket.StatusNormalClosure, "Ping timeout")
 							if err != nil {
