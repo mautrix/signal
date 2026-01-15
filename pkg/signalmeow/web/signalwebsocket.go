@@ -404,6 +404,11 @@ func (s *SignalWebsocket) connectLoop(
 		} else {
 			errorCount++
 			s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, ctxCauseErr)
+			if errors.Is(ctxCauseErr, ErrForcedReconnect) {
+				// Skip the delay for forced reconnects
+				// TODO should the delay be lowered globally?
+				isFirstConnect = true
+			}
 		}
 
 		// Clean up
