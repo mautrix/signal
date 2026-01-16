@@ -36,7 +36,7 @@ func GroupEncrypt(ctx context.Context, ptext []byte, sender *Address, distributi
 	signalFfiError := C.signal_group_encrypt_message(
 		&ciphertextMessage,
 		sender.constPtr(),
-		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
+		*(*C.SignalUuid)(unsafe.Pointer(&distributionID)),
 		BytesToBuffer(ptext),
 		callbackCtx.wrapSenderKeyStore(store))
 	runtime.KeepAlive(ptext)

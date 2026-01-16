@@ -60,7 +60,7 @@ func NewSenderKeyDistributionMessage(ctx context.Context, sender *Address, distr
 	signalFfiError := C.signal_sender_key_distribution_message_create(
 		&skdm,
 		sender.constPtr(),
-		(*[C.SignalUUID_LEN]C.uchar)(unsafe.Pointer(&distributionID)),
+		*(*C.SignalUuid)(unsafe.Pointer(&distributionID)),
 		callbackCtx.wrapSenderKeyStore(store),
 	)
 	runtime.KeepAlive(sender)

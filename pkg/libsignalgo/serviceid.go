@@ -31,12 +31,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func init() {
-	if C.SignalUUID_LEN != 16 {
-		panic("libsignal-ffi uuid type size mismatch")
-	}
-}
-
 type ServiceIDType byte
 
 const (
