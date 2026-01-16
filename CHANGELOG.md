@@ -1,3 +1,12 @@
+# v26.01
+
+* Updated libsignal to v0.86.12.
+* Changed automatic contact list sync option to only sync every 3 days rather
+  than on every restart.
+* Fixed sending messages to groups with no other registered members.
+* Fixed sender key sends failing if some users had changed devices.
+* Fixed timestamps of outgoing typing notifications in DMs.
+
 # v25.12
 
 * Updated libsignal to v0.86.8.
