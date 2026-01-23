@@ -102,6 +102,9 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 		if userID, _, _ := signalid.ParsePortalID(portal.ID); !userID.IsEmpty() {
 			content.MsgType = event.MsgText
 		}
+		content.BeeperActionMessage = &event.BeeperActionMessage{
+			Type: event.BeeperActionMessageCall,
+		}
 	} else {
 		content.Body = "Call ended"
 	}
