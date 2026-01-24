@@ -20,8 +20,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -144,4 +146,59 @@ func (cli *Client) GetRemoteConfig(ctx context.Context) (json.RawMessage, error)
 		return nil, err
 	}
 	return resp.Body, web.DecodeWSResponseBody(ctx, nil, resp)
+}
+
+func (cli *Client) EnsureSelfSession(ctx context.Context) error {
+	dev := cli.Store
+	if dev == nil {
+		return nil
+	}
+
+	serviceID := dev.ACIServiceID()
+	sessionStore := dev.SessionStore(serviceID)
+
+	// Check if we have any linked devices
+	sessions, err := sessionStore.AllSessionsForServiceID(ctx, serviceID)
+	if err == nil && len(sessions) > 0 {
+		// Self-sessions already exist
+		cli.Log.Debug().
+			Int("session_count", len(sessions)).
+			Msg("Self-sessions already exist")
+		return nil
+	}
+
+	cli.Log.Info().
+		Int("device_id", dev.DeviceID).
+		Msg("Bootstrapping self-session for linked device")
+
+	// Fetch pre-keys for all devices on our account
+	// This will include Device 1 (primary) and other linked devices
+	err = cli.FetchAndProcessPreKey(ctx, serviceID, -1)
+	if err != nil {
+		// Check if error is about processing our own device's pre-key
+		// This is expected and safe to ignore
+		ownDeviceStr := fmt.Sprintf("device %d", dev.DeviceID)
+		if !strings.Contains(err.Error(), ownDeviceStr) {
+			return fmt.Errorf("failed to establish self-sessions: %w", err)
+		}
+		cli.Log.Debug().
+			Err(err).
+			Msg("Ignoring expected error for own device pre-key processing")
+	}
+
+	// Verify sessions were created
+	sessions, err = sessionStore.AllSessionsForServiceID(ctx, serviceID)
+	if err != nil {
+		return fmt.Errorf("failed to verify self-sessions: %w", err)
+	}
+
+	if len(sessions) == 0 {
+		return fmt.Errorf("no self-sessions created - linked device may not have Device 1 registered")
+	}
+
+	cli.Log.Info().
+		Int("session_count", len(sessions)).
+		Msg("Self-sessions successfully established")
+
+	return nil
 }
