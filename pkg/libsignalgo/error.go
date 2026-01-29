@@ -26,6 +26,10 @@ import (
 
 type ErrorCode int
 
+func (e ErrorCode) Error() string {
+	return fmt.Sprintf("libsignalgo.ErrorCode(%d)", int(e))
+}
+
 const (
 	ErrorCodeUnknownError                                ErrorCode = 1
 	ErrorCodeInvalidState                                ErrorCode = 2
@@ -116,6 +120,10 @@ type SignalError struct {
 
 func (e *SignalError) Error() string {
 	return fmt.Sprintf("%d: %s", e.Code, e.Message)
+}
+
+func (e *SignalError) Unwrap() error {
+	return e.Code
 }
 
 func (ctx *CallbackContext) wrapError(signalError *C.SignalFfiError) error {

@@ -150,6 +150,7 @@ func (cli *Client) buildMessagesToSend(
 	unauthenticated bool,
 	groupID *libsignalgo.GroupIdentifier,
 	ctmOverride *libsignalgo.CiphertextMessage,
+	forceResync bool,
 ) ([]MyMessage, error) {
 	if ctx.Value(contextKeyEncryptionLock) != true {
 		cli.encryptionLock.Lock()
@@ -157,7 +158,7 @@ func (cli *Client) buildMessagesToSend(
 	}
 
 	sessions, err := cli.Store.ACISessionStore.AllSessionsForServiceID(ctx, recipient)
-	if err == nil && len(sessions) == 0 {
+	if err == nil && (len(sessions) == 0 || forceResync) {
 		// No sessions, make one with prekey
 		err = cli.FetchAndProcessPreKey(ctx, recipient, -1)
 		if err != nil {
@@ -900,7 +901,11 @@ func (cli *Client) sendContent(
 	}
 
 	var messages []MyMessage
-	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender, groupID, ctmOverride)
+	messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender, groupID, ctmOverride, false)
+	if errors.Is(err, libsignalgo.ErrorCodeSessionNotFound) {
+		log.Err(err).Msg("Got session not found error from libsignal, trying to refetch prekeys")
+		messages, err = cli.buildMessagesToSend(ctx, recipient, content, useUnidentifiedSender, groupID, ctmOverride, true)
+	}
 	if err != nil {
 		log.Err(err).Msg("Error building messages to send")
 		return false, err
