@@ -125,9 +125,11 @@ func (cli *Client) sendToGroupWithSenderKey(
 	} else {
 		log.Debug().Any("sender_key_info", ski).Msg("Reusing existing sender key")
 	}
-	xak, devicesAddedTo, reset := diffRecipients(ski.SharedWith, deviceIDs)
-	if reset {
-		log.Debug().Msg("Resetting sender key due to recipient device changes")
+	xak, devicesAddedTo, removedDevices := diffRecipients(ski.SharedWith, deviceIDs)
+	if len(removedDevices) > 0 {
+		log.Debug().
+			Any("removed_devices", removedDevices).
+			Msg("Resetting sender key due to recipient device changes")
 		devicesAddedTo = slices.Collect(maps.Keys(deviceIDs))
 		err = cli.Store.SenderKeyStore.DeleteSenderKey(ctx, myAddress, ski.DistributionID)
 		if err != nil {
@@ -304,9 +306,12 @@ func (cli *Client) encryptWithSenderKey(
 }
 
 func diffRecipients(
-	prevDevices map[libsignalgo.ServiceID][]int, newDevices map[libsignalgo.ServiceID]senderKeySendMeta,
+	prevDevices map[libsignalgo.ServiceID][]int,
+	newDevices map[libsignalgo.ServiceID]senderKeySendMeta,
 ) (
-	xak *libsignalgo.AccessKey, devicesAddedTo []libsignalgo.ServiceID, reset bool,
+	xak *libsignalgo.AccessKey,
+	devicesAddedTo []libsignalgo.ServiceID,
+	globalRemovedDevices map[libsignalgo.ServiceID][]int,
 ) {
 	collector := make(map[libsignalgo.ServiceID]uint8, max(len(prevDevices), len(newDevices)))
 	for key := range prevDevices {
@@ -315,6 +320,7 @@ func diffRecipients(
 	for key := range newDevices {
 		collector[key] |= 0b10
 	}
+	globalRemovedDevices = make(map[libsignalgo.ServiceID][]int)
 	for serviceID, mask := range collector {
 		if mask != 0b01 {
 			xak = xak.Xor(newDevices[serviceID].AccessKey)
@@ -322,7 +328,7 @@ func diffRecipients(
 		switch mask {
 		case 0b01:
 			// Someone left the group
-			reset = true
+			globalRemovedDevices[serviceID] = prevDevices[serviceID]
 		case 0b10:
 			// Someone was added to the group
 			devicesAddedTo = append(devicesAddedTo, serviceID)
@@ -330,7 +336,7 @@ func diffRecipients(
 			removedDevices, addedDevices := exslices.Diff(prevDevices[serviceID], newDevices[serviceID].DeviceIDs)
 			if len(removedDevices) > 0 {
 				// Device was removed
-				reset = true
+				globalRemovedDevices[serviceID] = removedDevices
 			} else if len(addedDevices) > 0 {
 				// User got new devices
 				devicesAddedTo = append(devicesAddedTo, serviceID)
