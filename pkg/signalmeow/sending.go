@@ -1052,6 +1052,11 @@ func (cli *Client) handle409410(ctx context.Context, recipient libsignalgo.Servi
 	if body.StaleDevices != nil {
 		log.Debug().Uints("stale_devices", body.StaleDevices).Msg("stale devices found in 410 response")
 		for _, staleDevice := range body.StaleDevices {
+			// Device IDs must be >= 1. Device ID 0 is invalid and should be skipped.
+			if staleDevice == 0 {
+				log.Debug().Uint("stale_device", staleDevice).Msg("Skipping invalid device ID 0")
+				continue
+			}
 			recipientAddr, err := recipient.Address(staleDevice)
 			if err != nil {
 				return fmt.Errorf("failed to get address for stale device %s:%d: %w", recipient, staleDevice, err)
@@ -1069,6 +1074,10 @@ func (cli *Client) handle409410(ctx context.Context, recipient libsignalgo.Servi
 	if body.MissingDevices != nil {
 		log.Debug().Uints("missing_devices", body.MissingDevices).Msg("missing devices found in 409 response")
 		for _, missingDevice := range body.MissingDevices {
+			if missingDevice == 0 {
+				log.Debug().Uint("missing_device", missingDevice).Msg("Skipping invalid device ID 0")
+				continue
+			}
 			err := cli.FetchAndProcessPreKey(ctx, recipient, int(missingDevice))
 			if err != nil {
 				return fmt.Errorf("failed to fetch and process prekey for missing device %s:%d: %w", recipient, missingDevice, err)
@@ -1078,6 +1087,10 @@ func (cli *Client) handle409410(ctx context.Context, recipient libsignalgo.Servi
 	if body.ExtraDevices != nil {
 		log.Debug().Any("extra_devices", body.ExtraDevices).Msg("extra devices found in 409 response")
 		for _, extraDevice := range body.ExtraDevices {
+			if extraDevice == 0 {
+				log.Debug().Uint("extra_device", extraDevice).Msg("Skipping invalid device ID 0")
+				continue
+			}
 			recipientAddr, err := recipient.Address(extraDevice)
 			if err != nil {
 				return fmt.Errorf("failed to get address for extra device %s:%d: %w", recipient, extraDevice, err)
