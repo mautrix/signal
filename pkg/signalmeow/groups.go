@@ -226,8 +226,7 @@ func (groupChange *GroupChange) isEmpty() bool {
 		len(groupChange.PromoteRequestingMembers) == 0 &&
 		groupChange.ModifyDescription == nil &&
 		groupChange.ModifyAnnouncementsOnly == nil &&
-		len(groupChange.AddBannedMembers) == 0 &&
-		len(groupChange.DeleteMembers) == 0
+		len(groupChange.AddBannedMembers) == 0
 }
 
 func (groupChange *GroupChange) resolveConflict(group *Group) {
