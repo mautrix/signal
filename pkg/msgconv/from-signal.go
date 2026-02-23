@@ -174,7 +174,7 @@ func (mc *MessageConverter) ToMatrix(
 		}
 	}
 	if dm.Quote != nil {
-		authorACI, err := uuid.Parse(dm.Quote.GetAuthorAci())
+		authorACI, err := signalmeow.ParseStringOrBinaryUUID(dm.Quote.GetAuthorAci(), dm.Quote.GetAuthorAciBinary())
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Str("author_aci", dm.Quote.GetAuthorAci()).Msg("Failed to parse quote author ACI")
 		} else {

@@ -62,7 +62,9 @@ func (mc *MessageConverter) ToSignal(
 			dm.Quote = &signalpb.DataMessage_Quote{
 				Id:        proto.Uint64(messageID),
 				AuthorAci: proto.String(authorACI.String()),
-				Type:      signalpb.DataMessage_Quote_NORMAL.Enum(),
+				// TODO update aci format
+				//AuthorAciBinary: authorACI[:],
+				Type: signalpb.DataMessage_Quote_NORMAL.Enum(),
 			}
 			if replyTo.Metadata.(*signalid.MessageMetadata).ContainsAttachments {
 				dm.Quote.Attachments = make([]*signalpb.DataMessage_Quote_QuotedAttachment, 1)

@@ -37,6 +37,7 @@ import (
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
@@ -292,13 +293,13 @@ func (evt *Bv2ChatEvent) GetTimestamp() time.Time {
 }
 
 func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
-	var targetAuthorACI string
+	var targetAuthorACI uuid.UUID
 	var targetSentTS uint64
 	switch innerEvt := evt.Event.(type) {
 	case *signalpb.DataMessage:
 		switch {
 		case innerEvt.Reaction != nil:
-			targetAuthorACI = innerEvt.Reaction.GetTargetAuthorAci()
+			targetAuthorACI, _ = signalmeow.ParseStringOrBinaryUUID(innerEvt.Reaction.GetTargetAuthorAci(), innerEvt.Reaction.GetTargetAuthorAciBinary())
 			targetSentTS = innerEvt.Reaction.GetTargetSentTimestamp()
 		case innerEvt.Delete != nil:
 			targetSentTS = innerEvt.Delete.GetTargetSentTimestamp()
@@ -310,11 +311,10 @@ func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
 	default:
 		return ""
 	}
-	targetAuthorUUID := evt.Info.Sender
-	if targetAuthorACI != "" {
-		targetAuthorUUID, _ = uuid.Parse(targetAuthorACI)
+	if targetAuthorACI == uuid.Nil {
+		targetAuthorACI = evt.Info.Sender
 	}
-	return signalid.MakeMessageID(targetAuthorUUID, targetSentTS)
+	return signalid.MakeMessageID(targetAuthorACI, targetSentTS)
 }
 
 func (evt *Bv2ChatEvent) GetReactionEmoji() (string, networkid.EmojiID) {
@@ -533,6 +533,22 @@ func (s *SignalClient) addressableMessageToID(ctx context.Context, portalKey net
 			log.Warn().
 				Object("portal_key", portalKey).
 				Str("author_service_id", typedAuthor.AuthorServiceId).
+				Msg("Dropping delete for me message with unsupported service ID type")
+			return ""
+		}
+		return signalid.MakeMessageID(serviceID.UUID, am.GetSentTimestamp())
+	case *signalpb.AddressableMessage_AuthorServiceIdBinary:
+		serviceID, err := libsignalgo.ServiceIDFromBytes(typedAuthor.AuthorServiceIdBinary)
+		if err != nil {
+			log.Err(err).
+				Object("portal_key", portalKey).
+				Hex("author_service_id_binary", typedAuthor.AuthorServiceIdBinary).
+				Msg("Failed to parse delete for me message author service ID")
+			return ""
+		} else if serviceID.Type != libsignalgo.ServiceIDTypeACI {
+			log.Warn().
+				Object("portal_key", portalKey).
+				Hex("author_service_id_binary", typedAuthor.AuthorServiceIdBinary).
 				Msg("Dropping delete for me message with unsupported service ID type")
 			return ""
 		}

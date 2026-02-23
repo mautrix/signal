@@ -205,9 +205,11 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 			Timestamp:               proto.Uint64(ts),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:               proto.String(msg.PreHandleResp.Emoji),
-				Remove:              proto.Bool(false),
-				TargetAuthorAci:     proto.String(targetAuthorACI.String()),
+				Emoji:           proto.String(msg.PreHandleResp.Emoji),
+				Remove:          proto.Bool(false),
+				TargetAuthorAci: proto.String(targetAuthorACI.String()),
+				// TODO update aci format
+				//TargetAuthorAciBinary: targetAuthorACI[:],
 				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 			},
 		},
@@ -230,9 +232,11 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 			Timestamp:               proto.Uint64(ts),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:               proto.String(msg.TargetReaction.Emoji),
-				Remove:              proto.Bool(true),
-				TargetAuthorAci:     proto.String(targetAuthorACI.String()),
+				Emoji:           proto.String(msg.TargetReaction.Emoji),
+				Remove:          proto.Bool(true),
+				TargetAuthorAci: proto.String(targetAuthorACI.String()),
+				// TODO update aci format
+				//TargetAuthorAciBinary: targetAuthorACI[:],
 				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 			},
 		},
@@ -760,8 +764,8 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 			}
 
 			mostRecentMessages = append(mostRecentMessages, &signalpb.AddressableMessage{
-				Author: &signalpb.AddressableMessage_AuthorServiceId{
-					AuthorServiceId: senderACI.String(),
+				Author: &signalpb.AddressableMessage_AuthorServiceIdBinary{
+					AuthorServiceIdBinary: senderACI[:],
 				},
 				SentTimestamp: proto.Uint64(timestamp),
 			})

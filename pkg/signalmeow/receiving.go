@@ -361,17 +361,21 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Uint64("server_timestamp", envelope.GetServerTimestamp()).
 		Logger()
 	ctx = log.WithContext(ctx)
-	destinationServiceID, err := libsignalgo.ServiceIDFromString(envelope.GetDestinationServiceId())
+	destinationServiceID, _ := ParseStringOrBinaryServiceID(envelope.GetDestinationServiceId(), envelope.GetDestinationServiceIdBinary())
+	sourceServiceID, _ := ParseStringOrBinaryServiceID(envelope.GetSourceServiceId(), envelope.GetSourceServiceIdBinary())
 	log.Debug().
 		Str("destination_service_id", envelope.GetDestinationServiceId()).
 		Str("source_service_id", envelope.GetSourceServiceId()).
+		Hex("destination_service_id_bytes", envelope.GetDestinationServiceIdBinary()).
+		Hex("source_service_id_bytes", envelope.GetSourceServiceIdBinary()).
 		Uint32("source_device_id", envelope.GetSourceDevice()).
 		Object("parsed_destination_service_id", destinationServiceID).
+		Object("parsed_source_service_id", sourceServiceID).
 		Int32("envelope_type_id", int32(envelope.GetType())).
 		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
 		Msg("Received envelope")
 
-	result := cli.decryptEnvelope(ctx, envelope)
+	result := cli.decryptEnvelope(ctx, envelope, sourceServiceID, destinationServiceID)
 
 	err = cli.handleDecryptedResult(ctx, result, envelope, destinationServiceID)
 	if err != nil {
