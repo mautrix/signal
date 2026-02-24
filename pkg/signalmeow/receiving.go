@@ -714,21 +714,15 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 	}
 	syncSent := msg.GetSent()
 	if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
-		destination := syncSent.DestinationServiceId
-		var syncDestinationServiceID libsignalgo.ServiceID
-		if destination != nil {
-			var err error
-			syncDestinationServiceID, err = libsignalgo.ServiceIDFromString(*destination)
+		syncDestinationServiceID, err := ParseStringOrBinaryServiceID(syncSent.GetDestinationServiceId(), syncSent.GetDestinationServiceIdBinary())
+		if err != nil && !errors.Is(err, ErrEmptyUUIDInput) {
+			log.Err(err).Msg("Sync message destination parse error")
+		}
+		if syncSent.GetDestinationE164() != "" && !syncDestinationServiceID.IsEmpty() {
+			aci, pni := syncDestinationServiceID.ToACIAndPNI()
+			_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
 			if err != nil {
-				log.Err(err).Msg("Sync message destination parse error")
-				return
-			}
-			if syncSent.GetDestinationE164() != "" {
-				aci, pni := syncDestinationServiceID.ToACIAndPNI()
-				_, err = cli.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, syncSent.GetDestinationE164())
-				if err != nil {
-					log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
-				}
+				log.Err(err).Msg("Failed to update recipient E164 after receiving sync message")
 			}
 		}
 		for _, unident := range syncSent.GetUnidentifiedStatus() {
@@ -744,7 +738,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			}
 		}
 
-		if destination == nil && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
+		if syncDestinationServiceID.IsEmpty() && syncSent.GetMessage().GetGroupV2() == nil && syncSent.GetEditMessage().GetDataMessage().GetGroupV2() == nil {
 			log.Warn().Msg("sync message sent destination is nil")
 		} else if msg.Sent.Message != nil {
 			// TODO handle expiration start ts, and maybe the sync message ts?
