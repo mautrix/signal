@@ -726,14 +726,22 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			}
 		}
 		for _, unident := range syncSent.GetUnidentifiedStatus() {
-			changed, err := cli.saveSyncPNIIdentityKey(ctx, unident.GetDestinationServiceId(), unident.GetDestinationPniIdentityKey())
+			serviceID, err := ParseStringOrBinaryServiceID(unident.GetDestinationServiceId(), unident.GetDestinationServiceIdBinary())
 			if err != nil {
 				log.Err(err).
 					Str("destination_service_id", unident.GetDestinationServiceId()).
+					Hex("destination_service_id_bytes", unident.GetDestinationServiceIdBinary()).
+					Msg("Failed to parse destination service ID of unidentified send")
+				continue
+			}
+			changed, err := cli.saveSyncPNIIdentityKey(ctx, serviceID, unident.GetDestinationPniIdentityKey())
+			if err != nil {
+				log.Err(err).
+					Stringer("destination_service_id", serviceID).
 					Msg("Failed to save PNI identity key from sync message")
 			} else if changed {
 				log.Debug().
-					Str("destination_service_id", unident.GetDestinationServiceId()).
+					Stringer("destination_service_id", serviceID).
 					Msg("Saved new PNI identity key from sync message")
 			}
 		}
@@ -828,19 +836,13 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 	return
 }
 
-func (cli *Client) saveSyncPNIIdentityKey(ctx context.Context, serviceIDString string, identityKeyBytes []byte) (bool, error) {
-	if identityKeyBytes == nil {
+func (cli *Client) saveSyncPNIIdentityKey(ctx context.Context, serviceID libsignalgo.ServiceID, identityKeyBytes []byte) (bool, error) {
+	if identityKeyBytes == nil || serviceID.Type != libsignalgo.ServiceIDTypePNI {
 		return false, nil
 	}
 	identityKey, err := libsignalgo.DeserializeIdentityKey(identityKeyBytes)
 	if err != nil {
 		return false, fmt.Errorf("failed to deserialize PNI identity key: %w", err)
-	}
-	serviceID, err := libsignalgo.ServiceIDFromString(serviceIDString)
-	if err != nil {
-		return false, fmt.Errorf("failed to parse PNI service ID: %w", err)
-	} else if serviceID.Type != libsignalgo.ServiceIDTypePNI {
-		return false, nil
 	}
 	changed, err := cli.Store.IdentityKeyStore.SaveIdentityKey(ctx, serviceID, identityKey)
 	if err != nil {
