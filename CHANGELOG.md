@@ -1,3 +1,8 @@
+# v26.02.1
+
+* Updated libsignal to v0.87.5.
+* Added support for new binary service ID fields that Signal 8.0 switched to.
+
 # v26.02
 
 * Bumped minimum Go version to 1.25.
