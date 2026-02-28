@@ -809,7 +809,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		})
 	}
 	if msg.MessageRequestResponse != nil {
-		aciUUID, _ := uuid.Parse(msg.MessageRequestResponse.GetThreadAci())
+		aciUUID, _ := ParseStringOrBinaryUUID(msg.MessageRequestResponse.GetThreadAci(), msg.MessageRequestResponse.GetThreadAciBinary())
 		if aciUUID != uuid.Nil && msg.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
 			_, err := cli.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aciUUID, uuid.Nil, func(recipient *types.Recipient) (changed bool, err error) {
 				changed = !ptr.Val(recipient.Whitelisted) || recipient.NeedsPNISignature

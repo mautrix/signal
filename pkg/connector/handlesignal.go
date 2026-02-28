@@ -480,7 +480,7 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {
 		Logger()
 	ctx := log.WithContext(context.TODO())
 	receipts := convertReceipts(ctx, evt.Messages, func(ctx context.Context, msgInfo *signalpb.SyncMessage_Read) (*database.Message, error) {
-		aciUUID, err := uuid.Parse(msgInfo.GetSenderAci())
+		aciUUID, err := signalmeow.ParseStringOrBinaryUUID(msgInfo.GetSenderAci(), msgInfo.GetSenderAciBinary())
 		if err != nil {
 			return nil, err
 		}

@@ -85,15 +85,24 @@ func Parse(ctx context.Context, message string, ranges []*signalpb.BodyRange, pa
 			Start:  int(*r.Start),
 			Length: int(*r.Length),
 		}.TruncateEnd(maxLength)
+		var mentionACI uuid.UUID
 		switch rv := r.GetAssociatedValue().(type) {
 		case *signalpb.BodyRange_Style_:
 			br.Value = Style(rv.Style)
 		case *signalpb.BodyRange_MentionAci:
-			parsed, err := uuid.Parse(rv.MentionAci)
+			var err error
+			mentionACI, err = uuid.Parse(rv.MentionAci)
 			if err != nil {
 				continue
 			}
-			userInfo := params.GetUserInfo(ctx, parsed)
+		case *signalpb.BodyRange_MentionAciBinary:
+			if len(rv.MentionAciBinary) != 16 {
+				continue
+			}
+			mentionACI = uuid.UUID(rv.MentionAciBinary)
+		}
+		if mentionACI != uuid.Nil {
+			userInfo := params.GetUserInfo(ctx, mentionACI)
 			if userInfo.MXID == "" {
 				continue
 			}
@@ -102,7 +111,7 @@ func Parse(ctx context.Context, message string, ranges []*signalpb.BodyRange, pa
 			// Maybe use NewUTF16String and do index replacements for the plaintext body too,
 			// or just replace the plaintext body by parsing the generated HTML.
 			content.Body = strings.Replace(content.Body, "\uFFFC", userInfo.Name, 1)
-			br.Value = Mention{UserInfo: userInfo, UUID: parsed}
+			br.Value = Mention{UserInfo: userInfo, UUID: mentionACI}
 		}
 		lrt.Add(br)
 	}
