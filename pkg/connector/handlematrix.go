@@ -205,12 +205,10 @@ func (s *SignalClient) HandleMatrixReaction(ctx context.Context, msg *bridgev2.M
 			Timestamp:               proto.Uint64(ts),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:           proto.String(msg.PreHandleResp.Emoji),
-				Remove:          proto.Bool(false),
-				TargetAuthorAci: proto.String(targetAuthorACI.String()),
-				// TODO update aci format
-				//TargetAuthorAciBinary: targetAuthorACI[:],
-				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
+				Emoji:                 proto.String(msg.PreHandleResp.Emoji),
+				Remove:                proto.Bool(false),
+				TargetAuthorAciBinary: targetAuthorACI[:],
+				TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
 			},
 		},
 	}
@@ -232,12 +230,10 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 			Timestamp:               proto.Uint64(ts),
 			RequiredProtocolVersion: proto.Uint32(uint32(signalpb.DataMessage_REACTIONS)),
 			Reaction: &signalpb.DataMessage_Reaction{
-				Emoji:           proto.String(msg.TargetReaction.Emoji),
-				Remove:          proto.Bool(true),
-				TargetAuthorAci: proto.String(targetAuthorACI.String()),
-				// TODO update aci format
-				//TargetAuthorAciBinary: targetAuthorACI[:],
-				TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
+				Emoji:                 proto.String(msg.TargetReaction.Emoji),
+				Remove:                proto.Bool(true),
+				TargetAuthorAciBinary: targetAuthorACI[:],
+				TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
 			},
 		},
 	}
@@ -722,8 +718,8 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 	var conversationID *signalpb.ConversationIdentifier
 	if groupID == "" {
 		conversationID = &signalpb.ConversationIdentifier{
-			Identifier: &signalpb.ConversationIdentifier_ThreadServiceId{
-				ThreadServiceId: userID.String(),
+			Identifier: &signalpb.ConversationIdentifier_ThreadServiceIdBinary{
+				ThreadServiceIdBinary: userID.Bytes(),
 			},
 		}
 	} else {
@@ -865,7 +861,7 @@ func (s *SignalClient) syncMessageRequestResponse(
 		}
 		accept.GroupId = gidBytes[:]
 	} else if userID.Type == libsignalgo.ServiceIDTypeACI {
-		accept.ThreadAci = ptr.Ptr(userID.UUID.String())
+		accept.ThreadAciBinary = userID.UUID[:]
 	} else {
 		return fmt.Errorf("invalid portal ID for message request response: %s", portal.ID)
 	}
