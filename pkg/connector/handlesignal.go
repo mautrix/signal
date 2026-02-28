@@ -499,6 +499,13 @@ func (s *SignalClient) conversationIDToPortalKey(ctx context.Context, cid *signa
 			return networkid.PortalKey{}, false
 		}
 		return s.makeDMPortalKey(serviceID), true
+	case *signalpb.ConversationIdentifier_ThreadServiceIdBinary:
+		serviceID, err := libsignalgo.ServiceIDFromBytes(ident.ThreadServiceIdBinary)
+		if err != nil {
+			log.Err(err).Hex("chat_id", ident.ThreadServiceIdBinary).Msg("Failed to parse delete for me conversation ID")
+			return networkid.PortalKey{}, false
+		}
+		return s.makeDMPortalKey(serviceID), true
 	case *signalpb.ConversationIdentifier_ThreadGroupId:
 		if len(ident.ThreadGroupId) != libsignalgo.GroupIdentifierLength {
 			log.Error().
