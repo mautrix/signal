@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"golang.org/x/exp/maps"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
@@ -100,6 +101,9 @@ func Parse(ctx context.Context, message string, ranges []*signalpb.BodyRange, pa
 				continue
 			}
 			mentionACI = uuid.UUID(rv.MentionAciBinary)
+		default:
+			zerolog.Ctx(ctx).Warn().Type("value_type", rv).Msg("Unsupported body range type")
+			continue
 		}
 		if mentionACI != uuid.Nil {
 			userInfo := params.GetUserInfo(ctx, mentionACI)
