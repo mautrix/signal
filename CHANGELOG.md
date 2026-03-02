@@ -1,3 +1,7 @@
+# v26.02.2
+
+* Added support for more new binary service ID fields.
+
 # v26.02.1
 
 * Updated libsignal to v0.87.5.
