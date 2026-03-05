@@ -759,7 +759,8 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		log.Debug().Msg("Recieved sync message contacts")
 		blob := msg.Contacts.Blob
 		if blob != nil {
-			contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil)
+			// TODO roundtrip via disk to save memory
+			contactsBytes, err := DownloadAttachmentWithPointer(ctx, blob, nil, nil)
 			if err != nil {
 				log.Err(err).Msg("Contacts Sync DownloadAttachment error")
 			}
