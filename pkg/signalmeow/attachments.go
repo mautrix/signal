@@ -94,12 +94,13 @@ func DownloadAttachment(
 	var body []byte
 	var downloadedSize int64
 	if into == nil || resp.StatusCode > 400 {
-		body = make([]byte, resp.ContentLength)
-		_, err = io.ReadFull(resp.Body, body)
+		body, err = io.ReadAll(resp.Body)
 	} else {
-		err = fallocate.Fallocate(into, int(resp.ContentLength))
-		if err != nil {
-			return nil, fmt.Errorf("failed to pre-allocate file for attachment: %w", err)
+		if resp.ContentLength > 0 {
+			err = fallocate.Fallocate(into, int(resp.ContentLength))
+			if err != nil {
+				return nil, fmt.Errorf("failed to pre-allocate file for attachment: %w", err)
+			}
 		}
 		downloadedSize, err = io.Copy(into, resp.Body)
 	}
