@@ -407,6 +407,9 @@ func (s *SignalClient) HandleMatrixRoomTopic(ctx context.Context, msg *bridgev2.
 }
 
 func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2.MatrixMembershipChange) (*bridgev2.MatrixMembershipResult, error) {
+	if msg.Type.IsSelf && msg.OrigSender != nil {
+		return nil, nil
+	}
 	var targetIntent bridgev2.MatrixAPI
 	var targetSignalID libsignalgo.ServiceID
 	var err error
