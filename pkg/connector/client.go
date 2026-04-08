@@ -18,7 +18,9 @@ package connector
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -39,6 +41,7 @@ type SignalClient struct {
 	Ghost     *bridgev2.Ghost
 
 	queueEmptyWaiter *exsync.Event
+	lifecycleCancel  atomic.Pointer[context.CancelFunc]
 }
 
 var (
@@ -75,6 +78,7 @@ func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType b
 }
 
 func (s *SignalClient) LogoutRemote(ctx context.Context) {
+	s.cancelLifecycleContext()
 	if s.Client == nil {
 		return
 	}
@@ -182,6 +186,7 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 			} else {
 				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: err.Error()})
 			}
+			s.cancelLifecycleContext()
 			err = s.Client.ClearKeysAndDisconnect(context.TODO())
 			if err != nil {
 				s.UserLogin.Log.Error().Err(err).Msg("Failed to clear keys and disconnect")
@@ -204,15 +209,6 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 			}
 		}
 	}
-}
-
-func (s *SignalClient) Connect(ctx context.Context) {
-	if s.Client == nil {
-		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
-		return
-	}
-	s.updateRemoteProfile(ctx, false)
-	s.tryConnect(ctx, 0, true)
 }
 
 func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.ConnectBackgroundParams) error {
@@ -271,6 +267,7 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 }
 
 func (s *SignalClient) Disconnect() {
+	s.cancelLifecycleContext()
 	if s.Client == nil {
 		return
 	}
@@ -281,7 +278,7 @@ func (s *SignalClient) Disconnect() {
 }
 
 func (s *SignalClient) postLoginConnect() {
-	ctx := s.UserLogin.Log.WithContext(context.Background())
+	ctx := s.newLifecycleContext(s.UserLogin.Log.WithContext(s.UserLogin.Bridge.BackgroundCtx))
 	// TODO it would be more proper to only connect after syncing,
 	//      but currently syncing will fetch group info online, so it has to be connected.
 	s.tryConnect(ctx, 0, false)
@@ -300,11 +297,19 @@ func (s *SignalClient) postLoginConnect() {
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bool) {
+	if ctx.Err() != nil {
+		zerolog.Ctx(ctx).Debug().Err(ctx.Err()).Msg("Context canceled before starting receive loops")
+		return
+	}
 	if retryCount == 0 {
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 	}
 	ch, err := s.Client.StartReceiveLoops(ctx)
 	if err != nil {
+		if contextStopped(ctx, err) {
+			zerolog.Ctx(ctx).Debug().Err(err).Msg("Context canceled while starting receive loops")
+			return
+		}
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to start receive loops")
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateTransientDisconnect, Error: "unknown-websocket-error", Message: err.Error()})
 		retryInSeconds := 2 << retryCount
@@ -315,7 +320,7 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bo
 		select {
 		case <-time.After(time.Duration(retryInSeconds) * time.Second):
 		case <-ctx.Done():
-			zerolog.Ctx(ctx).Info().Msg("Context canceled, exit tryConnect")
+			zerolog.Ctx(ctx).Debug().Msg("Context canceled, exit tryConnect")
 			return
 		}
 		s.tryConnect(ctx, retryCount+1, doSync)
@@ -332,4 +337,32 @@ func (s *SignalClient) IsLoggedIn() bool {
 		return false
 	}
 	return s.Client.IsLoggedIn()
+}
+
+func (s *SignalClient) Connect(ctx context.Context) {
+	if s.Client == nil {
+		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: "You're not logged into Signal"})
+		return
+	}
+	ctx = s.newLifecycleContext(s.UserLogin.Log.WithContext(ctx))
+	s.updateRemoteProfile(ctx, false)
+	s.tryConnect(ctx, 0, true)
+}
+
+func (s *SignalClient) newLifecycleContext(parent context.Context) context.Context {
+	ctx, cancel := context.WithCancel(parent)
+	if oldCancel := s.lifecycleCancel.Swap(&cancel); oldCancel != nil {
+		(*oldCancel)()
+	}
+	return ctx
+}
+
+func (s *SignalClient) cancelLifecycleContext() {
+	if cancel := s.lifecycleCancel.Swap(nil); cancel != nil {
+		(*cancel)()
+	}
+}
+
+func contextStopped(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }

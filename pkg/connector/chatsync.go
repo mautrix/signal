@@ -29,6 +29,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/backuppb"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/store"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
@@ -65,95 +66,109 @@ func (s *SignalClient) syncChats(ctx context.Context) {
 	}
 	zerolog.Ctx(ctx).Info().Int("chat_count", len(chats)).Msg("Fetched chats to sync from database")
 	for _, chat := range chats {
-		recipient, err := s.Client.Store.BackupStore.GetBackupRecipient(ctx, chat.RecipientId)
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to get recipient for chat")
-			continue
-		}
-		resyncEvt := &simplevent.ChatResync{
-			EventMeta: simplevent.EventMeta{
-				Type: bridgev2.RemoteEventChatResync,
-				LogContext: func(c zerolog.Context) zerolog.Context {
-					return c.
-						Int("message_count", chat.TotalMessages).
-						Uint64("backup_chat_id", chat.Id).
-						Uint64("backup_recipient_id", chat.RecipientId)
-				},
-				CreatePortal: true,
-			},
-			LatestMessageTS: time.UnixMilli(int64(chat.LatestMessageID)),
-		}
-		switch dest := recipient.Destination.(type) {
-		case *backuppb.Recipient_Contact:
-			aci := tryCastUUID(dest.Contact.GetAci())
-			pni := tryCastUUID(dest.Contact.GetPni())
-			if chat.TotalMessages == 0 {
-				zerolog.Ctx(ctx).Debug().
-					Stringer("aci", aci).
-					Stringer("pni", pni).
-					Uint64("e164", dest.Contact.GetE164()).
-					Msg("Skipping direct chat with no messages and deleting data")
-				err = s.Client.Store.BackupStore.DeleteBackupChat(ctx, chat.Id)
-				if err != nil {
-					zerolog.Ctx(ctx).Err(err).Msg("Failed to delete chat from backup store")
-				}
-				continue
-			}
-			processedRecipient, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to get full recipient data")
-				continue
-			}
-			dmInfo := s.makeCreateDMResponse(ctx, processedRecipient, chat)
-			resyncEvt.PortalKey = dmInfo.PortalKey
-			resyncEvt.ChatInfo = dmInfo.PortalInfo
-		case *backuppb.Recipient_Self:
-			processedRecipient, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, s.Client.Store.ACI, uuid.Nil, nil)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to get full recipient data")
-				continue
-			}
-			dmInfo := s.makeCreateDMResponse(ctx, processedRecipient, chat)
-			resyncEvt.PortalKey = dmInfo.PortalKey
-			resyncEvt.ChatInfo = dmInfo.PortalInfo
-		case *backuppb.Recipient_Group:
-			if len(dest.Group.MasterKey) != libsignalgo.GroupMasterKeyLength {
-				continue
-			}
-			rawGroupID, err := libsignalgo.GroupMasterKey(dest.Group.MasterKey).GroupIdentifier()
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).
-					Uint64("recipient_id", recipient.Id).
-					Msg("Failed to get group identifier from master key")
-				continue
-			}
-			groupID := types.GroupIdentifier(base64.StdEncoding.EncodeToString(rawGroupID[:]))
-			groupInfo, err := s.getGroupInfo(ctx, groupID, dest.Group.GetSnapshot().GetVersion(), chat)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to get full group info")
-				continue
-			}
-			resyncEvt.PortalKey = s.makePortalKey(string(groupID))
-			resyncEvt.ChatInfo = groupInfo
-		default:
-			zerolog.Ctx(ctx).Debug().
-				Type("destination_type", dest).
-				Uint64("backup_chat_id", chat.Id).
-				Uint64("backup_recipient_id", chat.RecipientId).
-				Msg("Ignoring and deleting chat with unsupported destination type")
-			err = s.Client.Store.BackupStore.DeleteBackupChat(ctx, chat.Id)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to delete chat from backup store")
-			}
-			continue
-		}
-		if !s.UserLogin.QueueRemoteEvent(resyncEvt).Success {
+		if !s.syncChat(ctx, chat) {
 			return
 		}
 	}
+	// TODO if Save fails, ChatsSynced remains true in memory even though it wasn't persisted.
+	// Fixing that properly likely needs a broader metadata mutation/rollback pattern.
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).ChatsSynced = true
 	err = s.UserLogin.Save(ctx)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to save user login metadata after syncing chats")
 	}
+}
+
+func (s *SignalClient) syncChat(ctx context.Context, chat *store.BackupChat) bool {
+	recipient, err := s.Client.Store.BackupStore.GetBackupRecipient(ctx, chat.RecipientId)
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to get recipient for chat")
+		return ctx.Err() == nil
+	} else if recipient == nil {
+		zerolog.Ctx(ctx).Debug().
+			Uint64("backup_chat_id", chat.Id).
+			Uint64("backup_recipient_id", chat.RecipientId).
+			Msg("Skipping chat with missing backup recipient")
+		return true
+	}
+	resyncEvt := &simplevent.ChatResync{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventChatResync,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.
+					Int("message_count", chat.TotalMessages).
+					Uint64("backup_chat_id", chat.Id).
+					Uint64("backup_recipient_id", chat.RecipientId)
+			},
+			CreatePortal: true,
+		},
+		LatestMessageTS: time.UnixMilli(int64(chat.LatestMessageID)),
+	}
+	switch dest := recipient.Destination.(type) {
+	case *backuppb.Recipient_Contact:
+		aci := tryCastUUID(dest.Contact.GetAci())
+		pni := tryCastUUID(dest.Contact.GetPni())
+		if chat.TotalMessages == 0 {
+			zerolog.Ctx(ctx).Debug().
+				Stringer("aci", aci).
+				Stringer("pni", pni).
+				Uint64("e164", dest.Contact.GetE164()).
+				Msg("Skipping direct chat with no messages and deleting data")
+			err = s.Client.Store.BackupStore.DeleteBackupChat(ctx, chat.Id)
+			if err != nil {
+				zerolog.Ctx(ctx).Err(err).Msg("Failed to delete chat from backup store")
+				return ctx.Err() == nil
+			}
+			return true
+		}
+		processedRecipient, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get full recipient data")
+			return ctx.Err() == nil
+		}
+		dmInfo := s.makeCreateDMResponse(ctx, processedRecipient, chat)
+		resyncEvt.PortalKey = dmInfo.PortalKey
+		resyncEvt.ChatInfo = dmInfo.PortalInfo
+	case *backuppb.Recipient_Self:
+		processedRecipient, err := s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, s.Client.Store.ACI, uuid.Nil, nil)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get full recipient data")
+			return ctx.Err() == nil
+		}
+		dmInfo := s.makeCreateDMResponse(ctx, processedRecipient, chat)
+		resyncEvt.PortalKey = dmInfo.PortalKey
+		resyncEvt.ChatInfo = dmInfo.PortalInfo
+	case *backuppb.Recipient_Group:
+		if len(dest.Group.MasterKey) != libsignalgo.GroupMasterKeyLength {
+			return true
+		}
+		rawGroupID, err := libsignalgo.GroupMasterKey(dest.Group.MasterKey).GroupIdentifier()
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).
+				Uint64("recipient_id", recipient.Id).
+				Msg("Failed to get group identifier from master key")
+			return true
+		}
+		groupID := types.GroupIdentifier(base64.StdEncoding.EncodeToString(rawGroupID[:]))
+		groupInfo, err := s.getGroupInfo(ctx, groupID, dest.Group.GetSnapshot().GetVersion(), chat)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to get full group info")
+			return ctx.Err() == nil
+		}
+		resyncEvt.PortalKey = s.makePortalKey(string(groupID))
+		resyncEvt.ChatInfo = groupInfo
+	default:
+		zerolog.Ctx(ctx).Debug().
+			Type("destination_type", dest).
+			Uint64("backup_chat_id", chat.Id).
+			Uint64("backup_recipient_id", chat.RecipientId).
+			Msg("Ignoring and deleting chat with unsupported destination type")
+		err = s.Client.Store.BackupStore.DeleteBackupChat(ctx, chat.Id)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to delete chat from backup store")
+			return ctx.Err() == nil
+		}
+		return true
+	}
+	return s.UserLogin.QueueRemoteEvent(resyncEvt).Success
 }
