@@ -69,6 +69,12 @@ func (s *SignalClient) syncChats(ctx context.Context) {
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to get recipient for chat")
 			continue
+		} else if recipient == nil {
+			zerolog.Ctx(ctx).Warn().
+				Uint64("backup_chat_id", chat.Id).
+				Uint64("backup_recipient_id", chat.RecipientId).
+				Msg("No recipient found for chat")
+			continue
 		}
 		resyncEvt := &simplevent.ChatResync{
 			EventMeta: simplevent.EventMeta{
