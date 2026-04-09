@@ -281,7 +281,7 @@ func (s *SignalClient) Disconnect() {
 }
 
 func (s *SignalClient) postLoginConnect() {
-	ctx := s.UserLogin.Log.WithContext(context.Background())
+	ctx := s.UserLogin.Log.WithContext(s.Main.Bridge.BackgroundCtx)
 	// TODO it would be more proper to only connect after syncing,
 	//      but currently syncing will fetch group info online, so it has to be connected.
 	s.tryConnect(ctx, 0, false)
@@ -300,6 +300,13 @@ func (s *SignalClient) postLoginConnect() {
 }
 
 func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, doSync bool) {
+	if ctx.Err() != nil {
+		zerolog.Ctx(ctx).Debug().
+			Int("retry_count", retryCount).
+			AnErr("ctx_err", ctx.Err()).
+			Msg("Context is canceled, not trying to connect")
+		return
+	}
 	if retryCount == 0 {
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnecting})
 	}
