@@ -332,7 +332,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 		if err != nil {
 			return nil, fmt.Errorf("failed to download avatar: %w", err)
 		}
-		group.AvatarPath, err = s.Client.UploadGroupAvatar(ctx, avatarBytes, group.GroupIdentifier)
+		group.AvatarPath, err = s.Client.UploadGroupAvatar(ctx, avatarBytes, group.GroupIdentifier, group.GroupMasterKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to upload avatar: %w", err)
 		}
@@ -362,7 +362,7 @@ func (s *SignalClient) CreateGroup(ctx context.Context, params *bridgev2.GroupCr
 			return nil, fmt.Errorf("failed to set portal room ID: %w", err)
 		}
 	}
-	resp, err := s.Client.CreateGroup(ctx, group, avatarBytes)
+	resp, err := s.Client.CreateGroup(ctx, group)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create group: %w", err)
 	}
