@@ -1513,11 +1513,15 @@ func (cli *Client) patchGroup(ctx context.Context, groupChange *signalpb.GroupCh
 	return &changeResp, nil
 }
 
+var ErrGroupMasterKeyNotFound = errors.New("group master key not found in store")
+
 func (cli *Client) UpdateGroup(ctx context.Context, groupChange *GroupChange, gid types.GroupIdentifier) (uint32, error) {
 	log := zerolog.Ctx(ctx).With().Str("action", "UpdateGroup").Logger()
 	groupMasterKey, err := cli.Store.GroupStore.MasterKeyFromGroupIdentifier(ctx, gid)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get master key for group: %w", err)
+	} else if groupMasterKey == "" {
+		return 0, ErrGroupMasterKeyNotFound
 	}
 	groupChange.GroupMasterKey = groupMasterKey
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
@@ -1752,7 +1756,7 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 		return nil, err
 	}
 	if groupMasterKey == "" {
-		return nil, fmt.Errorf("No group master key found for group identifier %s", gid)
+		return nil, ErrGroupMasterKeyNotFound
 	}
 	masterKeyBytes := masterKeyToBytes(groupMasterKey)
 	groupAuth, err := cli.GetAuthorizationForToday(ctx, masterKeyBytes)
