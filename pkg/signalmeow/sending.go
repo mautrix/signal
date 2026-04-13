@@ -171,6 +171,10 @@ func (cli *Client) buildMessagesToSend(
 	} else if len(sessions) == 0 {
 		return nil, fmt.Errorf("no sessions found for recipient %s", recipient.String())
 	}
+	localAddress, err := cli.Store.ACIServiceID().Address(uint(cli.Store.DeviceID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get own address: %w", err)
+	}
 
 	messages := make([]MyMessage, 0, len(sessions))
 	for _, tuple := range sessions {
@@ -193,7 +197,7 @@ func (cli *Client) buildMessagesToSend(
 
 		includeE164 := groupID == nil && cli.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY
 		envelopeType, encryptedPayload, err := cli.buildMessageToSend(
-			ctx, tuple.Address, paddedMessage, getContentHint(content), ctmOverride, groupID, includeE164, unauthenticated,
+			ctx, tuple.Address, localAddress, paddedMessage, getContentHint(content), ctmOverride, groupID, includeE164, unauthenticated,
 		)
 		if err != nil {
 			return nil, err
@@ -232,7 +236,7 @@ func ctmTypeToEnvelopeType(ctmType libsignalgo.CiphertextMessageType) signalpb.E
 
 func (cli *Client) buildMessageToSend(
 	ctx context.Context,
-	recipientAddress *libsignalgo.Address,
+	recipientAddress, localAddress *libsignalgo.Address,
 	paddedMessage []byte,
 	contentHint libsignalgo.UnidentifiedSenderMessageContentHint,
 	ciphertextMessage *libsignalgo.CiphertextMessage,
@@ -244,6 +248,7 @@ func (cli *Client) buildMessageToSend(
 			ctx,
 			paddedMessage,
 			recipientAddress,
+			localAddress,
 			cli.Store.ACISessionStore,
 			cli.Store.ACIIdentityStore,
 		)

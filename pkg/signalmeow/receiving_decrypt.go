@@ -188,12 +188,17 @@ func (cli *Client) prekeyDecrypt(
 	if is == nil {
 		return nil, fmt.Errorf("no identity store found for %s", destination)
 	}
+	destinationAddress, err := destination.Address(uint(cli.Store.DeviceID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get own/destination address: %w", err)
+	}
 
 	plaintext, ciphertextHash, err := cli.bufferedDecryptTxn(ctx, encryptedContent, serverTimestamp, func(ctx context.Context) ([]byte, error) {
 		return libsignalgo.DecryptPreKey(
 			ctx,
 			preKeyMessage,
 			sender,
+			destinationAddress,
 			ss,
 			is,
 			pks,
