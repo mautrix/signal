@@ -619,7 +619,7 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 		return nil, fmt.Errorf("failed to get group master key: %w", err)
 	}
 	if groupMasterKey == "" {
-		return nil, fmt.Errorf("No group master key found for group identifier %s", gid)
+		return nil, fmt.Errorf("%w for %s", ErrGroupMasterKeyNotFound, gid)
 	}
 	return cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
 }
