@@ -184,7 +184,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 				return bridgev2.RemoteEventReactionRemove
 			}
 			return bridgev2.RemoteEventReaction
-		case innerEvt.Delete != nil:
+		case innerEvt.Delete != nil, innerEvt.AdminDelete != nil:
 			return bridgev2.RemoteEventMessageRemove
 		case innerEvt.GetGroupV2().GetGroupChange() != nil:
 			return bridgev2.RemoteEventChatInfoChange
@@ -303,6 +303,11 @@ func (evt *Bv2ChatEvent) GetTargetMessage() networkid.MessageID {
 			targetSentTS = innerEvt.Reaction.GetTargetSentTimestamp()
 		case innerEvt.Delete != nil:
 			targetSentTS = innerEvt.Delete.GetTargetSentTimestamp()
+		case innerEvt.AdminDelete != nil:
+			if len(innerEvt.AdminDelete.GetTargetAuthorAciBinary()) == 16 {
+				targetAuthorACI = uuid.UUID(innerEvt.AdminDelete.GetTargetAuthorAciBinary())
+			}
+			targetSentTS = innerEvt.AdminDelete.GetTargetSentTimestamp()
 		default:
 			return ""
 		}
@@ -421,7 +426,7 @@ func (b *Bv2Receipt) GetReadUpTo() time.Time {
 	return time.Time{}
 }
 
-var _ bridgev2.RemoteReceipt = (*Bv2Receipt)(nil)
+var _ bridgev2.RemoteReadReceipt = (*Bv2Receipt)(nil)
 
 func convertReceipts[T any](ctx context.Context, input []T, getMessageFunc func(ctx context.Context, msgID T) (*database.Message, error)) map[networkid.PortalKey]*Bv2Receipt {
 	log := zerolog.Ctx(ctx)
