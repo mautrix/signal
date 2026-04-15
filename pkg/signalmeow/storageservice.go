@@ -66,12 +66,14 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 		switch data := record.StorageRecord.GetRecord().(type) {
 		case *signalpb.StorageRecord_Contact:
 			log.Trace().Any("contact_record", data.Contact).Msg("Handling contact record")
-			aci, _ := uuid.Parse(data.Contact.Aci)
-			pni, _ := uuid.Parse(data.Contact.Pni)
+			aci, _ := ParseStringOrBinaryUUID(data.Contact.Aci, data.Contact.AciBinary)
+			pni, _ := ParseStringOrBinaryUUID(data.Contact.Pni, data.Contact.PniBinary)
 			if aci == uuid.Nil && pni == uuid.Nil {
 				log.Warn().
 					Str("raw_aci", data.Contact.Aci).
 					Str("raw_pni", data.Contact.Pni).
+					Hex("raw_aci_binary", data.Contact.AciBinary).
+					Hex("raw_pni_binary", data.Contact.PniBinary).
 					Str("raw_e164", data.Contact.E164).
 					Msg("Storage service has contact record with no ACI or PNI")
 				continue
