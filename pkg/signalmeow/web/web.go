@@ -129,6 +129,7 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 	} else {
 		req.Header.Set("Content-Type", string(ContentTypeJSON))
 	}
+	req.ContentLength = int64(len(opt.Body))
 	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(opt.Body)))
 	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("X-Signal-Agent", SignalAgent)
