@@ -109,6 +109,17 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 			log.Err(err).Msg("Direct download failed")
 			return nil, err
 		}
+	case *signalid.DirectMediaSticker:
+		log.Info().
+			Hex("pack_id", info.PackID).
+			Uint32("sticker_id", info.StickerID).
+			Msg("Direct downloading sticker")
+
+		rawDataResp, err = signalmeow.DownloadStickerPackItem(ctx, info.PackID, info.PackKey, info.StickerID)
+		if err != nil {
+			log.Err(err).Msg("Direct download failed")
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("no downloader for direct media type: %T", info)
 	}

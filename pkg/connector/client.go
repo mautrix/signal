@@ -46,6 +46,7 @@ type SignalClient struct {
 var (
 	_ bridgev2.NetworkAPI                  = (*SignalClient)(nil)
 	_ bridgev2.BackgroundSyncingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.StickerImportingNetworkAPI  = (*SignalClient)(nil)
 )
 
 var pushCfg = &bridgev2.PushConfig{
@@ -74,6 +75,10 @@ func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType b
 	default:
 		return fmt.Errorf("unsupported push type: %s", pushType)
 	}
+}
+
+func (s *SignalClient) DownloadImagePack(ctx context.Context, url string) (*bridgev2.ImportedImagePack, error) {
+	return s.Main.MsgConv.DownloadImagePack(ctx, url)
 }
 
 func (s *SignalClient) LogoutRemote(ctx context.Context) {
