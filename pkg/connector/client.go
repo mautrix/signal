@@ -27,6 +27,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/status"
+	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
@@ -79,6 +80,10 @@ func (s *SignalClient) RegisterPushNotifications(ctx context.Context, pushType b
 
 func (s *SignalClient) DownloadImagePack(ctx context.Context, url string) (*bridgev2.ImportedImagePack, error) {
 	return s.Main.MsgConv.DownloadImagePack(ctx, url)
+}
+
+func (s *SignalClient) ListImagePacks(ctx context.Context) ([]*event.ImagePackMetadata, error) {
+	return []*event.ImagePackMetadata{}, nil
 }
 
 func (s *SignalClient) LogoutRemote(ctx context.Context) {
