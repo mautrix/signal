@@ -47,7 +47,7 @@ const PackURLLength = len(PackURLFormat) - len("%x")*2 + PackIDLength*2 + PackKe
 var zeroPackID = make([]byte, PackIDLength)
 
 func ParseStickerMeta(info *event.BridgedSticker) *signalpb.DataMessage_Sticker {
-	if info.Network != StickerSourceID || len(info.PackURL) != PackURLLength {
+	if info == nil || info.Network != StickerSourceID || len(info.PackURL) != PackURLLength {
 		return nil
 	}
 	stickerID, err := strconv.ParseUint(info.ID, 10, 32)
