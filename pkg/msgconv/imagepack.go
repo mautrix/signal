@@ -27,6 +27,7 @@ import (
 
 	"go.mau.fi/util/emojishortcodes"
 	"google.golang.org/protobuf/proto"
+	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/event"
@@ -91,7 +92,7 @@ func parsePackURL(rawURL string) (packID, packKey []byte, err error) {
 func (mc *MessageConverter) DownloadImagePack(ctx context.Context, url string) (*bridgev2.ImportedImagePack, error) {
 	packID, packKey, err := parsePackURL(url)
 	if err != nil {
-		return nil, err
+		return nil, bridgev2.WrapRespErr(err, mautrix.MNotFound)
 	}
 	manifest, err := signalmeow.DownloadStickerPackManifest(ctx, packID, packKey)
 	if err != nil {
