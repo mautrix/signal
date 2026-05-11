@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/rs/zerolog"
 
@@ -140,12 +141,14 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 	httpReqCounter++
 	log = log.With().Int("request_number", httpReqCounter).Logger()
 	log.Trace().Msg("Sending HTTP request")
+	start := time.Now()
 	resp, err := SignalHTTPClient.Do(req)
+	dur := time.Since(start)
 	if err != nil {
-		log.Err(err).Msg("Error sending request")
+		log.Err(err).Dur("duration", dur).Msg("Error sending request")
 		return nil, err
 	}
-	log.Debug().Int("status_code", resp.StatusCode).Msg("received HTTP response")
+	log.Debug().Int("status_code", resp.StatusCode).Dur("duration", dur).Msg("Received HTTP response")
 	return resp, nil
 }
 
