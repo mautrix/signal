@@ -75,6 +75,7 @@ var signalCaps = &event.RoomFeatures{
 				"image/gif":  event.CapLevelFullySupported,
 				"image/png":  event.CapLevelFullySupported,
 				"image/jpeg": event.CapLevelFullySupported,
+				// Signal clients will only render static webp, so apng is preferred
 				"image/webp": event.CapLevelPartialSupport,
 				"image/bmp":  event.CapLevelFullySupported,
 			},
@@ -111,6 +112,7 @@ var signalCaps = &event.RoomFeatures{
 		},
 		event.CapMsgSticker: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
+				// Signal clients will only render static webp, so apng is preferred
 				"image/webp": event.CapLevelPartialSupport,
 				"image/png":  event.CapLevelFullySupported,
 				"image/apng": event.CapLevelFullySupported,
