@@ -38,7 +38,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2025_12_09"
+	base := "fi.mau.signal.capabilities.2026_05_12"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -75,7 +75,7 @@ var signalCaps = &event.RoomFeatures{
 				"image/gif":  event.CapLevelFullySupported,
 				"image/png":  event.CapLevelFullySupported,
 				"image/jpeg": event.CapLevelFullySupported,
-				"image/webp": event.CapLevelFullySupported,
+				"image/webp": event.CapLevelPartialSupport,
 				"image/bmp":  event.CapLevelFullySupported,
 			},
 			MaxWidth:         4096,
@@ -111,7 +111,7 @@ var signalCaps = &event.RoomFeatures{
 		},
 		event.CapMsgSticker: {
 			MimeTypes: map[string]event.CapabilitySupportLevel{
-				"image/webp": event.CapLevelFullySupported,
+				"image/webp": event.CapLevelPartialSupport,
 				"image/png":  event.CapLevelFullySupported,
 				"image/apng": event.CapLevelFullySupported,
 				"image/gif":  supportedIfFFmpeg(),
@@ -236,5 +236,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 7
+	return 1, 8
 }
