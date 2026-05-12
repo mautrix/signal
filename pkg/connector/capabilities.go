@@ -75,8 +75,7 @@ var signalCaps = &event.RoomFeatures{
 				"image/gif":  event.CapLevelFullySupported,
 				"image/png":  event.CapLevelFullySupported,
 				"image/jpeg": event.CapLevelFullySupported,
-				// Signal clients will only render static webp, so apng is preferred
-				"image/webp": event.CapLevelPartialSupport,
+				"image/webp": event.CapLevelFullySupported,
 				"image/bmp":  event.CapLevelFullySupported,
 			},
 			MaxWidth:         4096,
