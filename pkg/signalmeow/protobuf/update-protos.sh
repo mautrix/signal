@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-ANDROID_GIT_REVISION=${1:-439760e7732585bfd078d92d93732c04cc31e29e}
-DESKTOP_GIT_REVISION=${1:-1b2a3e7b283c32c5654a39da12fc04139fd26dbd}
+ANDROID_GIT_REVISION=${1:-aa9591211ba0c77376318bdd5f014e064b8e8de4}
+DESKTOP_GIT_REVISION=${1:-a0af83d7488930c213a7b6dd554490ebe9e65628}
 
 update_proto() {
   case "$1" in
@@ -14,6 +14,11 @@ update_proto() {
     Signal-Android-Archive)
       REPO="Signal-Android"
       prefix="lib/archive/src/main/protowire/"
+      GIT_REVISION=$ANDROID_GIT_REVISION
+      ;;
+    Signal-Android-Network)
+      REPO="Signal-Android"
+      prefix="core/network/src/main/protowire/"
       GIT_REVISION=$ANDROID_GIT_REVISION
       ;;
     Signal-Desktop)
@@ -31,7 +36,7 @@ update_proto Signal-Android Groups.proto
 update_proto Signal-Android Provisioning.proto
 update_proto Signal-Android SignalService.proto
 update_proto Signal-Android StickerResources.proto
-update_proto Signal-Android WebSocketResources.proto
+update_proto Signal-Android-Network WebSocketResources.proto
 update_proto Signal-Android StorageService.proto
 
 update_proto Signal-Android-Archive Backup.proto
