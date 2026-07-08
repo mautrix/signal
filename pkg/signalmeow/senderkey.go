@@ -185,6 +185,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 			if err = cli.Store.SenderKeyStore.DeleteSenderKeyInfo(ctx, groupIDStr); err != nil {
 				return nil, fmt.Errorf("failed to delete sender key info: %w", err)
 			}
+			doUnlock()
 			return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
 		}
 		return nil, err
