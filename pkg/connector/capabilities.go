@@ -184,6 +184,16 @@ var signalDisappearingCap = &event.DisappearingTimerCapability{
 
 var signalCapsNoteToSelf *event.RoomFeatures
 var signalCapsDM *event.RoomFeatures
+var signalCapsPolls *event.RoomFeatures
+var signalCapsDMPolls *event.RoomFeatures
+var signalCapsNoteToSelfPolls *event.RoomFeatures
+
+func withPolls(caps *event.RoomFeatures) *event.RoomFeatures {
+	polls := ptr.Clone(caps)
+	polls.ID = caps.ID + "+polls"
+	polls.Poll = event.CapLevelFullySupported
+	return polls
+}
 
 func init() {
 	signalCapsDM = ptr.Clone(signalCaps)
@@ -196,13 +206,26 @@ func init() {
 	signalCapsNoteToSelf.EditMaxAge = nil
 	signalCapsNoteToSelf.DeleteMaxAge = nil
 	signalCapsNoteToSelf.ID = capID() + "+note_to_self"
+	signalCapsPolls = withPolls(signalCaps)
+	signalCapsDMPolls = withPolls(signalCapsDM)
+	signalCapsNoteToSelfPolls = withPolls(signalCapsNoteToSelf)
 }
 
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
+	extevPolls := s.Main.Config.ExtEvPolls
 	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
+		if extevPolls {
+			return signalCapsNoteToSelfPolls
+		}
 		return signalCapsNoteToSelf
 	} else if portal.RoomType == database.RoomTypeDM {
+		if extevPolls {
+			return signalCapsDMPolls
+		}
 		return signalCapsDM
+	}
+	if extevPolls {
+		return signalCapsPolls
 	}
 	return signalCaps
 }
@@ -237,5 +260,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 8
+	return 1, 9
 }
