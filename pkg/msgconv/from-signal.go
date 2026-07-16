@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"strconv"
@@ -569,15 +570,20 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		content.Info.Blurhash = att.GetBlurHash()
 		content.Info.AnoaBlurhash = att.GetBlurHash()
 	}
-	switch strings.Split(content.Info.MimeType, "/")[0] {
-	case "image":
+	plainMime, _, _ := mime.ParseMediaType(content.Info.MimeType)
+	// Supported mime types from https://github.com/signalapp/Signal-Desktop/blob/main/ts/util/GoogleChrome.std.ts
+	switch plainMime {
+	case "image/avif", "image/bmp", "image/gif", "image/jpeg", "image/webp", "image/x-xbitmap",
+		"image/vnd.microsoft.icon", "image/ico", "image/icon", "image/x-icon", "image/png", "image/apng":
 		content.MsgType = event.MsgImage
-	case "video":
+	case "video/mp4", "video/ogg", "video/webm":
 		content.MsgType = event.MsgVideo
-	case "audio":
-		content.MsgType = event.MsgAudio
 	default:
-		content.MsgType = event.MsgFile
+		if strings.HasPrefix(plainMime, "audio/") && !strings.HasSuffix(plainMime, "aiff") {
+			content.MsgType = event.MsgAudio
+		} else {
+			content.MsgType = event.MsgFile
+		}
 	}
 	var extra map[string]any
 	if att.GetFlags()&uint32(signalpb.AttachmentPointer_GIF) != 0 {
