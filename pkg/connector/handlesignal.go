@@ -392,8 +392,11 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, evt.Info.Sender, intent, editMsg.GetDataMessage(), nil)
 	// TODO can anything other than the text be edited?
 	editPart := converted.Parts[len(converted.Parts)-1].ToEditPart(existing[len(existing)-1])
-	editPart.Part.EditCount++
 	prevID := editPart.Part.ID
+	// Clone the database message struct to avoid mutating the ID.
+	// The ID from the original struct is used for AddedParts (we specifically want the old ID for that)
+	editPart.Part = ptr.Clone(editPart.Part)
+	editPart.Part.EditCount++
 	editPart.Part.ID = signalid.MakeMessageID(evt.Info.Sender, editMsg.GetDataMessage().GetTimestamp())
 	convertedEdit := &bridgev2.ConvertedEdit{
 		ModifiedParts: []*bridgev2.ConvertedEditPart{editPart},
