@@ -25,7 +25,7 @@ import "unsafe"
 
 func GoStringToCString(str string) (C.SignalCStringPtr, func()) {
 	cStr := C.CString(str)
-	return (*C.int8_t)(cStr), func() {
+	return C.SignalCStringPtr(unsafe.Pointer(cStr)), func() {
 		C.free(unsafe.Pointer(cStr))
 	}
 }
