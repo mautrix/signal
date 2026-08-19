@@ -657,7 +657,7 @@ func (s *SignalWebsocket) sendRequestInternal(
 			}
 		}
 		zerolog.Ctx(ctx).Warn().Int("retry_count", retryCount).Msg("Received nil response, retrying recursively")
-		return s.sendRequestInternal(ctx, request, startTime, retryCount+1)
+		return s.sendRequestInternal(ctx, request, time.Now(), retryCount+1)
 	}
 	return response, nil
 }
