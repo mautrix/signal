@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exmime"
@@ -37,6 +38,11 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
 )
+
+const longTextMimeType = "text/x-signal-plain"
+const longTextFileName = "long-message.txt"
+const signalTextMaxLength = 2 * 1024      // in UTF-8 bytes, Signal clients silently drop messages with a longer body
+const signalLongTextMaxLength = 64 * 1024 // Signal clients refuse to send or process bigger long text attachments
 
 func (mc *MessageConverter) ToSignal(
 	ctx context.Context,
@@ -139,7 +145,46 @@ func (mc *MessageConverter) ToSignal(
 	default:
 		return nil, fmt.Errorf("%w %s", bridgev2.ErrUnsupportedMessageType, content.MsgType)
 	}
+	if err := mc.convertLongTextToSignal(ctx, dm); err != nil {
+		return nil, err
+	}
 	return dm, nil
+}
+
+func (mc *MessageConverter) convertLongTextToSignal(ctx context.Context, dm *signalpb.DataMessage) error {
+	body := dm.GetBody()
+	if len(body) <= signalTextMaxLength {
+		return nil
+	} else if len(body) > signalLongTextMaxLength {
+		return fmt.Errorf("message body is too long (%d bytes, maximum is %d)", len(body), signalLongTextMaxLength)
+	}
+	zerolog.Ctx(ctx).Debug().
+		Int("body_size", len(body)).
+		Msg("Uploading message body as long text attachment")
+	att, err := getClient(ctx).UploadAttachment(ctx, []byte(body))
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to upload long text")
+		return fmt.Errorf("%w (long text): %w", bridgev2.ErrMediaReuploadFailed, err)
+	}
+	att.ContentType = proto.String(longTextMimeType)
+	att.FileName = proto.String(longTextFileName)
+	dm.Attachments = append(dm.Attachments, att)
+	// Body ranges are intentionally left alone: receiving clients replace the body
+	// with the contents of the long text attachment before applying the ranges.
+	dm.Body = proto.String(truncateUTF8(body, signalTextMaxLength))
+	return nil
+}
+
+func truncateUTF8(str string, maxBytes int) string {
+	if len(str) <= maxBytes {
+		return str
+	}
+	end := maxBytes
+	// Don't cut in the middle of a multi-byte character
+	for end > 0 && !utf8.RuneStart(str[end]) {
+		end--
+	}
+	return str[:end]
 }
 
 func maybeInt[T constraints.Integer](v T) *T {
