@@ -6658,11 +6658,14 @@ func (x *SyncMessage_Contacts) GetComplete() bool {
 }
 
 type SyncMessage_Blocked struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Numbers       []string               `protobuf:"bytes,1,rep,name=numbers" json:"numbers,omitempty"`
-	Acis          []string               `protobuf:"bytes,3,rep,name=acis" json:"acis,omitempty"`
-	GroupIds      [][]byte               `protobuf:"bytes,2,rep,name=groupIds" json:"groupIds,omitempty"`
-	AcisBinary    [][]byte               `protobuf:"bytes,4,rep,name=acisBinary" json:"acisBinary,omitempty"` // 16-byte UUID
+	state         protoimpl.MessageState              `protogen:"open.v1"`
+	Numbers       []string                            `protobuf:"bytes,1,rep,name=numbers" json:"numbers,omitempty"` // deprecated: this field will be removed in a future release.
+	Acis          []string                            `protobuf:"bytes,3,rep,name=acis" json:"acis,omitempty"`
+	GroupIds      [][]byte                            `protobuf:"bytes,2,rep,name=groupIds" json:"groupIds,omitempty"`     // deprecated: this field will be removed in a future release.
+	AcisBinary    [][]byte                            `protobuf:"bytes,4,rep,name=acisBinary" json:"acisBinary,omitempty"` // deprecated: this field will be removed in a future release.
+	BlockedE164S  []*SyncMessage_Blocked_BlockedE164  `protobuf:"bytes,5,rep,name=blockedE164s" json:"blockedE164s,omitempty"`
+	BlockedAcis   []*SyncMessage_Blocked_BlockedAci   `protobuf:"bytes,6,rep,name=blockedAcis" json:"blockedAcis,omitempty"`
+	BlockedGroups []*SyncMessage_Blocked_BlockedGroup `protobuf:"bytes,7,rep,name=blockedGroups" json:"blockedGroups,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -6721,6 +6724,27 @@ func (x *SyncMessage_Blocked) GetGroupIds() [][]byte {
 func (x *SyncMessage_Blocked) GetAcisBinary() [][]byte {
 	if x != nil {
 		return x.AcisBinary
+	}
+	return nil
+}
+
+func (x *SyncMessage_Blocked) GetBlockedE164S() []*SyncMessage_Blocked_BlockedE164 {
+	if x != nil {
+		return x.BlockedE164S
+	}
+	return nil
+}
+
+func (x *SyncMessage_Blocked) GetBlockedAcis() []*SyncMessage_Blocked_BlockedAci {
+	if x != nil {
+		return x.BlockedAcis
+	}
+	return nil
+}
+
+func (x *SyncMessage_Blocked) GetBlockedGroups() []*SyncMessage_Blocked_BlockedGroup {
+	if x != nil {
+		return x.BlockedGroups
 	}
 	return nil
 }
@@ -8110,6 +8134,162 @@ func (x *SyncMessage_Sent_StoryMessageRecipient) GetDestinationServiceIdBinary()
 	return nil
 }
 
+type SyncMessage_Blocked_BlockedE164 struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	E164          *string                `protobuf:"bytes,1,opt,name=e164" json:"e164,omitempty"`
+	Timestamp     *uint64                `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncMessage_Blocked_BlockedE164) Reset() {
+	*x = SyncMessage_Blocked_BlockedE164{}
+	mi := &file_SignalService_proto_msgTypes[80]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncMessage_Blocked_BlockedE164) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncMessage_Blocked_BlockedE164) ProtoMessage() {}
+
+func (x *SyncMessage_Blocked_BlockedE164) ProtoReflect() protoreflect.Message {
+	mi := &file_SignalService_proto_msgTypes[80]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncMessage_Blocked_BlockedE164.ProtoReflect.Descriptor instead.
+func (*SyncMessage_Blocked_BlockedE164) Descriptor() ([]byte, []int) {
+	return file_SignalService_proto_rawDescGZIP(), []int{11, 2, 0}
+}
+
+func (x *SyncMessage_Blocked_BlockedE164) GetE164() string {
+	if x != nil && x.E164 != nil {
+		return *x.E164
+	}
+	return ""
+}
+
+func (x *SyncMessage_Blocked_BlockedE164) GetTimestamp() uint64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
+type SyncMessage_Blocked_BlockedAci struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	AciBinary     []byte                 `protobuf:"bytes,1,opt,name=aciBinary" json:"aciBinary,omitempty"` // 16-byte UUID
+	Timestamp     *uint64                `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncMessage_Blocked_BlockedAci) Reset() {
+	*x = SyncMessage_Blocked_BlockedAci{}
+	mi := &file_SignalService_proto_msgTypes[81]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncMessage_Blocked_BlockedAci) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncMessage_Blocked_BlockedAci) ProtoMessage() {}
+
+func (x *SyncMessage_Blocked_BlockedAci) ProtoReflect() protoreflect.Message {
+	mi := &file_SignalService_proto_msgTypes[81]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncMessage_Blocked_BlockedAci.ProtoReflect.Descriptor instead.
+func (*SyncMessage_Blocked_BlockedAci) Descriptor() ([]byte, []int) {
+	return file_SignalService_proto_rawDescGZIP(), []int{11, 2, 1}
+}
+
+func (x *SyncMessage_Blocked_BlockedAci) GetAciBinary() []byte {
+	if x != nil {
+		return x.AciBinary
+	}
+	return nil
+}
+
+func (x *SyncMessage_Blocked_BlockedAci) GetTimestamp() uint64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
+type SyncMessage_Blocked_BlockedGroup struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	GroupId       []byte                 `protobuf:"bytes,1,opt,name=groupId" json:"groupId,omitempty"`
+	Timestamp     *uint64                `protobuf:"varint,2,opt,name=timestamp" json:"timestamp,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SyncMessage_Blocked_BlockedGroup) Reset() {
+	*x = SyncMessage_Blocked_BlockedGroup{}
+	mi := &file_SignalService_proto_msgTypes[82]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SyncMessage_Blocked_BlockedGroup) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncMessage_Blocked_BlockedGroup) ProtoMessage() {}
+
+func (x *SyncMessage_Blocked_BlockedGroup) ProtoReflect() protoreflect.Message {
+	mi := &file_SignalService_proto_msgTypes[82]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncMessage_Blocked_BlockedGroup.ProtoReflect.Descriptor instead.
+func (*SyncMessage_Blocked_BlockedGroup) Descriptor() ([]byte, []int) {
+	return file_SignalService_proto_rawDescGZIP(), []int{11, 2, 2}
+}
+
+func (x *SyncMessage_Blocked_BlockedGroup) GetGroupId() []byte {
+	if x != nil {
+		return x.GroupId
+	}
+	return nil
+}
+
+func (x *SyncMessage_Blocked_BlockedGroup) GetTimestamp() uint64 {
+	if x != nil && x.Timestamp != nil {
+		return *x.Timestamp
+	}
+	return 0
+}
+
 type SyncMessage_OutgoingPayment_MobileCoin struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	RecipientAddress     []byte                 `protobuf:"bytes,1,opt,name=recipientAddress" json:"recipientAddress,omitempty"`
@@ -8126,7 +8306,7 @@ type SyncMessage_OutgoingPayment_MobileCoin struct {
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) Reset() {
 	*x = SyncMessage_OutgoingPayment_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[80]
+	mi := &file_SignalService_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8138,7 +8318,7 @@ func (x *SyncMessage_OutgoingPayment_MobileCoin) String() string {
 func (*SyncMessage_OutgoingPayment_MobileCoin) ProtoMessage() {}
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[80]
+	mi := &file_SignalService_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8220,7 +8400,7 @@ type SyncMessage_DeleteForMe_MessageDeletes struct {
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) Reset() {
 	*x = SyncMessage_DeleteForMe_MessageDeletes{}
-	mi := &file_SignalService_proto_msgTypes[81]
+	mi := &file_SignalService_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8232,7 +8412,7 @@ func (x *SyncMessage_DeleteForMe_MessageDeletes) String() string {
 func (*SyncMessage_DeleteForMe_MessageDeletes) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[81]
+	mi := &file_SignalService_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8278,7 +8458,7 @@ type SyncMessage_DeleteForMe_AttachmentDelete struct {
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_AttachmentDelete{}
-	mi := &file_SignalService_proto_msgTypes[82]
+	mi := &file_SignalService_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8290,7 +8470,7 @@ func (x *SyncMessage_DeleteForMe_AttachmentDelete) String() string {
 func (*SyncMessage_DeleteForMe_AttachmentDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[82]
+	mi := &file_SignalService_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8353,7 +8533,7 @@ type SyncMessage_DeleteForMe_ConversationDelete struct {
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_ConversationDelete{}
-	mi := &file_SignalService_proto_msgTypes[83]
+	mi := &file_SignalService_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8365,7 +8545,7 @@ func (x *SyncMessage_DeleteForMe_ConversationDelete) String() string {
 func (*SyncMessage_DeleteForMe_ConversationDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[83]
+	mi := &file_SignalService_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8418,7 +8598,7 @@ type SyncMessage_DeleteForMe_LocalOnlyConversationDelete struct {
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_LocalOnlyConversationDelete{}
-	mi := &file_SignalService_proto_msgTypes[84]
+	mi := &file_SignalService_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8430,7 +8610,7 @@ func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) String() string {
 func (*SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[84]
+	mi := &file_SignalService_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8466,7 +8646,7 @@ type SyncMessage_AttachmentBackfillResponse_AttachmentData struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse_AttachmentData{}
-	mi := &file_SignalService_proto_msgTypes[85]
+	mi := &file_SignalService_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8478,7 +8658,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) String() string 
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[85]
+	mi := &file_SignalService_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8547,7 +8727,7 @@ type SyncMessage_AttachmentBackfillResponse_AttachmentDataList struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse_AttachmentDataList{}
-	mi := &file_SignalService_proto_msgTypes[86]
+	mi := &file_SignalService_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8559,7 +8739,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) String() str
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[86]
+	mi := &file_SignalService_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8599,7 +8779,7 @@ type ContactDetails_Avatar struct {
 
 func (x *ContactDetails_Avatar) Reset() {
 	*x = ContactDetails_Avatar{}
-	mi := &file_SignalService_proto_msgTypes[87]
+	mi := &file_SignalService_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8611,7 +8791,7 @@ func (x *ContactDetails_Avatar) String() string {
 func (*ContactDetails_Avatar) ProtoMessage() {}
 
 func (x *ContactDetails_Avatar) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[87]
+	mi := &file_SignalService_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8651,7 +8831,7 @@ type PaymentAddress_MobileCoin struct {
 
 func (x *PaymentAddress_MobileCoin) Reset() {
 	*x = PaymentAddress_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[88]
+	mi := &file_SignalService_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8663,7 +8843,7 @@ func (x *PaymentAddress_MobileCoin) String() string {
 func (*PaymentAddress_MobileCoin) ProtoMessage() {}
 
 func (x *PaymentAddress_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[88]
+	mi := &file_SignalService_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -9063,7 +9243,7 @@ const file_SignalService_proto_rawDesc = "" +
 	"\aDEFAULT\x10\x00\x12\f\n" +
 	"\bVERIFIED\x10\x01\x12\x0e\n" +
 	"\n" +
-	"UNVERIFIED\x10\x02J\x04\b\x01\x10\x02\"\xd8G\n" +
+	"UNVERIFIED\x10\x02J\x04\b\x01\x10\x02\"\xa8K\n" +
 	"\vSyncMessage\x125\n" +
 	"\x04sent\x18\x01 \x01(\v2\x1f.signalservice.SyncMessage.SentH\x00R\x04sent\x12A\n" +
 	"\bcontacts\x18\x02 \x01(\v2#.signalservice.SyncMessage.ContactsH\x00R\bcontacts\x12>\n" +
@@ -9115,14 +9295,27 @@ const file_SignalService_proto_rawDesc = "" +
 	"\x1adestinationServiceIdBinary\x18\x05 \x01(\fR\x1adestinationServiceIdBinaryJ\x04\b\x04\x10\x05J\x04\b\v\x10\f\x1ac\n" +
 	"\bContacts\x124\n" +
 	"\x04blob\x18\x01 \x01(\v2 .signalservice.AttachmentPointerR\x04blob\x12!\n" +
-	"\bcomplete\x18\x02 \x01(\b:\x05falseR\bcomplete\x1as\n" +
+	"\bcomplete\x18\x02 \x01(\b:\x05falseR\bcomplete\x1a\xc2\x04\n" +
 	"\aBlocked\x12\x18\n" +
 	"\anumbers\x18\x01 \x03(\tR\anumbers\x12\x12\n" +
 	"\x04acis\x18\x03 \x03(\tR\x04acis\x12\x1a\n" +
 	"\bgroupIds\x18\x02 \x03(\fR\bgroupIds\x12\x1e\n" +
 	"\n" +
 	"acisBinary\x18\x04 \x03(\fR\n" +
-	"acisBinary\x1a\x9f\x01\n" +
+	"acisBinary\x12R\n" +
+	"\fblockedE164s\x18\x05 \x03(\v2..signalservice.SyncMessage.Blocked.BlockedE164R\fblockedE164s\x12O\n" +
+	"\vblockedAcis\x18\x06 \x03(\v2-.signalservice.SyncMessage.Blocked.BlockedAciR\vblockedAcis\x12U\n" +
+	"\rblockedGroups\x18\a \x03(\v2/.signalservice.SyncMessage.Blocked.BlockedGroupR\rblockedGroups\x1a?\n" +
+	"\vBlockedE164\x12\x12\n" +
+	"\x04e164\x18\x01 \x01(\tR\x04e164\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x1aH\n" +
+	"\n" +
+	"BlockedAci\x12\x1c\n" +
+	"\taciBinary\x18\x01 \x01(\fR\taciBinary\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x1aF\n" +
+	"\fBlockedGroup\x12\x18\n" +
+	"\agroupId\x18\x01 \x01(\fR\agroupId\x12\x1c\n" +
+	"\ttimestamp\x18\x02 \x01(\x04R\ttimestamp\x1a\x9f\x01\n" +
 	"\aRequest\x12;\n" +
 	"\x04type\x18\x01 \x01(\x0e2'.signalservice.SyncMessage.Request.TypeR\x04type\"W\n" +
 	"\x04Type\x12\v\n" +
@@ -9421,7 +9614,7 @@ func file_SignalService_proto_rawDescGZIP() []byte {
 }
 
 var file_SignalService_proto_enumTypes = make([]protoimpl.EnumInfo, 28)
-var file_SignalService_proto_msgTypes = make([]protoimpl.MessageInfo, 89)
+var file_SignalService_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
 var file_SignalService_proto_goTypes = []any{
 	(Envelope_Type)(0),                                                // 0: signalservice.Envelope.Type
 	(CallMessage_Offer_Type)(0),                                       // 1: signalservice.CallMessage.Offer.Type
@@ -9531,15 +9724,18 @@ var file_SignalService_proto_goTypes = []any{
 	(*SyncMessage_UsernameChange)(nil),                                // 105: signalservice.SyncMessage.UsernameChange
 	(*SyncMessage_Sent_UnidentifiedDeliveryStatus)(nil),               // 106: signalservice.SyncMessage.Sent.UnidentifiedDeliveryStatus
 	(*SyncMessage_Sent_StoryMessageRecipient)(nil),                    // 107: signalservice.SyncMessage.Sent.StoryMessageRecipient
-	(*SyncMessage_OutgoingPayment_MobileCoin)(nil),                    // 108: signalservice.SyncMessage.OutgoingPayment.MobileCoin
-	(*SyncMessage_DeleteForMe_MessageDeletes)(nil),                    // 109: signalservice.SyncMessage.DeleteForMe.MessageDeletes
-	(*SyncMessage_DeleteForMe_AttachmentDelete)(nil),                  // 110: signalservice.SyncMessage.DeleteForMe.AttachmentDelete
-	(*SyncMessage_DeleteForMe_ConversationDelete)(nil),                // 111: signalservice.SyncMessage.DeleteForMe.ConversationDelete
-	(*SyncMessage_DeleteForMe_LocalOnlyConversationDelete)(nil),       // 112: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
-	(*SyncMessage_AttachmentBackfillResponse_AttachmentData)(nil),     // 113: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
-	(*SyncMessage_AttachmentBackfillResponse_AttachmentDataList)(nil), // 114: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
-	(*ContactDetails_Avatar)(nil),                                     // 115: signalservice.ContactDetails.Avatar
-	(*PaymentAddress_MobileCoin)(nil),                                 // 116: signalservice.PaymentAddress.MobileCoin
+	(*SyncMessage_Blocked_BlockedE164)(nil),                           // 108: signalservice.SyncMessage.Blocked.BlockedE164
+	(*SyncMessage_Blocked_BlockedAci)(nil),                            // 109: signalservice.SyncMessage.Blocked.BlockedAci
+	(*SyncMessage_Blocked_BlockedGroup)(nil),                          // 110: signalservice.SyncMessage.Blocked.BlockedGroup
+	(*SyncMessage_OutgoingPayment_MobileCoin)(nil),                    // 111: signalservice.SyncMessage.OutgoingPayment.MobileCoin
+	(*SyncMessage_DeleteForMe_MessageDeletes)(nil),                    // 112: signalservice.SyncMessage.DeleteForMe.MessageDeletes
+	(*SyncMessage_DeleteForMe_AttachmentDelete)(nil),                  // 113: signalservice.SyncMessage.DeleteForMe.AttachmentDelete
+	(*SyncMessage_DeleteForMe_ConversationDelete)(nil),                // 114: signalservice.SyncMessage.DeleteForMe.ConversationDelete
+	(*SyncMessage_DeleteForMe_LocalOnlyConversationDelete)(nil),       // 115: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
+	(*SyncMessage_AttachmentBackfillResponse_AttachmentData)(nil),     // 116: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
+	(*SyncMessage_AttachmentBackfillResponse_AttachmentDataList)(nil), // 117: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
+	(*ContactDetails_Avatar)(nil),                                     // 118: signalservice.ContactDetails.Avatar
+	(*PaymentAddress_MobileCoin)(nil),                                 // 119: signalservice.PaymentAddress.MobileCoin
 }
 var file_SignalService_proto_depIdxs = []int32{
 	0,   // 0: signalservice.Envelope.type:type_name -> signalservice.Envelope.Type
@@ -9611,8 +9807,8 @@ var file_SignalService_proto_depIdxs = []int32{
 	87,  // 66: signalservice.SyncMessage.read:type_name -> signalservice.SyncMessage.Read
 	90,  // 67: signalservice.SyncMessage.stickerPackOperation:type_name -> signalservice.SyncMessage.StickerPackOperation
 	88,  // 68: signalservice.SyncMessage.viewed:type_name -> signalservice.SyncMessage.Viewed
-	115, // 69: signalservice.ContactDetails.avatar:type_name -> signalservice.ContactDetails.Avatar
-	116, // 70: signalservice.PaymentAddress.mobileCoin:type_name -> signalservice.PaymentAddress.MobileCoin
+	118, // 69: signalservice.ContactDetails.avatar:type_name -> signalservice.ContactDetails.Avatar
+	119, // 70: signalservice.PaymentAddress.mobileCoin:type_name -> signalservice.PaymentAddress.MobileCoin
 	31,  // 71: signalservice.EditMessage.dataMessage:type_name -> signalservice.DataMessage
 	27,  // 72: signalservice.BodyRange.style:type_name -> signalservice.BodyRange.Style
 	1,   // 73: signalservice.CallMessage.Offer.type:type_name -> signalservice.CallMessage.Offer.Type
@@ -9643,43 +9839,46 @@ var file_SignalService_proto_depIdxs = []int32{
 	107, // 98: signalservice.SyncMessage.Sent.storyMessageRecipients:type_name -> signalservice.SyncMessage.Sent.StoryMessageRecipient
 	46,  // 99: signalservice.SyncMessage.Sent.editMessage:type_name -> signalservice.EditMessage
 	40,  // 100: signalservice.SyncMessage.Contacts.blob:type_name -> signalservice.AttachmentPointer
-	15,  // 101: signalservice.SyncMessage.Request.type:type_name -> signalservice.SyncMessage.Request.Type
-	16,  // 102: signalservice.SyncMessage.StickerPackOperation.type:type_name -> signalservice.SyncMessage.StickerPackOperation.Type
-	17,  // 103: signalservice.SyncMessage.FetchLatest.type:type_name -> signalservice.SyncMessage.FetchLatest.Type
-	18,  // 104: signalservice.SyncMessage.MessageRequestResponse.type:type_name -> signalservice.SyncMessage.MessageRequestResponse.Type
-	108, // 105: signalservice.SyncMessage.OutgoingPayment.mobileCoin:type_name -> signalservice.SyncMessage.OutgoingPayment.MobileCoin
-	19,  // 106: signalservice.SyncMessage.CallEvent.type:type_name -> signalservice.SyncMessage.CallEvent.Type
-	20,  // 107: signalservice.SyncMessage.CallEvent.direction:type_name -> signalservice.SyncMessage.CallEvent.Direction
-	21,  // 108: signalservice.SyncMessage.CallEvent.event:type_name -> signalservice.SyncMessage.CallEvent.Event
-	22,  // 109: signalservice.SyncMessage.CallLinkUpdate.type:type_name -> signalservice.SyncMessage.CallLinkUpdate.Type
-	23,  // 110: signalservice.SyncMessage.CallLogEvent.type:type_name -> signalservice.SyncMessage.CallLogEvent.Type
-	109, // 111: signalservice.SyncMessage.DeleteForMe.messageDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.MessageDeletes
-	111, // 112: signalservice.SyncMessage.DeleteForMe.conversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.ConversationDelete
-	112, // 113: signalservice.SyncMessage.DeleteForMe.localOnlyConversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
-	110, // 114: signalservice.SyncMessage.DeleteForMe.attachmentDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.AttachmentDelete
-	48,  // 115: signalservice.SyncMessage.AttachmentBackfillRequest.targetMessage:type_name -> signalservice.AddressableMessage
-	49,  // 116: signalservice.SyncMessage.AttachmentBackfillRequest.targetConversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 117: signalservice.SyncMessage.AttachmentBackfillResponse.targetMessage:type_name -> signalservice.AddressableMessage
-	49,  // 118: signalservice.SyncMessage.AttachmentBackfillResponse.targetConversation:type_name -> signalservice.ConversationIdentifier
-	114, // 119: signalservice.SyncMessage.AttachmentBackfillResponse.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
-	24,  // 120: signalservice.SyncMessage.AttachmentBackfillResponse.error:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.Error
-	49,  // 121: signalservice.SyncMessage.DeleteForMe.MessageDeletes.conversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 122: signalservice.SyncMessage.DeleteForMe.MessageDeletes.messages:type_name -> signalservice.AddressableMessage
-	49,  // 123: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.conversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 124: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.targetMessage:type_name -> signalservice.AddressableMessage
-	49,  // 125: signalservice.SyncMessage.DeleteForMe.ConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
-	48,  // 126: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentMessages:type_name -> signalservice.AddressableMessage
-	48,  // 127: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentNonExpiringMessages:type_name -> signalservice.AddressableMessage
-	49,  // 128: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
-	40,  // 129: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.attachment:type_name -> signalservice.AttachmentPointer
-	25,  // 130: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.status:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.Status
-	113, // 131: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
-	113, // 132: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.longText:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
-	133, // [133:133] is the sub-list for method output_type
-	133, // [133:133] is the sub-list for method input_type
-	133, // [133:133] is the sub-list for extension type_name
-	133, // [133:133] is the sub-list for extension extendee
-	0,   // [0:133] is the sub-list for field type_name
+	108, // 101: signalservice.SyncMessage.Blocked.blockedE164s:type_name -> signalservice.SyncMessage.Blocked.BlockedE164
+	109, // 102: signalservice.SyncMessage.Blocked.blockedAcis:type_name -> signalservice.SyncMessage.Blocked.BlockedAci
+	110, // 103: signalservice.SyncMessage.Blocked.blockedGroups:type_name -> signalservice.SyncMessage.Blocked.BlockedGroup
+	15,  // 104: signalservice.SyncMessage.Request.type:type_name -> signalservice.SyncMessage.Request.Type
+	16,  // 105: signalservice.SyncMessage.StickerPackOperation.type:type_name -> signalservice.SyncMessage.StickerPackOperation.Type
+	17,  // 106: signalservice.SyncMessage.FetchLatest.type:type_name -> signalservice.SyncMessage.FetchLatest.Type
+	18,  // 107: signalservice.SyncMessage.MessageRequestResponse.type:type_name -> signalservice.SyncMessage.MessageRequestResponse.Type
+	111, // 108: signalservice.SyncMessage.OutgoingPayment.mobileCoin:type_name -> signalservice.SyncMessage.OutgoingPayment.MobileCoin
+	19,  // 109: signalservice.SyncMessage.CallEvent.type:type_name -> signalservice.SyncMessage.CallEvent.Type
+	20,  // 110: signalservice.SyncMessage.CallEvent.direction:type_name -> signalservice.SyncMessage.CallEvent.Direction
+	21,  // 111: signalservice.SyncMessage.CallEvent.event:type_name -> signalservice.SyncMessage.CallEvent.Event
+	22,  // 112: signalservice.SyncMessage.CallLinkUpdate.type:type_name -> signalservice.SyncMessage.CallLinkUpdate.Type
+	23,  // 113: signalservice.SyncMessage.CallLogEvent.type:type_name -> signalservice.SyncMessage.CallLogEvent.Type
+	112, // 114: signalservice.SyncMessage.DeleteForMe.messageDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.MessageDeletes
+	114, // 115: signalservice.SyncMessage.DeleteForMe.conversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.ConversationDelete
+	115, // 116: signalservice.SyncMessage.DeleteForMe.localOnlyConversationDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete
+	113, // 117: signalservice.SyncMessage.DeleteForMe.attachmentDeletes:type_name -> signalservice.SyncMessage.DeleteForMe.AttachmentDelete
+	48,  // 118: signalservice.SyncMessage.AttachmentBackfillRequest.targetMessage:type_name -> signalservice.AddressableMessage
+	49,  // 119: signalservice.SyncMessage.AttachmentBackfillRequest.targetConversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 120: signalservice.SyncMessage.AttachmentBackfillResponse.targetMessage:type_name -> signalservice.AddressableMessage
+	49,  // 121: signalservice.SyncMessage.AttachmentBackfillResponse.targetConversation:type_name -> signalservice.ConversationIdentifier
+	117, // 122: signalservice.SyncMessage.AttachmentBackfillResponse.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList
+	24,  // 123: signalservice.SyncMessage.AttachmentBackfillResponse.error:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.Error
+	49,  // 124: signalservice.SyncMessage.DeleteForMe.MessageDeletes.conversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 125: signalservice.SyncMessage.DeleteForMe.MessageDeletes.messages:type_name -> signalservice.AddressableMessage
+	49,  // 126: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.conversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 127: signalservice.SyncMessage.DeleteForMe.AttachmentDelete.targetMessage:type_name -> signalservice.AddressableMessage
+	49,  // 128: signalservice.SyncMessage.DeleteForMe.ConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
+	48,  // 129: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentMessages:type_name -> signalservice.AddressableMessage
+	48,  // 130: signalservice.SyncMessage.DeleteForMe.ConversationDelete.mostRecentNonExpiringMessages:type_name -> signalservice.AddressableMessage
+	49,  // 131: signalservice.SyncMessage.DeleteForMe.LocalOnlyConversationDelete.conversation:type_name -> signalservice.ConversationIdentifier
+	40,  // 132: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.attachment:type_name -> signalservice.AttachmentPointer
+	25,  // 133: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.status:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData.Status
+	116, // 134: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.attachments:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
+	116, // 135: signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentDataList.longText:type_name -> signalservice.SyncMessage.AttachmentBackfillResponse.AttachmentData
+	136, // [136:136] is the sub-list for method output_type
+	136, // [136:136] is the sub-list for method input_type
+	136, // [136:136] is the sub-list for extension type_name
+	136, // [136:136] is the sub-list for extension extendee
+	0,   // [0:136] is the sub-list for field type_name
 }
 
 func init() { file_SignalService_proto_init() }
@@ -9772,7 +9971,7 @@ func file_SignalService_proto_init() {
 		(*SyncMessage_AttachmentBackfillResponse_Attachments)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_Error_)(nil),
 	}
-	file_SignalService_proto_msgTypes[85].OneofWrappers = []any{
+	file_SignalService_proto_msgTypes[88].OneofWrappers = []any{
 		(*SyncMessage_AttachmentBackfillResponse_AttachmentData_Attachment)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_AttachmentData_Status_)(nil),
 	}
@@ -9782,7 +9981,7 @@ func file_SignalService_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_SignalService_proto_rawDesc), len(file_SignalService_proto_rawDesc)),
 			NumEnums:      28,
-			NumMessages:   89,
+			NumMessages:   92,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

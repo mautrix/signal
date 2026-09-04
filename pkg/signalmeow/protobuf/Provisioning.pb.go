@@ -204,6 +204,7 @@ type ProvisionMessage struct {
 	MediaRootBackupKey    []byte                 `protobuf:"bytes,16,opt,name=mediaRootBackupKey" json:"mediaRootBackupKey,omitempty"` // 32-bytes
 	AciBinary             []byte                 `protobuf:"bytes,17,opt,name=aciBinary" json:"aciBinary,omitempty"`                   // 16-byte UUID
 	PniBinary             []byte                 `protobuf:"bytes,18,opt,name=pniBinary" json:"pniBinary,omitempty"`                   // 16-byte UUID
+	AuthCredentialSalt    []byte                 `protobuf:"bytes,19,opt,name=authCredentialSalt" json:"authCredentialSalt,omitempty"` // 16-bytes
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -357,6 +358,13 @@ func (x *ProvisionMessage) GetPniBinary() []byte {
 	return nil
 }
 
+func (x *ProvisionMessage) GetAuthCredentialSalt() []byte {
+	if x != nil {
+		return x.AuthCredentialSalt
+	}
+	return nil
+}
+
 var File_Provisioning_proto protoreflect.FileDescriptor
 
 const file_Provisioning_proto_rawDesc = "" +
@@ -366,7 +374,7 @@ const file_Provisioning_proto_rawDesc = "" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\"E\n" +
 	"\x11ProvisionEnvelope\x12\x1c\n" +
 	"\tpublicKey\x18\x01 \x01(\fR\tpublicKey\x12\x12\n" +
-	"\x04body\x18\x02 \x01(\fR\x04body\"\xb4\x05\n" +
+	"\x04body\x18\x02 \x01(\fR\x04body\"\xe4\x05\n" +
 	"\x10ProvisionMessage\x122\n" +
 	"\x14aciIdentityKeyPublic\x18\x01 \x01(\fR\x14aciIdentityKeyPublic\x124\n" +
 	"\x15aciIdentityKeyPrivate\x18\x02 \x01(\fR\x15aciIdentityKeyPrivate\x122\n" +
@@ -387,7 +395,8 @@ const file_Provisioning_proto_rawDesc = "" +
 	"\x12accountEntropyPool\x18\x0f \x01(\tR\x12accountEntropyPool\x12.\n" +
 	"\x12mediaRootBackupKey\x18\x10 \x01(\fR\x12mediaRootBackupKey\x12\x1c\n" +
 	"\taciBinary\x18\x11 \x01(\fR\taciBinary\x12\x1c\n" +
-	"\tpniBinary\x18\x12 \x01(\fR\tpniBinaryJ\x04\b\r\x10\x0e*G\n" +
+	"\tpniBinary\x18\x12 \x01(\fR\tpniBinary\x12.\n" +
+	"\x12authCredentialSalt\x18\x13 \x01(\fR\x12authCredentialSaltJ\x04\b\r\x10\x0e*G\n" +
 	"\x13ProvisioningVersion\x12\v\n" +
 	"\aINITIAL\x10\x00\x12\x12\n" +
 	"\x0eTABLET_SUPPORT\x10\x01\x12\v\n" +

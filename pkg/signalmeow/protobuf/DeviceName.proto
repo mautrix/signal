@@ -1,7 +1,14 @@
-// Copyright 2018 Signal Messenger, LLC
-// SPDX-License-Identifier: AGPL-3.0-only
+/**
+ * Copyright (C) 2014-2016 Open Whisper Systems
+ *
+ * Licensed according to the LICENSE file in this repository.
+ */
+
+syntax = "proto2";
 
 package signalservice;
+
+option java_package = "org.signal.core.util.crypto";
 
 message DeviceName {
   optional bytes ephemeralPublic = 1;
