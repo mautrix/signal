@@ -484,7 +484,7 @@ func (cli *Client) handleDecryptedResult(
 		// Only send decryption error event if the message was urgent,
 		// to prevent spamming errors for typing notifications and whatnot
 		if envelope.GetUrgent() &&
-			result.ContentHint != signalpb.UnidentifiedSenderMessage_Message_IMPLICIT &&
+			result.ContentHint != libsignalgo.UnidentifiedSenderMessageContentHintImplicit &&
 			!strings.Contains(result.Err.Error(), "message with old counter") {
 			handlerSuccess = cli.handleEvent(&events.DecryptionError{
 				Sender:    theirServiceID.UUID,
