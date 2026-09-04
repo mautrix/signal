@@ -6,7 +6,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: SignalService.proto
+// source: signalpb/SignalService.proto
 
 package signalpb
 
@@ -108,11 +108,11 @@ func (x Envelope_Type) String() string {
 }
 
 func (Envelope_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[0].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[0].Descriptor()
 }
 
 func (Envelope_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[0]
+	return &file_signalpb_SignalService_proto_enumTypes[0]
 }
 
 func (x Envelope_Type) Number() protoreflect.EnumNumber {
@@ -131,7 +131,7 @@ func (x *Envelope_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use Envelope_Type.Descriptor instead.
 func (Envelope_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{0, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{0, 0}
 }
 
 type CallMessage_Offer_Type int32
@@ -164,11 +164,11 @@ func (x CallMessage_Offer_Type) String() string {
 }
 
 func (CallMessage_Offer_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[1].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[1].Descriptor()
 }
 
 func (CallMessage_Offer_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[1]
+	return &file_signalpb_SignalService_proto_enumTypes[1]
 }
 
 func (x CallMessage_Offer_Type) Number() protoreflect.EnumNumber {
@@ -187,7 +187,7 @@ func (x *CallMessage_Offer_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CallMessage_Offer_Type.Descriptor instead.
 func (CallMessage_Offer_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 0, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 0, 0}
 }
 
 type CallMessage_Hangup_Type int32
@@ -229,11 +229,11 @@ func (x CallMessage_Hangup_Type) String() string {
 }
 
 func (CallMessage_Hangup_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[2].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[2].Descriptor()
 }
 
 func (CallMessage_Hangup_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[2]
+	return &file_signalpb_SignalService_proto_enumTypes[2]
 }
 
 func (x CallMessage_Hangup_Type) Number() protoreflect.EnumNumber {
@@ -252,7 +252,7 @@ func (x *CallMessage_Hangup_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CallMessage_Hangup_Type.Descriptor instead.
 func (CallMessage_Hangup_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 4, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 4, 0}
 }
 
 type CallMessage_Opaque_Urgency int32
@@ -285,11 +285,11 @@ func (x CallMessage_Opaque_Urgency) String() string {
 }
 
 func (CallMessage_Opaque_Urgency) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[3].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[3].Descriptor()
 }
 
 func (CallMessage_Opaque_Urgency) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[3]
+	return &file_signalpb_SignalService_proto_enumTypes[3]
 }
 
 func (x CallMessage_Opaque_Urgency) Number() protoreflect.EnumNumber {
@@ -308,7 +308,7 @@ func (x *CallMessage_Opaque_Urgency) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use CallMessage_Opaque_Urgency.Descriptor instead.
 func (CallMessage_Opaque_Urgency) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 5, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 5, 0}
 }
 
 type DataMessage_Flags int32
@@ -344,11 +344,11 @@ func (x DataMessage_Flags) String() string {
 }
 
 func (DataMessage_Flags) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[4].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[4].Descriptor()
 }
 
 func (DataMessage_Flags) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[4]
+	return &file_signalpb_SignalService_proto_enumTypes[4]
 }
 
 func (x DataMessage_Flags) Number() protoreflect.EnumNumber {
@@ -367,7 +367,7 @@ func (x *DataMessage_Flags) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_Flags.Descriptor instead.
 func (DataMessage_Flags) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0}
 }
 
 type DataMessage_ProtocolVersion int32
@@ -424,11 +424,11 @@ func (x DataMessage_ProtocolVersion) String() string {
 }
 
 func (DataMessage_ProtocolVersion) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[5].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[5].Descriptor()
 }
 
 func (DataMessage_ProtocolVersion) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[5]
+	return &file_signalpb_SignalService_proto_enumTypes[5]
 }
 
 func (x DataMessage_ProtocolVersion) Number() protoreflect.EnumNumber {
@@ -447,7 +447,7 @@ func (x *DataMessage_ProtocolVersion) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_ProtocolVersion.Descriptor instead.
 func (DataMessage_ProtocolVersion) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 1}
 }
 
 type DataMessage_Payment_Activation_Type int32
@@ -480,11 +480,11 @@ func (x DataMessage_Payment_Activation_Type) String() string {
 }
 
 func (DataMessage_Payment_Activation_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[6].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[6].Descriptor()
 }
 
 func (DataMessage_Payment_Activation_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[6]
+	return &file_signalpb_SignalService_proto_enumTypes[6]
 }
 
 func (x DataMessage_Payment_Activation_Type) Number() protoreflect.EnumNumber {
@@ -503,7 +503,7 @@ func (x *DataMessage_Payment_Activation_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_Payment_Activation_Type.Descriptor instead.
 func (DataMessage_Payment_Activation_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0, 2, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0, 2, 0}
 }
 
 type DataMessage_Quote_Type int32
@@ -539,11 +539,11 @@ func (x DataMessage_Quote_Type) String() string {
 }
 
 func (DataMessage_Quote_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[7].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[7].Descriptor()
 }
 
 func (DataMessage_Quote_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[7]
+	return &file_signalpb_SignalService_proto_enumTypes[7]
 }
 
 func (x DataMessage_Quote_Type) Number() protoreflect.EnumNumber {
@@ -562,7 +562,7 @@ func (x *DataMessage_Quote_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_Quote_Type.Descriptor instead.
 func (DataMessage_Quote_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 1, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 1, 0}
 }
 
 type DataMessage_Contact_Phone_Type int32
@@ -601,11 +601,11 @@ func (x DataMessage_Contact_Phone_Type) String() string {
 }
 
 func (DataMessage_Contact_Phone_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[8].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[8].Descriptor()
 }
 
 func (DataMessage_Contact_Phone_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[8]
+	return &file_signalpb_SignalService_proto_enumTypes[8]
 }
 
 func (x DataMessage_Contact_Phone_Type) Number() protoreflect.EnumNumber {
@@ -624,7 +624,7 @@ func (x *DataMessage_Contact_Phone_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_Contact_Phone_Type.Descriptor instead.
 func (DataMessage_Contact_Phone_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 1, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 1, 0}
 }
 
 type DataMessage_Contact_Email_Type int32
@@ -663,11 +663,11 @@ func (x DataMessage_Contact_Email_Type) String() string {
 }
 
 func (DataMessage_Contact_Email_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[9].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[9].Descriptor()
 }
 
 func (DataMessage_Contact_Email_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[9]
+	return &file_signalpb_SignalService_proto_enumTypes[9]
 }
 
 func (x DataMessage_Contact_Email_Type) Number() protoreflect.EnumNumber {
@@ -686,7 +686,7 @@ func (x *DataMessage_Contact_Email_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_Contact_Email_Type.Descriptor instead.
 func (DataMessage_Contact_Email_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 2, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 2, 0}
 }
 
 type DataMessage_Contact_PostalAddress_Type int32
@@ -722,11 +722,11 @@ func (x DataMessage_Contact_PostalAddress_Type) String() string {
 }
 
 func (DataMessage_Contact_PostalAddress_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[10].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[10].Descriptor()
 }
 
 func (DataMessage_Contact_PostalAddress_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[10]
+	return &file_signalpb_SignalService_proto_enumTypes[10]
 }
 
 func (x DataMessage_Contact_PostalAddress_Type) Number() protoreflect.EnumNumber {
@@ -745,7 +745,7 @@ func (x *DataMessage_Contact_PostalAddress_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use DataMessage_Contact_PostalAddress_Type.Descriptor instead.
 func (DataMessage_Contact_PostalAddress_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 3, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 3, 0}
 }
 
 type ReceiptMessage_Type int32
@@ -781,11 +781,11 @@ func (x ReceiptMessage_Type) String() string {
 }
 
 func (ReceiptMessage_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[11].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[11].Descriptor()
 }
 
 func (ReceiptMessage_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[11]
+	return &file_signalpb_SignalService_proto_enumTypes[11]
 }
 
 func (x ReceiptMessage_Type) Number() protoreflect.EnumNumber {
@@ -804,7 +804,7 @@ func (x *ReceiptMessage_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ReceiptMessage_Type.Descriptor instead.
 func (ReceiptMessage_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{5, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{5, 0}
 }
 
 type TypingMessage_Action int32
@@ -837,11 +837,11 @@ func (x TypingMessage_Action) String() string {
 }
 
 func (TypingMessage_Action) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[12].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[12].Descriptor()
 }
 
 func (TypingMessage_Action) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[12]
+	return &file_signalpb_SignalService_proto_enumTypes[12]
 }
 
 func (x TypingMessage_Action) Number() protoreflect.EnumNumber {
@@ -860,7 +860,7 @@ func (x *TypingMessage_Action) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use TypingMessage_Action.Descriptor instead.
 func (TypingMessage_Action) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{6, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{6, 0}
 }
 
 type TextAttachment_Style int32
@@ -905,11 +905,11 @@ func (x TextAttachment_Style) String() string {
 }
 
 func (TextAttachment_Style) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[13].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[13].Descriptor()
 }
 
 func (TextAttachment_Style) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[13]
+	return &file_signalpb_SignalService_proto_enumTypes[13]
 }
 
 func (x TextAttachment_Style) Number() protoreflect.EnumNumber {
@@ -928,7 +928,7 @@ func (x *TextAttachment_Style) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use TextAttachment_Style.Descriptor instead.
 func (TextAttachment_Style) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{9, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{9, 0}
 }
 
 type Verified_State int32
@@ -964,11 +964,11 @@ func (x Verified_State) String() string {
 }
 
 func (Verified_State) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[14].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[14].Descriptor()
 }
 
 func (Verified_State) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[14]
+	return &file_signalpb_SignalService_proto_enumTypes[14]
 }
 
 func (x Verified_State) Number() protoreflect.EnumNumber {
@@ -987,7 +987,7 @@ func (x *Verified_State) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use Verified_State.Descriptor instead.
 func (Verified_State) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{10, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{10, 0}
 }
 
 type SyncMessage_Request_Type int32
@@ -1029,11 +1029,11 @@ func (x SyncMessage_Request_Type) String() string {
 }
 
 func (SyncMessage_Request_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[15].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[15].Descriptor()
 }
 
 func (SyncMessage_Request_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[15]
+	return &file_signalpb_SignalService_proto_enumTypes[15]
 }
 
 func (x SyncMessage_Request_Type) Number() protoreflect.EnumNumber {
@@ -1052,7 +1052,7 @@ func (x *SyncMessage_Request_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_Request_Type.Descriptor instead.
 func (SyncMessage_Request_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 3, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 3, 0}
 }
 
 type SyncMessage_StickerPackOperation_Type int32
@@ -1085,11 +1085,11 @@ func (x SyncMessage_StickerPackOperation_Type) String() string {
 }
 
 func (SyncMessage_StickerPackOperation_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[16].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[16].Descriptor()
 }
 
 func (SyncMessage_StickerPackOperation_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[16]
+	return &file_signalpb_SignalService_proto_enumTypes[16]
 }
 
 func (x SyncMessage_StickerPackOperation_Type) Number() protoreflect.EnumNumber {
@@ -1108,7 +1108,7 @@ func (x *SyncMessage_StickerPackOperation_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_StickerPackOperation_Type.Descriptor instead.
 func (SyncMessage_StickerPackOperation_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 7, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 7, 0}
 }
 
 type SyncMessage_FetchLatest_Type int32
@@ -1147,11 +1147,11 @@ func (x SyncMessage_FetchLatest_Type) String() string {
 }
 
 func (SyncMessage_FetchLatest_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[17].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[17].Descriptor()
 }
 
 func (SyncMessage_FetchLatest_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[17]
+	return &file_signalpb_SignalService_proto_enumTypes[17]
 }
 
 func (x SyncMessage_FetchLatest_Type) Number() protoreflect.EnumNumber {
@@ -1170,7 +1170,7 @@ func (x *SyncMessage_FetchLatest_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_FetchLatest_Type.Descriptor instead.
 func (SyncMessage_FetchLatest_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 9, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 9, 0}
 }
 
 type SyncMessage_MessageRequestResponse_Type int32
@@ -1218,11 +1218,11 @@ func (x SyncMessage_MessageRequestResponse_Type) String() string {
 }
 
 func (SyncMessage_MessageRequestResponse_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[18].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[18].Descriptor()
 }
 
 func (SyncMessage_MessageRequestResponse_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[18]
+	return &file_signalpb_SignalService_proto_enumTypes[18]
 }
 
 func (x SyncMessage_MessageRequestResponse_Type) Number() protoreflect.EnumNumber {
@@ -1241,7 +1241,7 @@ func (x *SyncMessage_MessageRequestResponse_Type) UnmarshalJSON(b []byte) error 
 
 // Deprecated: Use SyncMessage_MessageRequestResponse_Type.Descriptor instead.
 func (SyncMessage_MessageRequestResponse_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 12, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 12, 0}
 }
 
 type SyncMessage_CallEvent_Type int32
@@ -1283,11 +1283,11 @@ func (x SyncMessage_CallEvent_Type) String() string {
 }
 
 func (SyncMessage_CallEvent_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[19].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[19].Descriptor()
 }
 
 func (SyncMessage_CallEvent_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[19]
+	return &file_signalpb_SignalService_proto_enumTypes[19]
 }
 
 func (x SyncMessage_CallEvent_Type) Number() protoreflect.EnumNumber {
@@ -1306,7 +1306,7 @@ func (x *SyncMessage_CallEvent_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_CallEvent_Type.Descriptor instead.
 func (SyncMessage_CallEvent_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 15, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 15, 0}
 }
 
 type SyncMessage_CallEvent_Direction int32
@@ -1342,11 +1342,11 @@ func (x SyncMessage_CallEvent_Direction) String() string {
 }
 
 func (SyncMessage_CallEvent_Direction) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[20].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[20].Descriptor()
 }
 
 func (SyncMessage_CallEvent_Direction) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[20]
+	return &file_signalpb_SignalService_proto_enumTypes[20]
 }
 
 func (x SyncMessage_CallEvent_Direction) Number() protoreflect.EnumNumber {
@@ -1365,7 +1365,7 @@ func (x *SyncMessage_CallEvent_Direction) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_CallEvent_Direction.Descriptor instead.
 func (SyncMessage_CallEvent_Direction) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 15, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 15, 1}
 }
 
 type SyncMessage_CallEvent_Event int32
@@ -1407,11 +1407,11 @@ func (x SyncMessage_CallEvent_Event) String() string {
 }
 
 func (SyncMessage_CallEvent_Event) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[21].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[21].Descriptor()
 }
 
 func (SyncMessage_CallEvent_Event) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[21]
+	return &file_signalpb_SignalService_proto_enumTypes[21]
 }
 
 func (x SyncMessage_CallEvent_Event) Number() protoreflect.EnumNumber {
@@ -1430,7 +1430,7 @@ func (x *SyncMessage_CallEvent_Event) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_CallEvent_Event.Descriptor instead.
 func (SyncMessage_CallEvent_Event) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 15, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 15, 2}
 }
 
 type SyncMessage_CallLinkUpdate_Type int32
@@ -1460,11 +1460,11 @@ func (x SyncMessage_CallLinkUpdate_Type) String() string {
 }
 
 func (SyncMessage_CallLinkUpdate_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[22].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[22].Descriptor()
 }
 
 func (SyncMessage_CallLinkUpdate_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[22]
+	return &file_signalpb_SignalService_proto_enumTypes[22]
 }
 
 func (x SyncMessage_CallLinkUpdate_Type) Number() protoreflect.EnumNumber {
@@ -1483,7 +1483,7 @@ func (x *SyncMessage_CallLinkUpdate_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_CallLinkUpdate_Type.Descriptor instead.
 func (SyncMessage_CallLinkUpdate_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 16, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 16, 0}
 }
 
 type SyncMessage_CallLogEvent_Type int32
@@ -1522,11 +1522,11 @@ func (x SyncMessage_CallLogEvent_Type) String() string {
 }
 
 func (SyncMessage_CallLogEvent_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[23].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[23].Descriptor()
 }
 
 func (SyncMessage_CallLogEvent_Type) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[23]
+	return &file_signalpb_SignalService_proto_enumTypes[23]
 }
 
 func (x SyncMessage_CallLogEvent_Type) Number() protoreflect.EnumNumber {
@@ -1545,7 +1545,7 @@ func (x *SyncMessage_CallLogEvent_Type) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use SyncMessage_CallLogEvent_Type.Descriptor instead.
 func (SyncMessage_CallLogEvent_Type) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 17, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 17, 0}
 }
 
 type SyncMessage_AttachmentBackfillResponse_Error int32
@@ -1575,11 +1575,11 @@ func (x SyncMessage_AttachmentBackfillResponse_Error) String() string {
 }
 
 func (SyncMessage_AttachmentBackfillResponse_Error) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[24].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[24].Descriptor()
 }
 
 func (SyncMessage_AttachmentBackfillResponse_Error) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[24]
+	return &file_signalpb_SignalService_proto_enumTypes[24]
 }
 
 func (x SyncMessage_AttachmentBackfillResponse_Error) Number() protoreflect.EnumNumber {
@@ -1598,7 +1598,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_Error) UnmarshalJSON(b []byte) e
 
 // Deprecated: Use SyncMessage_AttachmentBackfillResponse_Error.Descriptor instead.
 func (SyncMessage_AttachmentBackfillResponse_Error) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 21, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 21, 0}
 }
 
 type SyncMessage_AttachmentBackfillResponse_AttachmentData_Status int32
@@ -1631,11 +1631,11 @@ func (x SyncMessage_AttachmentBackfillResponse_AttachmentData_Status) String() s
 }
 
 func (SyncMessage_AttachmentBackfillResponse_AttachmentData_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[25].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[25].Descriptor()
 }
 
 func (SyncMessage_AttachmentBackfillResponse_AttachmentData_Status) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[25]
+	return &file_signalpb_SignalService_proto_enumTypes[25]
 }
 
 func (x SyncMessage_AttachmentBackfillResponse_AttachmentData_Status) Number() protoreflect.EnumNumber {
@@ -1654,7 +1654,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData_Status) Unmarshal
 
 // Deprecated: Use SyncMessage_AttachmentBackfillResponse_AttachmentData_Status.Descriptor instead.
 func (SyncMessage_AttachmentBackfillResponse_AttachmentData_Status) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 21, 0, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 21, 0, 0}
 }
 
 type AttachmentPointer_Flags int32
@@ -1690,11 +1690,11 @@ func (x AttachmentPointer_Flags) String() string {
 }
 
 func (AttachmentPointer_Flags) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[26].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[26].Descriptor()
 }
 
 func (AttachmentPointer_Flags) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[26]
+	return &file_signalpb_SignalService_proto_enumTypes[26]
 }
 
 func (x AttachmentPointer_Flags) Number() protoreflect.EnumNumber {
@@ -1713,7 +1713,7 @@ func (x *AttachmentPointer_Flags) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use AttachmentPointer_Flags.Descriptor instead.
 func (AttachmentPointer_Flags) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{12, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{12, 0}
 }
 
 type BodyRange_Style int32
@@ -1758,11 +1758,11 @@ func (x BodyRange_Style) String() string {
 }
 
 func (BodyRange_Style) Descriptor() protoreflect.EnumDescriptor {
-	return file_SignalService_proto_enumTypes[27].Descriptor()
+	return file_signalpb_SignalService_proto_enumTypes[27].Descriptor()
 }
 
 func (BodyRange_Style) Type() protoreflect.EnumType {
-	return &file_SignalService_proto_enumTypes[27]
+	return &file_signalpb_SignalService_proto_enumTypes[27]
 }
 
 func (x BodyRange_Style) Number() protoreflect.EnumNumber {
@@ -1781,7 +1781,7 @@ func (x *BodyRange_Style) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use BodyRange_Style.Descriptor instead.
 func (BodyRange_Style) EnumDescriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{19, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{19, 0}
 }
 
 type Envelope struct {
@@ -1814,7 +1814,7 @@ const (
 
 func (x *Envelope) Reset() {
 	*x = Envelope{}
-	mi := &file_SignalService_proto_msgTypes[0]
+	mi := &file_signalpb_SignalService_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1826,7 +1826,7 @@ func (x *Envelope) String() string {
 func (*Envelope) ProtoMessage() {}
 
 func (x *Envelope) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[0]
+	mi := &file_signalpb_SignalService_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1839,7 +1839,7 @@ func (x *Envelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Envelope.ProtoReflect.Descriptor instead.
 func (*Envelope) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Envelope) GetType() Envelope_Type {
@@ -1983,7 +1983,7 @@ type Content struct {
 
 func (x *Content) Reset() {
 	*x = Content{}
-	mi := &file_SignalService_proto_msgTypes[1]
+	mi := &file_signalpb_SignalService_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1995,7 +1995,7 @@ func (x *Content) String() string {
 func (*Content) ProtoMessage() {}
 
 func (x *Content) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[1]
+	mi := &file_signalpb_SignalService_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2008,7 +2008,7 @@ func (x *Content) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Content.ProtoReflect.Descriptor instead.
 func (*Content) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Content) GetContent() isContent_Content {
@@ -2186,7 +2186,7 @@ type CallMessage struct {
 
 func (x *CallMessage) Reset() {
 	*x = CallMessage{}
-	mi := &file_SignalService_proto_msgTypes[2]
+	mi := &file_signalpb_SignalService_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2198,7 +2198,7 @@ func (x *CallMessage) String() string {
 func (*CallMessage) ProtoMessage() {}
 
 func (x *CallMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[2]
+	mi := &file_signalpb_SignalService_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2211,7 +2211,7 @@ func (x *CallMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage.ProtoReflect.Descriptor instead.
 func (*CallMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CallMessage) GetOffer() *CallMessage_Offer {
@@ -2298,7 +2298,7 @@ type DataMessage struct {
 
 func (x *DataMessage) Reset() {
 	*x = DataMessage{}
-	mi := &file_SignalService_proto_msgTypes[3]
+	mi := &file_signalpb_SignalService_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2310,7 +2310,7 @@ func (x *DataMessage) String() string {
 func (*DataMessage) ProtoMessage() {}
 
 func (x *DataMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[3]
+	mi := &file_signalpb_SignalService_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2323,7 +2323,7 @@ func (x *DataMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage.ProtoReflect.Descriptor instead.
 func (*DataMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *DataMessage) GetBody() string {
@@ -2524,7 +2524,7 @@ type NullMessage struct {
 
 func (x *NullMessage) Reset() {
 	*x = NullMessage{}
-	mi := &file_SignalService_proto_msgTypes[4]
+	mi := &file_signalpb_SignalService_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2536,7 +2536,7 @@ func (x *NullMessage) String() string {
 func (*NullMessage) ProtoMessage() {}
 
 func (x *NullMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[4]
+	mi := &file_signalpb_SignalService_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2549,7 +2549,7 @@ func (x *NullMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullMessage.ProtoReflect.Descriptor instead.
 func (*NullMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{4}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *NullMessage) GetPadding() []byte {
@@ -2569,7 +2569,7 @@ type ReceiptMessage struct {
 
 func (x *ReceiptMessage) Reset() {
 	*x = ReceiptMessage{}
-	mi := &file_SignalService_proto_msgTypes[5]
+	mi := &file_signalpb_SignalService_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2581,7 +2581,7 @@ func (x *ReceiptMessage) String() string {
 func (*ReceiptMessage) ProtoMessage() {}
 
 func (x *ReceiptMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[5]
+	mi := &file_signalpb_SignalService_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2594,7 +2594,7 @@ func (x *ReceiptMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReceiptMessage.ProtoReflect.Descriptor instead.
 func (*ReceiptMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{5}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ReceiptMessage) GetType() ReceiptMessage_Type {
@@ -2622,7 +2622,7 @@ type TypingMessage struct {
 
 func (x *TypingMessage) Reset() {
 	*x = TypingMessage{}
-	mi := &file_SignalService_proto_msgTypes[6]
+	mi := &file_signalpb_SignalService_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2634,7 +2634,7 @@ func (x *TypingMessage) String() string {
 func (*TypingMessage) ProtoMessage() {}
 
 func (x *TypingMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[6]
+	mi := &file_signalpb_SignalService_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2647,7 +2647,7 @@ func (x *TypingMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypingMessage.ProtoReflect.Descriptor instead.
 func (*TypingMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{6}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TypingMessage) GetTimestamp() uint64 {
@@ -2688,7 +2688,7 @@ type StoryMessage struct {
 
 func (x *StoryMessage) Reset() {
 	*x = StoryMessage{}
-	mi := &file_SignalService_proto_msgTypes[7]
+	mi := &file_signalpb_SignalService_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2700,7 +2700,7 @@ func (x *StoryMessage) String() string {
 func (*StoryMessage) ProtoMessage() {}
 
 func (x *StoryMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[7]
+	mi := &file_signalpb_SignalService_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2713,7 +2713,7 @@ func (x *StoryMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoryMessage.ProtoReflect.Descriptor instead.
 func (*StoryMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{7}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StoryMessage) GetProfileKey() []byte {
@@ -2798,7 +2798,7 @@ type Preview struct {
 
 func (x *Preview) Reset() {
 	*x = Preview{}
-	mi := &file_SignalService_proto_msgTypes[8]
+	mi := &file_signalpb_SignalService_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2810,7 +2810,7 @@ func (x *Preview) String() string {
 func (*Preview) ProtoMessage() {}
 
 func (x *Preview) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[8]
+	mi := &file_signalpb_SignalService_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2823,7 +2823,7 @@ func (x *Preview) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Preview.ProtoReflect.Descriptor instead.
 func (*Preview) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{8}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Preview) GetUrl() string {
@@ -2879,7 +2879,7 @@ type TextAttachment struct {
 
 func (x *TextAttachment) Reset() {
 	*x = TextAttachment{}
-	mi := &file_SignalService_proto_msgTypes[9]
+	mi := &file_signalpb_SignalService_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2891,7 +2891,7 @@ func (x *TextAttachment) String() string {
 func (*TextAttachment) ProtoMessage() {}
 
 func (x *TextAttachment) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[9]
+	mi := &file_signalpb_SignalService_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2904,7 +2904,7 @@ func (x *TextAttachment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextAttachment.ProtoReflect.Descriptor instead.
 func (*TextAttachment) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{9}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *TextAttachment) GetText() string {
@@ -2996,7 +2996,7 @@ type Verified struct {
 
 func (x *Verified) Reset() {
 	*x = Verified{}
-	mi := &file_SignalService_proto_msgTypes[10]
+	mi := &file_signalpb_SignalService_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3008,7 +3008,7 @@ func (x *Verified) String() string {
 func (*Verified) ProtoMessage() {}
 
 func (x *Verified) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[10]
+	mi := &file_signalpb_SignalService_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3021,7 +3021,7 @@ func (x *Verified) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Verified.ProtoReflect.Descriptor instead.
 func (*Verified) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{10}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Verified) GetDestinationAci() string {
@@ -3097,7 +3097,7 @@ type SyncMessage struct {
 
 func (x *SyncMessage) Reset() {
 	*x = SyncMessage{}
-	mi := &file_SignalService_proto_msgTypes[11]
+	mi := &file_signalpb_SignalService_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3109,7 +3109,7 @@ func (x *SyncMessage) String() string {
 func (*SyncMessage) ProtoMessage() {}
 
 func (x *SyncMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[11]
+	mi := &file_signalpb_SignalService_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3122,7 +3122,7 @@ func (x *SyncMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage.ProtoReflect.Descriptor instead.
 func (*SyncMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *SyncMessage) GetContent() isSyncMessage_Content {
@@ -3495,7 +3495,7 @@ type AttachmentPointer struct {
 
 func (x *AttachmentPointer) Reset() {
 	*x = AttachmentPointer{}
-	mi := &file_SignalService_proto_msgTypes[12]
+	mi := &file_signalpb_SignalService_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3507,7 +3507,7 @@ func (x *AttachmentPointer) String() string {
 func (*AttachmentPointer) ProtoMessage() {}
 
 func (x *AttachmentPointer) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[12]
+	mi := &file_signalpb_SignalService_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3520,7 +3520,7 @@ func (x *AttachmentPointer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachmentPointer.ProtoReflect.Descriptor instead.
 func (*AttachmentPointer) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{12}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *AttachmentPointer) GetAttachmentIdentifier() isAttachmentPointer_AttachmentIdentifier {
@@ -3687,7 +3687,7 @@ type GroupContextV2 struct {
 
 func (x *GroupContextV2) Reset() {
 	*x = GroupContextV2{}
-	mi := &file_SignalService_proto_msgTypes[13]
+	mi := &file_signalpb_SignalService_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3699,7 +3699,7 @@ func (x *GroupContextV2) String() string {
 func (*GroupContextV2) ProtoMessage() {}
 
 func (x *GroupContextV2) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[13]
+	mi := &file_signalpb_SignalService_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3712,7 +3712,7 @@ func (x *GroupContextV2) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupContextV2.ProtoReflect.Descriptor instead.
 func (*GroupContextV2) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{13}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GroupContextV2) GetMasterKey() []byte {
@@ -3752,7 +3752,7 @@ type ContactDetails struct {
 
 func (x *ContactDetails) Reset() {
 	*x = ContactDetails{}
-	mi := &file_SignalService_proto_msgTypes[14]
+	mi := &file_signalpb_SignalService_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3764,7 +3764,7 @@ func (x *ContactDetails) String() string {
 func (*ContactDetails) ProtoMessage() {}
 
 func (x *ContactDetails) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[14]
+	mi := &file_signalpb_SignalService_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3777,7 +3777,7 @@ func (x *ContactDetails) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactDetails.ProtoReflect.Descriptor instead.
 func (*ContactDetails) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{14}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ContactDetails) GetNumber() string {
@@ -3848,7 +3848,7 @@ type PaymentAddress struct {
 
 func (x *PaymentAddress) Reset() {
 	*x = PaymentAddress{}
-	mi := &file_SignalService_proto_msgTypes[15]
+	mi := &file_signalpb_SignalService_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3860,7 +3860,7 @@ func (x *PaymentAddress) String() string {
 func (*PaymentAddress) ProtoMessage() {}
 
 func (x *PaymentAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[15]
+	mi := &file_signalpb_SignalService_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3873,7 +3873,7 @@ func (x *PaymentAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentAddress.ProtoReflect.Descriptor instead.
 func (*PaymentAddress) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{15}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PaymentAddress) GetAddress() isPaymentAddress_Address {
@@ -3913,7 +3913,7 @@ type DecryptionErrorMessage struct {
 
 func (x *DecryptionErrorMessage) Reset() {
 	*x = DecryptionErrorMessage{}
-	mi := &file_SignalService_proto_msgTypes[16]
+	mi := &file_signalpb_SignalService_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3925,7 +3925,7 @@ func (x *DecryptionErrorMessage) String() string {
 func (*DecryptionErrorMessage) ProtoMessage() {}
 
 func (x *DecryptionErrorMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[16]
+	mi := &file_signalpb_SignalService_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3938,7 +3938,7 @@ func (x *DecryptionErrorMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DecryptionErrorMessage.ProtoReflect.Descriptor instead.
 func (*DecryptionErrorMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{16}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DecryptionErrorMessage) GetRatchetKey() []byte {
@@ -3973,7 +3973,7 @@ type PniSignatureMessage struct {
 
 func (x *PniSignatureMessage) Reset() {
 	*x = PniSignatureMessage{}
-	mi := &file_SignalService_proto_msgTypes[17]
+	mi := &file_signalpb_SignalService_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3985,7 +3985,7 @@ func (x *PniSignatureMessage) String() string {
 func (*PniSignatureMessage) ProtoMessage() {}
 
 func (x *PniSignatureMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[17]
+	mi := &file_signalpb_SignalService_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3998,7 +3998,7 @@ func (x *PniSignatureMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PniSignatureMessage.ProtoReflect.Descriptor instead.
 func (*PniSignatureMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{17}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *PniSignatureMessage) GetPni() []byte {
@@ -4025,7 +4025,7 @@ type EditMessage struct {
 
 func (x *EditMessage) Reset() {
 	*x = EditMessage{}
-	mi := &file_SignalService_proto_msgTypes[18]
+	mi := &file_signalpb_SignalService_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4037,7 +4037,7 @@ func (x *EditMessage) String() string {
 func (*EditMessage) ProtoMessage() {}
 
 func (x *EditMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[18]
+	mi := &file_signalpb_SignalService_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4050,7 +4050,7 @@ func (x *EditMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EditMessage.ProtoReflect.Descriptor instead.
 func (*EditMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{18}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *EditMessage) GetTargetSentTimestamp() uint64 {
@@ -4083,7 +4083,7 @@ type BodyRange struct {
 
 func (x *BodyRange) Reset() {
 	*x = BodyRange{}
-	mi := &file_SignalService_proto_msgTypes[19]
+	mi := &file_signalpb_SignalService_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4095,7 +4095,7 @@ func (x *BodyRange) String() string {
 func (*BodyRange) ProtoMessage() {}
 
 func (x *BodyRange) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[19]
+	mi := &file_signalpb_SignalService_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4108,7 +4108,7 @@ func (x *BodyRange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BodyRange.ProtoReflect.Descriptor instead.
 func (*BodyRange) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{19}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *BodyRange) GetStart() uint32 {
@@ -4196,7 +4196,7 @@ type AddressableMessage struct {
 
 func (x *AddressableMessage) Reset() {
 	*x = AddressableMessage{}
-	mi := &file_SignalService_proto_msgTypes[20]
+	mi := &file_signalpb_SignalService_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4208,7 +4208,7 @@ func (x *AddressableMessage) String() string {
 func (*AddressableMessage) ProtoMessage() {}
 
 func (x *AddressableMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[20]
+	mi := &file_signalpb_SignalService_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4221,7 +4221,7 @@ func (x *AddressableMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AddressableMessage.ProtoReflect.Descriptor instead.
 func (*AddressableMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{20}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *AddressableMessage) GetAuthor() isAddressableMessage_Author {
@@ -4302,7 +4302,7 @@ type ConversationIdentifier struct {
 
 func (x *ConversationIdentifier) Reset() {
 	*x = ConversationIdentifier{}
-	mi := &file_SignalService_proto_msgTypes[21]
+	mi := &file_signalpb_SignalService_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4314,7 +4314,7 @@ func (x *ConversationIdentifier) String() string {
 func (*ConversationIdentifier) ProtoMessage() {}
 
 func (x *ConversationIdentifier) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[21]
+	mi := &file_signalpb_SignalService_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4327,7 +4327,7 @@ func (x *ConversationIdentifier) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ConversationIdentifier.ProtoReflect.Descriptor instead.
 func (*ConversationIdentifier) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{21}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *ConversationIdentifier) GetIdentifier() isConversationIdentifier_Identifier {
@@ -4412,7 +4412,7 @@ type CallMessage_Offer struct {
 
 func (x *CallMessage_Offer) Reset() {
 	*x = CallMessage_Offer{}
-	mi := &file_SignalService_proto_msgTypes[22]
+	mi := &file_signalpb_SignalService_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4424,7 +4424,7 @@ func (x *CallMessage_Offer) String() string {
 func (*CallMessage_Offer) ProtoMessage() {}
 
 func (x *CallMessage_Offer) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[22]
+	mi := &file_signalpb_SignalService_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4437,7 +4437,7 @@ func (x *CallMessage_Offer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage_Offer.ProtoReflect.Descriptor instead.
 func (*CallMessage_Offer) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 0}
 }
 
 func (x *CallMessage_Offer) GetId() uint64 {
@@ -4471,7 +4471,7 @@ type CallMessage_Answer struct {
 
 func (x *CallMessage_Answer) Reset() {
 	*x = CallMessage_Answer{}
-	mi := &file_SignalService_proto_msgTypes[23]
+	mi := &file_signalpb_SignalService_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4483,7 +4483,7 @@ func (x *CallMessage_Answer) String() string {
 func (*CallMessage_Answer) ProtoMessage() {}
 
 func (x *CallMessage_Answer) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[23]
+	mi := &file_signalpb_SignalService_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4496,7 +4496,7 @@ func (x *CallMessage_Answer) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage_Answer.ProtoReflect.Descriptor instead.
 func (*CallMessage_Answer) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 1}
 }
 
 func (x *CallMessage_Answer) GetId() uint64 {
@@ -4523,7 +4523,7 @@ type CallMessage_IceUpdate struct {
 
 func (x *CallMessage_IceUpdate) Reset() {
 	*x = CallMessage_IceUpdate{}
-	mi := &file_SignalService_proto_msgTypes[24]
+	mi := &file_signalpb_SignalService_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4535,7 +4535,7 @@ func (x *CallMessage_IceUpdate) String() string {
 func (*CallMessage_IceUpdate) ProtoMessage() {}
 
 func (x *CallMessage_IceUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[24]
+	mi := &file_signalpb_SignalService_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4548,7 +4548,7 @@ func (x *CallMessage_IceUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage_IceUpdate.ProtoReflect.Descriptor instead.
 func (*CallMessage_IceUpdate) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 2}
 }
 
 func (x *CallMessage_IceUpdate) GetId() uint64 {
@@ -4574,7 +4574,7 @@ type CallMessage_Busy struct {
 
 func (x *CallMessage_Busy) Reset() {
 	*x = CallMessage_Busy{}
-	mi := &file_SignalService_proto_msgTypes[25]
+	mi := &file_signalpb_SignalService_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4586,7 +4586,7 @@ func (x *CallMessage_Busy) String() string {
 func (*CallMessage_Busy) ProtoMessage() {}
 
 func (x *CallMessage_Busy) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[25]
+	mi := &file_signalpb_SignalService_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4599,7 +4599,7 @@ func (x *CallMessage_Busy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage_Busy.ProtoReflect.Descriptor instead.
 func (*CallMessage_Busy) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 3}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 3}
 }
 
 func (x *CallMessage_Busy) GetId() uint64 {
@@ -4620,7 +4620,7 @@ type CallMessage_Hangup struct {
 
 func (x *CallMessage_Hangup) Reset() {
 	*x = CallMessage_Hangup{}
-	mi := &file_SignalService_proto_msgTypes[26]
+	mi := &file_signalpb_SignalService_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4632,7 +4632,7 @@ func (x *CallMessage_Hangup) String() string {
 func (*CallMessage_Hangup) ProtoMessage() {}
 
 func (x *CallMessage_Hangup) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[26]
+	mi := &file_signalpb_SignalService_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4645,7 +4645,7 @@ func (x *CallMessage_Hangup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage_Hangup.ProtoReflect.Descriptor instead.
 func (*CallMessage_Hangup) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 4}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 4}
 }
 
 func (x *CallMessage_Hangup) GetId() uint64 {
@@ -4679,7 +4679,7 @@ type CallMessage_Opaque struct {
 
 func (x *CallMessage_Opaque) Reset() {
 	*x = CallMessage_Opaque{}
-	mi := &file_SignalService_proto_msgTypes[27]
+	mi := &file_signalpb_SignalService_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4691,7 +4691,7 @@ func (x *CallMessage_Opaque) String() string {
 func (*CallMessage_Opaque) ProtoMessage() {}
 
 func (x *CallMessage_Opaque) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[27]
+	mi := &file_signalpb_SignalService_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4704,7 +4704,7 @@ func (x *CallMessage_Opaque) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallMessage_Opaque.ProtoReflect.Descriptor instead.
 func (*CallMessage_Opaque) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{2, 5}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{2, 5}
 }
 
 func (x *CallMessage_Opaque) GetData() []byte {
@@ -4734,7 +4734,7 @@ type DataMessage_Payment struct {
 
 func (x *DataMessage_Payment) Reset() {
 	*x = DataMessage_Payment{}
-	mi := &file_SignalService_proto_msgTypes[28]
+	mi := &file_signalpb_SignalService_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4746,7 +4746,7 @@ func (x *DataMessage_Payment) String() string {
 func (*DataMessage_Payment) ProtoMessage() {}
 
 func (x *DataMessage_Payment) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[28]
+	mi := &file_signalpb_SignalService_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4759,7 +4759,7 @@ func (x *DataMessage_Payment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Payment.ProtoReflect.Descriptor instead.
 func (*DataMessage_Payment) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0}
 }
 
 func (x *DataMessage_Payment) GetItem() isDataMessage_Payment_Item {
@@ -4818,7 +4818,7 @@ type DataMessage_Quote struct {
 
 func (x *DataMessage_Quote) Reset() {
 	*x = DataMessage_Quote{}
-	mi := &file_SignalService_proto_msgTypes[29]
+	mi := &file_signalpb_SignalService_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4830,7 +4830,7 @@ func (x *DataMessage_Quote) String() string {
 func (*DataMessage_Quote) ProtoMessage() {}
 
 func (x *DataMessage_Quote) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[29]
+	mi := &file_signalpb_SignalService_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4843,7 +4843,7 @@ func (x *DataMessage_Quote) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Quote.ProtoReflect.Descriptor instead.
 func (*DataMessage_Quote) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 1}
 }
 
 func (x *DataMessage_Quote) GetId() uint64 {
@@ -4909,7 +4909,7 @@ type DataMessage_Contact struct {
 
 func (x *DataMessage_Contact) Reset() {
 	*x = DataMessage_Contact{}
-	mi := &file_SignalService_proto_msgTypes[30]
+	mi := &file_signalpb_SignalService_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -4921,7 +4921,7 @@ func (x *DataMessage_Contact) String() string {
 func (*DataMessage_Contact) ProtoMessage() {}
 
 func (x *DataMessage_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[30]
+	mi := &file_signalpb_SignalService_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -4934,7 +4934,7 @@ func (x *DataMessage_Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Contact.ProtoReflect.Descriptor instead.
 func (*DataMessage_Contact) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2}
 }
 
 func (x *DataMessage_Contact) GetName() *DataMessage_Contact_Name {
@@ -4992,7 +4992,7 @@ type DataMessage_Sticker struct {
 
 func (x *DataMessage_Sticker) Reset() {
 	*x = DataMessage_Sticker{}
-	mi := &file_SignalService_proto_msgTypes[31]
+	mi := &file_signalpb_SignalService_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5004,7 +5004,7 @@ func (x *DataMessage_Sticker) String() string {
 func (*DataMessage_Sticker) ProtoMessage() {}
 
 func (x *DataMessage_Sticker) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[31]
+	mi := &file_signalpb_SignalService_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5017,7 +5017,7 @@ func (x *DataMessage_Sticker) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Sticker.ProtoReflect.Descriptor instead.
 func (*DataMessage_Sticker) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 3}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 3}
 }
 
 func (x *DataMessage_Sticker) GetPackId() []byte {
@@ -5068,7 +5068,7 @@ type DataMessage_Reaction struct {
 
 func (x *DataMessage_Reaction) Reset() {
 	*x = DataMessage_Reaction{}
-	mi := &file_SignalService_proto_msgTypes[32]
+	mi := &file_signalpb_SignalService_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5080,7 +5080,7 @@ func (x *DataMessage_Reaction) String() string {
 func (*DataMessage_Reaction) ProtoMessage() {}
 
 func (x *DataMessage_Reaction) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[32]
+	mi := &file_signalpb_SignalService_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5093,7 +5093,7 @@ func (x *DataMessage_Reaction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Reaction.ProtoReflect.Descriptor instead.
 func (*DataMessage_Reaction) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 4}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 4}
 }
 
 func (x *DataMessage_Reaction) GetEmoji() string {
@@ -5140,7 +5140,7 @@ type DataMessage_Delete struct {
 
 func (x *DataMessage_Delete) Reset() {
 	*x = DataMessage_Delete{}
-	mi := &file_SignalService_proto_msgTypes[33]
+	mi := &file_signalpb_SignalService_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5152,7 +5152,7 @@ func (x *DataMessage_Delete) String() string {
 func (*DataMessage_Delete) ProtoMessage() {}
 
 func (x *DataMessage_Delete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[33]
+	mi := &file_signalpb_SignalService_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5165,7 +5165,7 @@ func (x *DataMessage_Delete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Delete.ProtoReflect.Descriptor instead.
 func (*DataMessage_Delete) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 5}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 5}
 }
 
 func (x *DataMessage_Delete) GetTargetSentTimestamp() uint64 {
@@ -5184,7 +5184,7 @@ type DataMessage_GroupCallUpdate struct {
 
 func (x *DataMessage_GroupCallUpdate) Reset() {
 	*x = DataMessage_GroupCallUpdate{}
-	mi := &file_SignalService_proto_msgTypes[34]
+	mi := &file_signalpb_SignalService_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5196,7 +5196,7 @@ func (x *DataMessage_GroupCallUpdate) String() string {
 func (*DataMessage_GroupCallUpdate) ProtoMessage() {}
 
 func (x *DataMessage_GroupCallUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[34]
+	mi := &file_signalpb_SignalService_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5209,7 +5209,7 @@ func (x *DataMessage_GroupCallUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_GroupCallUpdate.ProtoReflect.Descriptor instead.
 func (*DataMessage_GroupCallUpdate) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 6}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 6}
 }
 
 func (x *DataMessage_GroupCallUpdate) GetEraId() string {
@@ -5230,7 +5230,7 @@ type DataMessage_StoryContext struct {
 
 func (x *DataMessage_StoryContext) Reset() {
 	*x = DataMessage_StoryContext{}
-	mi := &file_SignalService_proto_msgTypes[35]
+	mi := &file_signalpb_SignalService_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5242,7 +5242,7 @@ func (x *DataMessage_StoryContext) String() string {
 func (*DataMessage_StoryContext) ProtoMessage() {}
 
 func (x *DataMessage_StoryContext) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[35]
+	mi := &file_signalpb_SignalService_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5255,7 +5255,7 @@ func (x *DataMessage_StoryContext) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_StoryContext.ProtoReflect.Descriptor instead.
 func (*DataMessage_StoryContext) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 7}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 7}
 }
 
 func (x *DataMessage_StoryContext) GetAuthorAci() string {
@@ -5288,7 +5288,7 @@ type DataMessage_GiftBadge struct {
 
 func (x *DataMessage_GiftBadge) Reset() {
 	*x = DataMessage_GiftBadge{}
-	mi := &file_SignalService_proto_msgTypes[36]
+	mi := &file_signalpb_SignalService_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5300,7 +5300,7 @@ func (x *DataMessage_GiftBadge) String() string {
 func (*DataMessage_GiftBadge) ProtoMessage() {}
 
 func (x *DataMessage_GiftBadge) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[36]
+	mi := &file_signalpb_SignalService_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5313,7 +5313,7 @@ func (x *DataMessage_GiftBadge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_GiftBadge.ProtoReflect.Descriptor instead.
 func (*DataMessage_GiftBadge) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 8}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 8}
 }
 
 func (x *DataMessage_GiftBadge) GetReceiptCredentialPresentation() []byte {
@@ -5334,7 +5334,7 @@ type DataMessage_PollCreate struct {
 
 func (x *DataMessage_PollCreate) Reset() {
 	*x = DataMessage_PollCreate{}
-	mi := &file_SignalService_proto_msgTypes[37]
+	mi := &file_signalpb_SignalService_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5346,7 +5346,7 @@ func (x *DataMessage_PollCreate) String() string {
 func (*DataMessage_PollCreate) ProtoMessage() {}
 
 func (x *DataMessage_PollCreate) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[37]
+	mi := &file_signalpb_SignalService_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5359,7 +5359,7 @@ func (x *DataMessage_PollCreate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_PollCreate.ProtoReflect.Descriptor instead.
 func (*DataMessage_PollCreate) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 9}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 9}
 }
 
 func (x *DataMessage_PollCreate) GetQuestion() string {
@@ -5392,7 +5392,7 @@ type DataMessage_PollTerminate struct {
 
 func (x *DataMessage_PollTerminate) Reset() {
 	*x = DataMessage_PollTerminate{}
-	mi := &file_SignalService_proto_msgTypes[38]
+	mi := &file_signalpb_SignalService_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5404,7 +5404,7 @@ func (x *DataMessage_PollTerminate) String() string {
 func (*DataMessage_PollTerminate) ProtoMessage() {}
 
 func (x *DataMessage_PollTerminate) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[38]
+	mi := &file_signalpb_SignalService_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5417,7 +5417,7 @@ func (x *DataMessage_PollTerminate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_PollTerminate.ProtoReflect.Descriptor instead.
 func (*DataMessage_PollTerminate) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 10}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 10}
 }
 
 func (x *DataMessage_PollTerminate) GetTargetSentTimestamp() uint64 {
@@ -5439,7 +5439,7 @@ type DataMessage_PollVote struct {
 
 func (x *DataMessage_PollVote) Reset() {
 	*x = DataMessage_PollVote{}
-	mi := &file_SignalService_proto_msgTypes[39]
+	mi := &file_signalpb_SignalService_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5451,7 +5451,7 @@ func (x *DataMessage_PollVote) String() string {
 func (*DataMessage_PollVote) ProtoMessage() {}
 
 func (x *DataMessage_PollVote) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[39]
+	mi := &file_signalpb_SignalService_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5464,7 +5464,7 @@ func (x *DataMessage_PollVote) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_PollVote.ProtoReflect.Descriptor instead.
 func (*DataMessage_PollVote) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 11}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 11}
 }
 
 func (x *DataMessage_PollVote) GetTargetAuthorAciBinary() []byte {
@@ -5510,7 +5510,7 @@ type DataMessage_PinMessage struct {
 
 func (x *DataMessage_PinMessage) Reset() {
 	*x = DataMessage_PinMessage{}
-	mi := &file_SignalService_proto_msgTypes[40]
+	mi := &file_signalpb_SignalService_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5522,7 +5522,7 @@ func (x *DataMessage_PinMessage) String() string {
 func (*DataMessage_PinMessage) ProtoMessage() {}
 
 func (x *DataMessage_PinMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[40]
+	mi := &file_signalpb_SignalService_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5535,7 +5535,7 @@ func (x *DataMessage_PinMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_PinMessage.ProtoReflect.Descriptor instead.
 func (*DataMessage_PinMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 12}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 12}
 }
 
 func (x *DataMessage_PinMessage) GetTargetAuthorAciBinary() []byte {
@@ -5603,7 +5603,7 @@ type DataMessage_UnpinMessage struct {
 
 func (x *DataMessage_UnpinMessage) Reset() {
 	*x = DataMessage_UnpinMessage{}
-	mi := &file_SignalService_proto_msgTypes[41]
+	mi := &file_signalpb_SignalService_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5615,7 +5615,7 @@ func (x *DataMessage_UnpinMessage) String() string {
 func (*DataMessage_UnpinMessage) ProtoMessage() {}
 
 func (x *DataMessage_UnpinMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[41]
+	mi := &file_signalpb_SignalService_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5628,7 +5628,7 @@ func (x *DataMessage_UnpinMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_UnpinMessage.ProtoReflect.Descriptor instead.
 func (*DataMessage_UnpinMessage) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 13}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 13}
 }
 
 func (x *DataMessage_UnpinMessage) GetTargetAuthorAciBinary() []byte {
@@ -5655,7 +5655,7 @@ type DataMessage_AdminDelete struct {
 
 func (x *DataMessage_AdminDelete) Reset() {
 	*x = DataMessage_AdminDelete{}
-	mi := &file_SignalService_proto_msgTypes[42]
+	mi := &file_signalpb_SignalService_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5667,7 +5667,7 @@ func (x *DataMessage_AdminDelete) String() string {
 func (*DataMessage_AdminDelete) ProtoMessage() {}
 
 func (x *DataMessage_AdminDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[42]
+	mi := &file_signalpb_SignalService_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5680,7 +5680,7 @@ func (x *DataMessage_AdminDelete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_AdminDelete.ProtoReflect.Descriptor instead.
 func (*DataMessage_AdminDelete) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 14}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 14}
 }
 
 func (x *DataMessage_AdminDelete) GetTargetAuthorAciBinary() []byte {
@@ -5709,7 +5709,7 @@ type DataMessage_Payment_Amount struct {
 
 func (x *DataMessage_Payment_Amount) Reset() {
 	*x = DataMessage_Payment_Amount{}
-	mi := &file_SignalService_proto_msgTypes[43]
+	mi := &file_signalpb_SignalService_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5721,7 +5721,7 @@ func (x *DataMessage_Payment_Amount) String() string {
 func (*DataMessage_Payment_Amount) ProtoMessage() {}
 
 func (x *DataMessage_Payment_Amount) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[43]
+	mi := &file_signalpb_SignalService_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5734,7 +5734,7 @@ func (x *DataMessage_Payment_Amount) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Payment_Amount.ProtoReflect.Descriptor instead.
 func (*DataMessage_Payment_Amount) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0, 0}
 }
 
 func (x *DataMessage_Payment_Amount) GetAmount() isDataMessage_Payment_Amount_Amount {
@@ -5777,7 +5777,7 @@ type DataMessage_Payment_Notification struct {
 
 func (x *DataMessage_Payment_Notification) Reset() {
 	*x = DataMessage_Payment_Notification{}
-	mi := &file_SignalService_proto_msgTypes[44]
+	mi := &file_signalpb_SignalService_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5789,7 +5789,7 @@ func (x *DataMessage_Payment_Notification) String() string {
 func (*DataMessage_Payment_Notification) ProtoMessage() {}
 
 func (x *DataMessage_Payment_Notification) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[44]
+	mi := &file_signalpb_SignalService_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5802,7 +5802,7 @@ func (x *DataMessage_Payment_Notification) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Payment_Notification.ProtoReflect.Descriptor instead.
 func (*DataMessage_Payment_Notification) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0, 1}
 }
 
 func (x *DataMessage_Payment_Notification) GetTransaction() isDataMessage_Payment_Notification_Transaction {
@@ -5848,7 +5848,7 @@ type DataMessage_Payment_Activation struct {
 
 func (x *DataMessage_Payment_Activation) Reset() {
 	*x = DataMessage_Payment_Activation{}
-	mi := &file_SignalService_proto_msgTypes[45]
+	mi := &file_signalpb_SignalService_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5860,7 +5860,7 @@ func (x *DataMessage_Payment_Activation) String() string {
 func (*DataMessage_Payment_Activation) ProtoMessage() {}
 
 func (x *DataMessage_Payment_Activation) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[45]
+	mi := &file_signalpb_SignalService_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5873,7 +5873,7 @@ func (x *DataMessage_Payment_Activation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Payment_Activation.ProtoReflect.Descriptor instead.
 func (*DataMessage_Payment_Activation) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0, 2}
 }
 
 func (x *DataMessage_Payment_Activation) GetType() DataMessage_Payment_Activation_Type {
@@ -5892,7 +5892,7 @@ type DataMessage_Payment_Amount_MobileCoin struct {
 
 func (x *DataMessage_Payment_Amount_MobileCoin) Reset() {
 	*x = DataMessage_Payment_Amount_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[46]
+	mi := &file_signalpb_SignalService_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5904,7 +5904,7 @@ func (x *DataMessage_Payment_Amount_MobileCoin) String() string {
 func (*DataMessage_Payment_Amount_MobileCoin) ProtoMessage() {}
 
 func (x *DataMessage_Payment_Amount_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[46]
+	mi := &file_signalpb_SignalService_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5917,7 +5917,7 @@ func (x *DataMessage_Payment_Amount_MobileCoin) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use DataMessage_Payment_Amount_MobileCoin.ProtoReflect.Descriptor instead.
 func (*DataMessage_Payment_Amount_MobileCoin) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0, 0, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0, 0, 0}
 }
 
 func (x *DataMessage_Payment_Amount_MobileCoin) GetPicoMob() uint64 {
@@ -5936,7 +5936,7 @@ type DataMessage_Payment_Notification_MobileCoin struct {
 
 func (x *DataMessage_Payment_Notification_MobileCoin) Reset() {
 	*x = DataMessage_Payment_Notification_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[47]
+	mi := &file_signalpb_SignalService_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5948,7 +5948,7 @@ func (x *DataMessage_Payment_Notification_MobileCoin) String() string {
 func (*DataMessage_Payment_Notification_MobileCoin) ProtoMessage() {}
 
 func (x *DataMessage_Payment_Notification_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[47]
+	mi := &file_signalpb_SignalService_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -5961,7 +5961,7 @@ func (x *DataMessage_Payment_Notification_MobileCoin) ProtoReflect() protoreflec
 
 // Deprecated: Use DataMessage_Payment_Notification_MobileCoin.ProtoReflect.Descriptor instead.
 func (*DataMessage_Payment_Notification_MobileCoin) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 0, 1, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 0, 1, 0}
 }
 
 func (x *DataMessage_Payment_Notification_MobileCoin) GetReceipt() []byte {
@@ -5982,7 +5982,7 @@ type DataMessage_Quote_QuotedAttachment struct {
 
 func (x *DataMessage_Quote_QuotedAttachment) Reset() {
 	*x = DataMessage_Quote_QuotedAttachment{}
-	mi := &file_SignalService_proto_msgTypes[48]
+	mi := &file_signalpb_SignalService_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -5994,7 +5994,7 @@ func (x *DataMessage_Quote_QuotedAttachment) String() string {
 func (*DataMessage_Quote_QuotedAttachment) ProtoMessage() {}
 
 func (x *DataMessage_Quote_QuotedAttachment) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[48]
+	mi := &file_signalpb_SignalService_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6007,7 +6007,7 @@ func (x *DataMessage_Quote_QuotedAttachment) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use DataMessage_Quote_QuotedAttachment.ProtoReflect.Descriptor instead.
 func (*DataMessage_Quote_QuotedAttachment) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 1, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 1, 0}
 }
 
 func (x *DataMessage_Quote_QuotedAttachment) GetContentType() string {
@@ -6045,7 +6045,7 @@ type DataMessage_Contact_Name struct {
 
 func (x *DataMessage_Contact_Name) Reset() {
 	*x = DataMessage_Contact_Name{}
-	mi := &file_SignalService_proto_msgTypes[49]
+	mi := &file_signalpb_SignalService_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6057,7 +6057,7 @@ func (x *DataMessage_Contact_Name) String() string {
 func (*DataMessage_Contact_Name) ProtoMessage() {}
 
 func (x *DataMessage_Contact_Name) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[49]
+	mi := &file_signalpb_SignalService_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6070,7 +6070,7 @@ func (x *DataMessage_Contact_Name) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Contact_Name.ProtoReflect.Descriptor instead.
 func (*DataMessage_Contact_Name) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 0}
 }
 
 func (x *DataMessage_Contact_Name) GetGivenName() string {
@@ -6126,7 +6126,7 @@ type DataMessage_Contact_Phone struct {
 
 func (x *DataMessage_Contact_Phone) Reset() {
 	*x = DataMessage_Contact_Phone{}
-	mi := &file_SignalService_proto_msgTypes[50]
+	mi := &file_signalpb_SignalService_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6138,7 +6138,7 @@ func (x *DataMessage_Contact_Phone) String() string {
 func (*DataMessage_Contact_Phone) ProtoMessage() {}
 
 func (x *DataMessage_Contact_Phone) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[50]
+	mi := &file_signalpb_SignalService_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6151,7 +6151,7 @@ func (x *DataMessage_Contact_Phone) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Contact_Phone.ProtoReflect.Descriptor instead.
 func (*DataMessage_Contact_Phone) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 1}
 }
 
 func (x *DataMessage_Contact_Phone) GetValue() string {
@@ -6186,7 +6186,7 @@ type DataMessage_Contact_Email struct {
 
 func (x *DataMessage_Contact_Email) Reset() {
 	*x = DataMessage_Contact_Email{}
-	mi := &file_SignalService_proto_msgTypes[51]
+	mi := &file_signalpb_SignalService_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6198,7 +6198,7 @@ func (x *DataMessage_Contact_Email) String() string {
 func (*DataMessage_Contact_Email) ProtoMessage() {}
 
 func (x *DataMessage_Contact_Email) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[51]
+	mi := &file_signalpb_SignalService_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6211,7 +6211,7 @@ func (x *DataMessage_Contact_Email) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Contact_Email.ProtoReflect.Descriptor instead.
 func (*DataMessage_Contact_Email) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 2}
 }
 
 func (x *DataMessage_Contact_Email) GetValue() string {
@@ -6252,7 +6252,7 @@ type DataMessage_Contact_PostalAddress struct {
 
 func (x *DataMessage_Contact_PostalAddress) Reset() {
 	*x = DataMessage_Contact_PostalAddress{}
-	mi := &file_SignalService_proto_msgTypes[52]
+	mi := &file_signalpb_SignalService_proto_msgTypes[52]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6264,7 +6264,7 @@ func (x *DataMessage_Contact_PostalAddress) String() string {
 func (*DataMessage_Contact_PostalAddress) ProtoMessage() {}
 
 func (x *DataMessage_Contact_PostalAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[52]
+	mi := &file_signalpb_SignalService_proto_msgTypes[52]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6277,7 +6277,7 @@ func (x *DataMessage_Contact_PostalAddress) ProtoReflect() protoreflect.Message 
 
 // Deprecated: Use DataMessage_Contact_PostalAddress.ProtoReflect.Descriptor instead.
 func (*DataMessage_Contact_PostalAddress) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 3}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 3}
 }
 
 func (x *DataMessage_Contact_PostalAddress) GetType() DataMessage_Contact_PostalAddress_Type {
@@ -6353,7 +6353,7 @@ type DataMessage_Contact_Avatar struct {
 
 func (x *DataMessage_Contact_Avatar) Reset() {
 	*x = DataMessage_Contact_Avatar{}
-	mi := &file_SignalService_proto_msgTypes[53]
+	mi := &file_signalpb_SignalService_proto_msgTypes[53]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6365,7 +6365,7 @@ func (x *DataMessage_Contact_Avatar) String() string {
 func (*DataMessage_Contact_Avatar) ProtoMessage() {}
 
 func (x *DataMessage_Contact_Avatar) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[53]
+	mi := &file_signalpb_SignalService_proto_msgTypes[53]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6378,7 +6378,7 @@ func (x *DataMessage_Contact_Avatar) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DataMessage_Contact_Avatar.ProtoReflect.Descriptor instead.
 func (*DataMessage_Contact_Avatar) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{3, 2, 4}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{3, 2, 4}
 }
 
 func (x *DataMessage_Contact_Avatar) GetAvatar() *AttachmentPointer {
@@ -6408,7 +6408,7 @@ type TextAttachment_Gradient struct {
 
 func (x *TextAttachment_Gradient) Reset() {
 	*x = TextAttachment_Gradient{}
-	mi := &file_SignalService_proto_msgTypes[54]
+	mi := &file_signalpb_SignalService_proto_msgTypes[54]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6420,7 +6420,7 @@ func (x *TextAttachment_Gradient) String() string {
 func (*TextAttachment_Gradient) ProtoMessage() {}
 
 func (x *TextAttachment_Gradient) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[54]
+	mi := &file_signalpb_SignalService_proto_msgTypes[54]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6433,7 +6433,7 @@ func (x *TextAttachment_Gradient) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TextAttachment_Gradient.ProtoReflect.Descriptor instead.
 func (*TextAttachment_Gradient) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{9, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{9, 0}
 }
 
 func (x *TextAttachment_Gradient) GetStartColor() uint32 {
@@ -6495,7 +6495,7 @@ const (
 
 func (x *SyncMessage_Sent) Reset() {
 	*x = SyncMessage_Sent{}
-	mi := &file_SignalService_proto_msgTypes[55]
+	mi := &file_signalpb_SignalService_proto_msgTypes[55]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6507,7 +6507,7 @@ func (x *SyncMessage_Sent) String() string {
 func (*SyncMessage_Sent) ProtoMessage() {}
 
 func (x *SyncMessage_Sent) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[55]
+	mi := &file_signalpb_SignalService_proto_msgTypes[55]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6520,7 +6520,7 @@ func (x *SyncMessage_Sent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Sent.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Sent) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 0}
 }
 
 func (x *SyncMessage_Sent) GetDestinationE164() string {
@@ -6615,7 +6615,7 @@ const (
 
 func (x *SyncMessage_Contacts) Reset() {
 	*x = SyncMessage_Contacts{}
-	mi := &file_SignalService_proto_msgTypes[56]
+	mi := &file_signalpb_SignalService_proto_msgTypes[56]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6627,7 +6627,7 @@ func (x *SyncMessage_Contacts) String() string {
 func (*SyncMessage_Contacts) ProtoMessage() {}
 
 func (x *SyncMessage_Contacts) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[56]
+	mi := &file_signalpb_SignalService_proto_msgTypes[56]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6640,7 +6640,7 @@ func (x *SyncMessage_Contacts) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Contacts.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Contacts) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 1}
 }
 
 func (x *SyncMessage_Contacts) GetBlob() *AttachmentPointer {
@@ -6672,7 +6672,7 @@ type SyncMessage_Blocked struct {
 
 func (x *SyncMessage_Blocked) Reset() {
 	*x = SyncMessage_Blocked{}
-	mi := &file_SignalService_proto_msgTypes[57]
+	mi := &file_signalpb_SignalService_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6684,7 +6684,7 @@ func (x *SyncMessage_Blocked) String() string {
 func (*SyncMessage_Blocked) ProtoMessage() {}
 
 func (x *SyncMessage_Blocked) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[57]
+	mi := &file_signalpb_SignalService_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6697,7 +6697,7 @@ func (x *SyncMessage_Blocked) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Blocked.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Blocked) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 2}
 }
 
 func (x *SyncMessage_Blocked) GetNumbers() []string {
@@ -6758,7 +6758,7 @@ type SyncMessage_Request struct {
 
 func (x *SyncMessage_Request) Reset() {
 	*x = SyncMessage_Request{}
-	mi := &file_SignalService_proto_msgTypes[58]
+	mi := &file_signalpb_SignalService_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6770,7 +6770,7 @@ func (x *SyncMessage_Request) String() string {
 func (*SyncMessage_Request) ProtoMessage() {}
 
 func (x *SyncMessage_Request) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[58]
+	mi := &file_signalpb_SignalService_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6783,7 +6783,7 @@ func (x *SyncMessage_Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Request.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Request) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 3}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 3}
 }
 
 func (x *SyncMessage_Request) GetType() SyncMessage_Request_Type {
@@ -6804,7 +6804,7 @@ type SyncMessage_Read struct {
 
 func (x *SyncMessage_Read) Reset() {
 	*x = SyncMessage_Read{}
-	mi := &file_SignalService_proto_msgTypes[59]
+	mi := &file_signalpb_SignalService_proto_msgTypes[59]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6816,7 +6816,7 @@ func (x *SyncMessage_Read) String() string {
 func (*SyncMessage_Read) ProtoMessage() {}
 
 func (x *SyncMessage_Read) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[59]
+	mi := &file_signalpb_SignalService_proto_msgTypes[59]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6829,7 +6829,7 @@ func (x *SyncMessage_Read) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Read.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Read) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 4}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 4}
 }
 
 func (x *SyncMessage_Read) GetSenderAci() string {
@@ -6864,7 +6864,7 @@ type SyncMessage_Viewed struct {
 
 func (x *SyncMessage_Viewed) Reset() {
 	*x = SyncMessage_Viewed{}
-	mi := &file_SignalService_proto_msgTypes[60]
+	mi := &file_signalpb_SignalService_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6876,7 +6876,7 @@ func (x *SyncMessage_Viewed) String() string {
 func (*SyncMessage_Viewed) ProtoMessage() {}
 
 func (x *SyncMessage_Viewed) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[60]
+	mi := &file_signalpb_SignalService_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6889,7 +6889,7 @@ func (x *SyncMessage_Viewed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Viewed.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Viewed) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 5}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 5}
 }
 
 func (x *SyncMessage_Viewed) GetSenderAci() string {
@@ -6925,7 +6925,7 @@ type SyncMessage_Configuration struct {
 
 func (x *SyncMessage_Configuration) Reset() {
 	*x = SyncMessage_Configuration{}
-	mi := &file_SignalService_proto_msgTypes[61]
+	mi := &file_signalpb_SignalService_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -6937,7 +6937,7 @@ func (x *SyncMessage_Configuration) String() string {
 func (*SyncMessage_Configuration) ProtoMessage() {}
 
 func (x *SyncMessage_Configuration) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[61]
+	mi := &file_signalpb_SignalService_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -6950,7 +6950,7 @@ func (x *SyncMessage_Configuration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Configuration.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Configuration) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 6}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 6}
 }
 
 func (x *SyncMessage_Configuration) GetReadReceipts() bool {
@@ -6992,7 +6992,7 @@ type SyncMessage_StickerPackOperation struct {
 
 func (x *SyncMessage_StickerPackOperation) Reset() {
 	*x = SyncMessage_StickerPackOperation{}
-	mi := &file_SignalService_proto_msgTypes[62]
+	mi := &file_signalpb_SignalService_proto_msgTypes[62]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7004,7 +7004,7 @@ func (x *SyncMessage_StickerPackOperation) String() string {
 func (*SyncMessage_StickerPackOperation) ProtoMessage() {}
 
 func (x *SyncMessage_StickerPackOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[62]
+	mi := &file_signalpb_SignalService_proto_msgTypes[62]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7017,7 +7017,7 @@ func (x *SyncMessage_StickerPackOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_StickerPackOperation.ProtoReflect.Descriptor instead.
 func (*SyncMessage_StickerPackOperation) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 7}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 7}
 }
 
 func (x *SyncMessage_StickerPackOperation) GetPackId() []byte {
@@ -7052,7 +7052,7 @@ type SyncMessage_ViewOnceOpen struct {
 
 func (x *SyncMessage_ViewOnceOpen) Reset() {
 	*x = SyncMessage_ViewOnceOpen{}
-	mi := &file_SignalService_proto_msgTypes[63]
+	mi := &file_signalpb_SignalService_proto_msgTypes[63]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7064,7 +7064,7 @@ func (x *SyncMessage_ViewOnceOpen) String() string {
 func (*SyncMessage_ViewOnceOpen) ProtoMessage() {}
 
 func (x *SyncMessage_ViewOnceOpen) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[63]
+	mi := &file_signalpb_SignalService_proto_msgTypes[63]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7077,7 +7077,7 @@ func (x *SyncMessage_ViewOnceOpen) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_ViewOnceOpen.ProtoReflect.Descriptor instead.
 func (*SyncMessage_ViewOnceOpen) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 8}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 8}
 }
 
 func (x *SyncMessage_ViewOnceOpen) GetSenderAci() string {
@@ -7110,7 +7110,7 @@ type SyncMessage_FetchLatest struct {
 
 func (x *SyncMessage_FetchLatest) Reset() {
 	*x = SyncMessage_FetchLatest{}
-	mi := &file_SignalService_proto_msgTypes[64]
+	mi := &file_signalpb_SignalService_proto_msgTypes[64]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7122,7 +7122,7 @@ func (x *SyncMessage_FetchLatest) String() string {
 func (*SyncMessage_FetchLatest) ProtoMessage() {}
 
 func (x *SyncMessage_FetchLatest) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[64]
+	mi := &file_signalpb_SignalService_proto_msgTypes[64]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7135,7 +7135,7 @@ func (x *SyncMessage_FetchLatest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_FetchLatest.ProtoReflect.Descriptor instead.
 func (*SyncMessage_FetchLatest) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 9}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 9}
 }
 
 func (x *SyncMessage_FetchLatest) GetType() SyncMessage_FetchLatest_Type {
@@ -7155,7 +7155,7 @@ type SyncMessage_Keys struct {
 
 func (x *SyncMessage_Keys) Reset() {
 	*x = SyncMessage_Keys{}
-	mi := &file_SignalService_proto_msgTypes[65]
+	mi := &file_signalpb_SignalService_proto_msgTypes[65]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7167,7 +7167,7 @@ func (x *SyncMessage_Keys) String() string {
 func (*SyncMessage_Keys) ProtoMessage() {}
 
 func (x *SyncMessage_Keys) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[65]
+	mi := &file_signalpb_SignalService_proto_msgTypes[65]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7180,7 +7180,7 @@ func (x *SyncMessage_Keys) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Keys.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Keys) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 10}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 10}
 }
 
 func (x *SyncMessage_Keys) GetAccountEntropyPool() string {
@@ -7207,7 +7207,7 @@ type SyncMessage_PniIdentity struct {
 
 func (x *SyncMessage_PniIdentity) Reset() {
 	*x = SyncMessage_PniIdentity{}
-	mi := &file_SignalService_proto_msgTypes[66]
+	mi := &file_signalpb_SignalService_proto_msgTypes[66]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7219,7 +7219,7 @@ func (x *SyncMessage_PniIdentity) String() string {
 func (*SyncMessage_PniIdentity) ProtoMessage() {}
 
 func (x *SyncMessage_PniIdentity) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[66]
+	mi := &file_signalpb_SignalService_proto_msgTypes[66]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7232,7 +7232,7 @@ func (x *SyncMessage_PniIdentity) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_PniIdentity.ProtoReflect.Descriptor instead.
 func (*SyncMessage_PniIdentity) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 11}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 11}
 }
 
 func (x *SyncMessage_PniIdentity) GetPublicKey() []byte {
@@ -7261,7 +7261,7 @@ type SyncMessage_MessageRequestResponse struct {
 
 func (x *SyncMessage_MessageRequestResponse) Reset() {
 	*x = SyncMessage_MessageRequestResponse{}
-	mi := &file_SignalService_proto_msgTypes[67]
+	mi := &file_signalpb_SignalService_proto_msgTypes[67]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7273,7 +7273,7 @@ func (x *SyncMessage_MessageRequestResponse) String() string {
 func (*SyncMessage_MessageRequestResponse) ProtoMessage() {}
 
 func (x *SyncMessage_MessageRequestResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[67]
+	mi := &file_signalpb_SignalService_proto_msgTypes[67]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7286,7 +7286,7 @@ func (x *SyncMessage_MessageRequestResponse) ProtoReflect() protoreflect.Message
 
 // Deprecated: Use SyncMessage_MessageRequestResponse.ProtoReflect.Descriptor instead.
 func (*SyncMessage_MessageRequestResponse) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 12}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 12}
 }
 
 func (x *SyncMessage_MessageRequestResponse) GetThreadAci() string {
@@ -7331,7 +7331,7 @@ type SyncMessage_OutgoingPayment struct {
 
 func (x *SyncMessage_OutgoingPayment) Reset() {
 	*x = SyncMessage_OutgoingPayment{}
-	mi := &file_SignalService_proto_msgTypes[68]
+	mi := &file_signalpb_SignalService_proto_msgTypes[68]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7343,7 +7343,7 @@ func (x *SyncMessage_OutgoingPayment) String() string {
 func (*SyncMessage_OutgoingPayment) ProtoMessage() {}
 
 func (x *SyncMessage_OutgoingPayment) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[68]
+	mi := &file_signalpb_SignalService_proto_msgTypes[68]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7356,7 +7356,7 @@ func (x *SyncMessage_OutgoingPayment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_OutgoingPayment.ProtoReflect.Descriptor instead.
 func (*SyncMessage_OutgoingPayment) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 13}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 13}
 }
 
 func (x *SyncMessage_OutgoingPayment) GetRecipientServiceId() string {
@@ -7413,7 +7413,7 @@ type SyncMessage_PniChangeNumber struct {
 
 func (x *SyncMessage_PniChangeNumber) Reset() {
 	*x = SyncMessage_PniChangeNumber{}
-	mi := &file_SignalService_proto_msgTypes[69]
+	mi := &file_signalpb_SignalService_proto_msgTypes[69]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7425,7 +7425,7 @@ func (x *SyncMessage_PniChangeNumber) String() string {
 func (*SyncMessage_PniChangeNumber) ProtoMessage() {}
 
 func (x *SyncMessage_PniChangeNumber) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[69]
+	mi := &file_signalpb_SignalService_proto_msgTypes[69]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7438,7 +7438,7 @@ func (x *SyncMessage_PniChangeNumber) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_PniChangeNumber.ProtoReflect.Descriptor instead.
 func (*SyncMessage_PniChangeNumber) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 14}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 14}
 }
 
 func (x *SyncMessage_PniChangeNumber) GetIdentityKeyPair() []byte {
@@ -7495,7 +7495,7 @@ type SyncMessage_CallEvent struct {
 
 func (x *SyncMessage_CallEvent) Reset() {
 	*x = SyncMessage_CallEvent{}
-	mi := &file_SignalService_proto_msgTypes[70]
+	mi := &file_signalpb_SignalService_proto_msgTypes[70]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7507,7 +7507,7 @@ func (x *SyncMessage_CallEvent) String() string {
 func (*SyncMessage_CallEvent) ProtoMessage() {}
 
 func (x *SyncMessage_CallEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[70]
+	mi := &file_signalpb_SignalService_proto_msgTypes[70]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7520,7 +7520,7 @@ func (x *SyncMessage_CallEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_CallEvent.ProtoReflect.Descriptor instead.
 func (*SyncMessage_CallEvent) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 15}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 15}
 }
 
 func (x *SyncMessage_CallEvent) GetConversationId() []byte {
@@ -7576,7 +7576,7 @@ type SyncMessage_CallLinkUpdate struct {
 
 func (x *SyncMessage_CallLinkUpdate) Reset() {
 	*x = SyncMessage_CallLinkUpdate{}
-	mi := &file_SignalService_proto_msgTypes[71]
+	mi := &file_signalpb_SignalService_proto_msgTypes[71]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7588,7 +7588,7 @@ func (x *SyncMessage_CallLinkUpdate) String() string {
 func (*SyncMessage_CallLinkUpdate) ProtoMessage() {}
 
 func (x *SyncMessage_CallLinkUpdate) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[71]
+	mi := &file_signalpb_SignalService_proto_msgTypes[71]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7601,7 +7601,7 @@ func (x *SyncMessage_CallLinkUpdate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_CallLinkUpdate.ProtoReflect.Descriptor instead.
 func (*SyncMessage_CallLinkUpdate) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 16}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 16}
 }
 
 func (x *SyncMessage_CallLinkUpdate) GetRootKey() []byte {
@@ -7642,7 +7642,7 @@ type SyncMessage_CallLogEvent struct {
 
 func (x *SyncMessage_CallLogEvent) Reset() {
 	*x = SyncMessage_CallLogEvent{}
-	mi := &file_SignalService_proto_msgTypes[72]
+	mi := &file_signalpb_SignalService_proto_msgTypes[72]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7654,7 +7654,7 @@ func (x *SyncMessage_CallLogEvent) String() string {
 func (*SyncMessage_CallLogEvent) ProtoMessage() {}
 
 func (x *SyncMessage_CallLogEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[72]
+	mi := &file_signalpb_SignalService_proto_msgTypes[72]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7667,7 +7667,7 @@ func (x *SyncMessage_CallLogEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_CallLogEvent.ProtoReflect.Descriptor instead.
 func (*SyncMessage_CallLogEvent) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 17}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 17}
 }
 
 func (x *SyncMessage_CallLogEvent) GetType() SyncMessage_CallLogEvent_Type {
@@ -7710,7 +7710,7 @@ type SyncMessage_DeleteForMe struct {
 
 func (x *SyncMessage_DeleteForMe) Reset() {
 	*x = SyncMessage_DeleteForMe{}
-	mi := &file_SignalService_proto_msgTypes[73]
+	mi := &file_signalpb_SignalService_proto_msgTypes[73]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7722,7 +7722,7 @@ func (x *SyncMessage_DeleteForMe) String() string {
 func (*SyncMessage_DeleteForMe) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[73]
+	mi := &file_signalpb_SignalService_proto_msgTypes[73]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7735,7 +7735,7 @@ func (x *SyncMessage_DeleteForMe) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_DeleteForMe.ProtoReflect.Descriptor instead.
 func (*SyncMessage_DeleteForMe) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 18}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 18}
 }
 
 func (x *SyncMessage_DeleteForMe) GetMessageDeletes() []*SyncMessage_DeleteForMe_MessageDeletes {
@@ -7775,7 +7775,7 @@ type SyncMessage_DeviceNameChange struct {
 
 func (x *SyncMessage_DeviceNameChange) Reset() {
 	*x = SyncMessage_DeviceNameChange{}
-	mi := &file_SignalService_proto_msgTypes[74]
+	mi := &file_signalpb_SignalService_proto_msgTypes[74]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7787,7 +7787,7 @@ func (x *SyncMessage_DeviceNameChange) String() string {
 func (*SyncMessage_DeviceNameChange) ProtoMessage() {}
 
 func (x *SyncMessage_DeviceNameChange) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[74]
+	mi := &file_signalpb_SignalService_proto_msgTypes[74]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7800,7 +7800,7 @@ func (x *SyncMessage_DeviceNameChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_DeviceNameChange.ProtoReflect.Descriptor instead.
 func (*SyncMessage_DeviceNameChange) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 19}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 19}
 }
 
 func (x *SyncMessage_DeviceNameChange) GetDeviceId() uint32 {
@@ -7820,7 +7820,7 @@ type SyncMessage_AttachmentBackfillRequest struct {
 
 func (x *SyncMessage_AttachmentBackfillRequest) Reset() {
 	*x = SyncMessage_AttachmentBackfillRequest{}
-	mi := &file_SignalService_proto_msgTypes[75]
+	mi := &file_signalpb_SignalService_proto_msgTypes[75]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7832,7 +7832,7 @@ func (x *SyncMessage_AttachmentBackfillRequest) String() string {
 func (*SyncMessage_AttachmentBackfillRequest) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[75]
+	mi := &file_signalpb_SignalService_proto_msgTypes[75]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7845,7 +7845,7 @@ func (x *SyncMessage_AttachmentBackfillRequest) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use SyncMessage_AttachmentBackfillRequest.ProtoReflect.Descriptor instead.
 func (*SyncMessage_AttachmentBackfillRequest) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 20}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 20}
 }
 
 func (x *SyncMessage_AttachmentBackfillRequest) GetTargetMessage() *AddressableMessage {
@@ -7877,7 +7877,7 @@ type SyncMessage_AttachmentBackfillResponse struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse{}
-	mi := &file_SignalService_proto_msgTypes[76]
+	mi := &file_signalpb_SignalService_proto_msgTypes[76]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7889,7 +7889,7 @@ func (x *SyncMessage_AttachmentBackfillResponse) String() string {
 func (*SyncMessage_AttachmentBackfillResponse) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[76]
+	mi := &file_signalpb_SignalService_proto_msgTypes[76]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7902,7 +7902,7 @@ func (x *SyncMessage_AttachmentBackfillResponse) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use SyncMessage_AttachmentBackfillResponse.ProtoReflect.Descriptor instead.
 func (*SyncMessage_AttachmentBackfillResponse) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 21}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 21}
 }
 
 func (x *SyncMessage_AttachmentBackfillResponse) GetTargetMessage() *AddressableMessage {
@@ -7970,7 +7970,7 @@ type SyncMessage_UsernameChange struct {
 
 func (x *SyncMessage_UsernameChange) Reset() {
 	*x = SyncMessage_UsernameChange{}
-	mi := &file_SignalService_proto_msgTypes[77]
+	mi := &file_signalpb_SignalService_proto_msgTypes[77]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7982,7 +7982,7 @@ func (x *SyncMessage_UsernameChange) String() string {
 func (*SyncMessage_UsernameChange) ProtoMessage() {}
 
 func (x *SyncMessage_UsernameChange) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[77]
+	mi := &file_signalpb_SignalService_proto_msgTypes[77]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7995,7 +7995,7 @@ func (x *SyncMessage_UsernameChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_UsernameChange.ProtoReflect.Descriptor instead.
 func (*SyncMessage_UsernameChange) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 22}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 22}
 }
 
 type SyncMessage_Sent_UnidentifiedDeliveryStatus struct {
@@ -8010,7 +8010,7 @@ type SyncMessage_Sent_UnidentifiedDeliveryStatus struct {
 
 func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) Reset() {
 	*x = SyncMessage_Sent_UnidentifiedDeliveryStatus{}
-	mi := &file_SignalService_proto_msgTypes[78]
+	mi := &file_signalpb_SignalService_proto_msgTypes[78]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8022,7 +8022,7 @@ func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) String() string {
 func (*SyncMessage_Sent_UnidentifiedDeliveryStatus) ProtoMessage() {}
 
 func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[78]
+	mi := &file_signalpb_SignalService_proto_msgTypes[78]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8035,7 +8035,7 @@ func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) ProtoReflect() protoreflec
 
 // Deprecated: Use SyncMessage_Sent_UnidentifiedDeliveryStatus.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Sent_UnidentifiedDeliveryStatus) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 0, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 0, 0}
 }
 
 func (x *SyncMessage_Sent_UnidentifiedDeliveryStatus) GetDestinationServiceId() string {
@@ -8078,7 +8078,7 @@ type SyncMessage_Sent_StoryMessageRecipient struct {
 
 func (x *SyncMessage_Sent_StoryMessageRecipient) Reset() {
 	*x = SyncMessage_Sent_StoryMessageRecipient{}
-	mi := &file_SignalService_proto_msgTypes[79]
+	mi := &file_signalpb_SignalService_proto_msgTypes[79]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8090,7 +8090,7 @@ func (x *SyncMessage_Sent_StoryMessageRecipient) String() string {
 func (*SyncMessage_Sent_StoryMessageRecipient) ProtoMessage() {}
 
 func (x *SyncMessage_Sent_StoryMessageRecipient) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[79]
+	mi := &file_signalpb_SignalService_proto_msgTypes[79]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8103,7 +8103,7 @@ func (x *SyncMessage_Sent_StoryMessageRecipient) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use SyncMessage_Sent_StoryMessageRecipient.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Sent_StoryMessageRecipient) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 0, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 0, 1}
 }
 
 func (x *SyncMessage_Sent_StoryMessageRecipient) GetDestinationServiceId() string {
@@ -8144,7 +8144,7 @@ type SyncMessage_Blocked_BlockedE164 struct {
 
 func (x *SyncMessage_Blocked_BlockedE164) Reset() {
 	*x = SyncMessage_Blocked_BlockedE164{}
-	mi := &file_SignalService_proto_msgTypes[80]
+	mi := &file_signalpb_SignalService_proto_msgTypes[80]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8156,7 +8156,7 @@ func (x *SyncMessage_Blocked_BlockedE164) String() string {
 func (*SyncMessage_Blocked_BlockedE164) ProtoMessage() {}
 
 func (x *SyncMessage_Blocked_BlockedE164) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[80]
+	mi := &file_signalpb_SignalService_proto_msgTypes[80]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8169,7 +8169,7 @@ func (x *SyncMessage_Blocked_BlockedE164) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Blocked_BlockedE164.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Blocked_BlockedE164) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 2, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 2, 0}
 }
 
 func (x *SyncMessage_Blocked_BlockedE164) GetE164() string {
@@ -8196,7 +8196,7 @@ type SyncMessage_Blocked_BlockedAci struct {
 
 func (x *SyncMessage_Blocked_BlockedAci) Reset() {
 	*x = SyncMessage_Blocked_BlockedAci{}
-	mi := &file_SignalService_proto_msgTypes[81]
+	mi := &file_signalpb_SignalService_proto_msgTypes[81]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8208,7 +8208,7 @@ func (x *SyncMessage_Blocked_BlockedAci) String() string {
 func (*SyncMessage_Blocked_BlockedAci) ProtoMessage() {}
 
 func (x *SyncMessage_Blocked_BlockedAci) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[81]
+	mi := &file_signalpb_SignalService_proto_msgTypes[81]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8221,7 +8221,7 @@ func (x *SyncMessage_Blocked_BlockedAci) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Blocked_BlockedAci.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Blocked_BlockedAci) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 2, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 2, 1}
 }
 
 func (x *SyncMessage_Blocked_BlockedAci) GetAciBinary() []byte {
@@ -8248,7 +8248,7 @@ type SyncMessage_Blocked_BlockedGroup struct {
 
 func (x *SyncMessage_Blocked_BlockedGroup) Reset() {
 	*x = SyncMessage_Blocked_BlockedGroup{}
-	mi := &file_SignalService_proto_msgTypes[82]
+	mi := &file_signalpb_SignalService_proto_msgTypes[82]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8260,7 +8260,7 @@ func (x *SyncMessage_Blocked_BlockedGroup) String() string {
 func (*SyncMessage_Blocked_BlockedGroup) ProtoMessage() {}
 
 func (x *SyncMessage_Blocked_BlockedGroup) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[82]
+	mi := &file_signalpb_SignalService_proto_msgTypes[82]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8273,7 +8273,7 @@ func (x *SyncMessage_Blocked_BlockedGroup) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SyncMessage_Blocked_BlockedGroup.ProtoReflect.Descriptor instead.
 func (*SyncMessage_Blocked_BlockedGroup) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 2, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 2, 2}
 }
 
 func (x *SyncMessage_Blocked_BlockedGroup) GetGroupId() []byte {
@@ -8306,7 +8306,7 @@ type SyncMessage_OutgoingPayment_MobileCoin struct {
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) Reset() {
 	*x = SyncMessage_OutgoingPayment_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[83]
+	mi := &file_signalpb_SignalService_proto_msgTypes[83]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8318,7 +8318,7 @@ func (x *SyncMessage_OutgoingPayment_MobileCoin) String() string {
 func (*SyncMessage_OutgoingPayment_MobileCoin) ProtoMessage() {}
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[83]
+	mi := &file_signalpb_SignalService_proto_msgTypes[83]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8331,7 +8331,7 @@ func (x *SyncMessage_OutgoingPayment_MobileCoin) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use SyncMessage_OutgoingPayment_MobileCoin.ProtoReflect.Descriptor instead.
 func (*SyncMessage_OutgoingPayment_MobileCoin) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 13, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 13, 0}
 }
 
 func (x *SyncMessage_OutgoingPayment_MobileCoin) GetRecipientAddress() []byte {
@@ -8400,7 +8400,7 @@ type SyncMessage_DeleteForMe_MessageDeletes struct {
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) Reset() {
 	*x = SyncMessage_DeleteForMe_MessageDeletes{}
-	mi := &file_SignalService_proto_msgTypes[84]
+	mi := &file_signalpb_SignalService_proto_msgTypes[84]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8412,7 +8412,7 @@ func (x *SyncMessage_DeleteForMe_MessageDeletes) String() string {
 func (*SyncMessage_DeleteForMe_MessageDeletes) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[84]
+	mi := &file_signalpb_SignalService_proto_msgTypes[84]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8425,7 +8425,7 @@ func (x *SyncMessage_DeleteForMe_MessageDeletes) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use SyncMessage_DeleteForMe_MessageDeletes.ProtoReflect.Descriptor instead.
 func (*SyncMessage_DeleteForMe_MessageDeletes) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 18, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 18, 0}
 }
 
 func (x *SyncMessage_DeleteForMe_MessageDeletes) GetConversation() *ConversationIdentifier {
@@ -8458,7 +8458,7 @@ type SyncMessage_DeleteForMe_AttachmentDelete struct {
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_AttachmentDelete{}
-	mi := &file_SignalService_proto_msgTypes[85]
+	mi := &file_signalpb_SignalService_proto_msgTypes[85]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8470,7 +8470,7 @@ func (x *SyncMessage_DeleteForMe_AttachmentDelete) String() string {
 func (*SyncMessage_DeleteForMe_AttachmentDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[85]
+	mi := &file_signalpb_SignalService_proto_msgTypes[85]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8483,7 +8483,7 @@ func (x *SyncMessage_DeleteForMe_AttachmentDelete) ProtoReflect() protoreflect.M
 
 // Deprecated: Use SyncMessage_DeleteForMe_AttachmentDelete.ProtoReflect.Descriptor instead.
 func (*SyncMessage_DeleteForMe_AttachmentDelete) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 18, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 18, 1}
 }
 
 func (x *SyncMessage_DeleteForMe_AttachmentDelete) GetConversation() *ConversationIdentifier {
@@ -8533,7 +8533,7 @@ type SyncMessage_DeleteForMe_ConversationDelete struct {
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_ConversationDelete{}
-	mi := &file_SignalService_proto_msgTypes[86]
+	mi := &file_signalpb_SignalService_proto_msgTypes[86]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8545,7 +8545,7 @@ func (x *SyncMessage_DeleteForMe_ConversationDelete) String() string {
 func (*SyncMessage_DeleteForMe_ConversationDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[86]
+	mi := &file_signalpb_SignalService_proto_msgTypes[86]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8558,7 +8558,7 @@ func (x *SyncMessage_DeleteForMe_ConversationDelete) ProtoReflect() protoreflect
 
 // Deprecated: Use SyncMessage_DeleteForMe_ConversationDelete.ProtoReflect.Descriptor instead.
 func (*SyncMessage_DeleteForMe_ConversationDelete) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 18, 2}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 18, 2}
 }
 
 func (x *SyncMessage_DeleteForMe_ConversationDelete) GetConversation() *ConversationIdentifier {
@@ -8598,7 +8598,7 @@ type SyncMessage_DeleteForMe_LocalOnlyConversationDelete struct {
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) Reset() {
 	*x = SyncMessage_DeleteForMe_LocalOnlyConversationDelete{}
-	mi := &file_SignalService_proto_msgTypes[87]
+	mi := &file_signalpb_SignalService_proto_msgTypes[87]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8610,7 +8610,7 @@ func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) String() string {
 func (*SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoMessage() {}
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[87]
+	mi := &file_signalpb_SignalService_proto_msgTypes[87]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8623,7 +8623,7 @@ func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) ProtoReflect() pro
 
 // Deprecated: Use SyncMessage_DeleteForMe_LocalOnlyConversationDelete.ProtoReflect.Descriptor instead.
 func (*SyncMessage_DeleteForMe_LocalOnlyConversationDelete) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 18, 3}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 18, 3}
 }
 
 func (x *SyncMessage_DeleteForMe_LocalOnlyConversationDelete) GetConversation() *ConversationIdentifier {
@@ -8646,7 +8646,7 @@ type SyncMessage_AttachmentBackfillResponse_AttachmentData struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse_AttachmentData{}
-	mi := &file_SignalService_proto_msgTypes[88]
+	mi := &file_signalpb_SignalService_proto_msgTypes[88]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8658,7 +8658,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) String() string 
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[88]
+	mi := &file_signalpb_SignalService_proto_msgTypes[88]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8671,7 +8671,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) ProtoReflect() p
 
 // Deprecated: Use SyncMessage_AttachmentBackfillResponse_AttachmentData.ProtoReflect.Descriptor instead.
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentData) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 21, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 21, 0}
 }
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentData) GetData() isSyncMessage_AttachmentBackfillResponse_AttachmentData_Data {
@@ -8727,7 +8727,7 @@ type SyncMessage_AttachmentBackfillResponse_AttachmentDataList struct {
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) Reset() {
 	*x = SyncMessage_AttachmentBackfillResponse_AttachmentDataList{}
-	mi := &file_SignalService_proto_msgTypes[89]
+	mi := &file_signalpb_SignalService_proto_msgTypes[89]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8739,7 +8739,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) String() str
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoMessage() {}
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[89]
+	mi := &file_signalpb_SignalService_proto_msgTypes[89]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8752,7 +8752,7 @@ func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) ProtoReflect
 
 // Deprecated: Use SyncMessage_AttachmentBackfillResponse_AttachmentDataList.ProtoReflect.Descriptor instead.
 func (*SyncMessage_AttachmentBackfillResponse_AttachmentDataList) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{11, 21, 1}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{11, 21, 1}
 }
 
 func (x *SyncMessage_AttachmentBackfillResponse_AttachmentDataList) GetAttachments() []*SyncMessage_AttachmentBackfillResponse_AttachmentData {
@@ -8779,7 +8779,7 @@ type ContactDetails_Avatar struct {
 
 func (x *ContactDetails_Avatar) Reset() {
 	*x = ContactDetails_Avatar{}
-	mi := &file_SignalService_proto_msgTypes[90]
+	mi := &file_signalpb_SignalService_proto_msgTypes[90]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8791,7 +8791,7 @@ func (x *ContactDetails_Avatar) String() string {
 func (*ContactDetails_Avatar) ProtoMessage() {}
 
 func (x *ContactDetails_Avatar) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[90]
+	mi := &file_signalpb_SignalService_proto_msgTypes[90]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8804,7 +8804,7 @@ func (x *ContactDetails_Avatar) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactDetails_Avatar.ProtoReflect.Descriptor instead.
 func (*ContactDetails_Avatar) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{14, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{14, 0}
 }
 
 func (x *ContactDetails_Avatar) GetContentType() string {
@@ -8831,7 +8831,7 @@ type PaymentAddress_MobileCoin struct {
 
 func (x *PaymentAddress_MobileCoin) Reset() {
 	*x = PaymentAddress_MobileCoin{}
-	mi := &file_SignalService_proto_msgTypes[91]
+	mi := &file_signalpb_SignalService_proto_msgTypes[91]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -8843,7 +8843,7 @@ func (x *PaymentAddress_MobileCoin) String() string {
 func (*PaymentAddress_MobileCoin) ProtoMessage() {}
 
 func (x *PaymentAddress_MobileCoin) ProtoReflect() protoreflect.Message {
-	mi := &file_SignalService_proto_msgTypes[91]
+	mi := &file_signalpb_SignalService_proto_msgTypes[91]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -8856,7 +8856,7 @@ func (x *PaymentAddress_MobileCoin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentAddress_MobileCoin.ProtoReflect.Descriptor instead.
 func (*PaymentAddress_MobileCoin) Descriptor() ([]byte, []int) {
-	return file_SignalService_proto_rawDescGZIP(), []int{15, 0}
+	return file_signalpb_SignalService_proto_rawDescGZIP(), []int{15, 0}
 }
 
 func (x *PaymentAddress_MobileCoin) GetPublicAddress() []byte {
@@ -8873,11 +8873,11 @@ func (x *PaymentAddress_MobileCoin) GetSignature() []byte {
 	return nil
 }
 
-var File_SignalService_proto protoreflect.FileDescriptor
+var File_signalpb_SignalService_proto protoreflect.FileDescriptor
 
-const file_SignalService_proto_rawDesc = "" +
+const file_signalpb_SignalService_proto_rawDesc = "" +
 	"\n" +
-	"\x13SignalService.proto\x12\rsignalservice\"\x8c\a\n" +
+	"\x1csignalpb/SignalService.proto\x12\rsignalservice\"\x8c\a\n" +
 	"\bEnvelope\x120\n" +
 	"\x04type\x18\x01 \x01(\x0e2\x1c.signalservice.Envelope.TypeR\x04type\x12(\n" +
 	"\x0fsourceServiceId\x18\v \x01(\tR\x0fsourceServiceId\x12&\n" +
@@ -9602,20 +9602,20 @@ const file_SignalService_proto_rawDesc = "" +
 	".org.whispersystems.signalservice.internal.pushB\x13SignalServiceProtos"
 
 var (
-	file_SignalService_proto_rawDescOnce sync.Once
-	file_SignalService_proto_rawDescData []byte
+	file_signalpb_SignalService_proto_rawDescOnce sync.Once
+	file_signalpb_SignalService_proto_rawDescData []byte
 )
 
-func file_SignalService_proto_rawDescGZIP() []byte {
-	file_SignalService_proto_rawDescOnce.Do(func() {
-		file_SignalService_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_SignalService_proto_rawDesc), len(file_SignalService_proto_rawDesc)))
+func file_signalpb_SignalService_proto_rawDescGZIP() []byte {
+	file_signalpb_SignalService_proto_rawDescOnce.Do(func() {
+		file_signalpb_SignalService_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_signalpb_SignalService_proto_rawDesc), len(file_signalpb_SignalService_proto_rawDesc)))
 	})
-	return file_SignalService_proto_rawDescData
+	return file_signalpb_SignalService_proto_rawDescData
 }
 
-var file_SignalService_proto_enumTypes = make([]protoimpl.EnumInfo, 28)
-var file_SignalService_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
-var file_SignalService_proto_goTypes = []any{
+var file_signalpb_SignalService_proto_enumTypes = make([]protoimpl.EnumInfo, 28)
+var file_signalpb_SignalService_proto_msgTypes = make([]protoimpl.MessageInfo, 92)
+var file_signalpb_SignalService_proto_goTypes = []any{
 	(Envelope_Type)(0),                                                // 0: signalservice.Envelope.Type
 	(CallMessage_Offer_Type)(0),                                       // 1: signalservice.CallMessage.Offer.Type
 	(CallMessage_Hangup_Type)(0),                                      // 2: signalservice.CallMessage.Hangup.Type
@@ -9737,7 +9737,7 @@ var file_SignalService_proto_goTypes = []any{
 	(*ContactDetails_Avatar)(nil),                                     // 118: signalservice.ContactDetails.Avatar
 	(*PaymentAddress_MobileCoin)(nil),                                 // 119: signalservice.PaymentAddress.MobileCoin
 }
-var file_SignalService_proto_depIdxs = []int32{
+var file_signalpb_SignalService_proto_depIdxs = []int32{
 	0,   // 0: signalservice.Envelope.type:type_name -> signalservice.Envelope.Type
 	31,  // 1: signalservice.Content.dataMessage:type_name -> signalservice.DataMessage
 	39,  // 2: signalservice.Content.syncMessage:type_name -> signalservice.SyncMessage
@@ -9881,12 +9881,12 @@ var file_SignalService_proto_depIdxs = []int32{
 	0,   // [0:136] is the sub-list for field type_name
 }
 
-func init() { file_SignalService_proto_init() }
-func file_SignalService_proto_init() {
-	if File_SignalService_proto != nil {
+func init() { file_signalpb_SignalService_proto_init() }
+func file_signalpb_SignalService_proto_init() {
+	if File_signalpb_SignalService_proto != nil {
 		return
 	}
-	file_SignalService_proto_msgTypes[1].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[1].OneofWrappers = []any{
 		(*Content_DataMessage)(nil),
 		(*Content_SyncMessage)(nil),
 		(*Content_CallMessage)(nil),
@@ -9897,15 +9897,15 @@ func file_SignalService_proto_init() {
 		(*Content_StoryMessage)(nil),
 		(*Content_EditMessage)(nil),
 	}
-	file_SignalService_proto_msgTypes[7].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[7].OneofWrappers = []any{
 		(*StoryMessage_FileAttachment)(nil),
 		(*StoryMessage_TextAttachment)(nil),
 	}
-	file_SignalService_proto_msgTypes[9].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[9].OneofWrappers = []any{
 		(*TextAttachment_Gradient_)(nil),
 		(*TextAttachment_Color)(nil),
 	}
-	file_SignalService_proto_msgTypes[11].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[11].OneofWrappers = []any{
 		(*SyncMessage_Sent_)(nil),
 		(*SyncMessage_Contacts_)(nil),
 		(*SyncMessage_Request_)(nil),
@@ -9927,51 +9927,51 @@ func file_SignalService_proto_init() {
 		(*SyncMessage_AttachmentBackfillResponse_)(nil),
 		(*SyncMessage_UsernameChange_)(nil),
 	}
-	file_SignalService_proto_msgTypes[12].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[12].OneofWrappers = []any{
 		(*AttachmentPointer_CdnId)(nil),
 		(*AttachmentPointer_CdnKey)(nil),
 	}
-	file_SignalService_proto_msgTypes[15].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[15].OneofWrappers = []any{
 		(*PaymentAddress_MobileCoin_)(nil),
 	}
-	file_SignalService_proto_msgTypes[19].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[19].OneofWrappers = []any{
 		(*BodyRange_MentionAci)(nil),
 		(*BodyRange_Style_)(nil),
 		(*BodyRange_MentionAciBinary)(nil),
 	}
-	file_SignalService_proto_msgTypes[20].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[20].OneofWrappers = []any{
 		(*AddressableMessage_AuthorServiceId)(nil),
 		(*AddressableMessage_AuthorE164)(nil),
 		(*AddressableMessage_AuthorServiceIdBinary)(nil),
 	}
-	file_SignalService_proto_msgTypes[21].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[21].OneofWrappers = []any{
 		(*ConversationIdentifier_ThreadServiceId)(nil),
 		(*ConversationIdentifier_ThreadGroupId)(nil),
 		(*ConversationIdentifier_ThreadE164)(nil),
 		(*ConversationIdentifier_ThreadServiceIdBinary)(nil),
 	}
-	file_SignalService_proto_msgTypes[28].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[28].OneofWrappers = []any{
 		(*DataMessage_Payment_Notification_)(nil),
 		(*DataMessage_Payment_Activation_)(nil),
 	}
-	file_SignalService_proto_msgTypes[40].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[40].OneofWrappers = []any{
 		(*DataMessage_PinMessage_PinDurationSeconds)(nil),
 		(*DataMessage_PinMessage_PinDurationForever)(nil),
 	}
-	file_SignalService_proto_msgTypes[43].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[43].OneofWrappers = []any{
 		(*DataMessage_Payment_Amount_MobileCoin_)(nil),
 	}
-	file_SignalService_proto_msgTypes[44].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[44].OneofWrappers = []any{
 		(*DataMessage_Payment_Notification_MobileCoin_)(nil),
 	}
-	file_SignalService_proto_msgTypes[68].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[68].OneofWrappers = []any{
 		(*SyncMessage_OutgoingPayment_MobileCoin_)(nil),
 	}
-	file_SignalService_proto_msgTypes[76].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[76].OneofWrappers = []any{
 		(*SyncMessage_AttachmentBackfillResponse_Attachments)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_Error_)(nil),
 	}
-	file_SignalService_proto_msgTypes[88].OneofWrappers = []any{
+	file_signalpb_SignalService_proto_msgTypes[88].OneofWrappers = []any{
 		(*SyncMessage_AttachmentBackfillResponse_AttachmentData_Attachment)(nil),
 		(*SyncMessage_AttachmentBackfillResponse_AttachmentData_Status_)(nil),
 	}
@@ -9979,18 +9979,18 @@ func file_SignalService_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_SignalService_proto_rawDesc), len(file_SignalService_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_SignalService_proto_rawDesc), len(file_signalpb_SignalService_proto_rawDesc)),
 			NumEnums:      28,
 			NumMessages:   92,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_SignalService_proto_goTypes,
-		DependencyIndexes: file_SignalService_proto_depIdxs,
-		EnumInfos:         file_SignalService_proto_enumTypes,
-		MessageInfos:      file_SignalService_proto_msgTypes,
+		GoTypes:           file_signalpb_SignalService_proto_goTypes,
+		DependencyIndexes: file_signalpb_SignalService_proto_depIdxs,
+		EnumInfos:         file_signalpb_SignalService_proto_enumTypes,
+		MessageInfos:      file_signalpb_SignalService_proto_msgTypes,
 	}.Build()
-	File_SignalService_proto = out.File
-	file_SignalService_proto_goTypes = nil
-	file_SignalService_proto_depIdxs = nil
+	File_signalpb_SignalService_proto = out.File
+	file_signalpb_SignalService_proto_goTypes = nil
+	file_signalpb_SignalService_proto_depIdxs = nil
 }

@@ -33,7 +33,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
-	signalpb "go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 )
 
 var BaseUserAgent = "libsignal/" + libsignalgo.Version + " go/" + strings.TrimPrefix(runtime.Version(), "go")

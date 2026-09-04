@@ -6,7 +6,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: StorageService.proto
+// source: signalpb/StorageService.proto
 
 package signalpb
 
@@ -58,11 +58,11 @@ func (x OptionalBool) String() string {
 }
 
 func (OptionalBool) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[0].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[0].Descriptor()
 }
 
 func (OptionalBool) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[0]
+	return &file_signalpb_StorageService_proto_enumTypes[0]
 }
 
 func (x OptionalBool) Number() protoreflect.EnumNumber {
@@ -71,7 +71,7 @@ func (x OptionalBool) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use OptionalBool.Descriptor instead.
 func (OptionalBool) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{0}
 }
 
 // If unset - computed as the value of the first byte of SHA-256(msg=CONTACT_ID)
@@ -143,11 +143,11 @@ func (x AvatarColor) String() string {
 }
 
 func (AvatarColor) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[1].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[1].Descriptor()
 }
 
 func (AvatarColor) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[1]
+	return &file_signalpb_StorageService_proto_enumTypes[1]
 }
 
 func (x AvatarColor) Number() protoreflect.EnumNumber {
@@ -156,7 +156,7 @@ func (x AvatarColor) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AvatarColor.Descriptor instead.
 func (AvatarColor) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{1}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{1}
 }
 
 type ManifestRecord_Identifier_Type int32
@@ -213,11 +213,11 @@ func (x ManifestRecord_Identifier_Type) String() string {
 }
 
 func (ManifestRecord_Identifier_Type) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[2].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[2].Descriptor()
 }
 
 func (ManifestRecord_Identifier_Type) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[2]
+	return &file_signalpb_StorageService_proto_enumTypes[2]
 }
 
 func (x ManifestRecord_Identifier_Type) Number() protoreflect.EnumNumber {
@@ -226,7 +226,7 @@ func (x ManifestRecord_Identifier_Type) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ManifestRecord_Identifier_Type.Descriptor instead.
 func (ManifestRecord_Identifier_Type) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{5, 0, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{5, 0, 0}
 }
 
 type ContactRecord_IdentityState int32
@@ -262,11 +262,11 @@ func (x ContactRecord_IdentityState) String() string {
 }
 
 func (ContactRecord_IdentityState) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[3].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[3].Descriptor()
 }
 
 func (ContactRecord_IdentityState) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[3]
+	return &file_signalpb_StorageService_proto_enumTypes[3]
 }
 
 func (x ContactRecord_IdentityState) Number() protoreflect.EnumNumber {
@@ -275,7 +275,7 @@ func (x ContactRecord_IdentityState) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ContactRecord_IdentityState.Descriptor instead.
 func (ContactRecord_IdentityState) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{7, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{7, 0}
 }
 
 type GroupV2Record_StorySendMode int32
@@ -311,11 +311,11 @@ func (x GroupV2Record_StorySendMode) String() string {
 }
 
 func (GroupV2Record_StorySendMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[4].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[4].Descriptor()
 }
 
 func (GroupV2Record_StorySendMode) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[4]
+	return &file_signalpb_StorageService_proto_enumTypes[4]
 }
 
 func (x GroupV2Record_StorySendMode) Number() protoreflect.EnumNumber {
@@ -324,7 +324,7 @@ func (x GroupV2Record_StorySendMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use GroupV2Record_StorySendMode.Descriptor instead.
 func (GroupV2Record_StorySendMode) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{9, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{9, 0}
 }
 
 type AccountRecord_UnreadBadgeType int32
@@ -360,11 +360,11 @@ func (x AccountRecord_UnreadBadgeType) String() string {
 }
 
 func (AccountRecord_UnreadBadgeType) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[5].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[5].Descriptor()
 }
 
 func (AccountRecord_UnreadBadgeType) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[5]
+	return &file_signalpb_StorageService_proto_enumTypes[5]
 }
 
 func (x AccountRecord_UnreadBadgeType) Number() protoreflect.EnumNumber {
@@ -373,7 +373,7 @@ func (x AccountRecord_UnreadBadgeType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AccountRecord_UnreadBadgeType.Descriptor instead.
 func (AccountRecord_UnreadBadgeType) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 0}
 }
 
 type AccountRecord_PhoneNumberSharingMode int32
@@ -409,11 +409,11 @@ func (x AccountRecord_PhoneNumberSharingMode) String() string {
 }
 
 func (AccountRecord_PhoneNumberSharingMode) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[6].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[6].Descriptor()
 }
 
 func (AccountRecord_PhoneNumberSharingMode) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[6]
+	return &file_signalpb_StorageService_proto_enumTypes[6]
 }
 
 func (x AccountRecord_PhoneNumberSharingMode) Number() protoreflect.EnumNumber {
@@ -422,7 +422,7 @@ func (x AccountRecord_PhoneNumberSharingMode) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AccountRecord_PhoneNumberSharingMode.Descriptor instead.
 func (AccountRecord_PhoneNumberSharingMode) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 1}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 1}
 }
 
 type AccountRecord_UsernameLink_Color int32
@@ -476,11 +476,11 @@ func (x AccountRecord_UsernameLink_Color) String() string {
 }
 
 func (AccountRecord_UsernameLink_Color) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[7].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[7].Descriptor()
 }
 
 func (AccountRecord_UsernameLink_Color) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[7]
+	return &file_signalpb_StorageService_proto_enumTypes[7]
 }
 
 func (x AccountRecord_UsernameLink_Color) Number() protoreflect.EnumNumber {
@@ -489,7 +489,7 @@ func (x AccountRecord_UsernameLink_Color) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AccountRecord_UsernameLink_Color.Descriptor instead.
 func (AccountRecord_UsernameLink_Color) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 1, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 1, 0}
 }
 
 // Represents the default "All chats" folder record vs all other custom folders
@@ -526,11 +526,11 @@ func (x ChatFolderRecord_FolderType) String() string {
 }
 
 func (ChatFolderRecord_FolderType) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[8].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[8].Descriptor()
 }
 
 func (ChatFolderRecord_FolderType) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[8]
+	return &file_signalpb_StorageService_proto_enumTypes[8]
 }
 
 func (x ChatFolderRecord_FolderType) Number() protoreflect.EnumNumber {
@@ -539,7 +539,7 @@ func (x ChatFolderRecord_FolderType) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ChatFolderRecord_FolderType.Descriptor instead.
 func (ChatFolderRecord_FolderType) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{16, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{16, 0}
 }
 
 type NotificationProfile_DayOfWeek int32
@@ -590,11 +590,11 @@ func (x NotificationProfile_DayOfWeek) String() string {
 }
 
 func (NotificationProfile_DayOfWeek) Descriptor() protoreflect.EnumDescriptor {
-	return file_StorageService_proto_enumTypes[9].Descriptor()
+	return file_signalpb_StorageService_proto_enumTypes[9].Descriptor()
 }
 
 func (NotificationProfile_DayOfWeek) Type() protoreflect.EnumType {
-	return &file_StorageService_proto_enumTypes[9]
+	return &file_signalpb_StorageService_proto_enumTypes[9]
 }
 
 func (x NotificationProfile_DayOfWeek) Number() protoreflect.EnumNumber {
@@ -603,7 +603,7 @@ func (x NotificationProfile_DayOfWeek) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use NotificationProfile_DayOfWeek.Descriptor instead.
 func (NotificationProfile_DayOfWeek) EnumDescriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{17, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{17, 0}
 }
 
 type StorageManifest struct {
@@ -616,7 +616,7 @@ type StorageManifest struct {
 
 func (x *StorageManifest) Reset() {
 	*x = StorageManifest{}
-	mi := &file_StorageService_proto_msgTypes[0]
+	mi := &file_signalpb_StorageService_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -628,7 +628,7 @@ func (x *StorageManifest) String() string {
 func (*StorageManifest) ProtoMessage() {}
 
 func (x *StorageManifest) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[0]
+	mi := &file_signalpb_StorageService_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -641,7 +641,7 @@ func (x *StorageManifest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageManifest.ProtoReflect.Descriptor instead.
 func (*StorageManifest) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *StorageManifest) GetVersion() uint64 {
@@ -668,7 +668,7 @@ type StorageItem struct {
 
 func (x *StorageItem) Reset() {
 	*x = StorageItem{}
-	mi := &file_StorageService_proto_msgTypes[1]
+	mi := &file_signalpb_StorageService_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -680,7 +680,7 @@ func (x *StorageItem) String() string {
 func (*StorageItem) ProtoMessage() {}
 
 func (x *StorageItem) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[1]
+	mi := &file_signalpb_StorageService_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -693,7 +693,7 @@ func (x *StorageItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageItem.ProtoReflect.Descriptor instead.
 func (*StorageItem) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{1}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *StorageItem) GetKey() []byte {
@@ -719,7 +719,7 @@ type StorageItems struct {
 
 func (x *StorageItems) Reset() {
 	*x = StorageItems{}
-	mi := &file_StorageService_proto_msgTypes[2]
+	mi := &file_signalpb_StorageService_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +731,7 @@ func (x *StorageItems) String() string {
 func (*StorageItems) ProtoMessage() {}
 
 func (x *StorageItems) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[2]
+	mi := &file_signalpb_StorageService_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -744,7 +744,7 @@ func (x *StorageItems) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageItems.ProtoReflect.Descriptor instead.
 func (*StorageItems) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{2}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *StorageItems) GetItems() []*StorageItem {
@@ -763,7 +763,7 @@ type ReadOperation struct {
 
 func (x *ReadOperation) Reset() {
 	*x = ReadOperation{}
-	mi := &file_StorageService_proto_msgTypes[3]
+	mi := &file_signalpb_StorageService_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -775,7 +775,7 @@ func (x *ReadOperation) String() string {
 func (*ReadOperation) ProtoMessage() {}
 
 func (x *ReadOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[3]
+	mi := &file_signalpb_StorageService_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -788,7 +788,7 @@ func (x *ReadOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReadOperation.ProtoReflect.Descriptor instead.
 func (*ReadOperation) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{3}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ReadOperation) GetReadKey() [][]byte {
@@ -810,7 +810,7 @@ type WriteOperation struct {
 
 func (x *WriteOperation) Reset() {
 	*x = WriteOperation{}
-	mi := &file_StorageService_proto_msgTypes[4]
+	mi := &file_signalpb_StorageService_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -822,7 +822,7 @@ func (x *WriteOperation) String() string {
 func (*WriteOperation) ProtoMessage() {}
 
 func (x *WriteOperation) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[4]
+	mi := &file_signalpb_StorageService_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -835,7 +835,7 @@ func (x *WriteOperation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WriteOperation.ProtoReflect.Descriptor instead.
 func (*WriteOperation) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{4}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *WriteOperation) GetManifest() *StorageManifest {
@@ -878,7 +878,7 @@ type ManifestRecord struct {
 
 func (x *ManifestRecord) Reset() {
 	*x = ManifestRecord{}
-	mi := &file_StorageService_proto_msgTypes[5]
+	mi := &file_signalpb_StorageService_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -890,7 +890,7 @@ func (x *ManifestRecord) String() string {
 func (*ManifestRecord) ProtoMessage() {}
 
 func (x *ManifestRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[5]
+	mi := &file_signalpb_StorageService_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -903,7 +903,7 @@ func (x *ManifestRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ManifestRecord.ProtoReflect.Descriptor instead.
 func (*ManifestRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{5}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ManifestRecord) GetVersion() uint64 {
@@ -954,7 +954,7 @@ type StorageRecord struct {
 
 func (x *StorageRecord) Reset() {
 	*x = StorageRecord{}
-	mi := &file_StorageService_proto_msgTypes[6]
+	mi := &file_signalpb_StorageService_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -966,7 +966,7 @@ func (x *StorageRecord) String() string {
 func (*StorageRecord) ProtoMessage() {}
 
 func (x *StorageRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[6]
+	mi := &file_signalpb_StorageService_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -979,7 +979,7 @@ func (x *StorageRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StorageRecord.ProtoReflect.Descriptor instead.
 func (*StorageRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{6}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *StorageRecord) GetRecord() isStorageRecord_Record {
@@ -1165,7 +1165,7 @@ type ContactRecord struct {
 
 func (x *ContactRecord) Reset() {
 	*x = ContactRecord{}
-	mi := &file_StorageService_proto_msgTypes[7]
+	mi := &file_signalpb_StorageService_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1177,7 +1177,7 @@ func (x *ContactRecord) String() string {
 func (*ContactRecord) ProtoMessage() {}
 
 func (x *ContactRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[7]
+	mi := &file_signalpb_StorageService_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1190,7 +1190,7 @@ func (x *ContactRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactRecord.ProtoReflect.Descriptor instead.
 func (*ContactRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{7}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ContactRecord) GetAci() string {
@@ -1410,7 +1410,7 @@ type GroupV1Record struct {
 
 func (x *GroupV1Record) Reset() {
 	*x = GroupV1Record{}
-	mi := &file_StorageService_proto_msgTypes[8]
+	mi := &file_signalpb_StorageService_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1422,7 +1422,7 @@ func (x *GroupV1Record) String() string {
 func (*GroupV1Record) ProtoMessage() {}
 
 func (x *GroupV1Record) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[8]
+	mi := &file_signalpb_StorageService_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1435,7 +1435,7 @@ func (x *GroupV1Record) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupV1Record.ProtoReflect.Descriptor instead.
 func (*GroupV1Record) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{8}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GroupV1Record) GetId() []byte {
@@ -1504,7 +1504,7 @@ type GroupV2Record struct {
 
 func (x *GroupV2Record) Reset() {
 	*x = GroupV2Record{}
-	mi := &file_StorageService_proto_msgTypes[9]
+	mi := &file_signalpb_StorageService_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1516,7 +1516,7 @@ func (x *GroupV2Record) String() string {
 func (*GroupV2Record) ProtoMessage() {}
 
 func (x *GroupV2Record) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[9]
+	mi := &file_signalpb_StorageService_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1529,7 +1529,7 @@ func (x *GroupV2Record) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupV2Record.ProtoReflect.Descriptor instead.
 func (*GroupV2Record) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{9}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GroupV2Record) GetMasterKey() []byte {
@@ -1654,7 +1654,7 @@ type Payments struct {
 
 func (x *Payments) Reset() {
 	*x = Payments{}
-	mi := &file_StorageService_proto_msgTypes[10]
+	mi := &file_signalpb_StorageService_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1666,7 +1666,7 @@ func (x *Payments) String() string {
 func (*Payments) ProtoMessage() {}
 
 func (x *Payments) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[10]
+	mi := &file_signalpb_StorageService_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1679,7 +1679,7 @@ func (x *Payments) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Payments.ProtoReflect.Descriptor instead.
 func (*Payments) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{10}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Payments) GetEnabled() bool {
@@ -1755,7 +1755,7 @@ type AccountRecord struct {
 
 func (x *AccountRecord) Reset() {
 	*x = AccountRecord{}
-	mi := &file_StorageService_proto_msgTypes[11]
+	mi := &file_signalpb_StorageService_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1767,7 +1767,7 @@ func (x *AccountRecord) String() string {
 func (*AccountRecord) ProtoMessage() {}
 
 func (x *AccountRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[11]
+	mi := &file_signalpb_StorageService_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1780,7 +1780,7 @@ func (x *AccountRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRecord.ProtoReflect.Descriptor instead.
 func (*AccountRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AccountRecord) GetProfileKey() []byte {
@@ -2155,7 +2155,7 @@ type StoryDistributionListRecord struct {
 
 func (x *StoryDistributionListRecord) Reset() {
 	*x = StoryDistributionListRecord{}
-	mi := &file_StorageService_proto_msgTypes[12]
+	mi := &file_signalpb_StorageService_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2167,7 +2167,7 @@ func (x *StoryDistributionListRecord) String() string {
 func (*StoryDistributionListRecord) ProtoMessage() {}
 
 func (x *StoryDistributionListRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[12]
+	mi := &file_signalpb_StorageService_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2180,7 +2180,7 @@ func (x *StoryDistributionListRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StoryDistributionListRecord.ProtoReflect.Descriptor instead.
 func (*StoryDistributionListRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{12}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *StoryDistributionListRecord) GetIdentifier() []byte {
@@ -2258,7 +2258,7 @@ type StickerPackRecord struct {
 
 func (x *StickerPackRecord) Reset() {
 	*x = StickerPackRecord{}
-	mi := &file_StorageService_proto_msgTypes[13]
+	mi := &file_signalpb_StorageService_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2270,7 +2270,7 @@ func (x *StickerPackRecord) String() string {
 func (*StickerPackRecord) ProtoMessage() {}
 
 func (x *StickerPackRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[13]
+	mi := &file_signalpb_StorageService_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2283,7 +2283,7 @@ func (x *StickerPackRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StickerPackRecord.ProtoReflect.Descriptor instead.
 func (*StickerPackRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{13}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *StickerPackRecord) GetPackId() []byte {
@@ -2325,7 +2325,7 @@ type CallLinkRecord struct {
 
 func (x *CallLinkRecord) Reset() {
 	*x = CallLinkRecord{}
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_signalpb_StorageService_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2337,7 +2337,7 @@ func (x *CallLinkRecord) String() string {
 func (*CallLinkRecord) ProtoMessage() {}
 
 func (x *CallLinkRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[14]
+	mi := &file_signalpb_StorageService_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2350,7 +2350,7 @@ func (x *CallLinkRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CallLinkRecord.ProtoReflect.Descriptor instead.
 func (*CallLinkRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{14}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *CallLinkRecord) GetRootKey() []byte {
@@ -2388,7 +2388,7 @@ type Recipient struct {
 
 func (x *Recipient) Reset() {
 	*x = Recipient{}
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_signalpb_StorageService_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2400,7 +2400,7 @@ func (x *Recipient) String() string {
 func (*Recipient) ProtoMessage() {}
 
 func (x *Recipient) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[15]
+	mi := &file_signalpb_StorageService_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2413,7 +2413,7 @@ func (x *Recipient) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Recipient.ProtoReflect.Descriptor instead.
 func (*Recipient) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{15}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Recipient) GetIdentifier() isRecipient_Identifier {
@@ -2491,7 +2491,7 @@ type ChatFolderRecord struct {
 
 func (x *ChatFolderRecord) Reset() {
 	*x = ChatFolderRecord{}
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_signalpb_StorageService_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2503,7 +2503,7 @@ func (x *ChatFolderRecord) String() string {
 func (*ChatFolderRecord) ProtoMessage() {}
 
 func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[16]
+	mi := &file_signalpb_StorageService_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2516,7 +2516,7 @@ func (x *ChatFolderRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ChatFolderRecord.ProtoReflect.Descriptor instead.
 func (*ChatFolderRecord) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{16}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ChatFolderRecord) GetIdentifier() []byte {
@@ -2617,7 +2617,7 @@ type NotificationProfile struct {
 
 func (x *NotificationProfile) Reset() {
 	*x = NotificationProfile{}
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_signalpb_StorageService_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2629,7 +2629,7 @@ func (x *NotificationProfile) String() string {
 func (*NotificationProfile) ProtoMessage() {}
 
 func (x *NotificationProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[17]
+	mi := &file_signalpb_StorageService_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2642,7 +2642,7 @@ func (x *NotificationProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NotificationProfile.ProtoReflect.Descriptor instead.
 func (*NotificationProfile) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{17}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *NotificationProfile) GetId() []byte {
@@ -2746,7 +2746,7 @@ type ManifestRecord_Identifier struct {
 
 func (x *ManifestRecord_Identifier) Reset() {
 	*x = ManifestRecord_Identifier{}
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_signalpb_StorageService_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2758,7 +2758,7 @@ func (x *ManifestRecord_Identifier) String() string {
 func (*ManifestRecord_Identifier) ProtoMessage() {}
 
 func (x *ManifestRecord_Identifier) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[18]
+	mi := &file_signalpb_StorageService_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2771,7 +2771,7 @@ func (x *ManifestRecord_Identifier) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ManifestRecord_Identifier.ProtoReflect.Descriptor instead.
 func (*ManifestRecord_Identifier) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{5, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{5, 0}
 }
 
 func (x *ManifestRecord_Identifier) GetRaw() []byte {
@@ -2798,7 +2798,7 @@ type ContactRecord_Name struct {
 
 func (x *ContactRecord_Name) Reset() {
 	*x = ContactRecord_Name{}
-	mi := &file_StorageService_proto_msgTypes[19]
+	mi := &file_signalpb_StorageService_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2810,7 +2810,7 @@ func (x *ContactRecord_Name) String() string {
 func (*ContactRecord_Name) ProtoMessage() {}
 
 func (x *ContactRecord_Name) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[19]
+	mi := &file_signalpb_StorageService_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2823,7 +2823,7 @@ func (x *ContactRecord_Name) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ContactRecord_Name.ProtoReflect.Descriptor instead.
 func (*ContactRecord_Name) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{7, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{7, 0}
 }
 
 func (x *ContactRecord_Name) GetGiven() string {
@@ -2855,7 +2855,7 @@ type AccountRecord_PinnedConversation struct {
 
 func (x *AccountRecord_PinnedConversation) Reset() {
 	*x = AccountRecord_PinnedConversation{}
-	mi := &file_StorageService_proto_msgTypes[20]
+	mi := &file_signalpb_StorageService_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2867,7 +2867,7 @@ func (x *AccountRecord_PinnedConversation) String() string {
 func (*AccountRecord_PinnedConversation) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[20]
+	mi := &file_signalpb_StorageService_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2880,7 +2880,7 @@ func (x *AccountRecord_PinnedConversation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRecord_PinnedConversation.ProtoReflect.Descriptor instead.
 func (*AccountRecord_PinnedConversation) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 0}
 }
 
 func (x *AccountRecord_PinnedConversation) GetIdentifier() isAccountRecord_PinnedConversation_Identifier {
@@ -2968,7 +2968,7 @@ type AccountRecord_UsernameLink struct {
 
 func (x *AccountRecord_UsernameLink) Reset() {
 	*x = AccountRecord_UsernameLink{}
-	mi := &file_StorageService_proto_msgTypes[21]
+	mi := &file_signalpb_StorageService_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2980,7 +2980,7 @@ func (x *AccountRecord_UsernameLink) String() string {
 func (*AccountRecord_UsernameLink) ProtoMessage() {}
 
 func (x *AccountRecord_UsernameLink) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[21]
+	mi := &file_signalpb_StorageService_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2993,7 +2993,7 @@ func (x *AccountRecord_UsernameLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRecord_UsernameLink.ProtoReflect.Descriptor instead.
 func (*AccountRecord_UsernameLink) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 1}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 1}
 }
 
 func (x *AccountRecord_UsernameLink) GetEntropy() []byte {
@@ -3031,7 +3031,7 @@ type AccountRecord_IAPSubscriberData struct {
 
 func (x *AccountRecord_IAPSubscriberData) Reset() {
 	*x = AccountRecord_IAPSubscriberData{}
-	mi := &file_StorageService_proto_msgTypes[22]
+	mi := &file_signalpb_StorageService_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3043,7 +3043,7 @@ func (x *AccountRecord_IAPSubscriberData) String() string {
 func (*AccountRecord_IAPSubscriberData) ProtoMessage() {}
 
 func (x *AccountRecord_IAPSubscriberData) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[22]
+	mi := &file_signalpb_StorageService_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3056,7 +3056,7 @@ func (x *AccountRecord_IAPSubscriberData) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountRecord_IAPSubscriberData.ProtoReflect.Descriptor instead.
 func (*AccountRecord_IAPSubscriberData) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 2}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 2}
 }
 
 func (x *AccountRecord_IAPSubscriberData) GetSubscriberId() []byte {
@@ -3124,7 +3124,7 @@ type AccountRecord_NotificationProfileManualOverride struct {
 
 func (x *AccountRecord_NotificationProfileManualOverride) Reset() {
 	*x = AccountRecord_NotificationProfileManualOverride{}
-	mi := &file_StorageService_proto_msgTypes[23]
+	mi := &file_signalpb_StorageService_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3136,7 +3136,7 @@ func (x *AccountRecord_NotificationProfileManualOverride) String() string {
 func (*AccountRecord_NotificationProfileManualOverride) ProtoMessage() {}
 
 func (x *AccountRecord_NotificationProfileManualOverride) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[23]
+	mi := &file_signalpb_StorageService_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3149,7 +3149,7 @@ func (x *AccountRecord_NotificationProfileManualOverride) ProtoReflect() protore
 
 // Deprecated: Use AccountRecord_NotificationProfileManualOverride.ProtoReflect.Descriptor instead.
 func (*AccountRecord_NotificationProfileManualOverride) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 3}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 3}
 }
 
 func (x *AccountRecord_NotificationProfileManualOverride) GetOverride() isAccountRecord_NotificationProfileManualOverride_Override {
@@ -3206,7 +3206,7 @@ type AccountRecord_PinnedConversation_Contact struct {
 
 func (x *AccountRecord_PinnedConversation_Contact) Reset() {
 	*x = AccountRecord_PinnedConversation_Contact{}
-	mi := &file_StorageService_proto_msgTypes[24]
+	mi := &file_signalpb_StorageService_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3218,7 +3218,7 @@ func (x *AccountRecord_PinnedConversation_Contact) String() string {
 func (*AccountRecord_PinnedConversation_Contact) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[24]
+	mi := &file_signalpb_StorageService_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3231,7 +3231,7 @@ func (x *AccountRecord_PinnedConversation_Contact) ProtoReflect() protoreflect.M
 
 // Deprecated: Use AccountRecord_PinnedConversation_Contact.ProtoReflect.Descriptor instead.
 func (*AccountRecord_PinnedConversation_Contact) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 0, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 0, 0}
 }
 
 func (x *AccountRecord_PinnedConversation_Contact) GetServiceId() string {
@@ -3263,7 +3263,7 @@ type AccountRecord_PinnedConversation_ReleaseNotes struct {
 
 func (x *AccountRecord_PinnedConversation_ReleaseNotes) Reset() {
 	*x = AccountRecord_PinnedConversation_ReleaseNotes{}
-	mi := &file_StorageService_proto_msgTypes[25]
+	mi := &file_signalpb_StorageService_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3275,7 +3275,7 @@ func (x *AccountRecord_PinnedConversation_ReleaseNotes) String() string {
 func (*AccountRecord_PinnedConversation_ReleaseNotes) ProtoMessage() {}
 
 func (x *AccountRecord_PinnedConversation_ReleaseNotes) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[25]
+	mi := &file_signalpb_StorageService_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3288,7 +3288,7 @@ func (x *AccountRecord_PinnedConversation_ReleaseNotes) ProtoReflect() protorefl
 
 // Deprecated: Use AccountRecord_PinnedConversation_ReleaseNotes.ProtoReflect.Descriptor instead.
 func (*AccountRecord_PinnedConversation_ReleaseNotes) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 0, 1}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 0, 1}
 }
 
 type AccountRecord_NotificationProfileManualOverride_ManuallyEnabled struct {
@@ -3302,7 +3302,7 @@ type AccountRecord_NotificationProfileManualOverride_ManuallyEnabled struct {
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) Reset() {
 	*x = AccountRecord_NotificationProfileManualOverride_ManuallyEnabled{}
-	mi := &file_StorageService_proto_msgTypes[26]
+	mi := &file_signalpb_StorageService_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3314,7 +3314,7 @@ func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) String
 func (*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoMessage() {}
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[26]
+	mi := &file_signalpb_StorageService_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3327,7 +3327,7 @@ func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) ProtoR
 
 // Deprecated: Use AccountRecord_NotificationProfileManualOverride_ManuallyEnabled.ProtoReflect.Descriptor instead.
 func (*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{11, 3, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{11, 3, 0}
 }
 
 func (x *AccountRecord_NotificationProfileManualOverride_ManuallyEnabled) GetId() []byte {
@@ -3355,7 +3355,7 @@ type Recipient_Contact struct {
 
 func (x *Recipient_Contact) Reset() {
 	*x = Recipient_Contact{}
-	mi := &file_StorageService_proto_msgTypes[27]
+	mi := &file_signalpb_StorageService_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3367,7 +3367,7 @@ func (x *Recipient_Contact) String() string {
 func (*Recipient_Contact) ProtoMessage() {}
 
 func (x *Recipient_Contact) ProtoReflect() protoreflect.Message {
-	mi := &file_StorageService_proto_msgTypes[27]
+	mi := &file_signalpb_StorageService_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3380,7 +3380,7 @@ func (x *Recipient_Contact) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Recipient_Contact.ProtoReflect.Descriptor instead.
 func (*Recipient_Contact) Descriptor() ([]byte, []int) {
-	return file_StorageService_proto_rawDescGZIP(), []int{15, 0}
+	return file_signalpb_StorageService_proto_rawDescGZIP(), []int{15, 0}
 }
 
 func (x *Recipient_Contact) GetServiceId() string {
@@ -3404,11 +3404,11 @@ func (x *Recipient_Contact) GetServiceIdBinary() []byte {
 	return nil
 }
 
-var File_StorageService_proto protoreflect.FileDescriptor
+var File_signalpb_StorageService_proto protoreflect.FileDescriptor
 
-const file_StorageService_proto_rawDesc = "" +
+const file_signalpb_StorageService_proto_rawDesc = "" +
 	"\n" +
-	"\x14StorageService.proto\x12\rsignalservice\"A\n" +
+	"\x1dsignalpb/StorageService.proto\x12\rsignalservice\"A\n" +
 	"\x0fStorageManifest\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\x04R\aversion\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\fR\x05value\"5\n" +
@@ -3756,20 +3756,20 @@ const file_StorageService_proto_rawDesc = "" +
 	"8org.whispersystems.signalservice.internal.storage.protosP\x01b\x06proto3"
 
 var (
-	file_StorageService_proto_rawDescOnce sync.Once
-	file_StorageService_proto_rawDescData []byte
+	file_signalpb_StorageService_proto_rawDescOnce sync.Once
+	file_signalpb_StorageService_proto_rawDescData []byte
 )
 
-func file_StorageService_proto_rawDescGZIP() []byte {
-	file_StorageService_proto_rawDescOnce.Do(func() {
-		file_StorageService_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_StorageService_proto_rawDesc), len(file_StorageService_proto_rawDesc)))
+func file_signalpb_StorageService_proto_rawDescGZIP() []byte {
+	file_signalpb_StorageService_proto_rawDescOnce.Do(func() {
+		file_signalpb_StorageService_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_signalpb_StorageService_proto_rawDesc), len(file_signalpb_StorageService_proto_rawDesc)))
 	})
-	return file_StorageService_proto_rawDescData
+	return file_signalpb_StorageService_proto_rawDescData
 }
 
-var file_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
-var file_StorageService_proto_goTypes = []any{
+var file_signalpb_StorageService_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
+var file_signalpb_StorageService_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
+var file_signalpb_StorageService_proto_goTypes = []any{
 	(OptionalBool)(0),                                       // 0: signalservice.OptionalBool
 	(AvatarColor)(0),                                        // 1: signalservice.AvatarColor
 	(ManifestRecord_Identifier_Type)(0),                     // 2: signalservice.ManifestRecord.Identifier.Type
@@ -3809,7 +3809,7 @@ var file_StorageService_proto_goTypes = []any{
 	(*AccountRecord_NotificationProfileManualOverride_ManuallyEnabled)(nil), // 36: signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
 	(*Recipient_Contact)(nil), // 37: signalservice.Recipient.Contact
 }
-var file_StorageService_proto_depIdxs = []int32{
+var file_signalpb_StorageService_proto_depIdxs = []int32{
 	11, // 0: signalservice.StorageItems.items:type_name -> signalservice.StorageItem
 	10, // 1: signalservice.WriteOperation.manifest:type_name -> signalservice.StorageManifest
 	11, // 2: signalservice.WriteOperation.insertItem:type_name -> signalservice.StorageItem
@@ -3868,12 +3868,12 @@ var file_StorageService_proto_depIdxs = []int32{
 	0,  // [0:51] is the sub-list for field type_name
 }
 
-func init() { file_StorageService_proto_init() }
-func file_StorageService_proto_init() {
-	if File_StorageService_proto != nil {
+func init() { file_signalpb_StorageService_proto_init() }
+func file_signalpb_StorageService_proto_init() {
+	if File_signalpb_StorageService_proto != nil {
 		return
 	}
-	file_StorageService_proto_msgTypes[6].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[6].OneofWrappers = []any{
 		(*StorageRecord_Contact)(nil),
 		(*StorageRecord_GroupV1)(nil),
 		(*StorageRecord_GroupV2)(nil),
@@ -3884,26 +3884,26 @@ func file_StorageService_proto_init() {
 		(*StorageRecord_ChatFolder)(nil),
 		(*StorageRecord_NotificationProfile)(nil),
 	}
-	file_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[15].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[7].OneofWrappers = []any{}
+	file_signalpb_StorageService_proto_msgTypes[9].OneofWrappers = []any{}
+	file_signalpb_StorageService_proto_msgTypes[11].OneofWrappers = []any{}
+	file_signalpb_StorageService_proto_msgTypes[15].OneofWrappers = []any{
 		(*Recipient_Contact_)(nil),
 		(*Recipient_LegacyGroupId)(nil),
 		(*Recipient_GroupMasterKey)(nil),
 	}
-	file_StorageService_proto_msgTypes[17].OneofWrappers = []any{}
-	file_StorageService_proto_msgTypes[20].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[17].OneofWrappers = []any{}
+	file_signalpb_StorageService_proto_msgTypes[20].OneofWrappers = []any{
 		(*AccountRecord_PinnedConversation_Contact_)(nil),
 		(*AccountRecord_PinnedConversation_LegacyGroupId)(nil),
 		(*AccountRecord_PinnedConversation_GroupMasterKey)(nil),
 		(*AccountRecord_PinnedConversation_ReleaseNotes_)(nil),
 	}
-	file_StorageService_proto_msgTypes[22].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[22].OneofWrappers = []any{
 		(*AccountRecord_IAPSubscriberData_PurchaseToken)(nil),
 		(*AccountRecord_IAPSubscriberData_OriginalTransactionId)(nil),
 	}
-	file_StorageService_proto_msgTypes[23].OneofWrappers = []any{
+	file_signalpb_StorageService_proto_msgTypes[23].OneofWrappers = []any{
 		(*AccountRecord_NotificationProfileManualOverride_DisabledAtTimestampMs)(nil),
 		(*AccountRecord_NotificationProfileManualOverride_Enabled)(nil),
 	}
@@ -3911,18 +3911,18 @@ func file_StorageService_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_StorageService_proto_rawDesc), len(file_StorageService_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_StorageService_proto_rawDesc), len(file_signalpb_StorageService_proto_rawDesc)),
 			NumEnums:      10,
 			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_StorageService_proto_goTypes,
-		DependencyIndexes: file_StorageService_proto_depIdxs,
-		EnumInfos:         file_StorageService_proto_enumTypes,
-		MessageInfos:      file_StorageService_proto_msgTypes,
+		GoTypes:           file_signalpb_StorageService_proto_goTypes,
+		DependencyIndexes: file_signalpb_StorageService_proto_depIdxs,
+		EnumInfos:         file_signalpb_StorageService_proto_enumTypes,
+		MessageInfos:      file_signalpb_StorageService_proto_msgTypes,
 	}.Build()
-	File_StorageService_proto = out.File
-	file_StorageService_proto_goTypes = nil
-	file_StorageService_proto_depIdxs = nil
+	File_signalpb_StorageService_proto = out.File
+	file_signalpb_StorageService_proto_goTypes = nil
+	file_signalpb_StorageService_proto_depIdxs = nil
 }

@@ -7,7 +7,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: StickerResources.proto
+// source: signalpb/StickerResources.proto
 
 package signalpb
 
@@ -38,7 +38,7 @@ type Pack struct {
 
 func (x *Pack) Reset() {
 	*x = Pack{}
-	mi := &file_StickerResources_proto_msgTypes[0]
+	mi := &file_signalpb_StickerResources_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -50,7 +50,7 @@ func (x *Pack) String() string {
 func (*Pack) ProtoMessage() {}
 
 func (x *Pack) ProtoReflect() protoreflect.Message {
-	mi := &file_StickerResources_proto_msgTypes[0]
+	mi := &file_signalpb_StickerResources_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -63,7 +63,7 @@ func (x *Pack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pack.ProtoReflect.Descriptor instead.
 func (*Pack) Descriptor() ([]byte, []int) {
-	return file_StickerResources_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_StickerResources_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Pack) GetTitle() string {
@@ -105,7 +105,7 @@ type Pack_Sticker struct {
 
 func (x *Pack_Sticker) Reset() {
 	*x = Pack_Sticker{}
-	mi := &file_StickerResources_proto_msgTypes[1]
+	mi := &file_signalpb_StickerResources_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -117,7 +117,7 @@ func (x *Pack_Sticker) String() string {
 func (*Pack_Sticker) ProtoMessage() {}
 
 func (x *Pack_Sticker) ProtoReflect() protoreflect.Message {
-	mi := &file_StickerResources_proto_msgTypes[1]
+	mi := &file_signalpb_StickerResources_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -130,7 +130,7 @@ func (x *Pack_Sticker) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pack_Sticker.ProtoReflect.Descriptor instead.
 func (*Pack_Sticker) Descriptor() ([]byte, []int) {
-	return file_StickerResources_proto_rawDescGZIP(), []int{0, 0}
+	return file_signalpb_StickerResources_proto_rawDescGZIP(), []int{0, 0}
 }
 
 func (x *Pack_Sticker) GetId() uint32 {
@@ -154,11 +154,11 @@ func (x *Pack_Sticker) GetContentType() string {
 	return ""
 }
 
-var File_StickerResources_proto protoreflect.FileDescriptor
+var File_signalpb_StickerResources_proto protoreflect.FileDescriptor
 
-const file_StickerResources_proto_rawDesc = "" +
+const file_signalpb_StickerResources_proto_rawDesc = "" +
 	"\n" +
-	"\x16StickerResources.proto\x12\rsignalservice\"\xf3\x01\n" +
+	"\x1fsignalpb/StickerResources.proto\x12\rsignalservice\"\xf3\x01\n" +
 	"\x04Pack\x12\x14\n" +
 	"\x05title\x18\x01 \x01(\tR\x05title\x12\x16\n" +
 	"\x06author\x18\x02 \x01(\tR\x06author\x121\n" +
@@ -171,23 +171,23 @@ const file_StickerResources_proto_rawDesc = "" +
 	"1org.whispersystems.signalservice.internal.stickerB\rStickerProtos"
 
 var (
-	file_StickerResources_proto_rawDescOnce sync.Once
-	file_StickerResources_proto_rawDescData []byte
+	file_signalpb_StickerResources_proto_rawDescOnce sync.Once
+	file_signalpb_StickerResources_proto_rawDescData []byte
 )
 
-func file_StickerResources_proto_rawDescGZIP() []byte {
-	file_StickerResources_proto_rawDescOnce.Do(func() {
-		file_StickerResources_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_StickerResources_proto_rawDesc), len(file_StickerResources_proto_rawDesc)))
+func file_signalpb_StickerResources_proto_rawDescGZIP() []byte {
+	file_signalpb_StickerResources_proto_rawDescOnce.Do(func() {
+		file_signalpb_StickerResources_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_signalpb_StickerResources_proto_rawDesc), len(file_signalpb_StickerResources_proto_rawDesc)))
 	})
-	return file_StickerResources_proto_rawDescData
+	return file_signalpb_StickerResources_proto_rawDescData
 }
 
-var file_StickerResources_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_StickerResources_proto_goTypes = []any{
+var file_signalpb_StickerResources_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_signalpb_StickerResources_proto_goTypes = []any{
 	(*Pack)(nil),         // 0: signalservice.Pack
 	(*Pack_Sticker)(nil), // 1: signalservice.Pack.Sticker
 }
-var file_StickerResources_proto_depIdxs = []int32{
+var file_signalpb_StickerResources_proto_depIdxs = []int32{
 	1, // 0: signalservice.Pack.cover:type_name -> signalservice.Pack.Sticker
 	1, // 1: signalservice.Pack.stickers:type_name -> signalservice.Pack.Sticker
 	2, // [2:2] is the sub-list for method output_type
@@ -197,26 +197,26 @@ var file_StickerResources_proto_depIdxs = []int32{
 	0, // [0:2] is the sub-list for field type_name
 }
 
-func init() { file_StickerResources_proto_init() }
-func file_StickerResources_proto_init() {
-	if File_StickerResources_proto != nil {
+func init() { file_signalpb_StickerResources_proto_init() }
+func file_signalpb_StickerResources_proto_init() {
+	if File_signalpb_StickerResources_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_StickerResources_proto_rawDesc), len(file_StickerResources_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_StickerResources_proto_rawDesc), len(file_signalpb_StickerResources_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_StickerResources_proto_goTypes,
-		DependencyIndexes: file_StickerResources_proto_depIdxs,
-		MessageInfos:      file_StickerResources_proto_msgTypes,
+		GoTypes:           file_signalpb_StickerResources_proto_goTypes,
+		DependencyIndexes: file_signalpb_StickerResources_proto_depIdxs,
+		MessageInfos:      file_signalpb_StickerResources_proto_msgTypes,
 	}.Build()
-	File_StickerResources_proto = out.File
-	file_StickerResources_proto_goTypes = nil
-	file_StickerResources_proto_depIdxs = nil
+	File_signalpb_StickerResources_proto = out.File
+	file_signalpb_StickerResources_proto_goTypes = nil
+	file_signalpb_StickerResources_proto_depIdxs = nil
 }

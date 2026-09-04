@@ -7,7 +7,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: DeviceName.proto
+// source: signalpb/DeviceName.proto
 
 package signalpb
 
@@ -37,7 +37,7 @@ type DeviceName struct {
 
 func (x *DeviceName) Reset() {
 	*x = DeviceName{}
-	mi := &file_DeviceName_proto_msgTypes[0]
+	mi := &file_signalpb_DeviceName_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -49,7 +49,7 @@ func (x *DeviceName) String() string {
 func (*DeviceName) ProtoMessage() {}
 
 func (x *DeviceName) ProtoReflect() protoreflect.Message {
-	mi := &file_DeviceName_proto_msgTypes[0]
+	mi := &file_signalpb_DeviceName_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -62,7 +62,7 @@ func (x *DeviceName) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeviceName.ProtoReflect.Descriptor instead.
 func (*DeviceName) Descriptor() ([]byte, []int) {
-	return file_DeviceName_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_DeviceName_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DeviceName) GetEphemeralPublic() []byte {
@@ -86,11 +86,11 @@ func (x *DeviceName) GetCiphertext() []byte {
 	return nil
 }
 
-var File_DeviceName_proto protoreflect.FileDescriptor
+var File_signalpb_DeviceName_proto protoreflect.FileDescriptor
 
-const file_DeviceName_proto_rawDesc = "" +
+const file_signalpb_DeviceName_proto_rawDesc = "" +
 	"\n" +
-	"\x10DeviceName.proto\x12\rsignalservice\"x\n" +
+	"\x19signalpb/DeviceName.proto\x12\rsignalservice\"x\n" +
 	"\n" +
 	"DeviceName\x12(\n" +
 	"\x0fephemeralPublic\x18\x01 \x01(\fR\x0fephemeralPublic\x12 \n" +
@@ -101,22 +101,22 @@ const file_DeviceName_proto_rawDesc = "" +
 	"\x1borg.signal.core.util.crypto"
 
 var (
-	file_DeviceName_proto_rawDescOnce sync.Once
-	file_DeviceName_proto_rawDescData []byte
+	file_signalpb_DeviceName_proto_rawDescOnce sync.Once
+	file_signalpb_DeviceName_proto_rawDescData []byte
 )
 
-func file_DeviceName_proto_rawDescGZIP() []byte {
-	file_DeviceName_proto_rawDescOnce.Do(func() {
-		file_DeviceName_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_DeviceName_proto_rawDesc), len(file_DeviceName_proto_rawDesc)))
+func file_signalpb_DeviceName_proto_rawDescGZIP() []byte {
+	file_signalpb_DeviceName_proto_rawDescOnce.Do(func() {
+		file_signalpb_DeviceName_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_signalpb_DeviceName_proto_rawDesc), len(file_signalpb_DeviceName_proto_rawDesc)))
 	})
-	return file_DeviceName_proto_rawDescData
+	return file_signalpb_DeviceName_proto_rawDescData
 }
 
-var file_DeviceName_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_DeviceName_proto_goTypes = []any{
+var file_signalpb_DeviceName_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_signalpb_DeviceName_proto_goTypes = []any{
 	(*DeviceName)(nil), // 0: signalservice.DeviceName
 }
-var file_DeviceName_proto_depIdxs = []int32{
+var file_signalpb_DeviceName_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -124,26 +124,26 @@ var file_DeviceName_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_DeviceName_proto_init() }
-func file_DeviceName_proto_init() {
-	if File_DeviceName_proto != nil {
+func init() { file_signalpb_DeviceName_proto_init() }
+func file_signalpb_DeviceName_proto_init() {
+	if File_signalpb_DeviceName_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_DeviceName_proto_rawDesc), len(file_DeviceName_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_DeviceName_proto_rawDesc), len(file_signalpb_DeviceName_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_DeviceName_proto_goTypes,
-		DependencyIndexes: file_DeviceName_proto_depIdxs,
-		MessageInfos:      file_DeviceName_proto_msgTypes,
+		GoTypes:           file_signalpb_DeviceName_proto_goTypes,
+		DependencyIndexes: file_signalpb_DeviceName_proto_depIdxs,
+		MessageInfos:      file_signalpb_DeviceName_proto_msgTypes,
 	}.Build()
-	File_DeviceName_proto = out.File
-	file_DeviceName_proto_goTypes = nil
-	file_DeviceName_proto_depIdxs = nil
+	File_signalpb_DeviceName_proto = out.File
+	file_signalpb_DeviceName_proto_goTypes = nil
+	file_signalpb_DeviceName_proto_depIdxs = nil
 }

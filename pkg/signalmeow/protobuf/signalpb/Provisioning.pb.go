@@ -6,7 +6,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: Provisioning.proto
+// source: signalpb/Provisioning.proto
 
 package signalpb
 
@@ -58,11 +58,11 @@ func (x ProvisioningVersion) String() string {
 }
 
 func (ProvisioningVersion) Descriptor() protoreflect.EnumDescriptor {
-	return file_Provisioning_proto_enumTypes[0].Descriptor()
+	return file_signalpb_Provisioning_proto_enumTypes[0].Descriptor()
 }
 
 func (ProvisioningVersion) Type() protoreflect.EnumType {
-	return &file_Provisioning_proto_enumTypes[0]
+	return &file_signalpb_Provisioning_proto_enumTypes[0]
 }
 
 func (x ProvisioningVersion) Number() protoreflect.EnumNumber {
@@ -81,7 +81,7 @@ func (x *ProvisioningVersion) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use ProvisioningVersion.Descriptor instead.
 func (ProvisioningVersion) EnumDescriptor() ([]byte, []int) {
-	return file_Provisioning_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_Provisioning_proto_rawDescGZIP(), []int{0}
 }
 
 // An opaque address sent by the server when clients first open a provisioning
@@ -98,7 +98,7 @@ type ProvisioningAddress struct {
 
 func (x *ProvisioningAddress) Reset() {
 	*x = ProvisioningAddress{}
-	mi := &file_Provisioning_proto_msgTypes[0]
+	mi := &file_signalpb_Provisioning_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -110,7 +110,7 @@ func (x *ProvisioningAddress) String() string {
 func (*ProvisioningAddress) ProtoMessage() {}
 
 func (x *ProvisioningAddress) ProtoReflect() protoreflect.Message {
-	mi := &file_Provisioning_proto_msgTypes[0]
+	mi := &file_signalpb_Provisioning_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -123,7 +123,7 @@ func (x *ProvisioningAddress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisioningAddress.ProtoReflect.Descriptor instead.
 func (*ProvisioningAddress) Descriptor() ([]byte, []int) {
-	return file_Provisioning_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_Provisioning_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ProvisioningAddress) GetAddress() string {
@@ -143,7 +143,7 @@ type ProvisionEnvelope struct {
 
 func (x *ProvisionEnvelope) Reset() {
 	*x = ProvisionEnvelope{}
-	mi := &file_Provisioning_proto_msgTypes[1]
+	mi := &file_signalpb_Provisioning_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -155,7 +155,7 @@ func (x *ProvisionEnvelope) String() string {
 func (*ProvisionEnvelope) ProtoMessage() {}
 
 func (x *ProvisionEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_Provisioning_proto_msgTypes[1]
+	mi := &file_signalpb_Provisioning_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -168,7 +168,7 @@ func (x *ProvisionEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionEnvelope.ProtoReflect.Descriptor instead.
 func (*ProvisionEnvelope) Descriptor() ([]byte, []int) {
-	return file_Provisioning_proto_rawDescGZIP(), []int{1}
+	return file_signalpb_Provisioning_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ProvisionEnvelope) GetPublicKey() []byte {
@@ -211,7 +211,7 @@ type ProvisionMessage struct {
 
 func (x *ProvisionMessage) Reset() {
 	*x = ProvisionMessage{}
-	mi := &file_Provisioning_proto_msgTypes[2]
+	mi := &file_signalpb_Provisioning_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -223,7 +223,7 @@ func (x *ProvisionMessage) String() string {
 func (*ProvisionMessage) ProtoMessage() {}
 
 func (x *ProvisionMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_Provisioning_proto_msgTypes[2]
+	mi := &file_signalpb_Provisioning_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -236,7 +236,7 @@ func (x *ProvisionMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProvisionMessage.ProtoReflect.Descriptor instead.
 func (*ProvisionMessage) Descriptor() ([]byte, []int) {
-	return file_Provisioning_proto_rawDescGZIP(), []int{2}
+	return file_signalpb_Provisioning_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ProvisionMessage) GetAciIdentityKeyPublic() []byte {
@@ -365,11 +365,11 @@ func (x *ProvisionMessage) GetAuthCredentialSalt() []byte {
 	return nil
 }
 
-var File_Provisioning_proto protoreflect.FileDescriptor
+var File_signalpb_Provisioning_proto protoreflect.FileDescriptor
 
-const file_Provisioning_proto_rawDesc = "" +
+const file_signalpb_Provisioning_proto_rawDesc = "" +
 	"\n" +
-	"\x12Provisioning.proto\x12\rsignalservice\"/\n" +
+	"\x1bsignalpb/Provisioning.proto\x12\rsignalservice\"/\n" +
 	"\x13ProvisioningAddress\x12\x18\n" +
 	"\aaddress\x18\x01 \x01(\tR\aaddress\"E\n" +
 	"\x11ProvisionEnvelope\x12\x1c\n" +
@@ -404,26 +404,26 @@ const file_Provisioning_proto_rawDesc = "" +
 	".org.whispersystems.signalservice.internal.pushB\x12ProvisioningProtos"
 
 var (
-	file_Provisioning_proto_rawDescOnce sync.Once
-	file_Provisioning_proto_rawDescData []byte
+	file_signalpb_Provisioning_proto_rawDescOnce sync.Once
+	file_signalpb_Provisioning_proto_rawDescData []byte
 )
 
-func file_Provisioning_proto_rawDescGZIP() []byte {
-	file_Provisioning_proto_rawDescOnce.Do(func() {
-		file_Provisioning_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_Provisioning_proto_rawDesc), len(file_Provisioning_proto_rawDesc)))
+func file_signalpb_Provisioning_proto_rawDescGZIP() []byte {
+	file_signalpb_Provisioning_proto_rawDescOnce.Do(func() {
+		file_signalpb_Provisioning_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_signalpb_Provisioning_proto_rawDesc), len(file_signalpb_Provisioning_proto_rawDesc)))
 	})
-	return file_Provisioning_proto_rawDescData
+	return file_signalpb_Provisioning_proto_rawDescData
 }
 
-var file_Provisioning_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_Provisioning_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
-var file_Provisioning_proto_goTypes = []any{
+var file_signalpb_Provisioning_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_signalpb_Provisioning_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_signalpb_Provisioning_proto_goTypes = []any{
 	(ProvisioningVersion)(0),    // 0: signalservice.ProvisioningVersion
 	(*ProvisioningAddress)(nil), // 1: signalservice.ProvisioningAddress
 	(*ProvisionEnvelope)(nil),   // 2: signalservice.ProvisionEnvelope
 	(*ProvisionMessage)(nil),    // 3: signalservice.ProvisionMessage
 }
-var file_Provisioning_proto_depIdxs = []int32{
+var file_signalpb_Provisioning_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -431,27 +431,27 @@ var file_Provisioning_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_Provisioning_proto_init() }
-func file_Provisioning_proto_init() {
-	if File_Provisioning_proto != nil {
+func init() { file_signalpb_Provisioning_proto_init() }
+func file_signalpb_Provisioning_proto_init() {
+	if File_signalpb_Provisioning_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_Provisioning_proto_rawDesc), len(file_Provisioning_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_Provisioning_proto_rawDesc), len(file_signalpb_Provisioning_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   3,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_Provisioning_proto_goTypes,
-		DependencyIndexes: file_Provisioning_proto_depIdxs,
-		EnumInfos:         file_Provisioning_proto_enumTypes,
-		MessageInfos:      file_Provisioning_proto_msgTypes,
+		GoTypes:           file_signalpb_Provisioning_proto_goTypes,
+		DependencyIndexes: file_signalpb_Provisioning_proto_depIdxs,
+		EnumInfos:         file_signalpb_Provisioning_proto_enumTypes,
+		MessageInfos:      file_signalpb_Provisioning_proto_msgTypes,
 	}.Build()
-	File_Provisioning_proto = out.File
-	file_Provisioning_proto_goTypes = nil
-	file_Provisioning_proto_depIdxs = nil
+	File_signalpb_Provisioning_proto = out.File
+	file_signalpb_Provisioning_proto_goTypes = nil
+	file_signalpb_Provisioning_proto_depIdxs = nil
 }

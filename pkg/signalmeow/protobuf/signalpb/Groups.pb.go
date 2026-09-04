@@ -6,7 +6,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: Groups.proto
+// source: signalpb/Groups.proto
 
 package signalpb
 
@@ -58,11 +58,11 @@ func (x Member_Role) String() string {
 }
 
 func (Member_Role) Descriptor() protoreflect.EnumDescriptor {
-	return file_Groups_proto_enumTypes[0].Descriptor()
+	return file_signalpb_Groups_proto_enumTypes[0].Descriptor()
 }
 
 func (Member_Role) Type() protoreflect.EnumType {
-	return &file_Groups_proto_enumTypes[0]
+	return &file_signalpb_Groups_proto_enumTypes[0]
 }
 
 func (x Member_Role) Number() protoreflect.EnumNumber {
@@ -71,7 +71,7 @@ func (x Member_Role) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Member_Role.Descriptor instead.
 func (Member_Role) EnumDescriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{1, 0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{1, 0}
 }
 
 type AccessControl_AccessRequired int32
@@ -113,11 +113,11 @@ func (x AccessControl_AccessRequired) String() string {
 }
 
 func (AccessControl_AccessRequired) Descriptor() protoreflect.EnumDescriptor {
-	return file_Groups_proto_enumTypes[1].Descriptor()
+	return file_signalpb_Groups_proto_enumTypes[1].Descriptor()
 }
 
 func (AccessControl_AccessRequired) Type() protoreflect.EnumType {
-	return &file_Groups_proto_enumTypes[1]
+	return &file_signalpb_Groups_proto_enumTypes[1]
 }
 
 func (x AccessControl_AccessRequired) Number() protoreflect.EnumNumber {
@@ -126,7 +126,7 @@ func (x AccessControl_AccessRequired) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use AccessControl_AccessRequired.Descriptor instead.
 func (AccessControl_AccessRequired) EnumDescriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{5, 0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{5, 0}
 }
 
 type AvatarUploadAttributes struct {
@@ -144,7 +144,7 @@ type AvatarUploadAttributes struct {
 
 func (x *AvatarUploadAttributes) Reset() {
 	*x = AvatarUploadAttributes{}
-	mi := &file_Groups_proto_msgTypes[0]
+	mi := &file_signalpb_Groups_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -156,7 +156,7 @@ func (x *AvatarUploadAttributes) String() string {
 func (*AvatarUploadAttributes) ProtoMessage() {}
 
 func (x *AvatarUploadAttributes) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[0]
+	mi := &file_signalpb_Groups_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -169,7 +169,7 @@ func (x *AvatarUploadAttributes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AvatarUploadAttributes.ProtoReflect.Descriptor instead.
 func (*AvatarUploadAttributes) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AvatarUploadAttributes) GetKey() string {
@@ -236,7 +236,7 @@ type Member struct {
 
 func (x *Member) Reset() {
 	*x = Member{}
-	mi := &file_Groups_proto_msgTypes[1]
+	mi := &file_signalpb_Groups_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -248,7 +248,7 @@ func (x *Member) String() string {
 func (*Member) ProtoMessage() {}
 
 func (x *Member) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[1]
+	mi := &file_signalpb_Groups_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -261,7 +261,7 @@ func (x *Member) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Member.ProtoReflect.Descriptor instead.
 func (*Member) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{1}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Member) GetUserId() []byte {
@@ -324,7 +324,7 @@ type MemberPendingProfileKey struct {
 
 func (x *MemberPendingProfileKey) Reset() {
 	*x = MemberPendingProfileKey{}
-	mi := &file_Groups_proto_msgTypes[2]
+	mi := &file_signalpb_Groups_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -336,7 +336,7 @@ func (x *MemberPendingProfileKey) String() string {
 func (*MemberPendingProfileKey) ProtoMessage() {}
 
 func (x *MemberPendingProfileKey) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[2]
+	mi := &file_signalpb_Groups_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -349,7 +349,7 @@ func (x *MemberPendingProfileKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemberPendingProfileKey.ProtoReflect.Descriptor instead.
 func (*MemberPendingProfileKey) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{2}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *MemberPendingProfileKey) GetMember() *Member {
@@ -385,7 +385,7 @@ type MemberPendingAdminApproval struct {
 
 func (x *MemberPendingAdminApproval) Reset() {
 	*x = MemberPendingAdminApproval{}
-	mi := &file_Groups_proto_msgTypes[3]
+	mi := &file_signalpb_Groups_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -397,7 +397,7 @@ func (x *MemberPendingAdminApproval) String() string {
 func (*MemberPendingAdminApproval) ProtoMessage() {}
 
 func (x *MemberPendingAdminApproval) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[3]
+	mi := &file_signalpb_Groups_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -410,7 +410,7 @@ func (x *MemberPendingAdminApproval) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemberPendingAdminApproval.ProtoReflect.Descriptor instead.
 func (*MemberPendingAdminApproval) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{3}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MemberPendingAdminApproval) GetUserId() []byte {
@@ -451,7 +451,7 @@ type MemberBanned struct {
 
 func (x *MemberBanned) Reset() {
 	*x = MemberBanned{}
-	mi := &file_Groups_proto_msgTypes[4]
+	mi := &file_signalpb_Groups_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -463,7 +463,7 @@ func (x *MemberBanned) String() string {
 func (*MemberBanned) ProtoMessage() {}
 
 func (x *MemberBanned) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[4]
+	mi := &file_signalpb_Groups_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -476,7 +476,7 @@ func (x *MemberBanned) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MemberBanned.ProtoReflect.Descriptor instead.
 func (*MemberBanned) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{4}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *MemberBanned) GetUserId() []byte {
@@ -505,7 +505,7 @@ type AccessControl struct {
 
 func (x *AccessControl) Reset() {
 	*x = AccessControl{}
-	mi := &file_Groups_proto_msgTypes[5]
+	mi := &file_signalpb_Groups_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -517,7 +517,7 @@ func (x *AccessControl) String() string {
 func (*AccessControl) ProtoMessage() {}
 
 func (x *AccessControl) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[5]
+	mi := &file_signalpb_Groups_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -530,7 +530,7 @@ func (x *AccessControl) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccessControl.ProtoReflect.Descriptor instead.
 func (*AccessControl) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{5}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *AccessControl) GetAttributes() AccessControl_AccessRequired {
@@ -585,7 +585,7 @@ type Group struct {
 
 func (x *Group) Reset() {
 	*x = Group{}
-	mi := &file_Groups_proto_msgTypes[6]
+	mi := &file_signalpb_Groups_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -597,7 +597,7 @@ func (x *Group) String() string {
 func (*Group) ProtoMessage() {}
 
 func (x *Group) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[6]
+	mi := &file_signalpb_Groups_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -610,7 +610,7 @@ func (x *Group) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Group.ProtoReflect.Descriptor instead.
 func (*Group) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{6}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Group) GetPublicKey() []byte {
@@ -726,7 +726,7 @@ type GroupAttributeBlob struct {
 
 func (x *GroupAttributeBlob) Reset() {
 	*x = GroupAttributeBlob{}
-	mi := &file_Groups_proto_msgTypes[7]
+	mi := &file_signalpb_Groups_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -738,7 +738,7 @@ func (x *GroupAttributeBlob) String() string {
 func (*GroupAttributeBlob) ProtoMessage() {}
 
 func (x *GroupAttributeBlob) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[7]
+	mi := &file_signalpb_Groups_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -751,7 +751,7 @@ func (x *GroupAttributeBlob) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupAttributeBlob.ProtoReflect.Descriptor instead.
 func (*GroupAttributeBlob) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{7}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GroupAttributeBlob) GetContent() isGroupAttributeBlob_Content {
@@ -837,7 +837,7 @@ type GroupInviteLink struct {
 
 func (x *GroupInviteLink) Reset() {
 	*x = GroupInviteLink{}
-	mi := &file_Groups_proto_msgTypes[8]
+	mi := &file_signalpb_Groups_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -849,7 +849,7 @@ func (x *GroupInviteLink) String() string {
 func (*GroupInviteLink) ProtoMessage() {}
 
 func (x *GroupInviteLink) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[8]
+	mi := &file_signalpb_Groups_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -862,7 +862,7 @@ func (x *GroupInviteLink) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupInviteLink.ProtoReflect.Descriptor instead.
 func (*GroupInviteLink) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{8}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GroupInviteLink) GetContents() isGroupInviteLink_Contents {
@@ -907,7 +907,7 @@ type GroupJoinInfo struct {
 
 func (x *GroupJoinInfo) Reset() {
 	*x = GroupJoinInfo{}
-	mi := &file_Groups_proto_msgTypes[9]
+	mi := &file_signalpb_Groups_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -919,7 +919,7 @@ func (x *GroupJoinInfo) String() string {
 func (*GroupJoinInfo) ProtoMessage() {}
 
 func (x *GroupJoinInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[9]
+	mi := &file_signalpb_Groups_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -932,7 +932,7 @@ func (x *GroupJoinInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupJoinInfo.ProtoReflect.Descriptor instead.
 func (*GroupJoinInfo) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{9}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GroupJoinInfo) GetPublicKey() []byte {
@@ -1002,7 +1002,7 @@ type GroupChange struct {
 
 func (x *GroupChange) Reset() {
 	*x = GroupChange{}
-	mi := &file_Groups_proto_msgTypes[10]
+	mi := &file_signalpb_Groups_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1014,7 +1014,7 @@ func (x *GroupChange) String() string {
 func (*GroupChange) ProtoMessage() {}
 
 func (x *GroupChange) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[10]
+	mi := &file_signalpb_Groups_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1027,7 +1027,7 @@ func (x *GroupChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChange.ProtoReflect.Descriptor instead.
 func (*GroupChange) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GroupChange) GetActions() []byte {
@@ -1060,7 +1060,7 @@ type ExternalGroupCredential struct {
 
 func (x *ExternalGroupCredential) Reset() {
 	*x = ExternalGroupCredential{}
-	mi := &file_Groups_proto_msgTypes[11]
+	mi := &file_signalpb_Groups_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1072,7 +1072,7 @@ func (x *ExternalGroupCredential) String() string {
 func (*ExternalGroupCredential) ProtoMessage() {}
 
 func (x *ExternalGroupCredential) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[11]
+	mi := &file_signalpb_Groups_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1085,7 +1085,7 @@ func (x *ExternalGroupCredential) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExternalGroupCredential.ProtoReflect.Descriptor instead.
 func (*ExternalGroupCredential) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{11}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ExternalGroupCredential) GetToken() string {
@@ -1105,7 +1105,7 @@ type GroupResponse struct {
 
 func (x *GroupResponse) Reset() {
 	*x = GroupResponse{}
-	mi := &file_Groups_proto_msgTypes[12]
+	mi := &file_signalpb_Groups_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1117,7 +1117,7 @@ func (x *GroupResponse) String() string {
 func (*GroupResponse) ProtoMessage() {}
 
 func (x *GroupResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[12]
+	mi := &file_signalpb_Groups_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1130,7 +1130,7 @@ func (x *GroupResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupResponse.ProtoReflect.Descriptor instead.
 func (*GroupResponse) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{12}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GroupResponse) GetGroup() *Group {
@@ -1157,7 +1157,7 @@ type GroupChanges struct {
 
 func (x *GroupChanges) Reset() {
 	*x = GroupChanges{}
-	mi := &file_Groups_proto_msgTypes[13]
+	mi := &file_signalpb_Groups_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1169,7 +1169,7 @@ func (x *GroupChanges) String() string {
 func (*GroupChanges) ProtoMessage() {}
 
 func (x *GroupChanges) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[13]
+	mi := &file_signalpb_Groups_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1182,7 +1182,7 @@ func (x *GroupChanges) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChanges.ProtoReflect.Descriptor instead.
 func (*GroupChanges) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{13}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GroupChanges) GetGroupChanges() []*GroupChanges_GroupChangeState {
@@ -1209,7 +1209,7 @@ type GroupChangeResponse struct {
 
 func (x *GroupChangeResponse) Reset() {
 	*x = GroupChangeResponse{}
-	mi := &file_Groups_proto_msgTypes[14]
+	mi := &file_signalpb_Groups_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1221,7 +1221,7 @@ func (x *GroupChangeResponse) String() string {
 func (*GroupChangeResponse) ProtoMessage() {}
 
 func (x *GroupChangeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[14]
+	mi := &file_signalpb_Groups_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1234,7 +1234,7 @@ func (x *GroupChangeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChangeResponse.ProtoReflect.Descriptor instead.
 func (*GroupChangeResponse) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{14}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GroupChangeResponse) GetGroupChange() *GroupChange {
@@ -1261,7 +1261,7 @@ type GroupInviteLink_GroupInviteLinkContentsV1 struct {
 
 func (x *GroupInviteLink_GroupInviteLinkContentsV1) Reset() {
 	*x = GroupInviteLink_GroupInviteLinkContentsV1{}
-	mi := &file_Groups_proto_msgTypes[15]
+	mi := &file_signalpb_Groups_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1273,7 +1273,7 @@ func (x *GroupInviteLink_GroupInviteLinkContentsV1) String() string {
 func (*GroupInviteLink_GroupInviteLinkContentsV1) ProtoMessage() {}
 
 func (x *GroupInviteLink_GroupInviteLinkContentsV1) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[15]
+	mi := &file_signalpb_Groups_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1286,7 +1286,7 @@ func (x *GroupInviteLink_GroupInviteLinkContentsV1) ProtoReflect() protoreflect.
 
 // Deprecated: Use GroupInviteLink_GroupInviteLinkContentsV1.ProtoReflect.Descriptor instead.
 func (*GroupInviteLink_GroupInviteLinkContentsV1) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{8, 0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{8, 0}
 }
 
 func (x *GroupInviteLink_GroupInviteLinkContentsV1) GetGroupMasterKey() []byte {
@@ -1341,7 +1341,7 @@ type GroupChange_Actions struct {
 
 func (x *GroupChange_Actions) Reset() {
 	*x = GroupChange_Actions{}
-	mi := &file_Groups_proto_msgTypes[16]
+	mi := &file_signalpb_Groups_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1353,7 +1353,7 @@ func (x *GroupChange_Actions) String() string {
 func (*GroupChange_Actions) ProtoMessage() {}
 
 func (x *GroupChange_Actions) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[16]
+	mi := &file_signalpb_Groups_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1366,7 +1366,7 @@ func (x *GroupChange_Actions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChange_Actions.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0}
 }
 
 func (x *GroupChange_Actions) GetSourceUserId() []byte {
@@ -1575,7 +1575,7 @@ type GroupChange_Actions_AddMemberAction struct {
 
 func (x *GroupChange_Actions_AddMemberAction) Reset() {
 	*x = GroupChange_Actions_AddMemberAction{}
-	mi := &file_Groups_proto_msgTypes[17]
+	mi := &file_signalpb_Groups_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1587,7 +1587,7 @@ func (x *GroupChange_Actions_AddMemberAction) String() string {
 func (*GroupChange_Actions_AddMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[17]
+	mi := &file_signalpb_Groups_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1600,7 +1600,7 @@ func (x *GroupChange_Actions_AddMemberAction) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use GroupChange_Actions_AddMemberAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_AddMemberAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 0}
 }
 
 func (x *GroupChange_Actions_AddMemberAction) GetAdded() *Member {
@@ -1626,7 +1626,7 @@ type GroupChange_Actions_DeleteMemberAction struct {
 
 func (x *GroupChange_Actions_DeleteMemberAction) Reset() {
 	*x = GroupChange_Actions_DeleteMemberAction{}
-	mi := &file_Groups_proto_msgTypes[18]
+	mi := &file_signalpb_Groups_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1638,7 +1638,7 @@ func (x *GroupChange_Actions_DeleteMemberAction) String() string {
 func (*GroupChange_Actions_DeleteMemberAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteMemberAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[18]
+	mi := &file_signalpb_Groups_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1651,7 +1651,7 @@ func (x *GroupChange_Actions_DeleteMemberAction) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GroupChange_Actions_DeleteMemberAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_DeleteMemberAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 1}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 1}
 }
 
 func (x *GroupChange_Actions_DeleteMemberAction) GetDeletedUserId() []byte {
@@ -1671,7 +1671,7 @@ type GroupChange_Actions_ModifyMemberRoleAction struct {
 
 func (x *GroupChange_Actions_ModifyMemberRoleAction) Reset() {
 	*x = GroupChange_Actions_ModifyMemberRoleAction{}
-	mi := &file_Groups_proto_msgTypes[19]
+	mi := &file_signalpb_Groups_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1683,7 +1683,7 @@ func (x *GroupChange_Actions_ModifyMemberRoleAction) String() string {
 func (*GroupChange_Actions_ModifyMemberRoleAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMemberRoleAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[19]
+	mi := &file_signalpb_Groups_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1696,7 +1696,7 @@ func (x *GroupChange_Actions_ModifyMemberRoleAction) ProtoReflect() protoreflect
 
 // Deprecated: Use GroupChange_Actions_ModifyMemberRoleAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyMemberRoleAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 2}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 2}
 }
 
 func (x *GroupChange_Actions_ModifyMemberRoleAction) GetUserId() []byte {
@@ -1724,7 +1724,7 @@ type GroupChange_Actions_ModifyMemberLabelAction struct {
 
 func (x *GroupChange_Actions_ModifyMemberLabelAction) Reset() {
 	*x = GroupChange_Actions_ModifyMemberLabelAction{}
-	mi := &file_Groups_proto_msgTypes[20]
+	mi := &file_signalpb_Groups_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1736,7 +1736,7 @@ func (x *GroupChange_Actions_ModifyMemberLabelAction) String() string {
 func (*GroupChange_Actions_ModifyMemberLabelAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMemberLabelAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[20]
+	mi := &file_signalpb_Groups_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1749,7 +1749,7 @@ func (x *GroupChange_Actions_ModifyMemberLabelAction) ProtoReflect() protoreflec
 
 // Deprecated: Use GroupChange_Actions_ModifyMemberLabelAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyMemberLabelAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 3}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 3}
 }
 
 func (x *GroupChange_Actions_ModifyMemberLabelAction) GetUserId() []byte {
@@ -1784,7 +1784,7 @@ type GroupChange_Actions_ModifyMemberProfileKeyAction struct {
 
 func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_ModifyMemberProfileKeyAction{}
-	mi := &file_Groups_proto_msgTypes[21]
+	mi := &file_signalpb_Groups_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1796,7 +1796,7 @@ func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) String() string {
 func (*GroupChange_Actions_ModifyMemberProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[21]
+	mi := &file_signalpb_Groups_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1809,7 +1809,7 @@ func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) ProtoReflect() protor
 
 // Deprecated: Use GroupChange_Actions_ModifyMemberProfileKeyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyMemberProfileKeyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 4}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 4}
 }
 
 func (x *GroupChange_Actions_ModifyMemberProfileKeyAction) GetPresentation() []byte {
@@ -1842,7 +1842,7 @@ type GroupChange_Actions_AddMemberPendingProfileKeyAction struct {
 
 func (x *GroupChange_Actions_AddMemberPendingProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_AddMemberPendingProfileKeyAction{}
-	mi := &file_Groups_proto_msgTypes[22]
+	mi := &file_signalpb_Groups_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1854,7 +1854,7 @@ func (x *GroupChange_Actions_AddMemberPendingProfileKeyAction) String() string {
 func (*GroupChange_Actions_AddMemberPendingProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddMemberPendingProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[22]
+	mi := &file_signalpb_Groups_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1867,7 +1867,7 @@ func (x *GroupChange_Actions_AddMemberPendingProfileKeyAction) ProtoReflect() pr
 
 // Deprecated: Use GroupChange_Actions_AddMemberPendingProfileKeyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_AddMemberPendingProfileKeyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 5}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 5}
 }
 
 func (x *GroupChange_Actions_AddMemberPendingProfileKeyAction) GetAdded() *MemberPendingProfileKey {
@@ -1886,7 +1886,7 @@ type GroupChange_Actions_DeleteMemberPendingProfileKeyAction struct {
 
 func (x *GroupChange_Actions_DeleteMemberPendingProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_DeleteMemberPendingProfileKeyAction{}
-	mi := &file_Groups_proto_msgTypes[23]
+	mi := &file_signalpb_Groups_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1898,7 +1898,7 @@ func (x *GroupChange_Actions_DeleteMemberPendingProfileKeyAction) String() strin
 func (*GroupChange_Actions_DeleteMemberPendingProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteMemberPendingProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[23]
+	mi := &file_signalpb_Groups_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1911,7 +1911,7 @@ func (x *GroupChange_Actions_DeleteMemberPendingProfileKeyAction) ProtoReflect()
 
 // Deprecated: Use GroupChange_Actions_DeleteMemberPendingProfileKeyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_DeleteMemberPendingProfileKeyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 6}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 6}
 }
 
 func (x *GroupChange_Actions_DeleteMemberPendingProfileKeyAction) GetDeletedUserId() []byte {
@@ -1932,7 +1932,7 @@ type GroupChange_Actions_PromoteMemberPendingProfileKeyAction struct {
 
 func (x *GroupChange_Actions_PromoteMemberPendingProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_PromoteMemberPendingProfileKeyAction{}
-	mi := &file_Groups_proto_msgTypes[24]
+	mi := &file_signalpb_Groups_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1944,7 +1944,7 @@ func (x *GroupChange_Actions_PromoteMemberPendingProfileKeyAction) String() stri
 func (*GroupChange_Actions_PromoteMemberPendingProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_PromoteMemberPendingProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[24]
+	mi := &file_signalpb_Groups_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1957,7 +1957,7 @@ func (x *GroupChange_Actions_PromoteMemberPendingProfileKeyAction) ProtoReflect(
 
 // Deprecated: Use GroupChange_Actions_PromoteMemberPendingProfileKeyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_PromoteMemberPendingProfileKeyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 7}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 7}
 }
 
 func (x *GroupChange_Actions_PromoteMemberPendingProfileKeyAction) GetPresentation() []byte {
@@ -1993,7 +1993,7 @@ type GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction struct {
 
 func (x *GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) Reset() {
 	*x = GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction{}
-	mi := &file_Groups_proto_msgTypes[25]
+	mi := &file_signalpb_Groups_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2005,7 +2005,7 @@ func (x *GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) String(
 func (*GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[25]
+	mi := &file_signalpb_Groups_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2018,7 +2018,7 @@ func (x *GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) ProtoRe
 
 // Deprecated: Use GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 8}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 8}
 }
 
 func (x *GroupChange_Actions_PromoteMemberPendingPniAciProfileKeyAction) GetPresentation() []byte {
@@ -2058,7 +2058,7 @@ type GroupChange_Actions_AddMemberPendingAdminApprovalAction struct {
 
 func (x *GroupChange_Actions_AddMemberPendingAdminApprovalAction) Reset() {
 	*x = GroupChange_Actions_AddMemberPendingAdminApprovalAction{}
-	mi := &file_Groups_proto_msgTypes[26]
+	mi := &file_signalpb_Groups_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2070,7 +2070,7 @@ func (x *GroupChange_Actions_AddMemberPendingAdminApprovalAction) String() strin
 func (*GroupChange_Actions_AddMemberPendingAdminApprovalAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddMemberPendingAdminApprovalAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[26]
+	mi := &file_signalpb_Groups_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2083,7 +2083,7 @@ func (x *GroupChange_Actions_AddMemberPendingAdminApprovalAction) ProtoReflect()
 
 // Deprecated: Use GroupChange_Actions_AddMemberPendingAdminApprovalAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_AddMemberPendingAdminApprovalAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 9}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 9}
 }
 
 func (x *GroupChange_Actions_AddMemberPendingAdminApprovalAction) GetAdded() *MemberPendingAdminApproval {
@@ -2102,7 +2102,7 @@ type GroupChange_Actions_DeleteMemberPendingAdminApprovalAction struct {
 
 func (x *GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) Reset() {
 	*x = GroupChange_Actions_DeleteMemberPendingAdminApprovalAction{}
-	mi := &file_Groups_proto_msgTypes[27]
+	mi := &file_signalpb_Groups_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2114,7 +2114,7 @@ func (x *GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) String() st
 func (*GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[27]
+	mi := &file_signalpb_Groups_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2127,7 +2127,7 @@ func (x *GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) ProtoReflec
 
 // Deprecated: Use GroupChange_Actions_DeleteMemberPendingAdminApprovalAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 10}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 10}
 }
 
 func (x *GroupChange_Actions_DeleteMemberPendingAdminApprovalAction) GetDeletedUserId() []byte {
@@ -2147,7 +2147,7 @@ type GroupChange_Actions_PromoteMemberPendingAdminApprovalAction struct {
 
 func (x *GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) Reset() {
 	*x = GroupChange_Actions_PromoteMemberPendingAdminApprovalAction{}
-	mi := &file_Groups_proto_msgTypes[28]
+	mi := &file_signalpb_Groups_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2159,7 +2159,7 @@ func (x *GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) String() s
 func (*GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[28]
+	mi := &file_signalpb_Groups_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2172,7 +2172,7 @@ func (x *GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) ProtoRefle
 
 // Deprecated: Use GroupChange_Actions_PromoteMemberPendingAdminApprovalAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 11}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 11}
 }
 
 func (x *GroupChange_Actions_PromoteMemberPendingAdminApprovalAction) GetUserId() []byte {
@@ -2198,7 +2198,7 @@ type GroupChange_Actions_AddMemberBannedAction struct {
 
 func (x *GroupChange_Actions_AddMemberBannedAction) Reset() {
 	*x = GroupChange_Actions_AddMemberBannedAction{}
-	mi := &file_Groups_proto_msgTypes[29]
+	mi := &file_signalpb_Groups_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2210,7 +2210,7 @@ func (x *GroupChange_Actions_AddMemberBannedAction) String() string {
 func (*GroupChange_Actions_AddMemberBannedAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_AddMemberBannedAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[29]
+	mi := &file_signalpb_Groups_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2223,7 +2223,7 @@ func (x *GroupChange_Actions_AddMemberBannedAction) ProtoReflect() protoreflect.
 
 // Deprecated: Use GroupChange_Actions_AddMemberBannedAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_AddMemberBannedAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 12}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 12}
 }
 
 func (x *GroupChange_Actions_AddMemberBannedAction) GetAdded() *MemberBanned {
@@ -2242,7 +2242,7 @@ type GroupChange_Actions_DeleteMemberBannedAction struct {
 
 func (x *GroupChange_Actions_DeleteMemberBannedAction) Reset() {
 	*x = GroupChange_Actions_DeleteMemberBannedAction{}
-	mi := &file_Groups_proto_msgTypes[30]
+	mi := &file_signalpb_Groups_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2254,7 +2254,7 @@ func (x *GroupChange_Actions_DeleteMemberBannedAction) String() string {
 func (*GroupChange_Actions_DeleteMemberBannedAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_DeleteMemberBannedAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[30]
+	mi := &file_signalpb_Groups_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2267,7 +2267,7 @@ func (x *GroupChange_Actions_DeleteMemberBannedAction) ProtoReflect() protorefle
 
 // Deprecated: Use GroupChange_Actions_DeleteMemberBannedAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_DeleteMemberBannedAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 13}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 13}
 }
 
 func (x *GroupChange_Actions_DeleteMemberBannedAction) GetDeletedUserId() []byte {
@@ -2286,7 +2286,7 @@ type GroupChange_Actions_ModifyTitleAction struct {
 
 func (x *GroupChange_Actions_ModifyTitleAction) Reset() {
 	*x = GroupChange_Actions_ModifyTitleAction{}
-	mi := &file_Groups_proto_msgTypes[31]
+	mi := &file_signalpb_Groups_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2298,7 +2298,7 @@ func (x *GroupChange_Actions_ModifyTitleAction) String() string {
 func (*GroupChange_Actions_ModifyTitleAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyTitleAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[31]
+	mi := &file_signalpb_Groups_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2311,7 +2311,7 @@ func (x *GroupChange_Actions_ModifyTitleAction) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GroupChange_Actions_ModifyTitleAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyTitleAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 14}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 14}
 }
 
 func (x *GroupChange_Actions_ModifyTitleAction) GetTitle() []byte {
@@ -2330,7 +2330,7 @@ type GroupChange_Actions_ModifyDescriptionAction struct {
 
 func (x *GroupChange_Actions_ModifyDescriptionAction) Reset() {
 	*x = GroupChange_Actions_ModifyDescriptionAction{}
-	mi := &file_Groups_proto_msgTypes[32]
+	mi := &file_signalpb_Groups_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2342,7 +2342,7 @@ func (x *GroupChange_Actions_ModifyDescriptionAction) String() string {
 func (*GroupChange_Actions_ModifyDescriptionAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyDescriptionAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[32]
+	mi := &file_signalpb_Groups_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2355,7 +2355,7 @@ func (x *GroupChange_Actions_ModifyDescriptionAction) ProtoReflect() protoreflec
 
 // Deprecated: Use GroupChange_Actions_ModifyDescriptionAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyDescriptionAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 15}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 15}
 }
 
 func (x *GroupChange_Actions_ModifyDescriptionAction) GetDescription() []byte {
@@ -2374,7 +2374,7 @@ type GroupChange_Actions_ModifyAvatarAction struct {
 
 func (x *GroupChange_Actions_ModifyAvatarAction) Reset() {
 	*x = GroupChange_Actions_ModifyAvatarAction{}
-	mi := &file_Groups_proto_msgTypes[33]
+	mi := &file_signalpb_Groups_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2386,7 +2386,7 @@ func (x *GroupChange_Actions_ModifyAvatarAction) String() string {
 func (*GroupChange_Actions_ModifyAvatarAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAvatarAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[33]
+	mi := &file_signalpb_Groups_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2399,7 +2399,7 @@ func (x *GroupChange_Actions_ModifyAvatarAction) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GroupChange_Actions_ModifyAvatarAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyAvatarAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 16}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 16}
 }
 
 func (x *GroupChange_Actions_ModifyAvatarAction) GetAvatar() string {
@@ -2418,7 +2418,7 @@ type GroupChange_Actions_ModifyDisappearingMessageTimerAction struct {
 
 func (x *GroupChange_Actions_ModifyDisappearingMessageTimerAction) Reset() {
 	*x = GroupChange_Actions_ModifyDisappearingMessageTimerAction{}
-	mi := &file_Groups_proto_msgTypes[34]
+	mi := &file_signalpb_Groups_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2430,7 +2430,7 @@ func (x *GroupChange_Actions_ModifyDisappearingMessageTimerAction) String() stri
 func (*GroupChange_Actions_ModifyDisappearingMessageTimerAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyDisappearingMessageTimerAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[34]
+	mi := &file_signalpb_Groups_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2443,7 +2443,7 @@ func (x *GroupChange_Actions_ModifyDisappearingMessageTimerAction) ProtoReflect(
 
 // Deprecated: Use GroupChange_Actions_ModifyDisappearingMessageTimerAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyDisappearingMessageTimerAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 17}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 17}
 }
 
 func (x *GroupChange_Actions_ModifyDisappearingMessageTimerAction) GetTimer() []byte {
@@ -2462,7 +2462,7 @@ type GroupChange_Actions_ModifyAttributesAccessControlAction struct {
 
 func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyAttributesAccessControlAction{}
-	mi := &file_Groups_proto_msgTypes[35]
+	mi := &file_signalpb_Groups_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2474,7 +2474,7 @@ func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) String() strin
 func (*GroupChange_Actions_ModifyAttributesAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[35]
+	mi := &file_signalpb_Groups_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2487,7 +2487,7 @@ func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) ProtoReflect()
 
 // Deprecated: Use GroupChange_Actions_ModifyAttributesAccessControlAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyAttributesAccessControlAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 18}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 18}
 }
 
 func (x *GroupChange_Actions_ModifyAttributesAccessControlAction) GetAttributesAccess() AccessControl_AccessRequired {
@@ -2506,7 +2506,7 @@ type GroupChange_Actions_ModifyMembersAccessControlAction struct {
 
 func (x *GroupChange_Actions_ModifyMembersAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyMembersAccessControlAction{}
-	mi := &file_Groups_proto_msgTypes[36]
+	mi := &file_signalpb_Groups_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2518,7 +2518,7 @@ func (x *GroupChange_Actions_ModifyMembersAccessControlAction) String() string {
 func (*GroupChange_Actions_ModifyMembersAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMembersAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[36]
+	mi := &file_signalpb_Groups_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2531,7 +2531,7 @@ func (x *GroupChange_Actions_ModifyMembersAccessControlAction) ProtoReflect() pr
 
 // Deprecated: Use GroupChange_Actions_ModifyMembersAccessControlAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyMembersAccessControlAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 19}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 19}
 }
 
 func (x *GroupChange_Actions_ModifyMembersAccessControlAction) GetMembersAccess() AccessControl_AccessRequired {
@@ -2550,7 +2550,7 @@ type GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction struct {
 
 func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction{}
-	mi := &file_Groups_proto_msgTypes[37]
+	mi := &file_signalpb_Groups_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2562,7 +2562,7 @@ func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) String(
 func (*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[37]
+	mi := &file_signalpb_Groups_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2575,7 +2575,7 @@ func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) ProtoRe
 
 // Deprecated: Use GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 20}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 20}
 }
 
 func (x *GroupChange_Actions_ModifyAddFromInviteLinkAccessControlAction) GetAddFromInviteLinkAccess() AccessControl_AccessRequired {
@@ -2594,7 +2594,7 @@ type GroupChange_Actions_ModifyMemberLabelAccessControlAction struct {
 
 func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) Reset() {
 	*x = GroupChange_Actions_ModifyMemberLabelAccessControlAction{}
-	mi := &file_Groups_proto_msgTypes[38]
+	mi := &file_signalpb_Groups_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2606,7 +2606,7 @@ func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) String() stri
 func (*GroupChange_Actions_ModifyMemberLabelAccessControlAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[38]
+	mi := &file_signalpb_Groups_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2619,7 +2619,7 @@ func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) ProtoReflect(
 
 // Deprecated: Use GroupChange_Actions_ModifyMemberLabelAccessControlAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyMemberLabelAccessControlAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 21}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 21}
 }
 
 func (x *GroupChange_Actions_ModifyMemberLabelAccessControlAction) GetMemberLabelAccess() AccessControl_AccessRequired {
@@ -2638,7 +2638,7 @@ type GroupChange_Actions_ModifyInviteLinkPasswordAction struct {
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) Reset() {
 	*x = GroupChange_Actions_ModifyInviteLinkPasswordAction{}
-	mi := &file_Groups_proto_msgTypes[39]
+	mi := &file_signalpb_Groups_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2650,7 +2650,7 @@ func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) String() string {
 func (*GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[39]
+	mi := &file_signalpb_Groups_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2663,7 +2663,7 @@ func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) ProtoReflect() prot
 
 // Deprecated: Use GroupChange_Actions_ModifyInviteLinkPasswordAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyInviteLinkPasswordAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 22}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 22}
 }
 
 func (x *GroupChange_Actions_ModifyInviteLinkPasswordAction) GetInviteLinkPassword() []byte {
@@ -2682,7 +2682,7 @@ type GroupChange_Actions_ModifyAnnouncementsOnlyAction struct {
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) Reset() {
 	*x = GroupChange_Actions_ModifyAnnouncementsOnlyAction{}
-	mi := &file_Groups_proto_msgTypes[40]
+	mi := &file_signalpb_Groups_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2694,7 +2694,7 @@ func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) String() string {
 func (*GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[40]
+	mi := &file_signalpb_Groups_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2707,7 +2707,7 @@ func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) ProtoReflect() proto
 
 // Deprecated: Use GroupChange_Actions_ModifyAnnouncementsOnlyAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_ModifyAnnouncementsOnlyAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 23}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 23}
 }
 
 func (x *GroupChange_Actions_ModifyAnnouncementsOnlyAction) GetAnnouncementsOnly() bool {
@@ -2725,7 +2725,7 @@ type GroupChange_Actions_TerminateGroupAction struct {
 
 func (x *GroupChange_Actions_TerminateGroupAction) Reset() {
 	*x = GroupChange_Actions_TerminateGroupAction{}
-	mi := &file_Groups_proto_msgTypes[41]
+	mi := &file_signalpb_Groups_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2737,7 +2737,7 @@ func (x *GroupChange_Actions_TerminateGroupAction) String() string {
 func (*GroupChange_Actions_TerminateGroupAction) ProtoMessage() {}
 
 func (x *GroupChange_Actions_TerminateGroupAction) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[41]
+	mi := &file_signalpb_Groups_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2750,7 +2750,7 @@ func (x *GroupChange_Actions_TerminateGroupAction) ProtoReflect() protoreflect.M
 
 // Deprecated: Use GroupChange_Actions_TerminateGroupAction.ProtoReflect.Descriptor instead.
 func (*GroupChange_Actions_TerminateGroupAction) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{10, 0, 24}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{10, 0, 24}
 }
 
 type GroupChanges_GroupChangeState struct {
@@ -2763,7 +2763,7 @@ type GroupChanges_GroupChangeState struct {
 
 func (x *GroupChanges_GroupChangeState) Reset() {
 	*x = GroupChanges_GroupChangeState{}
-	mi := &file_Groups_proto_msgTypes[42]
+	mi := &file_signalpb_Groups_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2775,7 +2775,7 @@ func (x *GroupChanges_GroupChangeState) String() string {
 func (*GroupChanges_GroupChangeState) ProtoMessage() {}
 
 func (x *GroupChanges_GroupChangeState) ProtoReflect() protoreflect.Message {
-	mi := &file_Groups_proto_msgTypes[42]
+	mi := &file_signalpb_Groups_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2788,7 +2788,7 @@ func (x *GroupChanges_GroupChangeState) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GroupChanges_GroupChangeState.ProtoReflect.Descriptor instead.
 func (*GroupChanges_GroupChangeState) Descriptor() ([]byte, []int) {
-	return file_Groups_proto_rawDescGZIP(), []int{13, 0}
+	return file_signalpb_Groups_proto_rawDescGZIP(), []int{13, 0}
 }
 
 func (x *GroupChanges_GroupChangeState) GetGroupChange() *GroupChange {
@@ -2805,11 +2805,11 @@ func (x *GroupChanges_GroupChangeState) GetGroupState() *Group {
 	return nil
 }
 
-var File_Groups_proto protoreflect.FileDescriptor
+var File_signalpb_Groups_proto protoreflect.FileDescriptor
 
-const file_Groups_proto_rawDesc = "" +
+const file_signalpb_Groups_proto_rawDesc = "" +
 	"\n" +
-	"\fGroups.proto\x12\x06signal\"\xc4\x01\n" +
+	"\x15signalpb/Groups.proto\x12\x06signal\"\xc4\x01\n" +
 	"\x16AvatarUploadAttributes\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1e\n" +
 	"\n" +
@@ -3027,20 +3027,20 @@ const file_Groups_proto_rawDesc = "" +
 	"/org.signal.storageservice.storage.protos.groupsB\vGroupProtosP\x01b\x06proto3"
 
 var (
-	file_Groups_proto_rawDescOnce sync.Once
-	file_Groups_proto_rawDescData []byte
+	file_signalpb_Groups_proto_rawDescOnce sync.Once
+	file_signalpb_Groups_proto_rawDescData []byte
 )
 
-func file_Groups_proto_rawDescGZIP() []byte {
-	file_Groups_proto_rawDescOnce.Do(func() {
-		file_Groups_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_Groups_proto_rawDesc), len(file_Groups_proto_rawDesc)))
+func file_signalpb_Groups_proto_rawDescGZIP() []byte {
+	file_signalpb_Groups_proto_rawDescOnce.Do(func() {
+		file_signalpb_Groups_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_signalpb_Groups_proto_rawDesc), len(file_signalpb_Groups_proto_rawDesc)))
 	})
-	return file_Groups_proto_rawDescData
+	return file_signalpb_Groups_proto_rawDescData
 }
 
-var file_Groups_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_Groups_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
-var file_Groups_proto_goTypes = []any{
+var file_signalpb_Groups_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_signalpb_Groups_proto_msgTypes = make([]protoimpl.MessageInfo, 43)
+var file_signalpb_Groups_proto_goTypes = []any{
 	(Member_Role)(0),                                                       // 0: signal.Member.Role
 	(AccessControl_AccessRequired)(0),                                      // 1: signal.AccessControl.AccessRequired
 	(*AvatarUploadAttributes)(nil),                                         // 2: signal.AvatarUploadAttributes
@@ -3087,7 +3087,7 @@ var file_Groups_proto_goTypes = []any{
 	(*GroupChange_Actions_TerminateGroupAction)(nil),                       // 43: signal.GroupChange.Actions.TerminateGroupAction
 	(*GroupChanges_GroupChangeState)(nil),                                  // 44: signal.GroupChanges.GroupChangeState
 }
-var file_Groups_proto_depIdxs = []int32{
+var file_signalpb_Groups_proto_depIdxs = []int32{
 	0,  // 0: signal.Member.role:type_name -> signal.Member.Role
 	3,  // 1: signal.MemberPendingProfileKey.member:type_name -> signal.Member
 	1,  // 2: signal.AccessControl.attributes:type_name -> signal.AccessControl.AccessRequired
@@ -3148,36 +3148,36 @@ var file_Groups_proto_depIdxs = []int32{
 	0,  // [0:53] is the sub-list for field type_name
 }
 
-func init() { file_Groups_proto_init() }
-func file_Groups_proto_init() {
-	if File_Groups_proto != nil {
+func init() { file_signalpb_Groups_proto_init() }
+func file_signalpb_Groups_proto_init() {
+	if File_signalpb_Groups_proto != nil {
 		return
 	}
-	file_Groups_proto_msgTypes[7].OneofWrappers = []any{
+	file_signalpb_Groups_proto_msgTypes[7].OneofWrappers = []any{
 		(*GroupAttributeBlob_Title)(nil),
 		(*GroupAttributeBlob_Avatar)(nil),
 		(*GroupAttributeBlob_DisappearingMessagesDuration)(nil),
 		(*GroupAttributeBlob_DescriptionText)(nil),
 	}
-	file_Groups_proto_msgTypes[8].OneofWrappers = []any{
+	file_signalpb_Groups_proto_msgTypes[8].OneofWrappers = []any{
 		(*GroupInviteLink_ContentsV1)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_Groups_proto_rawDesc), len(file_Groups_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_signalpb_Groups_proto_rawDesc), len(file_signalpb_Groups_proto_rawDesc)),
 			NumEnums:      2,
 			NumMessages:   43,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_Groups_proto_goTypes,
-		DependencyIndexes: file_Groups_proto_depIdxs,
-		EnumInfos:         file_Groups_proto_enumTypes,
-		MessageInfos:      file_Groups_proto_msgTypes,
+		GoTypes:           file_signalpb_Groups_proto_goTypes,
+		DependencyIndexes: file_signalpb_Groups_proto_depIdxs,
+		EnumInfos:         file_signalpb_Groups_proto_enumTypes,
+		MessageInfos:      file_signalpb_Groups_proto_msgTypes,
 	}.Build()
-	File_Groups_proto = out.File
-	file_Groups_proto_goTypes = nil
-	file_Groups_proto_depIdxs = nil
+	File_signalpb_Groups_proto = out.File
+	file_signalpb_Groups_proto_goTypes = nil
+	file_signalpb_Groups_proto_depIdxs = nil
 }
