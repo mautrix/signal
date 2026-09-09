@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exerrors"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
@@ -57,8 +58,15 @@ var CDNHosts = []string{
 
 //go:embed signal-root.crt.der
 var signalRootCertBytes []byte
+
+//go:embed signal-root-ed25519.crt.der
+var signalEd25519CertBytes []byte
+
 var SignalCertPool = x509.NewCertPool()
-var SignalTLSConfig = &tls.Config{RootCAs: SignalCertPool}
+var SignalTLSConfig = &tls.Config{
+	RootCAs:    SignalCertPool,
+	MinVersion: tls.VersionTLS13,
+}
 var signalTransport = &http.Transport{
 	ForceAttemptHTTP2: true,
 	TLSClientConfig:   SignalTLSConfig,
@@ -68,11 +76,8 @@ var SignalHTTPClient = &http.Client{
 }
 
 func init() {
-	cert, err := x509.ParseCertificate(signalRootCertBytes)
-	if err != nil {
-		panic(err)
-	}
-	SignalCertPool.AddCert(cert)
+	SignalCertPool.AddCert(exerrors.Must(x509.ParseCertificate(signalRootCertBytes)))
+	SignalCertPool.AddCert(exerrors.Must(x509.ParseCertificate(signalEd25519CertBytes)))
 }
 
 type ContentType string

@@ -84,6 +84,10 @@ func (cli *Client) startWebsocketsInternal(
 	loopCtx context.Context, loopCancel context.CancelFunc,
 	err error,
 ) {
+	cli.GRPC, err = web.NewGRPCClient(cli.Store.BasicAuthCreds())
+	if err != nil {
+		return
+	}
 	loopCtx, loopCancel = context.WithCancel(ctx)
 	unauthChan, err = cli.connectUnauthedWS(loopCtx)
 	if err != nil {
@@ -283,26 +287,23 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 func (cli *Client) ForceReconnect() {
 	cli.AuthedWS.ForceReconnect()
 	cli.UnauthedWS.ForceReconnect()
+	cli.GRPC.ResetConnectBackoff()
 }
 
 func (cli *Client) StopReceiveLoops() error {
 	defer func() {
 		cli.AuthedWS = nil
 		cli.UnauthedWS = nil
+		cli.GRPC = nil
 	}()
 	authErr := cli.AuthedWS.Close()
 	unauthErr := cli.UnauthedWS.Close()
+	grpcErr := cli.GRPC.Close()
 	if cli.loopCancel != nil {
 		cli.loopCancel()
 		cli.loopWg.Wait()
 	}
-	if authErr != nil {
-		return authErr
-	}
-	if unauthErr != nil {
-		return unauthErr
-	}
-	return nil
+	return errors.Join(authErr, unauthErr, grpcErr)
 }
 
 func (cli *Client) LastConnectionStatus() SignalConnectionStatus {
@@ -318,13 +319,7 @@ func (cli *Client) ClearKeysAndDisconnect(ctx context.Context) error {
 	clearErr2 := cli.Store.ClearPassword(ctx)
 	stopLoopErr := cli.StopReceiveLoops()
 
-	if clearErr != nil {
-		return clearErr
-	}
-	if clearErr2 != nil {
-		return clearErr2
-	}
-	return stopLoopErr
+	return errors.Join(clearErr, clearErr2, stopLoopErr)
 }
 
 func (cli *Client) incomingRequestHandler(ctx context.Context, req *signalpb.WebSocketRequestMessage) (*web.SimpleResponse, error) {

@@ -55,6 +55,7 @@ type Client struct {
 
 	AuthedWS             *web.SignalWebsocket
 	UnauthedWS           *web.SignalWebsocket
+	GRPC                 *web.GRPCClient
 	lastConnectionStatus SignalConnectionStatus
 
 	loopCancel context.CancelFunc
