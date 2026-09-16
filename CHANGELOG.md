@@ -1,4 +1,4 @@
-# v26.09 (unreleased)
+# v26.09
 
 * Bumped minimum Go version to 1.26.
 * Updated libsignal to v1.102.2.
