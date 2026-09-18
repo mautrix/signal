@@ -133,7 +133,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				callbackCount = 0
 			case nextTS := <-cbc:
 				if callbackCount >= 4 && time.Since(writeCallbackTimer) > 1*time.Minute {
-					err := cli.Store.EventBuffer.DeleteBufferedEventsOlderThan(ctx, writeCallbackTimer)
+					err := cli.Store.EventBuffer.DeleteBufferedEventsOlderThan(loopCtx, writeCallbackTimer)
 					if err != nil {
 						log.Err(err).Msg("Failed to delete old buffered event hashes")
 					}
@@ -244,8 +244,14 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			}
 			if statusToSend.Event != 0 && statusToSend.Event != cli.lastConnectionStatus.Event {
 				log.Info().Any("status_to_send", statusToSend).Msg("Sending connection status")
-				statusChan <- statusToSend
-				cli.lastConnectionStatus = statusToSend
+				// Select on the context so a full statusChan cannot block this loop,
+				// and with it loopWg, after the loop context is done.
+				select {
+				case <-loopCtx.Done():
+					return
+				case statusChan <- statusToSend:
+					cli.lastConnectionStatus = statusToSend
+				}
 			}
 		}
 	}()
@@ -259,18 +265,16 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			return
 		case <-initialConnectChan:
 			log.Info().Msg("Both websockets connected, sending contacts sync request")
-			err = cli.RegisterCapabilities(ctx)
+			err = cli.RegisterCapabilities(loopCtx)
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
 			} else {
 				zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
 			}
-			// Start loop to check for and upload more prekeys
-			cli.loopWg.Add(1)
-			go func() {
-				defer cli.loopWg.Done()
-				cli.keyCheckLoop(loopCtx)
-			}()
+			// Start loop to check for and upload more prekeys.
+			// Deliberately not tracked in loopWg: it is bounded by loopCtx, and it may
+			// call StopReceiveLoops (on PNI prekey 422), which must not wait on it.
+			go cli.keyCheckLoop(loopCtx)
 			// TODO hacky
 			if cli.SyncContactsOnConnect {
 				cli.SendContactSyncRequest(loopCtx)
