@@ -244,8 +244,6 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			}
 			if statusToSend.Event != 0 && statusToSend.Event != cli.lastConnectionStatus.Event {
 				log.Info().Any("status_to_send", statusToSend).Msg("Sending connection status")
-				// Select on the context so a full statusChan cannot block this loop,
-				// and with it loopWg, after the loop context is done.
 				select {
 				case <-loopCtx.Done():
 					return
@@ -271,9 +269,8 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			} else {
 				zerolog.Ctx(ctx).Debug().Msg("Successfully registered capabilities")
 			}
-			// Start loop to check for and upload more prekeys.
-			// Deliberately not tracked in loopWg: it is bounded by loopCtx, and it may
-			// call StopReceiveLoops (on PNI prekey 422), which must not wait on it.
+			// Start loop to check for and upload more prekeys. Not included in loopWg
+			// as it may call StopReceiveLoops which waits for the wait group.
 			go cli.keyCheckLoop(loopCtx)
 			// TODO hacky
 			if cli.SyncContactsOnConnect {
