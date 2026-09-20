@@ -534,12 +534,7 @@ func (cli *Client) handleDecryptedResult(
 		if err != nil {
 			log.Warn().Err(err).Msg("Failed to unmarshal decryption error message")
 		} else {
-			go func() {
-				err := cli.handleRetryRequest(ctx, result, dem)
-				if err != nil {
-					log.Err(err).Msg("Failed to handle decryption error message in background")
-				}
-			}()
+			go cli.tryHandleRetryRequest(ctx, result, dem)
 		}
 		return
 	} else if result.Unencrypted {
