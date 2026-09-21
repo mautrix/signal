@@ -45,12 +45,6 @@ var m = mxmain.BridgeMain{
 
 func main() {
 	web.UserAgent = fmt.Sprintf("mautrix-signal/%s %s", m.Version, web.BaseUserAgent)
-	m.PostStart = func() {
-		if m.Matrix.Provisioning != nil {
-			m.Matrix.Provisioning.Router.HandleFunc("GET /v2/resolve_identifier/{phonenum}", legacyProvResolveIdentifier)
-			m.Matrix.Provisioning.Router.HandleFunc("POST /v2/pm/{phonenum}", legacyProvPM)
-		}
-	}
 	m.InitVersion(Tag, Commit, BuildTime)
 	m.Run()
 }
