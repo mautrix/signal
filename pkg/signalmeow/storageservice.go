@@ -45,11 +45,11 @@ import (
 // A sync that is already waiting to start will see whatever change triggered this call.
 func (cli *Client) QueueStorageSync(ctx context.Context) {
 	if cli.storageSyncQueued.CompareAndSwap(false, true) {
-		go cli.SyncStorage(ctx)
+		go cli.StorageSync(ctx)
 	}
 }
 
-func (cli *Client) SyncStorage(ctx context.Context) {
+func (cli *Client) StorageSync(ctx context.Context) {
 	cli.storageSyncLock.Lock()
 	defer cli.storageSyncLock.Unlock()
 	cli.storageSyncQueued.Store(false)
