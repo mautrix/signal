@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -68,6 +69,9 @@ type Client struct {
 	cdAuthLock      sync.Mutex
 	cdAuth          *basicExpiringCredentials
 	cdToken         []byte
+
+	storageSyncLock   sync.Mutex
+	storageSyncQueued atomic.Bool
 
 	writeCallbackCounter chan time.Time
 }
