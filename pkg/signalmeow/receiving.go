@@ -713,13 +713,13 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			log.Err(err).Msg("Failed to save device after receiving master key")
 		} else {
 			log.Info().Msg("Received master key")
-			go cli.SyncStorage(ctx)
+			cli.QueueStorageSync(ctx)
 		}
 	case *signalpb.SyncMessage_FetchLatest_:
 		switch content.FetchLatest.GetType() {
 		case signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST:
 			log.Debug().Msg("Received storage manifest fetch latest notice")
-			go cli.SyncStorage(ctx)
+			cli.QueueStorageSync(ctx)
 		default:
 			log.Debug().
 				Stringer("fetch_latest_type", content.FetchLatest.GetType()).
