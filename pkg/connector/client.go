@@ -48,7 +48,10 @@ type SignalClient struct {
 	// pendingMarkedUnread and UserLogin.Metadata's MarkedUnreadCheckpoints
 	// map, which are mutated from the storage sync goroutine, from portal
 	// event loop goroutines (via simplevent.EventMeta.PostHandleFunc), and
-	// from handleSignalACIFound on portal re-ID.
+	// from handleSignalACIFound on portal re-ID. Every UserLogin.Save in
+	// this connector must also hold it: Save marshals the checkpoint map,
+	// even when saving unrelated metadata, so an unlocked Save can race a
+	// checkpoint write and crash on concurrent map read/write.
 	markedUnreadLock sync.Mutex
 	// pendingMarkedUnread tracks values that have been queued via
 	// QueueRemoteEvent but not yet confirmed by PostHandleFunc, keyed by

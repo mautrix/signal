@@ -800,8 +800,10 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			}
 		}
 	}
+	s.markedUnreadLock.Lock()
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).LastContactSync = jsontime.UnixMilliNow()
 	err := s.UserLogin.Save(ctx)
+	s.markedUnreadLock.Unlock()
 	if err != nil {
 		log.Err(err).Msg("Failed to update last contact sync time")
 	}
@@ -1040,7 +1042,9 @@ func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool
 		}
 	}
 	if changed {
+		s.markedUnreadLock.Lock()
 		err = s.UserLogin.Save(ctx)
+		s.markedUnreadLock.Unlock()
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to save updated remote profile")
 		}
