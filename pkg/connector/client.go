@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +43,22 @@ type SignalClient struct {
 
 	queueEmptyWaiter *exsync.Event
 	cancelChatSync   atomic.Pointer[context.CancelFunc]
+
+	// markedUnreadLock guards read-modify-write access to both
+	// pendingMarkedUnread and UserLogin.Metadata's MarkedUnreadCheckpoints
+	// map, which are mutated from the storage sync goroutine, from portal
+	// event loop goroutines (via simplevent.EventMeta.PostHandleFunc), and
+	// from handleSignalACIFound on portal re-ID.
+	markedUnreadLock sync.Mutex
+	// pendingMarkedUnread tracks values that have been queued via
+	// QueueRemoteEvent but not yet confirmed by PostHandleFunc, keyed by
+	// portal ID. It exists so a second storage sync that observes the same
+	// value before the first one's PostHandleFunc has run doesn't queue a
+	// duplicate MarkUnread event. It is intentionally not persisted: losing
+	// it across a restart only risks one redundant duplicate queue, not an
+	// incorrect final state, since UserLoginMetadata.MarkedUnreadCheckpoints
+	// alone is still authoritative for the baseline/first-observation rule.
+	pendingMarkedUnread map[networkid.PortalID]bool
 }
 
 var (
@@ -347,6 +364,17 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, noLoginSy
 					s.UserLogin.Log.Warn().Msg("No master key for storage sync before backup sync")
 				}
 				s.syncChats(syncCtx, cancel)
+				if s.Client.Store.MasterKey != nil {
+					// On a fresh link, the StorageSync call above ran before
+					// syncChats created any portals, so
+					// handleSignalMarkedUnreadSync's existing-portal-only
+					// check dropped every markedUnread observation for the
+					// backed-up chats. Queue one follow-up sync now that
+					// portals for them exist so those observations get
+					// reconciled. QueueStorageSync coalesces with any sync
+					// already queued by a concurrent notice.
+					s.Client.QueueStorageSync(ctx)
+				}
 			}()
 		} else {
 			cancel()

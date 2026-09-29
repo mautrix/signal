@@ -18,6 +18,7 @@ package signalid
 
 import (
 	"go.mau.fi/util/jsontime"
+	"maunium.net/go/mautrix/bridgev2/networkid"
 )
 
 type PortalMetadata struct {
@@ -36,6 +37,17 @@ type MessageMetadata struct {
 type UserLoginMetadata struct {
 	ChatsSynced     bool               `json:"chats_synced,omitempty"`
 	LastContactSync jsontime.UnixMilli `json:"last_contact_sync,omitempty"`
+	// MarkedUnreadCheckpoints is the last Signal Storage Service markedUnread
+	// value this login has bridged (or established as a baseline from) for
+	// each portal, keyed by portal ID. A missing key means no storage
+	// service record has been observed yet for that portal by this login.
+	//
+	// This is kept per-login rather than on PortalMetadata because a Group
+	// V2 portal can be shared by multiple logins when split_portals is
+	// disabled; each login's Storage Service state (and double puppet used
+	// to apply it) is independent, so a shared portal-level checkpoint would
+	// let one login's sync state clobber another's.
+	MarkedUnreadCheckpoints map[networkid.PortalID]bool `json:"marked_unread_checkpoints,omitempty"`
 }
 
 type GhostMetadata struct {
