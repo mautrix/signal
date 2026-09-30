@@ -54,10 +54,23 @@ type SignalClient struct {
 	// checkpoint write and crash on concurrent map read/write.
 	markedUnreadLock sync.Mutex
 	// pendingMarkedUnread tracks queued values by portal room generation.
-	// A PostHandleFunc captures this key; re-ID must leave the old pending
-	// entry there so an in-flight callback can clear its own attempt.
-	// It is not persisted; the stored checkpoint remains authoritative.
-	pendingMarkedUnread map[string]bool
+	// Pointer identity distinguishes successive attempts for a key even when
+	// the desired value changes and later changes back (ABA). It is not
+	// persisted; the stored checkpoint remains authoritative after a restart.
+	pendingMarkedUnread map[string]*pendingMarkedUnreadState
+	// markedUnreadSeq is a monotonic counter assigned to each observation
+	// that becomes pending. markedUnreadLatestSeq records, per checkpoint
+	// key, the highest seq ever assigned there (including keys a re-ID has
+	// since migrated away from). A completion whose seq is behind that
+	// record is stale — a newer observation for the same room has already
+	// superseded it — and must not overwrite the checkpoint with its value.
+	markedUnreadSeq       uint64
+	markedUnreadLatestSeq map[string]uint64
+}
+
+type pendingMarkedUnreadState struct {
+	unread bool
+	seq    uint64
 }
 
 var (
