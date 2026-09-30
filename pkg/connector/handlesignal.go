@@ -1015,8 +1015,10 @@ func (s *SignalClient) handleSignalMarkedUnreadSync(evt *events.MarkedUnreadSync
 				LogContext: func(c zerolog.Context) zerolog.Context {
 					return c.Bool("marked_unread", markedUnread).Str("source", "storage service sync")
 				},
-				PostHandleFunc: func(ctx context.Context, _ *bridgev2.Portal) {
-					s.saveMarkedUnreadCheckpoint(ctx, checkpointKey, markedUnread)
+				PostHandleFunc: func(ctx context.Context, portal *bridgev2.Portal) {
+					if actualKey := markedUnreadPostHandleKey(portal); actualKey != "" {
+						s.saveMarkedUnreadCheckpoint(ctx, actualKey, markedUnread)
+					}
 					s.clearPendingMarkedUnread(checkpointKey, markedUnread)
 				},
 			},
@@ -1031,6 +1033,17 @@ func (s *SignalClient) handleSignalMarkedUnreadSync(evt *events.MarkedUnreadSync
 		}
 	}
 	s.saveMarkedUnreadBaselines(ctx, baselines)
+}
+
+// markedUnreadPostHandleKey identifies the room actually processed by the
+// portal, which may have been re-ID'd while the event was queued. If there
+// is no Matrix room, do not advance any checkpoint; the next storage sync
+// will retry. The captured pending key is cleared separately by the callback.
+func markedUnreadPostHandleKey(portal *bridgev2.Portal) string {
+	if portal == nil || portal.MXID == "" {
+		return ""
+	}
+	return markedUnreadCheckpointKey(portal.PortalKey.ID, string(portal.MXID))
 }
 
 func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool) {
