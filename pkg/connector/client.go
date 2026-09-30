@@ -53,15 +53,11 @@ type SignalClient struct {
 	// even when saving unrelated metadata, so an unlocked Save can race a
 	// checkpoint write and crash on concurrent map read/write.
 	markedUnreadLock sync.Mutex
-	// pendingMarkedUnread tracks values that have been queued via
-	// QueueRemoteEvent but not yet confirmed by PostHandleFunc, keyed by
-	// portal ID. It exists so a second storage sync that observes the same
-	// value before the first one's PostHandleFunc has run doesn't queue a
-	// duplicate MarkUnread event. It is intentionally not persisted: losing
-	// it across a restart only risks one redundant duplicate queue, not an
-	// incorrect final state, since UserLoginMetadata.MarkedUnreadCheckpoints
-	// alone is still authoritative for the baseline/first-observation rule.
-	pendingMarkedUnread map[networkid.PortalID]bool
+	// pendingMarkedUnread tracks queued values by portal room generation.
+	// A PostHandleFunc captures this key; re-ID must leave the old pending
+	// entry there so an in-flight callback can clear its own attempt.
+	// It is not persisted; the stored checkpoint remains authoritative.
+	pendingMarkedUnread map[string]bool
 }
 
 var (
