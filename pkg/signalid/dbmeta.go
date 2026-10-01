@@ -30,6 +30,7 @@ type PortalMetadata struct {
 type MessageMetadata struct {
 	ServerGUID          string            `json:"server_guid,omitempty"`
 	ReportingToken      []byte            `json:"reporting_token,omitempty"`
+	ViewOnce            bool              `json:"view_once,omitempty"`
 	ContainsAttachments bool              `json:"contains_attachments,omitempty"`
 	MatrixPollOptionIDs []string          `json:"matrix_poll_option_ids,omitempty"`
 	VoteCount           map[string]uint32 `json:"vote_count,omitempty"`

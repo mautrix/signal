@@ -52,7 +52,7 @@ var (
 )
 
 func calculateLength(dm *signalpb.DataMessage) int {
-	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
+	if dm.GetIsViewOnce() || dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		return 1
 	}
 	if dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil {
@@ -98,6 +98,35 @@ func (mc *MessageConverter) ToMatrix(
 		ThreadRoot: nil,
 		Parts:      make([]*bridgev2.ConvertedMessagePart, 0, calculateLength(dm)),
 	}
+	if dm.GetIsViewOnce() {
+		var unavailableReason string
+		if len(dm.GetAttachments()) == 0 || sender == client.Store.ACI || portal.Receiver == "" ||
+			!time.UnixMilli(int64(dm.GetTimestamp())).Add(45*24*time.Hour).After(time.Now()) {
+			unavailableReason = "View-once media is no longer available."
+		} else if len(dm.GetAttachments()) != 1 || dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil ||
+			len(dm.GetContact()) != 0 || dm.Payment != nil || dm.GiftBadge != nil || dm.GetBody() != "" || len(dm.Preview) != 0 || dm.Quote != nil || dm.GetFlags() != 0 {
+			unavailableReason = "Invalid view-once media message."
+		} else {
+			attachmentMime, _, _ := mime.ParseMediaType(dm.Attachments[0].GetContentType())
+			if attachmentMime != "" && !strings.HasPrefix(attachmentMime, "image/") && !strings.HasPrefix(attachmentMime, "video/") {
+				unavailableReason = "Invalid view-once media message."
+			} else {
+				opened, err := client.Store.ViewOnceStore.IsViewOnceOpened(ctx, sender, dm.GetTimestamp())
+				if err != nil {
+					zerolog.Ctx(ctx).Err(err).Msg("Failed to check view-once opened state")
+				}
+				if opened || err != nil {
+					unavailableReason = "View-once media is no longer available."
+				}
+			}
+		}
+		if unavailableReason != "" {
+			cm.Parts = []*bridgev2.ConvertedMessagePart{{Type: event.EventMessage, DBMetadata: &signalid.MessageMetadata{ViewOnce: true}, Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice, Body: unavailableReason,
+			}}}
+			return cm
+		}
+	}
 	if dm.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0 {
 		cm.Parts = append(cm.Parts, mc.ConvertDisappearingTimerChangeToMatrix(
 			ctx, dm.GetExpireTimer(), dm.ExpireTimerVersion, time.UnixMilli(int64(dm.GetTimestamp())), attMap != nil,
@@ -126,9 +155,24 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Parts = append(cm.Parts, mc.convertPollTerminateToMatrix(ctx, sender, dm.PollTerminate))
 		return cm
 	}
+	if dm.GetIsViewOnce() {
+		cm.Disappear.DisappearAt = time.UnixMilli(int64(dm.GetTimestamp())).Add(45 * 24 * time.Hour)
+		if cm.Disappear.Timer == 0 {
+			cm.Disappear.Type = event.DisappearingTypeAfterSend
+			cm.Disappear.Timer = 45 * 24 * time.Hour
+		}
+	}
 	for i, att := range dm.GetAttachments() {
 		if att.GetContentType() != "text/x-signal-plain" || att.GetSize() > matrixTextMaxLength {
-			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att, attMap))
+			part := mc.convertAttachmentToMatrix(ctx, i, att, attMap)
+			if dm.GetIsViewOnce() {
+				if part.Content.MsgType == event.MsgImage || part.Content.MsgType == event.MsgVideo {
+					part.Content.BeeperViewLimited = &event.BeeperViewLimitedMedia{Type: "count", Count: 1}
+				} else if part.Content.MsgType != event.MsgNotice {
+					part.Content = &event.MessageEventContent{MsgType: event.MsgNotice, Body: "Invalid view-once media message."}
+				}
+			}
+			cm.Parts = append(cm.Parts, part)
 		} else {
 			longBody, err := mc.downloadSignalLongText(ctx, att, attMap)
 			if err == nil {
@@ -173,9 +217,14 @@ func (mc *MessageConverter) ToMatrix(
 	cm.MergeCaption()
 	for i, part := range cm.Parts {
 		part.ID = signalid.MakeMessagePartID(i)
-		part.DBMetadata = &signalid.MessageMetadata{
+		meta := &signalid.MessageMetadata{
 			ContainsAttachments: len(dm.GetAttachments()) > 0,
+			ViewOnce:            dm.GetIsViewOnce(),
 		}
+		if meta.ViewOnce {
+			meta.ContainsAttachments = part.Content.BeeperViewLimited != nil
+		}
+		part.DBMetadata = meta
 	}
 	if dm.Quote != nil {
 		authorACI, err := signalmeow.ParseStringOrBinaryUUID(dm.Quote.GetAuthorAci(), dm.Quote.GetAuthorAciBinary())

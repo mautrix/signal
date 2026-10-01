@@ -47,6 +47,13 @@ func (mc *MessageConverter) ToSignal(
 	relaybotFormatted bool,
 	replyTo *database.Message,
 ) (*signalpb.DataMessage, error) {
+	if limit := content.BeeperViewLimited; limit != nil {
+		if *limit != (event.BeeperViewLimitedMedia{Type: "count", Count: 1}) ||
+			(content.MsgType != event.MsgImage && content.MsgType != event.MsgVideo) || evt.Type == event.EventSticker || replyTo != nil || portal.Receiver == "" ||
+			(content.FileName != "" && (content.FileName != content.Body || content.Format == event.FormatHTML)) {
+			return nil, bridgev2.ErrUnsupportedViewLimitedType
+		}
+	}
 	ctx = context.WithValue(ctx, contextKeyClient, client)
 	ctx = context.WithValue(ctx, contextKeyPortal, portal)
 	if evt.Type == event.EventSticker {
@@ -138,6 +145,13 @@ func (mc *MessageConverter) ToSignal(
 		dm.Body = &locationString
 	default:
 		return nil, fmt.Errorf("%w %s", bridgev2.ErrUnsupportedMessageType, content.MsgType)
+	}
+	if content.BeeperViewLimited != nil {
+		dm.IsViewOnce = proto.Bool(true)
+		dm.RequiredProtocolVersion = proto.Uint32(uint32(signalpb.DataMessage_VIEW_ONCE_VIDEO))
+		dm.Body = nil
+		dm.BodyRanges = nil
+		dm.Preview = nil
 	}
 	return dm, nil
 }

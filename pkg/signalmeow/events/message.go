@@ -31,6 +31,7 @@ type SignalEvent interface {
 func (*ChatEvent) isSignalEvent()              {}
 func (*DecryptionError) isSignalEvent()        {}
 func (*Receipt) isSignalEvent()                {}
+func (*ViewOnceOpen) isSignalEvent()           {}
 func (*ReadSelf) isSignalEvent()               {}
 func (*Call) isSignalEvent()                   {}
 func (*ContactList) isSignalEvent()            {}
@@ -64,6 +65,10 @@ type DecryptionError struct {
 type Receipt struct {
 	Sender  uuid.UUID
 	Content *signalpb.ReceiptMessage
+}
+
+type ViewOnceOpen struct {
+	*signalpb.SyncMessage_ViewOnceOpen
 }
 
 type ReadSelf struct {
