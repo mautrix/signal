@@ -41,7 +41,14 @@ type OneTimeDonationsClient interface {
 	// Once the payment is complete, the paymentIntentId can be used with CreateBoostReceiptCredentials
 	CreateBoost(ctx context.Context, in *CreateBoostRequest, opts ...grpc.CallOption) (*CreateBoostResponse, error)
 	// Create a PayPal one-time payment.
-	// Once the payment is complete, call ConfirmPayPalBoost with the payment ID and token
+	//
+	// Once the payment is complete, call ConfirmPayPalBoost with the payment ID
+	// and token.
+	//
+	// The PayPal approval page presented to the user may be localized. Callers
+	// should set their language preferences via an "Accept-Language" header on
+	// the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	CreatePayPalBoost(ctx context.Context, in *CreatePayPalBoostRequest, opts ...grpc.CallOption) (*CreatePayPalBoostResponse, error)
 	// Confirm a PayPal one-time payment
 	ConfirmPayPalBoost(ctx context.Context, in *ConfirmPayPalBoostRequest, opts ...grpc.CallOption) (*ConfirmPayPalBoostResponse, error)
@@ -111,7 +118,14 @@ type OneTimeDonationsServer interface {
 	// Once the payment is complete, the paymentIntentId can be used with CreateBoostReceiptCredentials
 	CreateBoost(context.Context, *CreateBoostRequest) (*CreateBoostResponse, error)
 	// Create a PayPal one-time payment.
-	// Once the payment is complete, call ConfirmPayPalBoost with the payment ID and token
+	//
+	// Once the payment is complete, call ConfirmPayPalBoost with the payment ID
+	// and token.
+	//
+	// The PayPal approval page presented to the user may be localized. Callers
+	// should set their language preferences via an "Accept-Language" header on
+	// the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	CreatePayPalBoost(context.Context, *CreatePayPalBoostRequest) (*CreatePayPalBoostResponse, error)
 	// Confirm a PayPal one-time payment
 	ConfirmPayPalBoost(context.Context, *ConfirmPayPalBoostRequest) (*ConfirmPayPalBoostResponse, error)

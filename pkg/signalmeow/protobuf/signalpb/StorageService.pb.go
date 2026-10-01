@@ -1159,6 +1159,7 @@ type ContactRecord struct {
 	BlockedAtTimestamp      uint64                      `protobuf:"varint,27,opt,name=blockedAtTimestamp,proto3" json:"blockedAtTimestamp,omitempty"`                                       // 0 means the blocked time is unknown
 	NotifyForCallsIfMuted   OptionalBool                `protobuf:"varint,28,opt,name=notifyForCallsIfMuted,proto3,enum=signalservice.OptionalBool" json:"notifyForCallsIfMuted,omitempty"` // If unset, use the default settings
 	ShowUnreadReminders     OptionalBool                `protobuf:"varint,29,opt,name=showUnreadReminders,proto3,enum=signalservice.OptionalBool" json:"showUnreadReminders,omitempty"`     // If unset, use the default settings
+	SharedName              *ContactRecord_Name         `protobuf:"bytes,30,opt,name=sharedName,proto3" json:"sharedName,omitempty"`                                                        // Name shared from a third party
 	unknownFields           protoimpl.UnknownFields
 	sizeCache               protoimpl.SizeCache
 }
@@ -1394,6 +1395,13 @@ func (x *ContactRecord) GetShowUnreadReminders() OptionalBool {
 		return x.ShowUnreadReminders
 	}
 	return OptionalBool_UNSET
+}
+
+func (x *ContactRecord) GetSharedName() *ContactRecord_Name {
+	if x != nil {
+		return x.SharedName
+	}
+	return nil
 }
 
 type GroupV1Record struct {
@@ -3458,7 +3466,7 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"chatFolder\x18\b \x01(\v2\x1f.signalservice.ChatFolderRecordH\x00R\n" +
 	"chatFolder\x12V\n" +
 	"\x13notificationProfile\x18\t \x01(\v2\".signalservice.NotificationProfileH\x00R\x13notificationProfileB\b\n" +
-	"\x06record\"\xab\n" +
+	"\x06record\"\xee\n" +
 	"\n" +
 	"\rContactRecord\x12\x10\n" +
 	"\x03aci\x18\x01 \x01(\tR\x03aci\x12\x12\n" +
@@ -3494,7 +3502,10 @@ const file_signalpb_StorageService_proto_rawDesc = "" +
 	"\tpniBinary\x18\x1a \x01(\fR\tpniBinary\x12.\n" +
 	"\x12blockedAtTimestamp\x18\x1b \x01(\x04R\x12blockedAtTimestamp\x12Q\n" +
 	"\x15notifyForCallsIfMuted\x18\x1c \x01(\x0e2\x1b.signalservice.OptionalBoolR\x15notifyForCallsIfMuted\x12M\n" +
-	"\x13showUnreadReminders\x18\x1d \x01(\x0e2\x1b.signalservice.OptionalBoolR\x13showUnreadReminders\x1a4\n" +
+	"\x13showUnreadReminders\x18\x1d \x01(\x0e2\x1b.signalservice.OptionalBoolR\x13showUnreadReminders\x12A\n" +
+	"\n" +
+	"sharedName\x18\x1e \x01(\v2!.signalservice.ContactRecord.NameR\n" +
+	"sharedName\x1a4\n" +
 	"\x04Name\x12\x14\n" +
 	"\x05given\x18\x01 \x01(\tR\x05given\x12\x16\n" +
 	"\x06family\x18\x02 \x01(\tR\x06family\":\n" +
@@ -3828,44 +3839,45 @@ var file_signalpb_StorageService_proto_depIdxs = []int32{
 	1,  // 15: signalservice.ContactRecord.avatarColor:type_name -> signalservice.AvatarColor
 	0,  // 16: signalservice.ContactRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
 	0,  // 17: signalservice.ContactRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
-	4,  // 18: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
-	1,  // 19: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
-	0,  // 20: signalservice.GroupV2Record.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 21: signalservice.GroupV2Record.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 22: signalservice.GroupV2Record.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 23: signalservice.GroupV2Record.showUnreadReminders:type_name -> signalservice.OptionalBool
-	6,  // 24: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
-	30, // 25: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
-	20, // 26: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
-	0,  // 27: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
-	31, // 28: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
-	32, // 29: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
-	1,  // 30: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
-	33, // 31: signalservice.AccountRecord.notificationProfileManualOverride:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride
-	5,  // 32: signalservice.AccountRecord.unreadBadgeType:type_name -> signalservice.AccountRecord.UnreadBadgeType
-	0,  // 33: signalservice.AccountRecord.includeMutedChatsInBadge:type_name -> signalservice.OptionalBool
-	0,  // 34: signalservice.AccountRecord.reactionNotifications:type_name -> signalservice.OptionalBool
-	0,  // 35: signalservice.AccountRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 36: signalservice.AccountRecord.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 37: signalservice.AccountRecord.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
-	0,  // 38: signalservice.AccountRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
-	0,  // 39: signalservice.AccountRecord.notifyWhenContactJoins:type_name -> signalservice.OptionalBool
-	37, // 40: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
-	8,  // 41: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
-	25, // 42: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.Recipient
-	25, // 43: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.Recipient
-	25, // 44: signalservice.NotificationProfile.allowedMembers:type_name -> signalservice.Recipient
-	9,  // 45: signalservice.NotificationProfile.scheduleDaysEnabled:type_name -> signalservice.NotificationProfile.DayOfWeek
-	2,  // 46: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
-	34, // 47: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
-	35, // 48: signalservice.AccountRecord.PinnedConversation.releaseNotes:type_name -> signalservice.AccountRecord.PinnedConversation.ReleaseNotes
-	7,  // 49: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
-	36, // 50: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
-	51, // [51:51] is the sub-list for method output_type
-	51, // [51:51] is the sub-list for method input_type
-	51, // [51:51] is the sub-list for extension type_name
-	51, // [51:51] is the sub-list for extension extendee
-	0,  // [0:51] is the sub-list for field type_name
+	29, // 18: signalservice.ContactRecord.sharedName:type_name -> signalservice.ContactRecord.Name
+	4,  // 19: signalservice.GroupV2Record.storySendMode:type_name -> signalservice.GroupV2Record.StorySendMode
+	1,  // 20: signalservice.GroupV2Record.avatarColor:type_name -> signalservice.AvatarColor
+	0,  // 21: signalservice.GroupV2Record.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 22: signalservice.GroupV2Record.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 23: signalservice.GroupV2Record.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 24: signalservice.GroupV2Record.showUnreadReminders:type_name -> signalservice.OptionalBool
+	6,  // 25: signalservice.AccountRecord.phoneNumberSharingMode:type_name -> signalservice.AccountRecord.PhoneNumberSharingMode
+	30, // 26: signalservice.AccountRecord.pinnedConversations:type_name -> signalservice.AccountRecord.PinnedConversation
+	20, // 27: signalservice.AccountRecord.payments:type_name -> signalservice.Payments
+	0,  // 28: signalservice.AccountRecord.storyViewReceiptsEnabled:type_name -> signalservice.OptionalBool
+	31, // 29: signalservice.AccountRecord.usernameLink:type_name -> signalservice.AccountRecord.UsernameLink
+	32, // 30: signalservice.AccountRecord.backupSubscriberData:type_name -> signalservice.AccountRecord.IAPSubscriberData
+	1,  // 31: signalservice.AccountRecord.avatarColor:type_name -> signalservice.AvatarColor
+	33, // 32: signalservice.AccountRecord.notificationProfileManualOverride:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride
+	5,  // 33: signalservice.AccountRecord.unreadBadgeType:type_name -> signalservice.AccountRecord.UnreadBadgeType
+	0,  // 34: signalservice.AccountRecord.includeMutedChatsInBadge:type_name -> signalservice.OptionalBool
+	0,  // 35: signalservice.AccountRecord.reactionNotifications:type_name -> signalservice.OptionalBool
+	0,  // 36: signalservice.AccountRecord.notifyForCallsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 37: signalservice.AccountRecord.notifyForMentionsIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 38: signalservice.AccountRecord.notifyForRepliesIfMuted:type_name -> signalservice.OptionalBool
+	0,  // 39: signalservice.AccountRecord.showUnreadReminders:type_name -> signalservice.OptionalBool
+	0,  // 40: signalservice.AccountRecord.notifyWhenContactJoins:type_name -> signalservice.OptionalBool
+	37, // 41: signalservice.Recipient.contact:type_name -> signalservice.Recipient.Contact
+	8,  // 42: signalservice.ChatFolderRecord.folderType:type_name -> signalservice.ChatFolderRecord.FolderType
+	25, // 43: signalservice.ChatFolderRecord.includedRecipients:type_name -> signalservice.Recipient
+	25, // 44: signalservice.ChatFolderRecord.excludedRecipients:type_name -> signalservice.Recipient
+	25, // 45: signalservice.NotificationProfile.allowedMembers:type_name -> signalservice.Recipient
+	9,  // 46: signalservice.NotificationProfile.scheduleDaysEnabled:type_name -> signalservice.NotificationProfile.DayOfWeek
+	2,  // 47: signalservice.ManifestRecord.Identifier.type:type_name -> signalservice.ManifestRecord.Identifier.Type
+	34, // 48: signalservice.AccountRecord.PinnedConversation.contact:type_name -> signalservice.AccountRecord.PinnedConversation.Contact
+	35, // 49: signalservice.AccountRecord.PinnedConversation.releaseNotes:type_name -> signalservice.AccountRecord.PinnedConversation.ReleaseNotes
+	7,  // 50: signalservice.AccountRecord.UsernameLink.color:type_name -> signalservice.AccountRecord.UsernameLink.Color
+	36, // 51: signalservice.AccountRecord.NotificationProfileManualOverride.enabled:type_name -> signalservice.AccountRecord.NotificationProfileManualOverride.ManuallyEnabled
+	52, // [52:52] is the sub-list for method output_type
+	52, // [52:52] is the sub-list for method input_type
+	52, // [52:52] is the sub-list for extension type_name
+	52, // [52:52] is the sub-list for extension extendee
+	0,  // [0:52] is the sub-list for field type_name
 }
 
 func init() { file_signalpb_StorageService_proto_init() }

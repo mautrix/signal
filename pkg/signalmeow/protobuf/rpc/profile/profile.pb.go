@@ -206,6 +206,105 @@ func (x *SetProfileV1Request) GetPhoneNumberSharing() []byte {
 	return nil
 }
 
+type SetV1AvatarRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The profile version. Required.
+	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
+	// The profile key commitment. Required if this is a new profile version.
+	Commitment    []byte `protobuf:"bytes,2,opt,name=commitment,proto3" json:"commitment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetV1AvatarRequest) Reset() {
+	*x = SetV1AvatarRequest{}
+	mi := &file_org_signal_chat_profile_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetV1AvatarRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetV1AvatarRequest) ProtoMessage() {}
+
+func (x *SetV1AvatarRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_profile_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetV1AvatarRequest.ProtoReflect.Descriptor instead.
+func (*SetV1AvatarRequest) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *SetV1AvatarRequest) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
+func (x *SetV1AvatarRequest) GetCommitment() []byte {
+	if x != nil {
+		return x.Commitment
+	}
+	return nil
+}
+
+type SetV1AvatarResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// the policy and credential used by clients to upload an avatar to the CDN
+	Form          *common.S3UploadForm `protobuf:"bytes,1,opt,name=form,proto3" json:"form,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetV1AvatarResponse) Reset() {
+	*x = SetV1AvatarResponse{}
+	mi := &file_org_signal_chat_profile_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetV1AvatarResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetV1AvatarResponse) ProtoMessage() {}
+
+func (x *SetV1AvatarResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_org_signal_chat_profile_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetV1AvatarResponse.ProtoReflect.Descriptor instead.
+func (*SetV1AvatarResponse) Descriptor() ([]byte, []int) {
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *SetV1AvatarResponse) GetForm() *common.S3UploadForm {
+	if x != nil {
+		return x.Form
+	}
+	return nil
+}
+
 type SetProfileRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The profile version. Required.
@@ -242,7 +341,7 @@ type SetProfileRequest struct {
 
 func (x *SetProfileRequest) Reset() {
 	*x = SetProfileRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[1]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -254,7 +353,7 @@ func (x *SetProfileRequest) String() string {
 func (*SetProfileRequest) ProtoMessage() {}
 
 func (x *SetProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[1]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -267,7 +366,7 @@ func (x *SetProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfileRequest.ProtoReflect.Descriptor instead.
 func (*SetProfileRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{1}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SetProfileRequest) GetVersion() []byte {
@@ -336,7 +435,7 @@ type PaymentsForbiddenInRegion struct {
 
 func (x *PaymentsForbiddenInRegion) Reset() {
 	*x = PaymentsForbiddenInRegion{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[2]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -348,7 +447,7 @@ func (x *PaymentsForbiddenInRegion) String() string {
 func (*PaymentsForbiddenInRegion) ProtoMessage() {}
 
 func (x *PaymentsForbiddenInRegion) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[2]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -361,7 +460,7 @@ func (x *PaymentsForbiddenInRegion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PaymentsForbiddenInRegion.ProtoReflect.Descriptor instead.
 func (*PaymentsForbiddenInRegion) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{2}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{4}
 }
 
 // Indicates that the account does not have the Profiles v2 capability, which
@@ -374,7 +473,7 @@ type ProfilesV2CapabilityRequired struct {
 
 func (x *ProfilesV2CapabilityRequired) Reset() {
 	*x = ProfilesV2CapabilityRequired{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[3]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -386,7 +485,7 @@ func (x *ProfilesV2CapabilityRequired) String() string {
 func (*ProfilesV2CapabilityRequired) ProtoMessage() {}
 
 func (x *ProfilesV2CapabilityRequired) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[3]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -399,7 +498,7 @@ func (x *ProfilesV2CapabilityRequired) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfilesV2CapabilityRequired.ProtoReflect.Descriptor instead.
 func (*ProfilesV2CapabilityRequired) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{3}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{5}
 }
 
 type SetProfileResult struct {
@@ -416,7 +515,7 @@ type SetProfileResult struct {
 
 func (x *SetProfileResult) Reset() {
 	*x = SetProfileResult{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[4]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -428,7 +527,7 @@ func (x *SetProfileResult) String() string {
 func (*SetProfileResult) ProtoMessage() {}
 
 func (x *SetProfileResult) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[4]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -441,7 +540,7 @@ func (x *SetProfileResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfileResult.ProtoReflect.Descriptor instead.
 func (*SetProfileResult) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{4}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *SetProfileResult) GetV1AvatarUploadForm() *common.S3UploadForm {
@@ -467,7 +566,7 @@ type SetProfileResponse struct {
 
 func (x *SetProfileResponse) Reset() {
 	*x = SetProfileResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[5]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -479,7 +578,7 @@ func (x *SetProfileResponse) String() string {
 func (*SetProfileResponse) ProtoMessage() {}
 
 func (x *SetProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[5]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -492,7 +591,7 @@ func (x *SetProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SetProfileResponse.ProtoReflect.Descriptor instead.
 func (*SetProfileResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{5}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *SetProfileResponse) GetResponse() isSetProfileResponse_Response {
@@ -606,7 +705,7 @@ type GetProfileRequest struct {
 
 func (x *GetProfileRequest) Reset() {
 	*x = GetProfileRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[6]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -618,7 +717,7 @@ func (x *GetProfileRequest) String() string {
 func (*GetProfileRequest) ProtoMessage() {}
 
 func (x *GetProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[6]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +730,7 @@ func (x *GetProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileRequest.ProtoReflect.Descriptor instead.
 func (*GetProfileRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{6}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *GetProfileRequest) GetAccountIdentifier() *common.ServiceIdentifier {
@@ -670,7 +769,7 @@ type GetProfileAnonymousRequest struct {
 
 func (x *GetProfileAnonymousRequest) Reset() {
 	*x = GetProfileAnonymousRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[7]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -682,7 +781,7 @@ func (x *GetProfileAnonymousRequest) String() string {
 func (*GetProfileAnonymousRequest) ProtoMessage() {}
 
 func (x *GetProfileAnonymousRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[7]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -695,7 +794,7 @@ func (x *GetProfileAnonymousRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileAnonymousRequest.ProtoReflect.Descriptor instead.
 func (*GetProfileAnonymousRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{7}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *GetProfileAnonymousRequest) GetRequest() *GetProfileRequest {
@@ -767,7 +866,7 @@ type AccountInfo struct {
 
 func (x *AccountInfo) Reset() {
 	*x = AccountInfo{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[8]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -779,7 +878,7 @@ func (x *AccountInfo) String() string {
 func (*AccountInfo) ProtoMessage() {}
 
 func (x *AccountInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[8]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -792,7 +891,7 @@ func (x *AccountInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AccountInfo.ProtoReflect.Descriptor instead.
 func (*AccountInfo) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{8}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AccountInfo) GetIdentityKey() []byte {
@@ -866,7 +965,7 @@ type ProfileResult struct {
 
 func (x *ProfileResult) Reset() {
 	*x = ProfileResult{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[9]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -878,7 +977,7 @@ func (x *ProfileResult) String() string {
 func (*ProfileResult) ProtoMessage() {}
 
 func (x *ProfileResult) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[9]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -891,7 +990,7 @@ func (x *ProfileResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProfileResult.ProtoReflect.Descriptor instead.
 func (*ProfileResult) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{9}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ProfileResult) GetData() []byte {
@@ -944,7 +1043,7 @@ type LegacyProfileResult struct {
 
 func (x *LegacyProfileResult) Reset() {
 	*x = LegacyProfileResult{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[10]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -956,7 +1055,7 @@ func (x *LegacyProfileResult) String() string {
 func (*LegacyProfileResult) ProtoMessage() {}
 
 func (x *LegacyProfileResult) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[10]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -969,7 +1068,7 @@ func (x *LegacyProfileResult) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LegacyProfileResult.ProtoReflect.Descriptor instead.
 func (*LegacyProfileResult) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{10}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *LegacyProfileResult) GetName() []byte {
@@ -1036,7 +1135,7 @@ type GetProfileResponse struct {
 
 func (x *GetProfileResponse) Reset() {
 	*x = GetProfileResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[11]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1048,7 +1147,7 @@ func (x *GetProfileResponse) String() string {
 func (*GetProfileResponse) ProtoMessage() {}
 
 func (x *GetProfileResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[11]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1061,7 +1160,7 @@ func (x *GetProfileResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileResponse.ProtoReflect.Descriptor instead.
 func (*GetProfileResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{11}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GetProfileResponse) GetResponse() isGetProfileResponse_Response {
@@ -1158,7 +1257,7 @@ type GetProfileAnonymousResponse struct {
 
 func (x *GetProfileAnonymousResponse) Reset() {
 	*x = GetProfileAnonymousResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[12]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1170,7 +1269,7 @@ func (x *GetProfileAnonymousResponse) String() string {
 func (*GetProfileAnonymousResponse) ProtoMessage() {}
 
 func (x *GetProfileAnonymousResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[12]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1183,7 +1282,7 @@ func (x *GetProfileAnonymousResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileAnonymousResponse.ProtoReflect.Descriptor instead.
 func (*GetProfileAnonymousResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{12}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GetProfileAnonymousResponse) GetResponse() isGetProfileAnonymousResponse_Response {
@@ -1296,7 +1395,7 @@ type GetExpiringProfileKeyCredentialRequest struct {
 
 func (x *GetExpiringProfileKeyCredentialRequest) Reset() {
 	*x = GetExpiringProfileKeyCredentialRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[13]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1308,7 +1407,7 @@ func (x *GetExpiringProfileKeyCredentialRequest) String() string {
 func (*GetExpiringProfileKeyCredentialRequest) ProtoMessage() {}
 
 func (x *GetExpiringProfileKeyCredentialRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[13]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1321,7 +1420,7 @@ func (x *GetExpiringProfileKeyCredentialRequest) ProtoReflect() protoreflect.Mes
 
 // Deprecated: Use GetExpiringProfileKeyCredentialRequest.ProtoReflect.Descriptor instead.
 func (*GetExpiringProfileKeyCredentialRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{13}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GetExpiringProfileKeyCredentialRequest) GetAccountIdentifier() *common.ServiceIdentifier {
@@ -1364,7 +1463,7 @@ type GetExpiringProfileKeyCredentialAnonymousRequest struct {
 
 func (x *GetExpiringProfileKeyCredentialAnonymousRequest) Reset() {
 	*x = GetExpiringProfileKeyCredentialAnonymousRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[14]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1376,7 +1475,7 @@ func (x *GetExpiringProfileKeyCredentialAnonymousRequest) String() string {
 func (*GetExpiringProfileKeyCredentialAnonymousRequest) ProtoMessage() {}
 
 func (x *GetExpiringProfileKeyCredentialAnonymousRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[14]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1389,7 +1488,7 @@ func (x *GetExpiringProfileKeyCredentialAnonymousRequest) ProtoReflect() protore
 
 // Deprecated: Use GetExpiringProfileKeyCredentialAnonymousRequest.ProtoReflect.Descriptor instead.
 func (*GetExpiringProfileKeyCredentialAnonymousRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{14}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GetExpiringProfileKeyCredentialAnonymousRequest) GetRequest() *GetExpiringProfileKeyCredentialRequest {
@@ -1417,7 +1516,7 @@ type GetExpiringProfileKeyCredentialResult struct {
 
 func (x *GetExpiringProfileKeyCredentialResult) Reset() {
 	*x = GetExpiringProfileKeyCredentialResult{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[15]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1429,7 +1528,7 @@ func (x *GetExpiringProfileKeyCredentialResult) String() string {
 func (*GetExpiringProfileKeyCredentialResult) ProtoMessage() {}
 
 func (x *GetExpiringProfileKeyCredentialResult) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[15]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1442,7 +1541,7 @@ func (x *GetExpiringProfileKeyCredentialResult) ProtoReflect() protoreflect.Mess
 
 // Deprecated: Use GetExpiringProfileKeyCredentialResult.ProtoReflect.Descriptor instead.
 func (*GetExpiringProfileKeyCredentialResult) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{15}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *GetExpiringProfileKeyCredentialResult) GetProfileKeyCredential() []byte {
@@ -1466,7 +1565,7 @@ type GetExpiringProfileKeyCredentialAnonymousResponse struct {
 
 func (x *GetExpiringProfileKeyCredentialAnonymousResponse) Reset() {
 	*x = GetExpiringProfileKeyCredentialAnonymousResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[16]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1478,7 +1577,7 @@ func (x *GetExpiringProfileKeyCredentialAnonymousResponse) String() string {
 func (*GetExpiringProfileKeyCredentialAnonymousResponse) ProtoMessage() {}
 
 func (x *GetExpiringProfileKeyCredentialAnonymousResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[16]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1491,7 +1590,7 @@ func (x *GetExpiringProfileKeyCredentialAnonymousResponse) ProtoReflect() protor
 
 // Deprecated: Use GetExpiringProfileKeyCredentialAnonymousResponse.ProtoReflect.Descriptor instead.
 func (*GetExpiringProfileKeyCredentialAnonymousResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{16}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetExpiringProfileKeyCredentialAnonymousResponse) GetResponse() isGetExpiringProfileKeyCredentialAnonymousResponse_Response {
@@ -1562,7 +1661,7 @@ type GetAvatarCredentialsRequest struct {
 
 func (x *GetAvatarCredentialsRequest) Reset() {
 	*x = GetAvatarCredentialsRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[17]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1574,7 +1673,7 @@ func (x *GetAvatarCredentialsRequest) String() string {
 func (*GetAvatarCredentialsRequest) ProtoMessage() {}
 
 func (x *GetAvatarCredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[17]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1587,7 +1686,7 @@ func (x *GetAvatarCredentialsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAvatarCredentialsRequest.ProtoReflect.Descriptor instead.
 func (*GetAvatarCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{17}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GetAvatarCredentialsRequest) GetAvatarCredentialsRequest() []byte {
@@ -1610,7 +1709,7 @@ type GetAvatarCredentialsResponse struct {
 
 func (x *GetAvatarCredentialsResponse) Reset() {
 	*x = GetAvatarCredentialsResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[18]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1622,7 +1721,7 @@ func (x *GetAvatarCredentialsResponse) String() string {
 func (*GetAvatarCredentialsResponse) ProtoMessage() {}
 
 func (x *GetAvatarCredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[18]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1635,7 +1734,7 @@ func (x *GetAvatarCredentialsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAvatarCredentialsResponse.ProtoReflect.Descriptor instead.
 func (*GetAvatarCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{18}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GetAvatarCredentialsResponse) GetResponse() isGetAvatarCredentialsResponse_Response {
@@ -1693,7 +1792,7 @@ type GetAvatarUploadFormRequest struct {
 
 func (x *GetAvatarUploadFormRequest) Reset() {
 	*x = GetAvatarUploadFormRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[19]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1705,7 +1804,7 @@ func (x *GetAvatarUploadFormRequest) String() string {
 func (*GetAvatarUploadFormRequest) ProtoMessage() {}
 
 func (x *GetAvatarUploadFormRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[19]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1718,7 +1817,7 @@ func (x *GetAvatarUploadFormRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAvatarUploadFormRequest.ProtoReflect.Descriptor instead.
 func (*GetAvatarUploadFormRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{19}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *GetAvatarUploadFormRequest) GetAvatarCredentialsPresentation() []byte {
@@ -1748,7 +1847,7 @@ type GetAvatarUploadFormResponse struct {
 
 func (x *GetAvatarUploadFormResponse) Reset() {
 	*x = GetAvatarUploadFormResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[20]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1760,7 +1859,7 @@ func (x *GetAvatarUploadFormResponse) String() string {
 func (*GetAvatarUploadFormResponse) ProtoMessage() {}
 
 func (x *GetAvatarUploadFormResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[20]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1773,7 +1872,7 @@ func (x *GetAvatarUploadFormResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAvatarUploadFormResponse.ProtoReflect.Descriptor instead.
 func (*GetAvatarUploadFormResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{20}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *GetAvatarUploadFormResponse) GetResponse() isGetAvatarUploadFormResponse_Response {
@@ -1806,6 +1905,7 @@ type isGetAvatarUploadFormResponse_Response interface {
 }
 
 type GetAvatarUploadFormResponse_AvatarUploadForm struct {
+	// the policy and credential used by clients to upload an avatar to the CDN
 	AvatarUploadForm *common.S3UploadForm `protobuf:"bytes,1,opt,name=avatar_upload_form,json=avatarUploadForm,proto3,oneof"`
 }
 
@@ -1827,7 +1927,7 @@ type ExtendAvatarTTLRequest struct {
 
 func (x *ExtendAvatarTTLRequest) Reset() {
 	*x = ExtendAvatarTTLRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[21]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1839,7 +1939,7 @@ func (x *ExtendAvatarTTLRequest) String() string {
 func (*ExtendAvatarTTLRequest) ProtoMessage() {}
 
 func (x *ExtendAvatarTTLRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[21]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1852,7 +1952,7 @@ func (x *ExtendAvatarTTLRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtendAvatarTTLRequest.ProtoReflect.Descriptor instead.
 func (*ExtendAvatarTTLRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{21}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ExtendAvatarTTLRequest) GetAvatarCredentialsPresentation() []byte {
@@ -1876,7 +1976,7 @@ type ExtendAvatarTTLResponse struct {
 
 func (x *ExtendAvatarTTLResponse) Reset() {
 	*x = ExtendAvatarTTLResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[22]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1888,7 +1988,7 @@ func (x *ExtendAvatarTTLResponse) String() string {
 func (*ExtendAvatarTTLResponse) ProtoMessage() {}
 
 func (x *ExtendAvatarTTLResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[22]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1901,7 +2001,7 @@ func (x *ExtendAvatarTTLResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExtendAvatarTTLResponse.ProtoReflect.Descriptor instead.
 func (*ExtendAvatarTTLResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{22}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ExtendAvatarTTLResponse) GetResponse() isExtendAvatarTTLResponse_Response {
@@ -1971,7 +2071,7 @@ type DeleteAvatarRequest struct {
 
 func (x *DeleteAvatarRequest) Reset() {
 	*x = DeleteAvatarRequest{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[23]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1983,7 +2083,7 @@ func (x *DeleteAvatarRequest) String() string {
 func (*DeleteAvatarRequest) ProtoMessage() {}
 
 func (x *DeleteAvatarRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[23]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1996,7 +2096,7 @@ func (x *DeleteAvatarRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAvatarRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAvatarRequest) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{23}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *DeleteAvatarRequest) GetAvatarCredentialsPresentation() []byte {
@@ -2019,7 +2119,7 @@ type DeleteAvatarResponse struct {
 
 func (x *DeleteAvatarResponse) Reset() {
 	*x = DeleteAvatarResponse{}
-	mi := &file_org_signal_chat_profile_proto_msgTypes[24]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2031,7 +2131,7 @@ func (x *DeleteAvatarResponse) String() string {
 func (*DeleteAvatarResponse) ProtoMessage() {}
 
 func (x *DeleteAvatarResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_org_signal_chat_profile_proto_msgTypes[24]
+	mi := &file_org_signal_chat_profile_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2044,7 +2144,7 @@ func (x *DeleteAvatarResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAvatarResponse.ProtoReflect.Descriptor instead.
 func (*DeleteAvatarResponse) Descriptor() ([]byte, []int) {
-	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{24}
+	return file_org_signal_chat_profile_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *DeleteAvatarResponse) GetResponse() isDeleteAvatarResponse_Response {
@@ -2103,7 +2203,14 @@ const file_org_signal_chat_profile_proto_rawDesc = "" +
 	"\fAvatarChange\x12\x1b\n" +
 	"\x17AVATAR_CHANGE_UNCHANGED\x10\x00\x12\x17\n" +
 	"\x13AVATAR_CHANGE_CLEAR\x10\x01\x12\x18\n" +
-	"\x14AVATAR_CHANGE_UPDATE\x10\x02\"\xa5\x03\n" +
+	"\x14AVATAR_CHANGE_UPDATE\x10\x02\"]\n" +
+	"\x12SetV1AvatarRequest\x12\x1f\n" +
+	"\aversion\x18\x01 \x01(\tB\x05\xa2\x97\"\x01@R\aversion\x12&\n" +
+	"\n" +
+	"commitment\x18\x02 \x01(\fB\x06\xa2\x97\"\x02\x00aR\n" +
+	"commitment\"O\n" +
+	"\x13SetV1AvatarResponse\x128\n" +
+	"\x04form\x18\x01 \x01(\v2$.org.signal.chat.common.S3UploadFormR\x04form\"\xa5\x03\n" +
 	"\x11SetProfileRequest\x12\x1f\n" +
 	"\aversion\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\aversion\x12\x1f\n" +
 	"\x04data\x18\x02 \x01(\fB\v\x88\x97\"\x01\x9a\x97\"\x03\x10\xa9\aR\x04data\x12C\n" +
@@ -2224,13 +2331,14 @@ const file_org_signal_chat_profile_proto_rawDesc = "" +
 	"\bresponse*[\n" +
 	"\x0eCredentialType\x12\x1f\n" +
 	"\x1bCREDENTIAL_TYPE_UNSPECIFIED\x10\x00\x12(\n" +
-	"$CREDENTIAL_TYPE_EXPIRING_PROFILE_KEY\x10\x012\xe9\x02\n" +
+	"$CREDENTIAL_TYPE_EXPIRING_PROFILE_KEY\x10\x012\xd5\x03\n" +
 	"\aProfile\x12g\n" +
 	"\n" +
 	"SetProfile\x12*.org.signal.chat.profile.SetProfileRequest\x1a+.org.signal.chat.profile.SetProfileResponse\"\x00\x12g\n" +
 	"\n" +
 	"GetProfile\x12*.org.signal.chat.profile.GetProfileRequest\x1a+.org.signal.chat.profile.GetProfileResponse\"\x00\x12\x85\x01\n" +
-	"\x14GetAvatarCredentials\x124.org.signal.chat.profile.GetAvatarCredentialsRequest\x1a5.org.signal.chat.profile.GetAvatarCredentialsResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xba\x05\n" +
+	"\x14GetAvatarCredentials\x124.org.signal.chat.profile.GetAvatarCredentialsRequest\x1a5.org.signal.chat.profile.GetAvatarCredentialsResponse\"\x00\x12j\n" +
+	"\vSetV1Avatar\x12+.org.signal.chat.profile.SetV1AvatarRequest\x1a,.org.signal.chat.profile.SetV1AvatarResponse\"\x00\x1a\x04\xc8\xd5\"\x012\xba\x05\n" +
 	"\x10ProfileAnonymous\x12y\n" +
 	"\n" +
 	"GetProfile\x123.org.signal.chat.profile.GetProfileAnonymousRequest\x1a4.org.signal.chat.profile.GetProfileAnonymousResponse\"\x00\x12\xb8\x01\n" +
@@ -2252,97 +2360,102 @@ func file_org_signal_chat_profile_proto_rawDescGZIP() []byte {
 }
 
 var file_org_signal_chat_profile_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_org_signal_chat_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 25)
+var file_org_signal_chat_profile_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_org_signal_chat_profile_proto_goTypes = []any{
 	(CredentialType)(0),                                      // 0: org.signal.chat.profile.CredentialType
 	(SetProfileV1Request_AvatarChange)(0),                    // 1: org.signal.chat.profile.SetProfileV1Request.AvatarChange
 	(*SetProfileV1Request)(nil),                              // 2: org.signal.chat.profile.SetProfileV1Request
-	(*SetProfileRequest)(nil),                                // 3: org.signal.chat.profile.SetProfileRequest
-	(*PaymentsForbiddenInRegion)(nil),                        // 4: org.signal.chat.profile.PaymentsForbiddenInRegion
-	(*ProfilesV2CapabilityRequired)(nil),                     // 5: org.signal.chat.profile.ProfilesV2CapabilityRequired
-	(*SetProfileResult)(nil),                                 // 6: org.signal.chat.profile.SetProfileResult
-	(*SetProfileResponse)(nil),                               // 7: org.signal.chat.profile.SetProfileResponse
-	(*GetProfileRequest)(nil),                                // 8: org.signal.chat.profile.GetProfileRequest
-	(*GetProfileAnonymousRequest)(nil),                       // 9: org.signal.chat.profile.GetProfileAnonymousRequest
-	(*AccountInfo)(nil),                                      // 10: org.signal.chat.profile.AccountInfo
-	(*ProfileResult)(nil),                                    // 11: org.signal.chat.profile.ProfileResult
-	(*LegacyProfileResult)(nil),                              // 12: org.signal.chat.profile.LegacyProfileResult
-	(*GetProfileResponse)(nil),                               // 13: org.signal.chat.profile.GetProfileResponse
-	(*GetProfileAnonymousResponse)(nil),                      // 14: org.signal.chat.profile.GetProfileAnonymousResponse
-	(*GetExpiringProfileKeyCredentialRequest)(nil),           // 15: org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest
-	(*GetExpiringProfileKeyCredentialAnonymousRequest)(nil),  // 16: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousRequest
-	(*GetExpiringProfileKeyCredentialResult)(nil),            // 17: org.signal.chat.profile.GetExpiringProfileKeyCredentialResult
-	(*GetExpiringProfileKeyCredentialAnonymousResponse)(nil), // 18: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse
-	(*GetAvatarCredentialsRequest)(nil),                      // 19: org.signal.chat.profile.GetAvatarCredentialsRequest
-	(*GetAvatarCredentialsResponse)(nil),                     // 20: org.signal.chat.profile.GetAvatarCredentialsResponse
-	(*GetAvatarUploadFormRequest)(nil),                       // 21: org.signal.chat.profile.GetAvatarUploadFormRequest
-	(*GetAvatarUploadFormResponse)(nil),                      // 22: org.signal.chat.profile.GetAvatarUploadFormResponse
-	(*ExtendAvatarTTLRequest)(nil),                           // 23: org.signal.chat.profile.ExtendAvatarTTLRequest
-	(*ExtendAvatarTTLResponse)(nil),                          // 24: org.signal.chat.profile.ExtendAvatarTTLResponse
-	(*DeleteAvatarRequest)(nil),                              // 25: org.signal.chat.profile.DeleteAvatarRequest
-	(*DeleteAvatarResponse)(nil),                             // 26: org.signal.chat.profile.DeleteAvatarResponse
-	(*common.S3UploadForm)(nil),                              // 27: org.signal.chat.common.S3UploadForm
-	(*errors.FailedPrecondition)(nil),                        // 28: org.signal.chat.errors.FailedPrecondition
-	(*common.ServiceIdentifier)(nil),                         // 29: org.signal.chat.common.ServiceIdentifier
-	(*errors.NotFound)(nil),                                  // 30: org.signal.chat.errors.NotFound
-	(*errors.FailedUnidentifiedAuthorization)(nil),           // 31: org.signal.chat.errors.FailedUnidentifiedAuthorization
-	(*errors.FailedZkAuthentication)(nil),                    // 32: org.signal.chat.errors.FailedZkAuthentication
-	(*emptypb.Empty)(nil),                                    // 33: google.protobuf.Empty
+	(*SetV1AvatarRequest)(nil),                               // 3: org.signal.chat.profile.SetV1AvatarRequest
+	(*SetV1AvatarResponse)(nil),                              // 4: org.signal.chat.profile.SetV1AvatarResponse
+	(*SetProfileRequest)(nil),                                // 5: org.signal.chat.profile.SetProfileRequest
+	(*PaymentsForbiddenInRegion)(nil),                        // 6: org.signal.chat.profile.PaymentsForbiddenInRegion
+	(*ProfilesV2CapabilityRequired)(nil),                     // 7: org.signal.chat.profile.ProfilesV2CapabilityRequired
+	(*SetProfileResult)(nil),                                 // 8: org.signal.chat.profile.SetProfileResult
+	(*SetProfileResponse)(nil),                               // 9: org.signal.chat.profile.SetProfileResponse
+	(*GetProfileRequest)(nil),                                // 10: org.signal.chat.profile.GetProfileRequest
+	(*GetProfileAnonymousRequest)(nil),                       // 11: org.signal.chat.profile.GetProfileAnonymousRequest
+	(*AccountInfo)(nil),                                      // 12: org.signal.chat.profile.AccountInfo
+	(*ProfileResult)(nil),                                    // 13: org.signal.chat.profile.ProfileResult
+	(*LegacyProfileResult)(nil),                              // 14: org.signal.chat.profile.LegacyProfileResult
+	(*GetProfileResponse)(nil),                               // 15: org.signal.chat.profile.GetProfileResponse
+	(*GetProfileAnonymousResponse)(nil),                      // 16: org.signal.chat.profile.GetProfileAnonymousResponse
+	(*GetExpiringProfileKeyCredentialRequest)(nil),           // 17: org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest
+	(*GetExpiringProfileKeyCredentialAnonymousRequest)(nil),  // 18: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousRequest
+	(*GetExpiringProfileKeyCredentialResult)(nil),            // 19: org.signal.chat.profile.GetExpiringProfileKeyCredentialResult
+	(*GetExpiringProfileKeyCredentialAnonymousResponse)(nil), // 20: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse
+	(*GetAvatarCredentialsRequest)(nil),                      // 21: org.signal.chat.profile.GetAvatarCredentialsRequest
+	(*GetAvatarCredentialsResponse)(nil),                     // 22: org.signal.chat.profile.GetAvatarCredentialsResponse
+	(*GetAvatarUploadFormRequest)(nil),                       // 23: org.signal.chat.profile.GetAvatarUploadFormRequest
+	(*GetAvatarUploadFormResponse)(nil),                      // 24: org.signal.chat.profile.GetAvatarUploadFormResponse
+	(*ExtendAvatarTTLRequest)(nil),                           // 25: org.signal.chat.profile.ExtendAvatarTTLRequest
+	(*ExtendAvatarTTLResponse)(nil),                          // 26: org.signal.chat.profile.ExtendAvatarTTLResponse
+	(*DeleteAvatarRequest)(nil),                              // 27: org.signal.chat.profile.DeleteAvatarRequest
+	(*DeleteAvatarResponse)(nil),                             // 28: org.signal.chat.profile.DeleteAvatarResponse
+	(*common.S3UploadForm)(nil),                              // 29: org.signal.chat.common.S3UploadForm
+	(*errors.FailedPrecondition)(nil),                        // 30: org.signal.chat.errors.FailedPrecondition
+	(*common.ServiceIdentifier)(nil),                         // 31: org.signal.chat.common.ServiceIdentifier
+	(*errors.NotFound)(nil),                                  // 32: org.signal.chat.errors.NotFound
+	(*errors.FailedUnidentifiedAuthorization)(nil),           // 33: org.signal.chat.errors.FailedUnidentifiedAuthorization
+	(*errors.FailedZkAuthentication)(nil),                    // 34: org.signal.chat.errors.FailedZkAuthentication
+	(*emptypb.Empty)(nil),                                    // 35: google.protobuf.Empty
 }
 var file_org_signal_chat_profile_proto_depIdxs = []int32{
 	1,  // 0: org.signal.chat.profile.SetProfileV1Request.avatar_change:type_name -> org.signal.chat.profile.SetProfileV1Request.AvatarChange
-	2,  // 1: org.signal.chat.profile.SetProfileRequest.v1Request:type_name -> org.signal.chat.profile.SetProfileV1Request
-	27, // 2: org.signal.chat.profile.SetProfileResult.v1_avatar_upload_form:type_name -> org.signal.chat.common.S3UploadForm
-	6,  // 3: org.signal.chat.profile.SetProfileResponse.result:type_name -> org.signal.chat.profile.SetProfileResult
-	28, // 4: org.signal.chat.profile.SetProfileResponse.expected_data_write_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	4,  // 5: org.signal.chat.profile.SetProfileResponse.payments_forbidden_in_region:type_name -> org.signal.chat.profile.PaymentsForbiddenInRegion
-	28, // 6: org.signal.chat.profile.SetProfileResponse.expected_version_write_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	5,  // 7: org.signal.chat.profile.SetProfileResponse.profiles_v2_capability_required:type_name -> org.signal.chat.profile.ProfilesV2CapabilityRequired
-	29, // 8: org.signal.chat.profile.GetProfileRequest.account_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
-	8,  // 9: org.signal.chat.profile.GetProfileAnonymousRequest.request:type_name -> org.signal.chat.profile.GetProfileRequest
-	10, // 10: org.signal.chat.profile.ProfileResult.account_info:type_name -> org.signal.chat.profile.AccountInfo
-	10, // 11: org.signal.chat.profile.LegacyProfileResult.account_info:type_name -> org.signal.chat.profile.AccountInfo
-	11, // 12: org.signal.chat.profile.GetProfileResponse.profile:type_name -> org.signal.chat.profile.ProfileResult
-	30, // 13: org.signal.chat.profile.GetProfileResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	12, // 14: org.signal.chat.profile.GetProfileResponse.legacy_profile:type_name -> org.signal.chat.profile.LegacyProfileResult
-	11, // 15: org.signal.chat.profile.GetProfileAnonymousResponse.profile:type_name -> org.signal.chat.profile.ProfileResult
-	30, // 16: org.signal.chat.profile.GetProfileAnonymousResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	31, // 17: org.signal.chat.profile.GetProfileAnonymousResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	12, // 18: org.signal.chat.profile.GetProfileAnonymousResponse.profile_v1:type_name -> org.signal.chat.profile.LegacyProfileResult
-	29, // 19: org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest.account_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
-	0,  // 20: org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest.credential_type:type_name -> org.signal.chat.profile.CredentialType
-	15, // 21: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousRequest.request:type_name -> org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest
-	17, // 22: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse.result:type_name -> org.signal.chat.profile.GetExpiringProfileKeyCredentialResult
-	30, // 23: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	31, // 24: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	28, // 25: org.signal.chat.profile.GetAvatarCredentialsResponse.missing_zk_credential_key:type_name -> org.signal.chat.errors.FailedPrecondition
-	27, // 26: org.signal.chat.profile.GetAvatarUploadFormResponse.avatar_upload_form:type_name -> org.signal.chat.common.S3UploadForm
-	32, // 27: org.signal.chat.profile.GetAvatarUploadFormResponse.invalid_credentials_presentation:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	32, // 28: org.signal.chat.profile.ExtendAvatarTTLResponse.invalid_credentials_presentation:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	30, // 29: org.signal.chat.profile.ExtendAvatarTTLResponse.not_found:type_name -> org.signal.chat.errors.NotFound
-	33, // 30: org.signal.chat.profile.DeleteAvatarResponse.success:type_name -> google.protobuf.Empty
-	32, // 31: org.signal.chat.profile.DeleteAvatarResponse.invalid_credentials_presentation:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	3,  // 32: org.signal.chat.profile.Profile.SetProfile:input_type -> org.signal.chat.profile.SetProfileRequest
-	8,  // 33: org.signal.chat.profile.Profile.GetProfile:input_type -> org.signal.chat.profile.GetProfileRequest
-	19, // 34: org.signal.chat.profile.Profile.GetAvatarCredentials:input_type -> org.signal.chat.profile.GetAvatarCredentialsRequest
-	9,  // 35: org.signal.chat.profile.ProfileAnonymous.GetProfile:input_type -> org.signal.chat.profile.GetProfileAnonymousRequest
-	16, // 36: org.signal.chat.profile.ProfileAnonymous.GetExpiringProfileKeyCredential:input_type -> org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousRequest
-	21, // 37: org.signal.chat.profile.ProfileAnonymous.GetAvatarUploadForm:input_type -> org.signal.chat.profile.GetAvatarUploadFormRequest
-	23, // 38: org.signal.chat.profile.ProfileAnonymous.ExtendAvatarTTL:input_type -> org.signal.chat.profile.ExtendAvatarTTLRequest
-	25, // 39: org.signal.chat.profile.ProfileAnonymous.DeleteAvatar:input_type -> org.signal.chat.profile.DeleteAvatarRequest
-	7,  // 40: org.signal.chat.profile.Profile.SetProfile:output_type -> org.signal.chat.profile.SetProfileResponse
-	13, // 41: org.signal.chat.profile.Profile.GetProfile:output_type -> org.signal.chat.profile.GetProfileResponse
-	20, // 42: org.signal.chat.profile.Profile.GetAvatarCredentials:output_type -> org.signal.chat.profile.GetAvatarCredentialsResponse
-	14, // 43: org.signal.chat.profile.ProfileAnonymous.GetProfile:output_type -> org.signal.chat.profile.GetProfileAnonymousResponse
-	18, // 44: org.signal.chat.profile.ProfileAnonymous.GetExpiringProfileKeyCredential:output_type -> org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse
-	22, // 45: org.signal.chat.profile.ProfileAnonymous.GetAvatarUploadForm:output_type -> org.signal.chat.profile.GetAvatarUploadFormResponse
-	24, // 46: org.signal.chat.profile.ProfileAnonymous.ExtendAvatarTTL:output_type -> org.signal.chat.profile.ExtendAvatarTTLResponse
-	26, // 47: org.signal.chat.profile.ProfileAnonymous.DeleteAvatar:output_type -> org.signal.chat.profile.DeleteAvatarResponse
-	40, // [40:48] is the sub-list for method output_type
-	32, // [32:40] is the sub-list for method input_type
-	32, // [32:32] is the sub-list for extension type_name
-	32, // [32:32] is the sub-list for extension extendee
-	0,  // [0:32] is the sub-list for field type_name
+	29, // 1: org.signal.chat.profile.SetV1AvatarResponse.form:type_name -> org.signal.chat.common.S3UploadForm
+	2,  // 2: org.signal.chat.profile.SetProfileRequest.v1Request:type_name -> org.signal.chat.profile.SetProfileV1Request
+	29, // 3: org.signal.chat.profile.SetProfileResult.v1_avatar_upload_form:type_name -> org.signal.chat.common.S3UploadForm
+	8,  // 4: org.signal.chat.profile.SetProfileResponse.result:type_name -> org.signal.chat.profile.SetProfileResult
+	30, // 5: org.signal.chat.profile.SetProfileResponse.expected_data_write_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
+	6,  // 6: org.signal.chat.profile.SetProfileResponse.payments_forbidden_in_region:type_name -> org.signal.chat.profile.PaymentsForbiddenInRegion
+	30, // 7: org.signal.chat.profile.SetProfileResponse.expected_version_write_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
+	7,  // 8: org.signal.chat.profile.SetProfileResponse.profiles_v2_capability_required:type_name -> org.signal.chat.profile.ProfilesV2CapabilityRequired
+	31, // 9: org.signal.chat.profile.GetProfileRequest.account_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	10, // 10: org.signal.chat.profile.GetProfileAnonymousRequest.request:type_name -> org.signal.chat.profile.GetProfileRequest
+	12, // 11: org.signal.chat.profile.ProfileResult.account_info:type_name -> org.signal.chat.profile.AccountInfo
+	12, // 12: org.signal.chat.profile.LegacyProfileResult.account_info:type_name -> org.signal.chat.profile.AccountInfo
+	13, // 13: org.signal.chat.profile.GetProfileResponse.profile:type_name -> org.signal.chat.profile.ProfileResult
+	32, // 14: org.signal.chat.profile.GetProfileResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	14, // 15: org.signal.chat.profile.GetProfileResponse.legacy_profile:type_name -> org.signal.chat.profile.LegacyProfileResult
+	13, // 16: org.signal.chat.profile.GetProfileAnonymousResponse.profile:type_name -> org.signal.chat.profile.ProfileResult
+	32, // 17: org.signal.chat.profile.GetProfileAnonymousResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	33, // 18: org.signal.chat.profile.GetProfileAnonymousResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
+	14, // 19: org.signal.chat.profile.GetProfileAnonymousResponse.profile_v1:type_name -> org.signal.chat.profile.LegacyProfileResult
+	31, // 20: org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest.account_identifier:type_name -> org.signal.chat.common.ServiceIdentifier
+	0,  // 21: org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest.credential_type:type_name -> org.signal.chat.profile.CredentialType
+	17, // 22: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousRequest.request:type_name -> org.signal.chat.profile.GetExpiringProfileKeyCredentialRequest
+	19, // 23: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse.result:type_name -> org.signal.chat.profile.GetExpiringProfileKeyCredentialResult
+	32, // 24: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	33, // 25: org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse.failed_unidentified_authorization:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
+	30, // 26: org.signal.chat.profile.GetAvatarCredentialsResponse.missing_zk_credential_key:type_name -> org.signal.chat.errors.FailedPrecondition
+	29, // 27: org.signal.chat.profile.GetAvatarUploadFormResponse.avatar_upload_form:type_name -> org.signal.chat.common.S3UploadForm
+	34, // 28: org.signal.chat.profile.GetAvatarUploadFormResponse.invalid_credentials_presentation:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	34, // 29: org.signal.chat.profile.ExtendAvatarTTLResponse.invalid_credentials_presentation:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	32, // 30: org.signal.chat.profile.ExtendAvatarTTLResponse.not_found:type_name -> org.signal.chat.errors.NotFound
+	35, // 31: org.signal.chat.profile.DeleteAvatarResponse.success:type_name -> google.protobuf.Empty
+	34, // 32: org.signal.chat.profile.DeleteAvatarResponse.invalid_credentials_presentation:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	5,  // 33: org.signal.chat.profile.Profile.SetProfile:input_type -> org.signal.chat.profile.SetProfileRequest
+	10, // 34: org.signal.chat.profile.Profile.GetProfile:input_type -> org.signal.chat.profile.GetProfileRequest
+	21, // 35: org.signal.chat.profile.Profile.GetAvatarCredentials:input_type -> org.signal.chat.profile.GetAvatarCredentialsRequest
+	3,  // 36: org.signal.chat.profile.Profile.SetV1Avatar:input_type -> org.signal.chat.profile.SetV1AvatarRequest
+	11, // 37: org.signal.chat.profile.ProfileAnonymous.GetProfile:input_type -> org.signal.chat.profile.GetProfileAnonymousRequest
+	18, // 38: org.signal.chat.profile.ProfileAnonymous.GetExpiringProfileKeyCredential:input_type -> org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousRequest
+	23, // 39: org.signal.chat.profile.ProfileAnonymous.GetAvatarUploadForm:input_type -> org.signal.chat.profile.GetAvatarUploadFormRequest
+	25, // 40: org.signal.chat.profile.ProfileAnonymous.ExtendAvatarTTL:input_type -> org.signal.chat.profile.ExtendAvatarTTLRequest
+	27, // 41: org.signal.chat.profile.ProfileAnonymous.DeleteAvatar:input_type -> org.signal.chat.profile.DeleteAvatarRequest
+	9,  // 42: org.signal.chat.profile.Profile.SetProfile:output_type -> org.signal.chat.profile.SetProfileResponse
+	15, // 43: org.signal.chat.profile.Profile.GetProfile:output_type -> org.signal.chat.profile.GetProfileResponse
+	22, // 44: org.signal.chat.profile.Profile.GetAvatarCredentials:output_type -> org.signal.chat.profile.GetAvatarCredentialsResponse
+	4,  // 45: org.signal.chat.profile.Profile.SetV1Avatar:output_type -> org.signal.chat.profile.SetV1AvatarResponse
+	16, // 46: org.signal.chat.profile.ProfileAnonymous.GetProfile:output_type -> org.signal.chat.profile.GetProfileAnonymousResponse
+	20, // 47: org.signal.chat.profile.ProfileAnonymous.GetExpiringProfileKeyCredential:output_type -> org.signal.chat.profile.GetExpiringProfileKeyCredentialAnonymousResponse
+	24, // 48: org.signal.chat.profile.ProfileAnonymous.GetAvatarUploadForm:output_type -> org.signal.chat.profile.GetAvatarUploadFormResponse
+	26, // 49: org.signal.chat.profile.ProfileAnonymous.ExtendAvatarTTL:output_type -> org.signal.chat.profile.ExtendAvatarTTLResponse
+	28, // 50: org.signal.chat.profile.ProfileAnonymous.DeleteAvatar:output_type -> org.signal.chat.profile.DeleteAvatarResponse
+	42, // [42:51] is the sub-list for method output_type
+	33, // [33:42] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_org_signal_chat_profile_proto_init() }
@@ -2350,50 +2463,50 @@ func file_org_signal_chat_profile_proto_init() {
 	if File_org_signal_chat_profile_proto != nil {
 		return
 	}
-	file_org_signal_chat_profile_proto_msgTypes[4].OneofWrappers = []any{}
-	file_org_signal_chat_profile_proto_msgTypes[5].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[6].OneofWrappers = []any{}
+	file_org_signal_chat_profile_proto_msgTypes[7].OneofWrappers = []any{
 		(*SetProfileResponse_Result)(nil),
 		(*SetProfileResponse_ExpectedDataWriteConflict)(nil),
 		(*SetProfileResponse_PaymentsForbiddenInRegion)(nil),
 		(*SetProfileResponse_ExpectedVersionWriteConflict)(nil),
 		(*SetProfileResponse_ProfilesV2CapabilityRequired)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[7].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[9].OneofWrappers = []any{
 		(*GetProfileAnonymousRequest_UnidentifiedAccessKey)(nil),
 		(*GetProfileAnonymousRequest_GroupSendToken)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[11].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[13].OneofWrappers = []any{
 		(*GetProfileResponse_Profile)(nil),
 		(*GetProfileResponse_EtagMatched)(nil),
 		(*GetProfileResponse_NotFound)(nil),
 		(*GetProfileResponse_LegacyProfile)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[12].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[14].OneofWrappers = []any{
 		(*GetProfileAnonymousResponse_Profile)(nil),
 		(*GetProfileAnonymousResponse_EtagMatched)(nil),
 		(*GetProfileAnonymousResponse_NotFound)(nil),
 		(*GetProfileAnonymousResponse_FailedUnidentifiedAuthorization)(nil),
 		(*GetProfileAnonymousResponse_ProfileV1)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[16].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[18].OneofWrappers = []any{
 		(*GetExpiringProfileKeyCredentialAnonymousResponse_Result)(nil),
 		(*GetExpiringProfileKeyCredentialAnonymousResponse_NotFound)(nil),
 		(*GetExpiringProfileKeyCredentialAnonymousResponse_FailedUnidentifiedAuthorization)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[18].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[20].OneofWrappers = []any{
 		(*GetAvatarCredentialsResponse_AvatarCredentials)(nil),
 		(*GetAvatarCredentialsResponse_MissingZkCredentialKey)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[20].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[22].OneofWrappers = []any{
 		(*GetAvatarUploadFormResponse_AvatarUploadForm)(nil),
 		(*GetAvatarUploadFormResponse_InvalidCredentialsPresentation)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[22].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[24].OneofWrappers = []any{
 		(*ExtendAvatarTTLResponse_Path)(nil),
 		(*ExtendAvatarTTLResponse_InvalidCredentialsPresentation)(nil),
 		(*ExtendAvatarTTLResponse_NotFound)(nil),
 	}
-	file_org_signal_chat_profile_proto_msgTypes[24].OneofWrappers = []any{
+	file_org_signal_chat_profile_proto_msgTypes[26].OneofWrappers = []any{
 		(*DeleteAvatarResponse_Success)(nil),
 		(*DeleteAvatarResponse_InvalidCredentialsPresentation)(nil),
 	}
@@ -2403,7 +2516,7 @@ func file_org_signal_chat_profile_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_org_signal_chat_profile_proto_rawDesc), len(file_org_signal_chat_profile_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   25,
+			NumMessages:   27,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

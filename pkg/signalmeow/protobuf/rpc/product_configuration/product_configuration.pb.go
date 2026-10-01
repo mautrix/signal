@@ -453,6 +453,8 @@ type LoginConfiguration struct {
 	Level uint64 `protobuf:"varint,1,opt,name=level,proto3" json:"level,omitempty"`
 	// The play billing productID associated with a Signal Login purchase
 	PlayProductId string `protobuf:"bytes,2,opt,name=play_product_id,json=playProductId,proto3" json:"play_product_id,omitempty"`
+	// The play billing optionID to use to purchase a Signal Login
+	PlayOptionId string `protobuf:"bytes,4,opt,name=play_option_id,json=playOptionId,proto3" json:"play_option_id,omitempty"`
 	// The App Store productID associated with a Signal Login purchase
 	AppStoreProductId string `protobuf:"bytes,3,opt,name=app_store_product_id,json=appStoreProductId,proto3" json:"app_store_product_id,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -499,6 +501,13 @@ func (x *LoginConfiguration) GetLevel() uint64 {
 func (x *LoginConfiguration) GetPlayProductId() string {
 	if x != nil {
 		return x.PlayProductId
+	}
+	return ""
+}
+
+func (x *LoginConfiguration) GetPlayOptionId() string {
+	if x != nil {
+		return x.PlayOptionId
 	}
 	return ""
 }
@@ -561,10 +570,11 @@ const file_org_signal_chat_product_configuration_proto_rawDesc = "" +
 	"\x14free_tier_media_days\x18\x02 \x01(\x04R\x11freeTierMediaDays\x1am\n" +
 	"\vLevelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\x04R\x03key\x12H\n" +
-	"\x05value\x18\x02 \x01(\v22.org.signal.chat.purchase.BackupLevelConfigurationR\x05value:\x028\x01\"\x83\x01\n" +
+	"\x05value\x18\x02 \x01(\v22.org.signal.chat.purchase.BackupLevelConfigurationR\x05value:\x028\x01\"\xa9\x01\n" +
 	"\x12LoginConfiguration\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x04R\x05level\x12&\n" +
-	"\x0fplay_product_id\x18\x02 \x01(\tR\rplayProductId\x12/\n" +
+	"\x0fplay_product_id\x18\x02 \x01(\tR\rplayProductId\x12$\n" +
+	"\x0eplay_option_id\x18\x04 \x01(\tR\fplayOptionId\x12/\n" +
 	"\x14app_store_product_id\x18\x03 \x01(\tR\x11appStoreProductId2\x99\x01\n" +
 	"\x14ProductConfiguration\x12{\n" +
 	"\x10GetConfiguration\x121.org.signal.chat.purchase.GetConfigurationRequest\x1a2.org.signal.chat.purchase.GetConfigurationResponse\"\x00\x1a\x04\xc8\xd5\"\x02B\x02P\x01b\x06proto3"

@@ -43,6 +43,8 @@ const (
 //
 // Configuration for subscription levels can be found in ProductConfiguration.
 type SubscriptionsClient interface {
+	// Creates a subscriber record if it does not exist, otherwise refreshes its last access time.
+	//
 	//  Subscribers MUST periodically hit this endpoint to update the access time on the subscription record. Subscribers
 	//  SHOULD attempt to make an update call approximately every 3 days. Not accessing this endpoint for an extended
 	//  period of time will result in the subscription being canceled.
@@ -55,6 +57,10 @@ type SubscriptionsClient interface {
 	// Returns a client secret that can be used to set up a new payment method with the payment processor.
 	CreatePaymentMethod(ctx context.Context, in *CreatePaymentMethodRequest, opts ...grpc.CallOption) (*CreatePaymentMethodResponse, error)
 	// Returns a PayPal billing agreement approval URL and token that can be used to set up PayPal as a payment method.
+	//
+	// The presented billing agreement may be localized. Callers should set their
+	// language preferences via an "Accept-Language" header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	CreatePayPalPaymentMethod(ctx context.Context, in *CreatePayPalPaymentMethodRequest, opts ...grpc.CallOption) (*CreatePayPalPaymentMethodResponse, error)
 	// Sets the default payment method for a subscriber.
 	SetDefaultPaymentMethod(ctx context.Context, in *SetDefaultPaymentMethodRequest, opts ...grpc.CallOption) (*SetDefaultPaymentMethodResponse, error)
@@ -114,7 +120,11 @@ type SubscriptionsClient interface {
 	// method. A different playbilling purchaseToken can be posted to the same subscriberId, in this case the subscription
 	// associated with the old purchaseToken will be cancelled.
 	SetIapSubscription(ctx context.Context, in *SetIapSubscriptionRequest, opts ...grpc.CallOption) (*SetIapSubscriptionResponse, error)
-	// Returns a localized bank mandate for the specified bank transfer type
+	// Returns a localized bank mandate for the specified bank transfer type.
+	//
+	// Callers should set their language preferences via an "Accept-Language"
+	// header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	GetBankMandate(ctx context.Context, in *GetBankMandateRequest, opts ...grpc.CallOption) (*GetBankMandateResponse, error)
 }
 
@@ -234,6 +244,8 @@ func (c *subscriptionsClient) GetBankMandate(ctx context.Context, in *GetBankMan
 //
 // Configuration for subscription levels can be found in ProductConfiguration.
 type SubscriptionsServer interface {
+	// Creates a subscriber record if it does not exist, otherwise refreshes its last access time.
+	//
 	//  Subscribers MUST periodically hit this endpoint to update the access time on the subscription record. Subscribers
 	//  SHOULD attempt to make an update call approximately every 3 days. Not accessing this endpoint for an extended
 	//  period of time will result in the subscription being canceled.
@@ -246,6 +258,10 @@ type SubscriptionsServer interface {
 	// Returns a client secret that can be used to set up a new payment method with the payment processor.
 	CreatePaymentMethod(context.Context, *CreatePaymentMethodRequest) (*CreatePaymentMethodResponse, error)
 	// Returns a PayPal billing agreement approval URL and token that can be used to set up PayPal as a payment method.
+	//
+	// The presented billing agreement may be localized. Callers should set their
+	// language preferences via an "Accept-Language" header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	CreatePayPalPaymentMethod(context.Context, *CreatePayPalPaymentMethodRequest) (*CreatePayPalPaymentMethodResponse, error)
 	// Sets the default payment method for a subscriber.
 	SetDefaultPaymentMethod(context.Context, *SetDefaultPaymentMethodRequest) (*SetDefaultPaymentMethodResponse, error)
@@ -305,7 +321,11 @@ type SubscriptionsServer interface {
 	// method. A different playbilling purchaseToken can be posted to the same subscriberId, in this case the subscription
 	// associated with the old purchaseToken will be cancelled.
 	SetIapSubscription(context.Context, *SetIapSubscriptionRequest) (*SetIapSubscriptionResponse, error)
-	// Returns a localized bank mandate for the specified bank transfer type
+	// Returns a localized bank mandate for the specified bank transfer type.
+	//
+	// Callers should set their language preferences via an "Accept-Language"
+	// header on the request:
+	// https://datatracker.ietf.org/doc/html/rfc3282#section-3
 	GetBankMandate(context.Context, *GetBankMandateRequest) (*GetBankMandateResponse, error)
 	mustEmbedUnimplementedSubscriptionsServer()
 }

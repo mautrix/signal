@@ -260,8 +260,9 @@ func (BankTransferType) EnumDescriptor() ([]byte, []int) {
 }
 
 type UpdateSubscriberRequest struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	SubscriberId []byte                 `protobuf:"bytes,1,opt,name=subscriber_id,json=subscriberId,proto3" json:"subscriber_id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// New subscriber-ids must be a randomly-generated 32 byte byte-string.
+	SubscriberId []byte `protobuf:"bytes,1,opt,name=subscriber_id,json=subscriberId,proto3" json:"subscriber_id,omitempty"`
 	// A libsignal DonationPermit from rpc Donations.CreateDonationPermit.
 	// Not required if the subscriber already exists.
 	DonationPermit []byte `protobuf:"bytes,2,opt,name=donation_permit,json=donationPermit,proto3" json:"donation_permit,omitempty"`
@@ -318,7 +319,6 @@ type UpdateSubscriberResponse struct {
 	// Types that are valid to be assigned to Response:
 	//
 	//	*UpdateSubscriberResponse_Success
-	//	*UpdateSubscriberResponse_SubscriberIdMismatch
 	//	*UpdateSubscriberResponse_PermitRejected
 	Response      isUpdateSubscriberResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
@@ -371,15 +371,6 @@ func (x *UpdateSubscriberResponse) GetSuccess() *emptypb.Empty {
 	return nil
 }
 
-func (x *UpdateSubscriberResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*UpdateSubscriberResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 func (x *UpdateSubscriberResponse) GetPermitRejected() *errors.FailedZkAuthentication {
 	if x != nil {
 		if x, ok := x.Response.(*UpdateSubscriberResponse_PermitRejected); ok {
@@ -397,19 +388,12 @@ type UpdateSubscriberResponse_Success struct {
 	Success *emptypb.Empty `protobuf:"bytes,1,opt,name=success,proto3,oneof"`
 }
 
-type UpdateSubscriberResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,2,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
-}
-
 type UpdateSubscriberResponse_PermitRejected struct {
 	// The donation permit was expired or already spent
-	PermitRejected *errors.FailedZkAuthentication `protobuf:"bytes,3,opt,name=permit_rejected,json=permitRejected,proto3,oneof"`
+	PermitRejected *errors.FailedZkAuthentication `protobuf:"bytes,2,opt,name=permit_rejected,json=permitRejected,proto3,oneof"`
 }
 
 func (*UpdateSubscriberResponse_Success) isUpdateSubscriberResponse_Response() {}
-
-func (*UpdateSubscriberResponse_SubscriberIdMismatch) isUpdateSubscriberResponse_Response() {}
 
 func (*UpdateSubscriberResponse_PermitRejected) isUpdateSubscriberResponse_Response() {}
 
@@ -542,6 +526,7 @@ type DeleteSubscriberResponse_Success struct {
 }
 
 type DeleteSubscriberResponse_SubscriberNotFound struct {
+	// The subscriber did not exist
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
@@ -625,7 +610,6 @@ type CreatePaymentMethodResponse struct {
 	//
 	//	*CreatePaymentMethodResponse_Result
 	//	*CreatePaymentMethodResponse_SubscriberNotFound
-	//	*CreatePaymentMethodResponse_SubscriberIdMismatch
 	//	*CreatePaymentMethodResponse_SubscriptionProcessorConflict
 	//	*CreatePaymentMethodResponse_PermitRejected
 	Response      isCreatePaymentMethodResponse_Response `protobuf_oneof:"response"`
@@ -688,15 +672,6 @@ func (x *CreatePaymentMethodResponse) GetSubscriberNotFound() *errors.NotFound {
 	return nil
 }
 
-func (x *CreatePaymentMethodResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*CreatePaymentMethodResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 func (x *CreatePaymentMethodResponse) GetSubscriptionProcessorConflict() *errors.FailedPrecondition {
 	if x != nil {
 		if x, ok := x.Response.(*CreatePaymentMethodResponse_SubscriptionProcessorConflict); ok {
@@ -724,29 +699,24 @@ type CreatePaymentMethodResponse_Result struct {
 }
 
 type CreatePaymentMethodResponse_SubscriberNotFound struct {
+	// The subscriber did not exist
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
-type CreatePaymentMethodResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,3,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
-}
-
 type CreatePaymentMethodResponse_SubscriptionProcessorConflict struct {
-	// New payment processor does not match existing processor associated with the subscription
-	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
+	// New payment processor does not match existing processor associated with
+	// the subscription
+	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
 }
 
 type CreatePaymentMethodResponse_PermitRejected struct {
 	// The donation permit was expired or already spent
-	PermitRejected *errors.FailedZkAuthentication `protobuf:"bytes,5,opt,name=permit_rejected,json=permitRejected,proto3,oneof"`
+	PermitRejected *errors.FailedZkAuthentication `protobuf:"bytes,4,opt,name=permit_rejected,json=permitRejected,proto3,oneof"`
 }
 
 func (*CreatePaymentMethodResponse_Result) isCreatePaymentMethodResponse_Response() {}
 
 func (*CreatePaymentMethodResponse_SubscriberNotFound) isCreatePaymentMethodResponse_Response() {}
-
-func (*CreatePaymentMethodResponse_SubscriberIdMismatch) isCreatePaymentMethodResponse_Response() {}
 
 func (*CreatePaymentMethodResponse_SubscriptionProcessorConflict) isCreatePaymentMethodResponse_Response() {
 }
@@ -821,7 +791,6 @@ type CreatePayPalPaymentMethodResponse struct {
 	//
 	//	*CreatePayPalPaymentMethodResponse_Result
 	//	*CreatePayPalPaymentMethodResponse_SubscriberNotFound
-	//	*CreatePayPalPaymentMethodResponse_SubscriberIdMismatch
 	//	*CreatePayPalPaymentMethodResponse_SubscriptionProcessorConflict
 	Response      isCreatePayPalPaymentMethodResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
@@ -883,15 +852,6 @@ func (x *CreatePayPalPaymentMethodResponse) GetSubscriberNotFound() *errors.NotF
 	return nil
 }
 
-func (x *CreatePayPalPaymentMethodResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*CreatePayPalPaymentMethodResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 func (x *CreatePayPalPaymentMethodResponse) GetSubscriptionProcessorConflict() *errors.FailedPrecondition {
 	if x != nil {
 		if x, ok := x.Response.(*CreatePayPalPaymentMethodResponse_SubscriptionProcessorConflict); ok {
@@ -910,25 +870,19 @@ type CreatePayPalPaymentMethodResponse_Result struct {
 }
 
 type CreatePayPalPaymentMethodResponse_SubscriberNotFound struct {
+	// The subscriber did not exist
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
-type CreatePayPalPaymentMethodResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,3,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
-}
-
 type CreatePayPalPaymentMethodResponse_SubscriptionProcessorConflict struct {
-	// New payment processor does not match existing processor associated with the subscription
-	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
+	// New payment processor does not match existing processor associated with
+	// the subscription
+	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
 }
 
 func (*CreatePayPalPaymentMethodResponse_Result) isCreatePayPalPaymentMethodResponse_Response() {}
 
 func (*CreatePayPalPaymentMethodResponse_SubscriberNotFound) isCreatePayPalPaymentMethodResponse_Response() {
-}
-
-func (*CreatePayPalPaymentMethodResponse_SubscriberIdMismatch) isCreatePayPalPaymentMethodResponse_Response() {
 }
 
 func (*CreatePayPalPaymentMethodResponse_SubscriptionProcessorConflict) isCreatePayPalPaymentMethodResponse_Response() {
@@ -1046,9 +1000,7 @@ type SetDefaultPaymentMethodResponse struct {
 	//
 	//	*SetDefaultPaymentMethodResponse_Success
 	//	*SetDefaultPaymentMethodResponse_SubscriberNotFound
-	//	*SetDefaultPaymentMethodResponse_SubscriberIdMismatch
 	//	*SetDefaultPaymentMethodResponse_PaymentMethodNotSetUp
-	//	*SetDefaultPaymentMethodResponse_SubscriptionProcessorConflict
 	Response      isSetDefaultPaymentMethodResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1109,28 +1061,10 @@ func (x *SetDefaultPaymentMethodResponse) GetSubscriberNotFound() *errors.NotFou
 	return nil
 }
 
-func (x *SetDefaultPaymentMethodResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*SetDefaultPaymentMethodResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 func (x *SetDefaultPaymentMethodResponse) GetPaymentMethodNotSetUp() *errors.FailedPrecondition {
 	if x != nil {
 		if x, ok := x.Response.(*SetDefaultPaymentMethodResponse_PaymentMethodNotSetUp); ok {
 			return x.PaymentMethodNotSetUp
-		}
-	}
-	return nil
-}
-
-func (x *SetDefaultPaymentMethodResponse) GetSubscriptionProcessorConflict() *errors.FailedPrecondition {
-	if x != nil {
-		if x, ok := x.Response.(*SetDefaultPaymentMethodResponse_SubscriptionProcessorConflict); ok {
-			return x.SubscriptionProcessorConflict
 		}
 	}
 	return nil
@@ -1145,21 +1079,14 @@ type SetDefaultPaymentMethodResponse_Success struct {
 }
 
 type SetDefaultPaymentMethodResponse_SubscriberNotFound struct {
+	// The subscriber did not exist, or the referenced setup intent was not found
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
-type SetDefaultPaymentMethodResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,3,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
-}
-
 type SetDefaultPaymentMethodResponse_PaymentMethodNotSetUp struct {
-	PaymentMethodNotSetUp *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=payment_method_not_set_up,json=paymentMethodNotSetUp,proto3,oneof"`
-}
-
-type SetDefaultPaymentMethodResponse_SubscriptionProcessorConflict struct {
-	// Payment processor does not match existing processor associated with the subscription
-	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
+	// No payment method has been created for the subscriber, or the provided
+	// payment method has not finished being set up with the processor
+	PaymentMethodNotSetUp *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=payment_method_not_set_up,json=paymentMethodNotSetUp,proto3,oneof"`
 }
 
 func (*SetDefaultPaymentMethodResponse_Success) isSetDefaultPaymentMethodResponse_Response() {}
@@ -1167,13 +1094,7 @@ func (*SetDefaultPaymentMethodResponse_Success) isSetDefaultPaymentMethodRespons
 func (*SetDefaultPaymentMethodResponse_SubscriberNotFound) isSetDefaultPaymentMethodResponse_Response() {
 }
 
-func (*SetDefaultPaymentMethodResponse_SubscriberIdMismatch) isSetDefaultPaymentMethodResponse_Response() {
-}
-
 func (*SetDefaultPaymentMethodResponse_PaymentMethodNotSetUp) isSetDefaultPaymentMethodResponse_Response() {
-}
-
-func (*SetDefaultPaymentMethodResponse_SubscriptionProcessorConflict) isSetDefaultPaymentMethodResponse_Response() {
 }
 
 type SetSubscriptionLevelRequest struct {
@@ -1400,7 +1321,6 @@ type SetSubscriptionLevelResponse struct {
 	//
 	//	*SetSubscriptionLevelResponse_Success
 	//	*SetSubscriptionLevelResponse_SubscriberNotFound
-	//	*SetSubscriptionLevelResponse_SubscriberIdMismatch
 	//	*SetSubscriptionLevelResponse_SubscriptionProcessorConflict
 	//	*SetSubscriptionLevelResponse_PaymentMethodNotSetUp
 	//	*SetSubscriptionLevelResponse_UnsupportedOperation
@@ -1465,15 +1385,6 @@ func (x *SetSubscriptionLevelResponse) GetSubscriberNotFound() *errors.NotFound 
 	if x != nil {
 		if x, ok := x.Response.(*SetSubscriptionLevelResponse_SubscriberNotFound); ok {
 			return x.SubscriberNotFound
-		}
-	}
-	return nil
-}
-
-func (x *SetSubscriptionLevelResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*SetSubscriptionLevelResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
 		}
 	}
 	return nil
@@ -1569,63 +1480,59 @@ type SetSubscriptionLevelResponse_Success struct {
 }
 
 type SetSubscriptionLevelResponse_SubscriberNotFound struct {
+	// The subscriber did not exist
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
-type SetSubscriptionLevelResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,3,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
-}
-
 type SetSubscriptionLevelResponse_SubscriptionProcessorConflict struct {
-	// New payment processor does not match existing processor associated with the subscription
-	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
+	// New payment processor does not match existing processor associated with
+	// the subscription
+	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_PaymentMethodNotSetUp struct {
-	PaymentMethodNotSetUp *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=payment_method_not_set_up,json=paymentMethodNotSetUp,proto3,oneof"`
+	// No payment method has been created for the subscriber
+	PaymentMethodNotSetUp *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=payment_method_not_set_up,json=paymentMethodNotSetUp,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_UnsupportedOperation struct {
 	// The payment processor does not support this operation
-	UnsupportedOperation *errors.FailedPrecondition `protobuf:"bytes,6,opt,name=unsupported_operation,json=unsupportedOperation,proto3,oneof"`
+	UnsupportedOperation *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=unsupported_operation,json=unsupportedOperation,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_UnsupportedLevel struct {
 	// The requested level was invalid
-	UnsupportedLevel *errors.FailedPrecondition `protobuf:"bytes,7,opt,name=unsupported_level,json=unsupportedLevel,proto3,oneof"`
+	UnsupportedLevel *errors.FailedPrecondition `protobuf:"bytes,6,opt,name=unsupported_level,json=unsupportedLevel,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_UnsupportedCurrency struct {
 	// The requested currency was invalid
-	UnsupportedCurrency *errors.FailedPrecondition `protobuf:"bytes,8,opt,name=unsupported_currency,json=unsupportedCurrency,proto3,oneof"`
+	UnsupportedCurrency *errors.FailedPrecondition `protobuf:"bytes,7,opt,name=unsupported_currency,json=unsupportedCurrency,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_PaymentRequiresAction struct {
 	// The card could not be charged
-	PaymentRequiresAction *errors.FailedPrecondition `protobuf:"bytes,9,opt,name=payment_requires_action,json=paymentRequiresAction,proto3,oneof"`
+	PaymentRequiresAction *errors.FailedPrecondition `protobuf:"bytes,8,opt,name=payment_requires_action,json=paymentRequiresAction,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_InvalidLevelTransition struct {
 	// Cannot transition from existing level to the requested level
-	InvalidLevelTransition *errors.FailedPrecondition `protobuf:"bytes,10,opt,name=invalid_level_transition,json=invalidLevelTransition,proto3,oneof"`
+	InvalidLevelTransition *errors.FailedPrecondition `protobuf:"bytes,9,opt,name=invalid_level_transition,json=invalidLevelTransition,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_InvalidIdempotencyKey struct {
 	// The idempotency key was invalid or re-used with a modified request
-	InvalidIdempotencyKey *errors.FailedPrecondition `protobuf:"bytes,11,opt,name=invalid_idempotency_key,json=invalidIdempotencyKey,proto3,oneof"`
+	InvalidIdempotencyKey *errors.FailedPrecondition `protobuf:"bytes,10,opt,name=invalid_idempotency_key,json=invalidIdempotencyKey,proto3,oneof"`
 }
 
 type SetSubscriptionLevelResponse_ChargeFailure struct {
 	// The payment failed; see charge failure details
-	ChargeFailure *ChargeFailure `protobuf:"bytes,12,opt,name=charge_failure,json=chargeFailure,proto3,oneof"`
+	ChargeFailure *ChargeFailure `protobuf:"bytes,11,opt,name=charge_failure,json=chargeFailure,proto3,oneof"`
 }
 
 func (*SetSubscriptionLevelResponse_Success) isSetSubscriptionLevelResponse_Response() {}
 
 func (*SetSubscriptionLevelResponse_SubscriberNotFound) isSetSubscriptionLevelResponse_Response() {}
-
-func (*SetSubscriptionLevelResponse_SubscriberIdMismatch) isSetSubscriptionLevelResponse_Response() {}
 
 func (*SetSubscriptionLevelResponse_SubscriptionProcessorConflict) isSetSubscriptionLevelResponse_Response() {
 }
@@ -1746,7 +1653,6 @@ type SetIapSubscriptionResponse struct {
 	//
 	//	*SetIapSubscriptionResponse_Success
 	//	*SetIapSubscriptionResponse_SubscriberNotFound
-	//	*SetIapSubscriptionResponse_SubscriberIdMismatch
 	//	*SetIapSubscriptionResponse_SubscriptionProcessorConflict
 	//	*SetIapSubscriptionResponse_PaymentRequired
 	//	*SetIapSubscriptionResponse_InvalidTransaction
@@ -1810,15 +1716,6 @@ func (x *SetIapSubscriptionResponse) GetSubscriberNotFound() *errors.NotFound {
 	return nil
 }
 
-func (x *SetIapSubscriptionResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*SetIapSubscriptionResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 func (x *SetIapSubscriptionResponse) GetSubscriptionProcessorConflict() *errors.FailedPrecondition {
 	if x != nil {
 		if x, ok := x.Response.(*SetIapSubscriptionResponse_SubscriptionProcessorConflict); ok {
@@ -1855,32 +1752,31 @@ type SetIapSubscriptionResponse_Success struct {
 }
 
 type SetIapSubscriptionResponse_SubscriberNotFound struct {
+	// The subscriber did not exist or the provided purchase identifier does not exist
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
-type SetIapSubscriptionResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,3,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
-}
-
 type SetIapSubscriptionResponse_SubscriptionProcessorConflict struct {
-	// New payment processor does not match existing processor associated with the subscription
-	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
+	// New payment processor does not match existing processor associated with
+	// the subscription
+	SubscriptionProcessorConflict *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=subscription_processor_conflict,json=subscriptionProcessorConflict,proto3,oneof"`
 }
 
 type SetIapSubscriptionResponse_PaymentRequired struct {
-	PaymentRequired *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=payment_required,json=paymentRequired,proto3,oneof"`
+	// The subscription is not in a purchase state that grants the user an
+	// entitlement
+	PaymentRequired *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=payment_required,json=paymentRequired,proto3,oneof"`
 }
 
 type SetIapSubscriptionResponse_InvalidTransaction struct {
-	InvalidTransaction *errors.FailedPrecondition `protobuf:"bytes,6,opt,name=invalid_transaction,json=invalidTransaction,proto3,oneof"`
+	// The provided purchase identifier is malformed or the identified
+	// transaction is not supported for use at this endpoint
+	InvalidTransaction *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=invalid_transaction,json=invalidTransaction,proto3,oneof"`
 }
 
 func (*SetIapSubscriptionResponse_Success) isSetIapSubscriptionResponse_Response() {}
 
 func (*SetIapSubscriptionResponse_SubscriberNotFound) isSetIapSubscriptionResponse_Response() {}
-
-func (*SetIapSubscriptionResponse_SubscriberIdMismatch) isSetIapSubscriptionResponse_Response() {}
 
 func (*SetIapSubscriptionResponse_SubscriptionProcessorConflict) isSetIapSubscriptionResponse_Response() {
 }
@@ -1947,7 +1843,6 @@ type GetReceiptCredentialsResponse struct {
 	//
 	//	*GetReceiptCredentialsResponse_Success
 	//	*GetReceiptCredentialsResponse_SubscriberNotFound
-	//	*GetReceiptCredentialsResponse_SubscriberIdMismatch
 	//	*GetReceiptCredentialsResponse_NoPaidInvoice
 	//	*GetReceiptCredentialsResponse_PaymentRequired
 	//	*GetReceiptCredentialsResponse_AlreadyRedeemed
@@ -2011,15 +1906,6 @@ func (x *GetReceiptCredentialsResponse) GetSubscriberNotFound() *errors.NotFound
 	return nil
 }
 
-func (x *GetReceiptCredentialsResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*GetReceiptCredentialsResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 func (x *GetReceiptCredentialsResponse) GetNoPaidInvoice() *errors.FailedPrecondition {
 	if x != nil {
 		if x, ok := x.Response.(*GetReceiptCredentialsResponse_NoPaidInvoice); ok {
@@ -2056,35 +1942,28 @@ type GetReceiptCredentialsResponse_Success struct {
 }
 
 type GetReceiptCredentialsResponse_SubscriberNotFound struct {
+	// The subscriber did not exist or it did not have an associated subscription
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
-}
-
-type GetReceiptCredentialsResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,3,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
 }
 
 type GetReceiptCredentialsResponse_NoPaidInvoice struct {
 	// No invoice has been issued for this subscription OR invoice is in 'draft' or 'open' state
-	NoPaidInvoice *errors.FailedPrecondition `protobuf:"bytes,4,opt,name=no_paid_invoice,json=noPaidInvoice,proto3,oneof"`
+	NoPaidInvoice *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=no_paid_invoice,json=noPaidInvoice,proto3,oneof"`
 }
 
 type GetReceiptCredentialsResponse_PaymentRequired struct {
 	// Invoice is in any state other than 'draft', 'open', or 'paid'; Charge failure details may be present
-	PaymentRequired *PaymentRequired `protobuf:"bytes,5,opt,name=payment_required,json=paymentRequired,proto3,oneof"`
+	PaymentRequired *PaymentRequired `protobuf:"bytes,4,opt,name=payment_required,json=paymentRequired,proto3,oneof"`
 }
 
 type GetReceiptCredentialsResponse_AlreadyRedeemed struct {
 	// Latest paid receipt on subscription was already redeemed for a receipt credential but with a different GetReceiptCredentialRequest
-	AlreadyRedeemed *errors.FailedPrecondition `protobuf:"bytes,6,opt,name=already_redeemed,json=alreadyRedeemed,proto3,oneof"`
+	AlreadyRedeemed *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=already_redeemed,json=alreadyRedeemed,proto3,oneof"`
 }
 
 func (*GetReceiptCredentialsResponse_Success) isGetReceiptCredentialsResponse_Response() {}
 
 func (*GetReceiptCredentialsResponse_SubscriberNotFound) isGetReceiptCredentialsResponse_Response() {}
-
-func (*GetReceiptCredentialsResponse_SubscriberIdMismatch) isGetReceiptCredentialsResponse_Response() {
-}
 
 func (*GetReceiptCredentialsResponse_NoPaidInvoice) isGetReceiptCredentialsResponse_Response() {}
 
@@ -2143,7 +2022,6 @@ type GetSubscriptionInformationResponse struct {
 	//	*GetSubscriptionInformationResponse_Success
 	//	*GetSubscriptionInformationResponse_NoSubscription
 	//	*GetSubscriptionInformationResponse_SubscriberNotFound
-	//	*GetSubscriptionInformationResponse_SubscriberIdMismatch
 	Response      isGetSubscriptionInformationResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2213,15 +2091,6 @@ func (x *GetSubscriptionInformationResponse) GetSubscriberNotFound() *errors.Not
 	return nil
 }
 
-func (x *GetSubscriptionInformationResponse) GetSubscriberIdMismatch() *errors.FailedUnidentifiedAuthorization {
-	if x != nil {
-		if x, ok := x.Response.(*GetSubscriptionInformationResponse_SubscriberIdMismatch); ok {
-			return x.SubscriberIdMismatch
-		}
-	}
-	return nil
-}
-
 type isGetSubscriptionInformationResponse_Response interface {
 	isGetSubscriptionInformationResponse_Response()
 }
@@ -2231,16 +2100,13 @@ type GetSubscriptionInformationResponse_Success struct {
 }
 
 type GetSubscriptionInformationResponse_NoSubscription struct {
+	// The subscriber exists but has no subscription with a payment processor
 	NoSubscription *emptypb.Empty `protobuf:"bytes,2,opt,name=no_subscription,json=noSubscription,proto3,oneof"`
 }
 
 type GetSubscriptionInformationResponse_SubscriberNotFound struct {
+	// The subscriber did not exist
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,3,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
-}
-
-type GetSubscriptionInformationResponse_SubscriberIdMismatch struct {
-	// subscriberId authentication failure
-	SubscriberIdMismatch *errors.FailedUnidentifiedAuthorization `protobuf:"bytes,4,opt,name=subscriber_id_mismatch,json=subscriberIdMismatch,proto3,oneof"`
 }
 
 func (*GetSubscriptionInformationResponse_Success) isGetSubscriptionInformationResponse_Response() {}
@@ -2249,9 +2115,6 @@ func (*GetSubscriptionInformationResponse_NoSubscription) isGetSubscriptionInfor
 }
 
 func (*GetSubscriptionInformationResponse_SubscriberNotFound) isGetSubscriptionInformationResponse_Response() {
-}
-
-func (*GetSubscriptionInformationResponse_SubscriberIdMismatch) isGetSubscriptionInformationResponse_Response() {
 }
 
 type GetBankMandateRequest struct {
@@ -2951,11 +2814,10 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"#org/signal/chat/subscriptions.proto\x12\x18org.signal.chat.purchase\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1corg/signal/chat/common.proto\x1a\x1dorg/signal/chat/require.proto\x1a\x1corg/signal/chat/errors.proto\x1a\x19org/signal/chat/tag.proto\"n\n" +
 	"\x17UpdateSubscriberRequest\x12*\n" +
 	"\rsubscriber_id\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\x12'\n" +
-	"\x0fdonation_permit\x18\x02 \x01(\fR\x0edonationPermit\"\xd8\x02\n" +
+	"\x0fdonation_permit\x18\x02 \x01(\fR\x0edonationPermit\"\xca\x01\n" +
 	"\x18UpdateSubscriberResponse\x122\n" +
-	"\asuccess\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\asuccess\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x02 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12n\n" +
-	"\x0fpermit_rejected\x18\x03 \x01(\v2..org.signal.chat.errors.FailedZkAuthenticationB\x13\xc2\xd5\"\x0fpermit_rejectedH\x00R\x0epermitRejectedB\n" +
+	"\asuccess\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\asuccess\x12n\n" +
+	"\x0fpermit_rejected\x18\x02 \x01(\v2..org.signal.chat.errors.FailedZkAuthenticationB\x13\xc2\xd5\"\x0fpermit_rejectedH\x00R\x0epermitRejectedB\n" +
 	"\n" +
 	"\bresponse\"D\n" +
 	"\x17DeleteSubscriberRequest\x12)\n" +
@@ -2969,13 +2831,12 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\x1aCreatePaymentMethodRequest\x12*\n" +
 	"\rsubscriber_id\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\x12T\n" +
 	"\x0epayment_method\x18\x02 \x01(\x0e2'.org.signal.chat.purchase.PaymentMethodB\x04\x90\x97\"\x01R\rpaymentMethod\x12-\n" +
-	"\x0fdonation_permit\x18\x03 \x01(\fB\x04\x88\x97\"\x01R\x0edonationPermit\"\xb5\x06\n" +
+	"\x0fdonation_permit\x18\x03 \x01(\fB\x04\x88\x97\"\x01R\x0edonationPermit\"\xa7\x05\n" +
 	"\x1bCreatePaymentMethodResponse\x12i\n" +
 	"\x06result\x18\x01 \x01(\v2O.org.signal.chat.purchase.CreatePaymentMethodResponse.CreatePaymentMethodResultH\x00R\x06result\x12n\n" +
-	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x03 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12\x99\x01\n" +
-	"\x1fsubscription_processor_conflict\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x12n\n" +
-	"\x0fpermit_rejected\x18\x05 \x01(\v2..org.signal.chat.errors.FailedZkAuthenticationB\x13\xc2\xd5\"\x0fpermit_rejectedH\x00R\x0epermitRejected\x1a\x94\x01\n" +
+	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x99\x01\n" +
+	"\x1fsubscription_processor_conflict\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x12n\n" +
+	"\x0fpermit_rejected\x18\x04 \x01(\v2..org.signal.chat.errors.FailedZkAuthenticationB\x13\xc2\xd5\"\x0fpermit_rejectedH\x00R\x0epermitRejected\x1a\x94\x01\n" +
 	"\x19CreatePaymentMethodResult\x12\"\n" +
 	"\fclientSecret\x18\x01 \x01(\tR\fclientSecret\x12S\n" +
 	"\x0fpaymentProvider\x18\x02 \x01(\x0e2).org.signal.chat.purchase.PaymentProviderR\x0fpaymentProviderB\n" +
@@ -2984,12 +2845,11 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	" CreatePayPalPaymentMethodRequest\x12)\n" +
 	"\fsubscriberId\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\x12\x1c\n" +
 	"\treturnUrl\x18\x02 \x01(\tR\treturnUrl\x12\x1c\n" +
-	"\tcancelUrl\x18\x03 \x01(\tR\tcancelUrl\"\x9b\x05\n" +
+	"\tcancelUrl\x18\x03 \x01(\tR\tcancelUrl\"\x8d\x04\n" +
 	"!CreatePayPalPaymentMethodResponse\x12u\n" +
 	"\x06result\x18\x01 \x01(\v2[.org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.CreatePayPalPaymentMethodResultH\x00R\x06result\x12n\n" +
-	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x03 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12\x99\x01\n" +
-	"\x1fsubscription_processor_conflict\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x1aY\n" +
+	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x99\x01\n" +
+	"\x1fsubscription_processor_conflict\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x1aY\n" +
 	"\x1fCreatePayPalPaymentMethodResult\x12 \n" +
 	"\vapprovalUrl\x18\x01 \x01(\tR\vapprovalUrl\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05tokenB\n" +
@@ -3006,13 +2866,11 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\x12paymentMethodToken\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\x12paymentMethodToken\x1a?\n" +
 	"\x11SepaPaymentMethod\x12*\n" +
 	"\rsetupIntentId\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\rsetupIntentIdB\t\n" +
-	"\arequest\"\x83\x05\n" +
+	"\arequest\"\xd9\x02\n" +
 	"\x1fSetDefaultPaymentMethodResponse\x122\n" +
 	"\asuccess\x18\x01 \x01(\v2\x16.google.protobuf.EmptyH\x00R\asuccess\x12n\n" +
-	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x03 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12\x85\x01\n" +
-	"\x19payment_method_not_set_up\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1d\xc2\xd5\"\x19payment_method_not_set_upH\x00R\x15paymentMethodNotSetUp\x12\x99\x01\n" +
-	"\x1fsubscription_processor_conflict\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflictB\n" +
+	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x85\x01\n" +
+	"\x19payment_method_not_set_up\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1d\xc2\xd5\"\x19payment_method_not_set_upH\x00R\x15paymentMethodNotSetUpB\n" +
 	"\n" +
 	"\bresponse\"\xa2\x01\n" +
 	"\x1bSetSubscriptionLevelRequest\x12)\n" +
@@ -3032,21 +2890,20 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\r_outcome_type\"y\n" +
 	"\x0fPaymentRequired\x12S\n" +
 	"\x0echarge_failure\x18\x01 \x01(\v2'.org.signal.chat.purchase.ChargeFailureH\x00R\rchargeFailure\x88\x01\x01B\x11\n" +
-	"\x0f_charge_failure\"\xcf\f\n" +
+	"\x0f_charge_failure\"\xc1\v\n" +
 	"\x1cSetSubscriptionLevelResponse\x12m\n" +
 	"\asuccess\x18\x01 \x01(\v2Q.org.signal.chat.purchase.SetSubscriptionLevelResponse.SetSubscriptionLevelResultH\x00R\asuccess\x12n\n" +
-	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x03 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12\x99\x01\n" +
-	"\x1fsubscription_processor_conflict\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x12\x85\x01\n" +
-	"\x19payment_method_not_set_up\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1d\xc2\xd5\"\x19payment_method_not_set_upH\x00R\x15paymentMethodNotSetUp\x12|\n" +
-	"\x15unsupported_operation\x18\x06 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x19\xc2\xd5\"\x15unsupported_operationH\x00R\x14unsupportedOperation\x12p\n" +
-	"\x11unsupported_level\x18\a \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x15\xc2\xd5\"\x11unsupported_levelH\x00R\x10unsupportedLevel\x12y\n" +
-	"\x14unsupported_currency\x18\b \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x18\xc2\xd5\"\x14unsupported_currencyH\x00R\x13unsupportedCurrency\x12\x81\x01\n" +
-	"\x17payment_requires_action\x18\t \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1b\xc2\xd5\"\x17payment_requires_actionH\x00R\x15paymentRequiresAction\x12\x84\x01\n" +
-	"\x18invalid_level_transition\x18\n" +
-	" \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1c\xc2\xd5\"\x18invalid_level_transitionH\x00R\x16invalidLevelTransition\x12\x81\x01\n" +
-	"\x17invalid_idempotency_key\x18\v \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1b\xc2\xd5\"\x17invalid_idempotency_keyH\x00R\x15invalidIdempotencyKey\x12d\n" +
-	"\x0echarge_failure\x18\f \x01(\v2'.org.signal.chat.purchase.ChargeFailureB\x12\xc2\xd5\"\x0echarge_failureH\x00R\rchargeFailure\x1a2\n" +
+	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x99\x01\n" +
+	"\x1fsubscription_processor_conflict\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x12\x85\x01\n" +
+	"\x19payment_method_not_set_up\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1d\xc2\xd5\"\x19payment_method_not_set_upH\x00R\x15paymentMethodNotSetUp\x12|\n" +
+	"\x15unsupported_operation\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x19\xc2\xd5\"\x15unsupported_operationH\x00R\x14unsupportedOperation\x12p\n" +
+	"\x11unsupported_level\x18\x06 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x15\xc2\xd5\"\x11unsupported_levelH\x00R\x10unsupportedLevel\x12y\n" +
+	"\x14unsupported_currency\x18\a \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x18\xc2\xd5\"\x14unsupported_currencyH\x00R\x13unsupportedCurrency\x12\x81\x01\n" +
+	"\x17payment_requires_action\x18\b \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1b\xc2\xd5\"\x17payment_requires_actionH\x00R\x15paymentRequiresAction\x12\x84\x01\n" +
+	"\x18invalid_level_transition\x18\t \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1c\xc2\xd5\"\x18invalid_level_transitionH\x00R\x16invalidLevelTransition\x12\x81\x01\n" +
+	"\x17invalid_idempotency_key\x18\n" +
+	" \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x1b\xc2\xd5\"\x17invalid_idempotency_keyH\x00R\x15invalidIdempotencyKey\x12d\n" +
+	"\x0echarge_failure\x18\v \x01(\v2'.org.signal.chat.purchase.ChargeFailureB\x12\xc2\xd5\"\x0echarge_failureH\x00R\rchargeFailure\x1a2\n" +
 	"\x1aSetSubscriptionLevelResult\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x04R\x05levelB\n" +
 	"\n" +
@@ -3059,39 +2916,36 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\x17original_transaction_id\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\x15originalTransactionId\x1aB\n" +
 	"\x13PlayBillingPurchase\x12+\n" +
 	"\x0epurchase_token\x18\x01 \x01(\tB\x04\x88\x97\"\x01R\rpurchaseTokenB\t\n" +
-	"\arequest\"\xc6\x06\n" +
+	"\arequest\"\xb8\x05\n" +
 	"\x1aSetIapSubscriptionResponse\x12i\n" +
 	"\asuccess\x18\x01 \x01(\v2M.org.signal.chat.purchase.SetIapSubscriptionResponse.SetIapSubscriptionResultH\x00R\asuccess\x12n\n" +
-	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x03 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12\x99\x01\n" +
-	"\x1fsubscription_processor_conflict\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x12m\n" +
-	"\x10payment_required\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x14\xc2\xd5\"\x10payment_requiredH\x00R\x0fpaymentRequired\x12v\n" +
-	"\x13invalid_transaction\x18\x06 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x17\xc2\xd5\"\x13invalid_transactionH\x00R\x12invalidTransaction\x1a0\n" +
+	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x99\x01\n" +
+	"\x1fsubscription_processor_conflict\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB#\xc2\xd5\"\x1fsubscription_processor_conflictH\x00R\x1dsubscriptionProcessorConflict\x12m\n" +
+	"\x10payment_required\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x14\xc2\xd5\"\x10payment_requiredH\x00R\x0fpaymentRequired\x12v\n" +
+	"\x13invalid_transaction\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x17\xc2\xd5\"\x13invalid_transactionH\x00R\x12invalidTransaction\x1a0\n" +
 	"\x18SetIapSubscriptionResult\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x04R\x05levelB\n" +
 	"\n" +
 	"\bresponse\"\x8c\x01\n" +
 	"\x1cGetReceiptCredentialsRequest\x12)\n" +
 	"\fsubscriberId\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\x12A\n" +
-	"\x18receiptCredentialRequest\x18\x02 \x01(\fB\x05\xa2\x97\"\x01aR\x18receiptCredentialRequest\"\xbf\x06\n" +
+	"\x18receiptCredentialRequest\x18\x02 \x01(\fB\x05\xa2\x97\"\x01aR\x18receiptCredentialRequest\"\xb1\x05\n" +
 	"\x1dGetReceiptCredentialsResponse\x12o\n" +
 	"\asuccess\x18\x01 \x01(\v2S.org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResultH\x00R\asuccess\x12n\n" +
-	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x03 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x12i\n" +
-	"\x0fno_paid_invoice\x18\x04 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x13\xc2\xd5\"\x0fno_paid_invoiceH\x00R\rnoPaidInvoice\x12l\n" +
-	"\x10payment_required\x18\x05 \x01(\v2).org.signal.chat.purchase.PaymentRequiredB\x14\xc2\xd5\"\x10payment_requiredH\x00R\x0fpaymentRequired\x12m\n" +
-	"\x10already_redeemed\x18\x06 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x14\xc2\xd5\"\x10already_redeemedH\x00R\x0falreadyRedeemed\x1a[\n" +
+	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12i\n" +
+	"\x0fno_paid_invoice\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x13\xc2\xd5\"\x0fno_paid_invoiceH\x00R\rnoPaidInvoice\x12l\n" +
+	"\x10payment_required\x18\x04 \x01(\v2).org.signal.chat.purchase.PaymentRequiredB\x14\xc2\xd5\"\x10payment_requiredH\x00R\x0fpaymentRequired\x12m\n" +
+	"\x10already_redeemed\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x14\xc2\xd5\"\x10already_redeemedH\x00R\x0falreadyRedeemed\x1a[\n" +
 	"\x1bGetReceiptCredentialsResult\x12<\n" +
 	"\x19receiptCredentialResponse\x18\x01 \x01(\fR\x19receiptCredentialResponseB\n" +
 	"\n" +
 	"\bresponse\"N\n" +
 	"!GetSubscriptionInformationRequest\x12)\n" +
-	"\fsubscriberId\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\"\xf5\b\n" +
+	"\fsubscriberId\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\"\xe7\a\n" +
 	"\"GetSubscriptionInformationResponse\x12e\n" +
 	"\asuccess\x18\x01 \x01(\v2I.org.signal.chat.purchase.GetSubscriptionInformationResponse.SubscriptionH\x00R\asuccess\x12A\n" +
 	"\x0fno_subscription\x18\x02 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x0enoSubscription\x12n\n" +
-	"\x14subscriber_not_found\x18\x03 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12\x8b\x01\n" +
-	"\x16subscriber_id_mismatch\x18\x04 \x01(\v27.org.signal.chat.errors.FailedUnidentifiedAuthorizationB\x1a\xc2\xd5\"\x16subscriber_id_mismatchH\x00R\x14subscriberIdMismatch\x1a\x9a\x05\n" +
+	"\x14subscriber_not_found\x18\x03 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x1a\x9a\x05\n" +
 	"\fSubscription\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x04R\x05level\x125\n" +
 	"\x14billing_cycle_anchor\x18\x02 \x01(\x04H\x00R\x12billingCycleAnchor\x88\x01\x01\x121\n" +
@@ -3204,99 +3058,89 @@ var file_org_signal_chat_subscriptions_proto_goTypes = []any{
 	(*GetReceiptCredentialsResponse_GetReceiptCredentialsResult)(nil),         // 35: org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResult
 	(*GetSubscriptionInformationResponse_Subscription)(nil),                   // 36: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription
 	(*emptypb.Empty)(nil),                                                     // 37: google.protobuf.Empty
-	(*errors.FailedUnidentifiedAuthorization)(nil),                            // 38: org.signal.chat.errors.FailedUnidentifiedAuthorization
-	(*errors.FailedZkAuthentication)(nil),                                     // 39: org.signal.chat.errors.FailedZkAuthentication
-	(*errors.NotFound)(nil),                                                   // 40: org.signal.chat.errors.NotFound
-	(*errors.FailedPrecondition)(nil),                                         // 41: org.signal.chat.errors.FailedPrecondition
+	(*errors.FailedZkAuthentication)(nil),                                     // 38: org.signal.chat.errors.FailedZkAuthentication
+	(*errors.NotFound)(nil),                                                   // 39: org.signal.chat.errors.NotFound
+	(*errors.FailedPrecondition)(nil),                                         // 40: org.signal.chat.errors.FailedPrecondition
 }
 var file_org_signal_chat_subscriptions_proto_depIdxs = []int32{
 	37, // 0: org.signal.chat.purchase.UpdateSubscriberResponse.success:type_name -> google.protobuf.Empty
-	38, // 1: org.signal.chat.purchase.UpdateSubscriberResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	39, // 2: org.signal.chat.purchase.UpdateSubscriberResponse.permit_rejected:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	37, // 3: org.signal.chat.purchase.DeleteSubscriberResponse.success:type_name -> google.protobuf.Empty
-	40, // 4: org.signal.chat.purchase.DeleteSubscriberResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	41, // 5: org.signal.chat.purchase.DeleteSubscriberResponse.cannot_cancel_subscription:type_name -> org.signal.chat.errors.FailedPrecondition
-	1,  // 6: org.signal.chat.purchase.CreatePaymentMethodRequest.payment_method:type_name -> org.signal.chat.purchase.PaymentMethod
-	26, // 7: org.signal.chat.purchase.CreatePaymentMethodResponse.result:type_name -> org.signal.chat.purchase.CreatePaymentMethodResponse.CreatePaymentMethodResult
-	40, // 8: org.signal.chat.purchase.CreatePaymentMethodResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 9: org.signal.chat.purchase.CreatePaymentMethodResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	41, // 10: org.signal.chat.purchase.CreatePaymentMethodResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	39, // 11: org.signal.chat.purchase.CreatePaymentMethodResponse.permit_rejected:type_name -> org.signal.chat.errors.FailedZkAuthentication
-	27, // 12: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.result:type_name -> org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.CreatePayPalPaymentMethodResult
-	40, // 13: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 14: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	41, // 15: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	28, // 16: org.signal.chat.purchase.SetDefaultPaymentMethodRequest.stripe:type_name -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest.StripePaymentMethod
-	29, // 17: org.signal.chat.purchase.SetDefaultPaymentMethodRequest.braintree:type_name -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest.BraintreePaymentMethod
-	30, // 18: org.signal.chat.purchase.SetDefaultPaymentMethodRequest.sepa:type_name -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest.SepaPaymentMethod
-	37, // 19: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.success:type_name -> google.protobuf.Empty
-	40, // 20: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 21: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	41, // 22: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.payment_method_not_set_up:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 23: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	0,  // 24: org.signal.chat.purchase.ChargeFailure.processor:type_name -> org.signal.chat.purchase.PaymentProvider
-	15, // 25: org.signal.chat.purchase.PaymentRequired.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
-	31, // 26: org.signal.chat.purchase.SetSubscriptionLevelResponse.success:type_name -> org.signal.chat.purchase.SetSubscriptionLevelResponse.SetSubscriptionLevelResult
-	40, // 27: org.signal.chat.purchase.SetSubscriptionLevelResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 28: org.signal.chat.purchase.SetSubscriptionLevelResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	41, // 29: org.signal.chat.purchase.SetSubscriptionLevelResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 30: org.signal.chat.purchase.SetSubscriptionLevelResponse.payment_method_not_set_up:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 31: org.signal.chat.purchase.SetSubscriptionLevelResponse.unsupported_operation:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 32: org.signal.chat.purchase.SetSubscriptionLevelResponse.unsupported_level:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 33: org.signal.chat.purchase.SetSubscriptionLevelResponse.unsupported_currency:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 34: org.signal.chat.purchase.SetSubscriptionLevelResponse.payment_requires_action:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 35: org.signal.chat.purchase.SetSubscriptionLevelResponse.invalid_level_transition:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 36: org.signal.chat.purchase.SetSubscriptionLevelResponse.invalid_idempotency_key:type_name -> org.signal.chat.errors.FailedPrecondition
-	15, // 37: org.signal.chat.purchase.SetSubscriptionLevelResponse.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
-	32, // 38: org.signal.chat.purchase.SetIapSubscriptionRequest.app_store:type_name -> org.signal.chat.purchase.SetIapSubscriptionRequest.AppStorePurchase
-	33, // 39: org.signal.chat.purchase.SetIapSubscriptionRequest.play_billing:type_name -> org.signal.chat.purchase.SetIapSubscriptionRequest.PlayBillingPurchase
-	34, // 40: org.signal.chat.purchase.SetIapSubscriptionResponse.success:type_name -> org.signal.chat.purchase.SetIapSubscriptionResponse.SetIapSubscriptionResult
-	40, // 41: org.signal.chat.purchase.SetIapSubscriptionResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 42: org.signal.chat.purchase.SetIapSubscriptionResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	41, // 43: org.signal.chat.purchase.SetIapSubscriptionResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 44: org.signal.chat.purchase.SetIapSubscriptionResponse.payment_required:type_name -> org.signal.chat.errors.FailedPrecondition
-	41, // 45: org.signal.chat.purchase.SetIapSubscriptionResponse.invalid_transaction:type_name -> org.signal.chat.errors.FailedPrecondition
-	35, // 46: org.signal.chat.purchase.GetReceiptCredentialsResponse.success:type_name -> org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResult
-	40, // 47: org.signal.chat.purchase.GetReceiptCredentialsResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 48: org.signal.chat.purchase.GetReceiptCredentialsResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	41, // 49: org.signal.chat.purchase.GetReceiptCredentialsResponse.no_paid_invoice:type_name -> org.signal.chat.errors.FailedPrecondition
-	16, // 50: org.signal.chat.purchase.GetReceiptCredentialsResponse.payment_required:type_name -> org.signal.chat.purchase.PaymentRequired
-	41, // 51: org.signal.chat.purchase.GetReceiptCredentialsResponse.already_redeemed:type_name -> org.signal.chat.errors.FailedPrecondition
-	36, // 52: org.signal.chat.purchase.GetSubscriptionInformationResponse.success:type_name -> org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription
-	37, // 53: org.signal.chat.purchase.GetSubscriptionInformationResponse.no_subscription:type_name -> google.protobuf.Empty
-	40, // 54: org.signal.chat.purchase.GetSubscriptionInformationResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	38, // 55: org.signal.chat.purchase.GetSubscriptionInformationResponse.subscriber_id_mismatch:type_name -> org.signal.chat.errors.FailedUnidentifiedAuthorization
-	3,  // 56: org.signal.chat.purchase.GetBankMandateRequest.bank_transfer_type:type_name -> org.signal.chat.purchase.BankTransferType
-	0,  // 57: org.signal.chat.purchase.CreatePaymentMethodResponse.CreatePaymentMethodResult.paymentProvider:type_name -> org.signal.chat.purchase.PaymentProvider
-	2,  // 58: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.status:type_name -> org.signal.chat.purchase.SubscriptionStatus
-	0,  // 59: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.processor:type_name -> org.signal.chat.purchase.PaymentProvider
-	1,  // 60: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.payment_method:type_name -> org.signal.chat.purchase.PaymentMethod
-	15, // 61: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
-	4,  // 62: org.signal.chat.purchase.Subscriptions.UpdateSubscriber:input_type -> org.signal.chat.purchase.UpdateSubscriberRequest
-	6,  // 63: org.signal.chat.purchase.Subscriptions.DeleteSubscriber:input_type -> org.signal.chat.purchase.DeleteSubscriberRequest
-	8,  // 64: org.signal.chat.purchase.Subscriptions.CreatePaymentMethod:input_type -> org.signal.chat.purchase.CreatePaymentMethodRequest
-	10, // 65: org.signal.chat.purchase.Subscriptions.CreatePayPalPaymentMethod:input_type -> org.signal.chat.purchase.CreatePayPalPaymentMethodRequest
-	12, // 66: org.signal.chat.purchase.Subscriptions.SetDefaultPaymentMethod:input_type -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest
-	14, // 67: org.signal.chat.purchase.Subscriptions.SetSubscriptionLevel:input_type -> org.signal.chat.purchase.SetSubscriptionLevelRequest
-	22, // 68: org.signal.chat.purchase.Subscriptions.GetSubscriptionInformation:input_type -> org.signal.chat.purchase.GetSubscriptionInformationRequest
-	20, // 69: org.signal.chat.purchase.Subscriptions.GetReceiptCredentials:input_type -> org.signal.chat.purchase.GetReceiptCredentialsRequest
-	18, // 70: org.signal.chat.purchase.Subscriptions.SetIapSubscription:input_type -> org.signal.chat.purchase.SetIapSubscriptionRequest
-	24, // 71: org.signal.chat.purchase.Subscriptions.GetBankMandate:input_type -> org.signal.chat.purchase.GetBankMandateRequest
-	5,  // 72: org.signal.chat.purchase.Subscriptions.UpdateSubscriber:output_type -> org.signal.chat.purchase.UpdateSubscriberResponse
-	7,  // 73: org.signal.chat.purchase.Subscriptions.DeleteSubscriber:output_type -> org.signal.chat.purchase.DeleteSubscriberResponse
-	9,  // 74: org.signal.chat.purchase.Subscriptions.CreatePaymentMethod:output_type -> org.signal.chat.purchase.CreatePaymentMethodResponse
-	11, // 75: org.signal.chat.purchase.Subscriptions.CreatePayPalPaymentMethod:output_type -> org.signal.chat.purchase.CreatePayPalPaymentMethodResponse
-	13, // 76: org.signal.chat.purchase.Subscriptions.SetDefaultPaymentMethod:output_type -> org.signal.chat.purchase.SetDefaultPaymentMethodResponse
-	17, // 77: org.signal.chat.purchase.Subscriptions.SetSubscriptionLevel:output_type -> org.signal.chat.purchase.SetSubscriptionLevelResponse
-	23, // 78: org.signal.chat.purchase.Subscriptions.GetSubscriptionInformation:output_type -> org.signal.chat.purchase.GetSubscriptionInformationResponse
-	21, // 79: org.signal.chat.purchase.Subscriptions.GetReceiptCredentials:output_type -> org.signal.chat.purchase.GetReceiptCredentialsResponse
-	19, // 80: org.signal.chat.purchase.Subscriptions.SetIapSubscription:output_type -> org.signal.chat.purchase.SetIapSubscriptionResponse
-	25, // 81: org.signal.chat.purchase.Subscriptions.GetBankMandate:output_type -> org.signal.chat.purchase.GetBankMandateResponse
-	72, // [72:82] is the sub-list for method output_type
-	62, // [62:72] is the sub-list for method input_type
-	62, // [62:62] is the sub-list for extension type_name
-	62, // [62:62] is the sub-list for extension extendee
-	0,  // [0:62] is the sub-list for field type_name
+	38, // 1: org.signal.chat.purchase.UpdateSubscriberResponse.permit_rejected:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	37, // 2: org.signal.chat.purchase.DeleteSubscriberResponse.success:type_name -> google.protobuf.Empty
+	39, // 3: org.signal.chat.purchase.DeleteSubscriberResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 4: org.signal.chat.purchase.DeleteSubscriberResponse.cannot_cancel_subscription:type_name -> org.signal.chat.errors.FailedPrecondition
+	1,  // 5: org.signal.chat.purchase.CreatePaymentMethodRequest.payment_method:type_name -> org.signal.chat.purchase.PaymentMethod
+	26, // 6: org.signal.chat.purchase.CreatePaymentMethodResponse.result:type_name -> org.signal.chat.purchase.CreatePaymentMethodResponse.CreatePaymentMethodResult
+	39, // 7: org.signal.chat.purchase.CreatePaymentMethodResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 8: org.signal.chat.purchase.CreatePaymentMethodResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
+	38, // 9: org.signal.chat.purchase.CreatePaymentMethodResponse.permit_rejected:type_name -> org.signal.chat.errors.FailedZkAuthentication
+	27, // 10: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.result:type_name -> org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.CreatePayPalPaymentMethodResult
+	39, // 11: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 12: org.signal.chat.purchase.CreatePayPalPaymentMethodResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
+	28, // 13: org.signal.chat.purchase.SetDefaultPaymentMethodRequest.stripe:type_name -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest.StripePaymentMethod
+	29, // 14: org.signal.chat.purchase.SetDefaultPaymentMethodRequest.braintree:type_name -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest.BraintreePaymentMethod
+	30, // 15: org.signal.chat.purchase.SetDefaultPaymentMethodRequest.sepa:type_name -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest.SepaPaymentMethod
+	37, // 16: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.success:type_name -> google.protobuf.Empty
+	39, // 17: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 18: org.signal.chat.purchase.SetDefaultPaymentMethodResponse.payment_method_not_set_up:type_name -> org.signal.chat.errors.FailedPrecondition
+	0,  // 19: org.signal.chat.purchase.ChargeFailure.processor:type_name -> org.signal.chat.purchase.PaymentProvider
+	15, // 20: org.signal.chat.purchase.PaymentRequired.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
+	31, // 21: org.signal.chat.purchase.SetSubscriptionLevelResponse.success:type_name -> org.signal.chat.purchase.SetSubscriptionLevelResponse.SetSubscriptionLevelResult
+	39, // 22: org.signal.chat.purchase.SetSubscriptionLevelResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 23: org.signal.chat.purchase.SetSubscriptionLevelResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 24: org.signal.chat.purchase.SetSubscriptionLevelResponse.payment_method_not_set_up:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 25: org.signal.chat.purchase.SetSubscriptionLevelResponse.unsupported_operation:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 26: org.signal.chat.purchase.SetSubscriptionLevelResponse.unsupported_level:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 27: org.signal.chat.purchase.SetSubscriptionLevelResponse.unsupported_currency:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 28: org.signal.chat.purchase.SetSubscriptionLevelResponse.payment_requires_action:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 29: org.signal.chat.purchase.SetSubscriptionLevelResponse.invalid_level_transition:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 30: org.signal.chat.purchase.SetSubscriptionLevelResponse.invalid_idempotency_key:type_name -> org.signal.chat.errors.FailedPrecondition
+	15, // 31: org.signal.chat.purchase.SetSubscriptionLevelResponse.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
+	32, // 32: org.signal.chat.purchase.SetIapSubscriptionRequest.app_store:type_name -> org.signal.chat.purchase.SetIapSubscriptionRequest.AppStorePurchase
+	33, // 33: org.signal.chat.purchase.SetIapSubscriptionRequest.play_billing:type_name -> org.signal.chat.purchase.SetIapSubscriptionRequest.PlayBillingPurchase
+	34, // 34: org.signal.chat.purchase.SetIapSubscriptionResponse.success:type_name -> org.signal.chat.purchase.SetIapSubscriptionResponse.SetIapSubscriptionResult
+	39, // 35: org.signal.chat.purchase.SetIapSubscriptionResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 36: org.signal.chat.purchase.SetIapSubscriptionResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 37: org.signal.chat.purchase.SetIapSubscriptionResponse.payment_required:type_name -> org.signal.chat.errors.FailedPrecondition
+	40, // 38: org.signal.chat.purchase.SetIapSubscriptionResponse.invalid_transaction:type_name -> org.signal.chat.errors.FailedPrecondition
+	35, // 39: org.signal.chat.purchase.GetReceiptCredentialsResponse.success:type_name -> org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResult
+	39, // 40: org.signal.chat.purchase.GetReceiptCredentialsResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 41: org.signal.chat.purchase.GetReceiptCredentialsResponse.no_paid_invoice:type_name -> org.signal.chat.errors.FailedPrecondition
+	16, // 42: org.signal.chat.purchase.GetReceiptCredentialsResponse.payment_required:type_name -> org.signal.chat.purchase.PaymentRequired
+	40, // 43: org.signal.chat.purchase.GetReceiptCredentialsResponse.already_redeemed:type_name -> org.signal.chat.errors.FailedPrecondition
+	36, // 44: org.signal.chat.purchase.GetSubscriptionInformationResponse.success:type_name -> org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription
+	37, // 45: org.signal.chat.purchase.GetSubscriptionInformationResponse.no_subscription:type_name -> google.protobuf.Empty
+	39, // 46: org.signal.chat.purchase.GetSubscriptionInformationResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	3,  // 47: org.signal.chat.purchase.GetBankMandateRequest.bank_transfer_type:type_name -> org.signal.chat.purchase.BankTransferType
+	0,  // 48: org.signal.chat.purchase.CreatePaymentMethodResponse.CreatePaymentMethodResult.paymentProvider:type_name -> org.signal.chat.purchase.PaymentProvider
+	2,  // 49: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.status:type_name -> org.signal.chat.purchase.SubscriptionStatus
+	0,  // 50: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.processor:type_name -> org.signal.chat.purchase.PaymentProvider
+	1,  // 51: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.payment_method:type_name -> org.signal.chat.purchase.PaymentMethod
+	15, // 52: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription.charge_failure:type_name -> org.signal.chat.purchase.ChargeFailure
+	4,  // 53: org.signal.chat.purchase.Subscriptions.UpdateSubscriber:input_type -> org.signal.chat.purchase.UpdateSubscriberRequest
+	6,  // 54: org.signal.chat.purchase.Subscriptions.DeleteSubscriber:input_type -> org.signal.chat.purchase.DeleteSubscriberRequest
+	8,  // 55: org.signal.chat.purchase.Subscriptions.CreatePaymentMethod:input_type -> org.signal.chat.purchase.CreatePaymentMethodRequest
+	10, // 56: org.signal.chat.purchase.Subscriptions.CreatePayPalPaymentMethod:input_type -> org.signal.chat.purchase.CreatePayPalPaymentMethodRequest
+	12, // 57: org.signal.chat.purchase.Subscriptions.SetDefaultPaymentMethod:input_type -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest
+	14, // 58: org.signal.chat.purchase.Subscriptions.SetSubscriptionLevel:input_type -> org.signal.chat.purchase.SetSubscriptionLevelRequest
+	22, // 59: org.signal.chat.purchase.Subscriptions.GetSubscriptionInformation:input_type -> org.signal.chat.purchase.GetSubscriptionInformationRequest
+	20, // 60: org.signal.chat.purchase.Subscriptions.GetReceiptCredentials:input_type -> org.signal.chat.purchase.GetReceiptCredentialsRequest
+	18, // 61: org.signal.chat.purchase.Subscriptions.SetIapSubscription:input_type -> org.signal.chat.purchase.SetIapSubscriptionRequest
+	24, // 62: org.signal.chat.purchase.Subscriptions.GetBankMandate:input_type -> org.signal.chat.purchase.GetBankMandateRequest
+	5,  // 63: org.signal.chat.purchase.Subscriptions.UpdateSubscriber:output_type -> org.signal.chat.purchase.UpdateSubscriberResponse
+	7,  // 64: org.signal.chat.purchase.Subscriptions.DeleteSubscriber:output_type -> org.signal.chat.purchase.DeleteSubscriberResponse
+	9,  // 65: org.signal.chat.purchase.Subscriptions.CreatePaymentMethod:output_type -> org.signal.chat.purchase.CreatePaymentMethodResponse
+	11, // 66: org.signal.chat.purchase.Subscriptions.CreatePayPalPaymentMethod:output_type -> org.signal.chat.purchase.CreatePayPalPaymentMethodResponse
+	13, // 67: org.signal.chat.purchase.Subscriptions.SetDefaultPaymentMethod:output_type -> org.signal.chat.purchase.SetDefaultPaymentMethodResponse
+	17, // 68: org.signal.chat.purchase.Subscriptions.SetSubscriptionLevel:output_type -> org.signal.chat.purchase.SetSubscriptionLevelResponse
+	23, // 69: org.signal.chat.purchase.Subscriptions.GetSubscriptionInformation:output_type -> org.signal.chat.purchase.GetSubscriptionInformationResponse
+	21, // 70: org.signal.chat.purchase.Subscriptions.GetReceiptCredentials:output_type -> org.signal.chat.purchase.GetReceiptCredentialsResponse
+	19, // 71: org.signal.chat.purchase.Subscriptions.SetIapSubscription:output_type -> org.signal.chat.purchase.SetIapSubscriptionResponse
+	25, // 72: org.signal.chat.purchase.Subscriptions.GetBankMandate:output_type -> org.signal.chat.purchase.GetBankMandateResponse
+	63, // [63:73] is the sub-list for method output_type
+	53, // [53:63] is the sub-list for method input_type
+	53, // [53:53] is the sub-list for extension type_name
+	53, // [53:53] is the sub-list for extension extendee
+	0,  // [0:53] is the sub-list for field type_name
 }
 
 func init() { file_org_signal_chat_subscriptions_proto_init() }
@@ -3306,7 +3150,6 @@ func file_org_signal_chat_subscriptions_proto_init() {
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[1].OneofWrappers = []any{
 		(*UpdateSubscriberResponse_Success)(nil),
-		(*UpdateSubscriberResponse_SubscriberIdMismatch)(nil),
 		(*UpdateSubscriberResponse_PermitRejected)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[3].OneofWrappers = []any{
@@ -3317,14 +3160,12 @@ func file_org_signal_chat_subscriptions_proto_init() {
 	file_org_signal_chat_subscriptions_proto_msgTypes[5].OneofWrappers = []any{
 		(*CreatePaymentMethodResponse_Result)(nil),
 		(*CreatePaymentMethodResponse_SubscriberNotFound)(nil),
-		(*CreatePaymentMethodResponse_SubscriberIdMismatch)(nil),
 		(*CreatePaymentMethodResponse_SubscriptionProcessorConflict)(nil),
 		(*CreatePaymentMethodResponse_PermitRejected)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[7].OneofWrappers = []any{
 		(*CreatePayPalPaymentMethodResponse_Result)(nil),
 		(*CreatePayPalPaymentMethodResponse_SubscriberNotFound)(nil),
-		(*CreatePayPalPaymentMethodResponse_SubscriberIdMismatch)(nil),
 		(*CreatePayPalPaymentMethodResponse_SubscriptionProcessorConflict)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[8].OneofWrappers = []any{
@@ -3335,16 +3176,13 @@ func file_org_signal_chat_subscriptions_proto_init() {
 	file_org_signal_chat_subscriptions_proto_msgTypes[9].OneofWrappers = []any{
 		(*SetDefaultPaymentMethodResponse_Success)(nil),
 		(*SetDefaultPaymentMethodResponse_SubscriberNotFound)(nil),
-		(*SetDefaultPaymentMethodResponse_SubscriberIdMismatch)(nil),
 		(*SetDefaultPaymentMethodResponse_PaymentMethodNotSetUp)(nil),
-		(*SetDefaultPaymentMethodResponse_SubscriptionProcessorConflict)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[11].OneofWrappers = []any{}
 	file_org_signal_chat_subscriptions_proto_msgTypes[12].OneofWrappers = []any{}
 	file_org_signal_chat_subscriptions_proto_msgTypes[13].OneofWrappers = []any{
 		(*SetSubscriptionLevelResponse_Success)(nil),
 		(*SetSubscriptionLevelResponse_SubscriberNotFound)(nil),
-		(*SetSubscriptionLevelResponse_SubscriberIdMismatch)(nil),
 		(*SetSubscriptionLevelResponse_SubscriptionProcessorConflict)(nil),
 		(*SetSubscriptionLevelResponse_PaymentMethodNotSetUp)(nil),
 		(*SetSubscriptionLevelResponse_UnsupportedOperation)(nil),
@@ -3362,7 +3200,6 @@ func file_org_signal_chat_subscriptions_proto_init() {
 	file_org_signal_chat_subscriptions_proto_msgTypes[15].OneofWrappers = []any{
 		(*SetIapSubscriptionResponse_Success)(nil),
 		(*SetIapSubscriptionResponse_SubscriberNotFound)(nil),
-		(*SetIapSubscriptionResponse_SubscriberIdMismatch)(nil),
 		(*SetIapSubscriptionResponse_SubscriptionProcessorConflict)(nil),
 		(*SetIapSubscriptionResponse_PaymentRequired)(nil),
 		(*SetIapSubscriptionResponse_InvalidTransaction)(nil),
@@ -3370,7 +3207,6 @@ func file_org_signal_chat_subscriptions_proto_init() {
 	file_org_signal_chat_subscriptions_proto_msgTypes[17].OneofWrappers = []any{
 		(*GetReceiptCredentialsResponse_Success)(nil),
 		(*GetReceiptCredentialsResponse_SubscriberNotFound)(nil),
-		(*GetReceiptCredentialsResponse_SubscriberIdMismatch)(nil),
 		(*GetReceiptCredentialsResponse_NoPaidInvoice)(nil),
 		(*GetReceiptCredentialsResponse_PaymentRequired)(nil),
 		(*GetReceiptCredentialsResponse_AlreadyRedeemed)(nil),
@@ -3379,7 +3215,6 @@ func file_org_signal_chat_subscriptions_proto_init() {
 		(*GetSubscriptionInformationResponse_Success)(nil),
 		(*GetSubscriptionInformationResponse_NoSubscription)(nil),
 		(*GetSubscriptionInformationResponse_SubscriberNotFound)(nil),
-		(*GetSubscriptionInformationResponse_SubscriberIdMismatch)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[32].OneofWrappers = []any{}
 	type x struct{}

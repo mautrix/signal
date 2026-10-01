@@ -26,6 +26,7 @@ const (
 	Profile_SetProfile_FullMethodName           = "/org.signal.chat.profile.Profile/SetProfile"
 	Profile_GetProfile_FullMethodName           = "/org.signal.chat.profile.Profile/GetProfile"
 	Profile_GetAvatarCredentials_FullMethodName = "/org.signal.chat.profile.Profile/GetAvatarCredentials"
+	Profile_SetV1Avatar_FullMethodName          = "/org.signal.chat.profile.Profile/SetV1Avatar"
 )
 
 // ProfileClient is the client API for Profile service.
@@ -43,6 +44,16 @@ type ProfileClient interface {
 	//
 	// Note: `Accounts.SetZkCredentialKey` is a pre-requisite for this RPC
 	GetAvatarCredentials(ctx context.Context, in *GetAvatarCredentialsRequest, opts ...grpc.CallOption) (*GetAvatarCredentialsResponse, error)
+	// Returns credentials used by clients to upload a v1 avatar, deleting any current avatar.
+	//
+	// This RPC streamlines avatar changes during the v1 -> v2 transition by minimizing uploads:
+	// 1. SetV1Avatar
+	// 2. Upload to CDN
+	// 3. SetProfile with v1 `AVATAR_CHANGE_UNCHANGED` and the v1 avatar in the v2 profile body
+	//
+	// Clients that do this will be required to upload current avatars using `ProfilesAnonymous.GetAvatarUploadFormRequest`
+	// once v1 Profile APIs are no longer supported.
+	SetV1Avatar(ctx context.Context, in *SetV1AvatarRequest, opts ...grpc.CallOption) (*SetV1AvatarResponse, error)
 }
 
 type profileClient struct {
@@ -83,6 +94,16 @@ func (c *profileClient) GetAvatarCredentials(ctx context.Context, in *GetAvatarC
 	return out, nil
 }
 
+func (c *profileClient) SetV1Avatar(ctx context.Context, in *SetV1AvatarRequest, opts ...grpc.CallOption) (*SetV1AvatarResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetV1AvatarResponse)
+	err := c.cc.Invoke(ctx, Profile_SetV1Avatar_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProfileServer is the server API for Profile service.
 // All implementations must embed UnimplementedProfileServer
 // for forward compatibility.
@@ -98,6 +119,16 @@ type ProfileServer interface {
 	//
 	// Note: `Accounts.SetZkCredentialKey` is a pre-requisite for this RPC
 	GetAvatarCredentials(context.Context, *GetAvatarCredentialsRequest) (*GetAvatarCredentialsResponse, error)
+	// Returns credentials used by clients to upload a v1 avatar, deleting any current avatar.
+	//
+	// This RPC streamlines avatar changes during the v1 -> v2 transition by minimizing uploads:
+	// 1. SetV1Avatar
+	// 2. Upload to CDN
+	// 3. SetProfile with v1 `AVATAR_CHANGE_UNCHANGED` and the v1 avatar in the v2 profile body
+	//
+	// Clients that do this will be required to upload current avatars using `ProfilesAnonymous.GetAvatarUploadFormRequest`
+	// once v1 Profile APIs are no longer supported.
+	SetV1Avatar(context.Context, *SetV1AvatarRequest) (*SetV1AvatarResponse, error)
 	mustEmbedUnimplementedProfileServer()
 }
 
@@ -116,6 +147,9 @@ func (UnimplementedProfileServer) GetProfile(context.Context, *GetProfileRequest
 }
 func (UnimplementedProfileServer) GetAvatarCredentials(context.Context, *GetAvatarCredentialsRequest) (*GetAvatarCredentialsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetAvatarCredentials not implemented")
+}
+func (UnimplementedProfileServer) SetV1Avatar(context.Context, *SetV1AvatarRequest) (*SetV1AvatarResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetV1Avatar not implemented")
 }
 func (UnimplementedProfileServer) mustEmbedUnimplementedProfileServer() {}
 func (UnimplementedProfileServer) testEmbeddedByValue()                 {}
@@ -192,6 +226,24 @@ func _Profile_GetAvatarCredentials_Handler(srv interface{}, ctx context.Context,
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Profile_SetV1Avatar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetV1AvatarRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProfileServer).SetV1Avatar(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Profile_SetV1Avatar_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProfileServer).SetV1Avatar(ctx, req.(*SetV1AvatarRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Profile_ServiceDesc is the grpc.ServiceDesc for Profile service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -210,6 +262,10 @@ var Profile_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetAvatarCredentials",
 			Handler:    _Profile_GetAvatarCredentials_Handler,
+		},
+		{
+			MethodName: "SetV1Avatar",
+			Handler:    _Profile_SetV1Avatar_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
