@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -40,6 +41,7 @@ type SignalClient struct {
 	Client    *signalmeow.Client
 	Ghost     *bridgev2.Ghost
 
+	viewOnceOpenLock sync.Mutex
 	queueEmptyWaiter *exsync.Event
 	cancelChatSync   atomic.Pointer[context.CancelFunc]
 }
@@ -113,6 +115,9 @@ func (s *SignalClient) IsThisUser(_ context.Context, userID networkid.UserID) bo
 }
 
 func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnectionStatus) {
+	ctx, cancel := context.WithCancel(s.Main.Bridge.BackgroundCtx)
+	defer cancel()
+	go s.retryViewOnceExpiry(ctx)
 	var peekedConnectionStatus signalmeow.SignalConnectionStatus
 	for {
 		var connectionStatus signalmeow.SignalConnectionStatus
@@ -189,6 +194,7 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 			}
 
 		case signalmeow.SignalConnectionEventLoggedOut:
+			cancel()
 			s.stopChatSync()
 			s.UserLogin.Log.Debug().Msg("Sending BadCredentials BridgeState")
 			if err == nil {
@@ -230,6 +236,9 @@ func (s *SignalClient) Connect(ctx context.Context) {
 }
 
 func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.ConnectBackgroundParams) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go s.retryViewOnceExpiry(ctx)
 	s.queueEmptyWaiter.Clear()
 	ch, unauthCh, err := s.Client.StartWebsockets(ctx)
 	if err != nil {
