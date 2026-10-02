@@ -109,7 +109,6 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.DeviceStore = baseStore
 	device.BackupStore = baseStore
 	device.EventBuffer = baseStore
-	device.ViewOnceStore = baseStore
 	device.sqlStore = baseStore
 	device.db = c.db
 	return &device, nil

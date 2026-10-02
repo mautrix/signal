@@ -194,17 +194,11 @@ var signalDisappearingCap = &event.DisappearingTimerCapability{
 	Types: []event.DisappearingType{event.DisappearingTypeAfterRead},
 }
 
-var signalCapsShared *event.RoomFeatures
 var signalCapsNoteToSelf *event.RoomFeatures
 var signalCapsDM *event.RoomFeatures
 var signalCapsPNIDM *event.RoomFeatures
 
 func init() {
-	signalCapsShared = signalCaps.Clone()
-	signalCapsShared.ID = capID() + "+shared"
-	for _, file := range signalCapsShared.File {
-		file.ViewLimitedTypes = nil
-	}
 	signalCapsDM = ptr.Clone(signalCaps)
 	signalCapsDM.ID = capID() + "+dm"
 	signalCapsDM.MemberActions = nil
@@ -227,9 +221,7 @@ func init() {
 }
 
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
-	if portal.Receiver == "" {
-		return signalCapsShared
-	} else if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
+	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
 		return signalCapsNoteToSelf
 	} else if portal.RoomType == database.RoomTypeDM {
 		userID, _, _ := signalid.ParsePortalID(portal.ID)

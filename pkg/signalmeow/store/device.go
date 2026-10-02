@@ -83,7 +83,6 @@ type Device struct {
 	DeviceStore    DeviceStore
 	BackupStore    BackupStore
 	EventBuffer    EventBuffer
-	ViewOnceStore  ViewOnceStore
 
 	sqlStore *sqlStore
 	db       *dbutil.Database
