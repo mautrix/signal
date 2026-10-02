@@ -43,19 +43,20 @@ import (
 )
 
 var (
-	_ bridgev2.EditHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI     = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI          = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI             = (*SignalClient)(nil)
-	_ bridgev2.DisappearTimerChangingNetworkAPI  = (*SignalClient)(nil)
-	_ bridgev2.DeleteChatHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.PollHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.MessageRequestAcceptingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI           = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI              = (*SignalClient)(nil)
+	_ bridgev2.DisappearTimerChangingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.MessageRequestAcceptingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.ViewLimitedMediaHandlingNetworkAPI = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -92,7 +93,10 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 	} else {
 		res := s.Client.SendMessage(ctx, userID, content)
 		if !res.WasSuccessful {
-			return res.Error
+			if res.Error != nil {
+				return res.Error
+			}
+			return errors.New("failed to send message")
 		}
 		return nil
 	}
@@ -121,6 +125,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	}
 	return s.doSendMessage(ctx, msg, converted, &signalid.MessageMetadata{
 		ContainsAttachments: len(converted.Attachments) > 0,
+		ViewOnce:            converted.GetIsViewOnce(),
 	})
 }
 
@@ -147,13 +152,57 @@ func (s *SignalClient) doSendMessage(
 		Timestamp: time.UnixMilli(int64(ts)),
 		Metadata:  meta,
 	}
+	var disappear *database.DisappearingSetting
+	if converted.GetIsViewOnce() {
+		disappear = &database.DisappearingSetting{Type: event.DisappearingTypeAfterSend, Timer: time.Nanosecond}
+	}
 	return &bridgev2.MatrixMessageResponse{
+		Disappear:     disappear,
 		DB:            dbMsg,
 		RemovePending: networkid.TransactionID(msgID),
 	}, nil
 }
 
+func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *bridgev2.MatrixViewLimitedMedia) error {
+	meta, ok := msg.Message.Metadata.(*signalid.MessageMetadata)
+	if !ok || !meta.ViewOnce || !meta.ContainsAttachments || msg.Content == nil || *msg.Content != (event.BeeperViewLimitedMedia{Type: "count", Count: 1}) {
+		return bridgev2.ErrUnsupportedViewLimitedType
+	}
+	sender, timestamp, err := signalid.ParseMessageID(msg.Message.ID)
+	if err != nil {
+		return err
+	}
+	err = s.sendMessage(ctx, signalid.MakeDMPortalID(s.Client.Store.ACIServiceID()), signalmeow.WrapSyncMessage(&signalpb.SyncMessage{
+		Content: &signalpb.SyncMessage_ViewOnceOpen_{
+			ViewOnceOpen: &signalpb.SyncMessage_ViewOnceOpen{
+				SenderAciBinary: sender[:],
+				Timestamp:       proto.Uint64(timestamp),
+			},
+		},
+	}))
+	if err != nil {
+		return err
+	}
+	if sender != s.Client.Store.ACI {
+		err = s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
+			Content: &signalpb.Content_ReceiptMessage{
+				ReceiptMessage: &signalpb.ReceiptMessage{
+					Type:      signalpb.ReceiptMessage_VIEWED.Enum(),
+					Timestamp: []uint64{timestamp},
+				},
+			},
+		})
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to send view-once viewed receipt")
+		}
+	}
+	return nil
+}
+
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
+	if msg.Content.BeeperViewLimited != nil || msg.EditTarget.Metadata.(*signalid.MessageMetadata).ViewOnce {
+		return bridgev2.ErrEditsNotSupported
+	}
 	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.EditTarget.ID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
@@ -295,6 +344,13 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 }
 
 func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bridgev2.MatrixReadReceipt) error {
+	readAt := receipt.Receipt.Timestamp
+	if readAt.IsZero() {
+		readAt = time.Now()
+	}
+	if err := s.startViewOnceTimers(ctx, receipt.Portal, receipt.ReadUpTo, readAt); err != nil {
+		return err
+	}
 	if !receipt.ReadUpTo.After(receipt.LastRead) {
 		return nil
 	}

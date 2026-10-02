@@ -40,8 +40,9 @@ type SignalClient struct {
 	Client    *signalmeow.Client
 	Ghost     *bridgev2.Ghost
 
-	queueEmptyWaiter *exsync.Event
-	cancelChatSync   atomic.Pointer[context.CancelFunc]
+	recentMessageRooms *exsync.RingBuffer[networkid.MessageID, networkid.PortalKey]
+	queueEmptyWaiter   *exsync.Event
+	cancelChatSync     atomic.Pointer[context.CancelFunc]
 }
 
 var (
