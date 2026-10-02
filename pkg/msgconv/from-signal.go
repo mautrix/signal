@@ -127,7 +127,7 @@ func (mc *MessageConverter) ToMatrix(
 		return cm
 	}
 	for i, att := range dm.GetAttachments() {
-		if att.GetContentType() != "text/x-signal-plain" || att.GetSize() > matrixTextMaxLength {
+		if att.GetContentType() != longTextMimeType || att.GetSize() > matrixTextMaxLength {
 			cm.Parts = append(cm.Parts, mc.convertAttachmentToMatrix(ctx, i, att, attMap))
 		} else {
 			longBody, err := mc.downloadSignalLongText(ctx, att, attMap)
