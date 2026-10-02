@@ -47,12 +47,11 @@ func (mc *MessageConverter) ToSignal(
 	relaybotFormatted bool,
 	replyTo *database.Message,
 ) (*signalpb.DataMessage, error) {
-	if limit := content.BeeperViewLimited; limit != nil {
-		if *limit != (event.BeeperViewLimitedMedia{Type: "count", Count: 1}) ||
-			(content.MsgType != event.MsgImage && content.MsgType != event.MsgVideo) || evt.Type == event.EventSticker || replyTo != nil || portal.Receiver == "" ||
-			(content.FileName != "" && (content.FileName != content.Body || content.Format == event.FormatHTML)) {
-			return nil, bridgev2.ErrUnsupportedViewLimitedType
-		}
+	if content.BeeperViewLimited != nil && replyTo != nil {
+		return nil, bridgev2.ErrUnsupportedViewLimitedType
+	}
+	if content.BeeperViewLimited != nil && content.FileName != "" && (content.FileName != content.Body || content.Format == event.FormatHTML) {
+		return nil, bridgev2.ErrCaptionsNotAllowed
 	}
 	ctx = context.WithValue(ctx, contextKeyClient, client)
 	ctx = context.WithValue(ctx, contextKeyPortal, portal)
@@ -148,7 +147,7 @@ func (mc *MessageConverter) ToSignal(
 	}
 	if content.BeeperViewLimited != nil {
 		dm.IsViewOnce = proto.Bool(true)
-		dm.RequiredProtocolVersion = proto.Uint32(uint32(signalpb.DataMessage_VIEW_ONCE_VIDEO))
+		dm.RequiredProtocolVersion = proto.Uint32(max(dm.GetRequiredProtocolVersion(), uint32(signalpb.DataMessage_VIEW_ONCE_VIDEO)))
 		dm.Body = nil
 		dm.BodyRanges = nil
 		dm.Preview = nil

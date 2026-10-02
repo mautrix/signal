@@ -47,7 +47,11 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
-		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s}).Success
+		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
+		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
+			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
+		}
+		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, wrapped).Success
 	case *events.DecryptionError:
 		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapDecryptionError(evt)).Success
 	case *events.Receipt:
@@ -539,14 +543,41 @@ func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
 		s.UserLogin.Log.Err(err).Msg("Invalid sender in view-once open sync")
 		return true
 	}
-	if !time.UnixMilli(int64(evt.GetTimestamp())).Add(45 * 24 * time.Hour).After(time.Now()) {
-		return true
+	messageID := signalid.MakeMessageID(sender, evt.GetTimestamp())
+	portalKey, ok := s.recentMessageRooms.Get(messageID)
+	if !ok {
+		msg, dbErr := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, messageID)
+		if dbErr != nil {
+			s.UserLogin.Log.Err(dbErr).Msg("Failed to get opened view-once message")
+			return false
+		} else if msg == nil {
+			return true
+		}
+		portalKey = msg.Room
 	}
-	if _, err = s.Client.Store.ViewOnceStore.MarkViewOnceOpened(ctx, sender, evt.GetTimestamp(), false); err != nil {
-		s.UserLogin.Log.Err(err).Msg("Failed to save view-once opened state")
-		return false
-	}
-	return s.expireOpenedViewOnce(ctx, nil, sender, evt.GetTimestamp()) == nil
+	return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &simplevent.EventMeta{
+		Type:      bridgev2.RemoteEventUnknown,
+		PortalKey: portalKey,
+		PreHandleFunc: func(ctx context.Context, portal *bridgev2.Portal) {
+			messages, dbErr := s.Main.Bridge.DB.Message.GetAllPartsByID(ctx, s.UserLogin.ID, messageID)
+			if dbErr != nil {
+				zerolog.Ctx(ctx).Err(dbErr).Msg("Failed to get opened view-once message")
+				return
+			}
+			for _, msg := range messages {
+				meta := msg.Metadata.(*signalid.MessageMetadata)
+				if !meta.ViewOnce || !meta.ContainsAttachments {
+					continue
+				}
+				if addErr := s.Main.Bridge.DisappearLoop.Add(ctx, &database.DisappearingMessage{
+					RoomID: portal.MXID, EventID: msg.MXID, Timestamp: msg.Timestamp,
+					DisappearingSetting: database.DisappearingSetting{Type: "view_limited", DisappearAt: time.Now()},
+				}); addErr != nil {
+					zerolog.Ctx(ctx).Err(addErr).Msg("Failed to queue opened view-once media expiry")
+				}
+			}
+		},
+	}).Success
 }
 
 func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {

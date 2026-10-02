@@ -100,7 +100,7 @@ func (mc *MessageConverter) ToMatrix(
 	}
 	if dm.GetIsViewOnce() {
 		var unavailableReason string
-		if len(dm.GetAttachments()) == 0 || sender == client.Store.ACI || portal.Receiver == "" ||
+		if len(dm.GetAttachments()) == 0 || sender == client.Store.ACI ||
 			!time.UnixMilli(int64(dm.GetTimestamp())).Add(45*24*time.Hour).After(time.Now()) {
 			unavailableReason = "View-once media is no longer available."
 		} else if len(dm.GetAttachments()) != 1 || dm.Sticker != nil || dm.PollVote != nil || dm.PollCreate != nil || dm.PollTerminate != nil ||
@@ -110,14 +110,6 @@ func (mc *MessageConverter) ToMatrix(
 			attachmentMime, _, _ := mime.ParseMediaType(dm.Attachments[0].GetContentType())
 			if attachmentMime != "" && !strings.HasPrefix(attachmentMime, "image/") && !strings.HasPrefix(attachmentMime, "video/") {
 				unavailableReason = "Invalid view-once media message."
-			} else {
-				opened, err := client.Store.ViewOnceStore.IsViewOnceOpened(ctx, sender, dm.GetTimestamp())
-				if err != nil {
-					zerolog.Ctx(ctx).Err(err).Msg("Failed to check view-once opened state")
-				}
-				if opened || err != nil {
-					unavailableReason = "View-once media is no longer available."
-				}
 			}
 		}
 		if unavailableReason != "" {

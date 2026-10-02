@@ -30,7 +30,6 @@ import (
 	"go.mau.fi/util/ptr"
 	"go.mau.fi/util/variationselector"
 	"google.golang.org/protobuf/proto"
-	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -44,19 +43,20 @@ import (
 )
 
 var (
-	_ bridgev2.EditHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI     = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI          = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI             = (*SignalClient)(nil)
-	_ bridgev2.DisappearTimerChangingNetworkAPI  = (*SignalClient)(nil)
-	_ bridgev2.DeleteChatHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.PollHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.MessageRequestAcceptingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI           = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI              = (*SignalClient)(nil)
+	_ bridgev2.DisappearTimerChangingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.MessageRequestAcceptingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.ViewLimitedMediaHandlingNetworkAPI = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -164,23 +164,12 @@ func (s *SignalClient) doSendMessage(
 }
 
 func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *bridgev2.MatrixViewLimitedMedia) error {
-	s.viewOnceOpenLock.Lock()
-	defer s.viewOnceOpenLock.Unlock()
 	meta, ok := msg.Message.Metadata.(*signalid.MessageMetadata)
 	if !ok || !meta.ViewOnce || !meta.ContainsAttachments || msg.Content == nil || *msg.Content != (event.BeeperViewLimitedMedia{Type: "count", Count: 1}) {
 		return bridgev2.ErrUnsupportedViewLimitedType
 	}
 	sender, timestamp, err := signalid.ParseMessageID(msg.Message.ID)
 	if err != nil {
-		return err
-	}
-	syncPending, err := s.Client.Store.ViewOnceStore.MarkViewOnceOpened(ctx, sender, timestamp, true)
-	if err != nil {
-		return err
-	} else if !syncPending {
-		return mautrix.MNotFound.WithMessage("View-once media is no longer available")
-	}
-	if err = s.expireOpenedViewOnce(ctx, msg.Portal, sender, timestamp); err != nil {
 		return err
 	}
 	err = s.sendMessage(ctx, signalid.MakeDMPortalID(s.Client.Store.ACIServiceID()), signalmeow.WrapSyncMessage(&signalpb.SyncMessage{
@@ -192,9 +181,6 @@ func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *br
 		},
 	}))
 	if err != nil {
-		return err
-	}
-	if err = s.Client.Store.ViewOnceStore.MarkViewOnceSynced(ctx, sender, timestamp); err != nil {
 		return err
 	}
 	if sender != s.Client.Store.ACI {
