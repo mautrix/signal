@@ -53,8 +53,10 @@ func (s *SignalClient) syncChats(ctx context.Context, cancel context.CancelFunc)
 			return
 		} else if meta.Error != "" {
 			zerolog.Ctx(ctx).Error().Str("error_type", meta.Error).Msg("Transfer archive request was rejected")
+			s.markedUnreadLock.Lock()
 			s.UserLogin.Metadata.(*signalid.UserLoginMetadata).ChatsSynced = true
 			err = s.UserLogin.Save(ctx)
+			s.markedUnreadLock.Unlock()
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).Msg("Failed to save user login metadata after transfer archive request was rejected")
 			}
@@ -175,8 +177,10 @@ func (s *SignalClient) syncChats(ctx context.Context, cancel context.CancelFunc)
 			return
 		}
 	}
+	s.markedUnreadLock.Lock()
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).ChatsSynced = true
 	err = s.UserLogin.Save(ctx)
+	s.markedUnreadLock.Unlock()
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to save user login metadata after syncing chats")
 	}

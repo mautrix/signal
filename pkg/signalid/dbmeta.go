@@ -16,9 +16,7 @@
 
 package signalid
 
-import (
-	"go.mau.fi/util/jsontime"
-)
+import "go.mau.fi/util/jsontime"
 
 type PortalMetadata struct {
 	Revision               uint32 `json:"revision,omitempty"`
@@ -36,6 +34,12 @@ type MessageMetadata struct {
 type UserLoginMetadata struct {
 	ChatsSynced     bool               `json:"chats_synced,omitempty"`
 	LastContactSync jsontime.UnixMilli `json:"last_contact_sync,omitempty"`
+	// MarkedUnreadCheckpoints stores the last bridged value or initial false
+	// baseline per portal room generation. Its key is portal ID, a NUL
+	// separator, then Matrix room ID, so a recreated room starts unknown.
+	// This is per-login, not shared portal metadata: GroupV2 portals can
+	// be shared by multiple logins with independent Storage Service state.
+	MarkedUnreadCheckpoints map[string]bool `json:"marked_unread_checkpoints,omitempty"`
 }
 
 type GhostMetadata struct {
