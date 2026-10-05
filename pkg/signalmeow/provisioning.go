@@ -232,13 +232,11 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
 
 		// Store our profile key
-		err = device.RecipientStore.StoreRecipient(ctx, &types.Recipient{
-			ACI:  data.ACI,
-			PNI:  data.PNI,
-			E164: data.Number,
-			Profile: types.Profile{
-				Key: profileKey,
-			},
+		_, err = device.RecipientStore.LoadAndUpdateRecipient(ctx, data.ACI, data.PNI, func(recipient *types.Recipient) (bool, error) {
+			recipient.PNI = data.PNI
+			recipient.E164 = data.Number
+			recipient.Profile.Key = profileKey
+			return true, nil
 		})
 		if err != nil {
 			c <- ProvisioningResponse{
