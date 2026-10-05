@@ -154,12 +154,7 @@ func (s *SignalClient) doSendMessage(
 		Timestamp: time.UnixMilli(int64(ts)),
 		Metadata:  meta,
 	}
-	var disappear *database.DisappearingSetting
-	if converted.GetIsViewOnce() {
-		disappear = &database.DisappearingSetting{Type: event.DisappearingTypeAfterSend, Timer: time.Nanosecond}
-	}
 	return &bridgev2.MatrixMessageResponse{
-		Disappear:     disappear,
 		DB:            dbMsg,
 		RemovePending: networkid.TransactionID(msgID),
 	}, nil
@@ -174,36 +169,19 @@ func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *br
 	if err != nil {
 		return err
 	}
-	err = s.sendMessage(ctx, signalid.MakeDMPortalID(s.Client.Store.ACIServiceID()), signalmeow.WrapSyncMessage(&signalpb.SyncMessage{
-		Content: &signalpb.SyncMessage_ViewOnceOpen_{
-			ViewOnceOpen: &signalpb.SyncMessage_ViewOnceOpen{
-				SenderAciBinary: sender[:],
-				Timestamp:       proto.Uint64(timestamp),
+	return s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
+		Content: &signalpb.Content_ReceiptMessage{
+			ReceiptMessage: &signalpb.ReceiptMessage{
+				Type:      signalpb.ReceiptMessage_VIEWED.Enum(),
+				Timestamp: []uint64{timestamp},
 			},
 		},
-	}))
-	if err != nil {
-		return err
-	}
-	if sender != s.Client.Store.ACI {
-		err = s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
-			Content: &signalpb.Content_ReceiptMessage{
-				ReceiptMessage: &signalpb.ReceiptMessage{
-					Type:      signalpb.ReceiptMessage_VIEWED.Enum(),
-					Timestamp: []uint64{timestamp},
-				},
-			},
-		})
-		if err != nil {
-			zerolog.Ctx(ctx).Err(err).Msg("Failed to send view-once viewed receipt")
-		}
-	}
-	return nil
+	})
 }
 
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
 	if msg.Content.BeeperViewLimited != nil || msg.EditTarget.Metadata.(*signalid.MessageMetadata).ViewOnce {
-		return bridgev2.ErrEditsNotSupported
+		return fmt.Errorf("%w of view-once media", bridgev2.ErrEditsNotSupported)
 	}
 	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.EditTarget.ID)
 	if err != nil {
@@ -346,13 +324,6 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 }
 
 func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bridgev2.MatrixReadReceipt) error {
-	readAt := receipt.Receipt.Timestamp
-	if readAt.IsZero() {
-		readAt = time.Now()
-	}
-	if err := s.startViewOnceTimers(ctx, receipt.Portal, receipt.ReadUpTo, readAt); err != nil {
-		return err
-	}
 	if !receipt.ReadUpTo.After(receipt.LastRead) {
 		return nil
 	}

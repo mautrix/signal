@@ -78,7 +78,6 @@ func CanConvertSignal(dm *signalpb.DataMessage) bool {
 	return calculateLength(dm) > 0
 }
 
-const ViewOnceDisappearTimer = 5 * time.Minute
 const matrixTextMaxLength = 30000 // approximate value to avoid hitting 64 KiB PDU size limit with HTML duplication
 
 func (mc *MessageConverter) ToMatrix(
@@ -192,17 +191,6 @@ func (mc *MessageConverter) ToMatrix(
 			Content: &event.MessageEventContent{
 				MsgType: event.MsgNotice,
 				Body:    "The bridge does not support this message type yet.",
-			},
-		})
-	}
-	if dm.GetIsViewOnce() && mc.DisappearViewOnce && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > ViewOnceDisappearTimer) {
-		cm.Disappear.Type = event.DisappearingTypeAfterRead
-		cm.Disappear.Timer = ViewOnceDisappearTimer
-		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
-			Type: event.EventMessage,
-			Content: &event.MessageEventContent{
-				MsgType: event.MsgText,
-				Body:    "This is a view-once message. It will disappear in 5 minutes.",
 			},
 		})
 	}

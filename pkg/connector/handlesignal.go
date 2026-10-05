@@ -510,19 +510,9 @@ func convertReceipts[T any](ctx context.Context, input []T, getMessageFunc func(
 	return receipts
 }
 
-func (s *SignalClient) dispatchReceipts(sender uuid.UUID, receiptType signalpb.ReceiptMessage_Type, receipts map[networkid.PortalKey]*Bv2Receipt, readAt time.Time) bool {
+func (s *SignalClient) dispatchReceipts(sender uuid.UUID, receiptType signalpb.ReceiptMessage_Type, receipts map[networkid.PortalKey]*Bv2Receipt) bool {
 	evtSender := s.makeEventSender(sender)
 	for chat, receiptEvt := range receipts {
-		if sender == s.Client.Store.ACI && receiptType == signalpb.ReceiptMessage_READ {
-			ctx := s.Main.Bridge.BackgroundCtx
-			portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, chat)
-			if err != nil || portal == nil {
-				return false
-			}
-			if err = s.startViewOnceTimers(ctx, portal, receiptEvt.LastTS, readAt); err != nil {
-				return false
-			}
-		}
 		receiptEvt.Chat = chat
 		receiptEvt.Sender = evtSender
 		receiptEvt.Type = receiptType
@@ -543,7 +533,7 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) bool {
 	receipts := convertReceipts(ctx, evt.Content.Timestamp, func(ctx context.Context, msgTS uint64) (*database.Message, error) {
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(s.Client.Store.ACI, msgTS))
 	})
-	return s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts, time.Now())
+	return s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
 }
 
 func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
@@ -602,7 +592,7 @@ func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {
 		}
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(aciUUID, msgInfo.GetTimestamp()))
 	})
-	return s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts, time.UnixMilli(int64(evt.Timestamp)))
+	return s.dispatchReceipts(s.Client.Store.ACI, signalpb.ReceiptMessage_READ, receipts)
 }
 
 func (s *SignalClient) conversationIDToPortalKey(ctx context.Context, cid *signalpb.ConversationIdentifier) (networkid.PortalKey, bool) {

@@ -44,11 +44,10 @@ type MessageConverter struct {
 	SignalFmtParams *signalfmt.FormatParams
 	MatrixFmtParams *matrixfmt.HTMLParser
 
-	MaxFileSize       int64
-	LocationFormat    string
-	DisappearViewOnce bool
-	DirectMedia       bool
-	ExtEvPolls        bool
+	MaxFileSize    int64
+	LocationFormat string
+	DirectMedia    bool
+	ExtEvPolls     bool
 }
 
 func NewMessageConverter(br *bridgev2.Bridge) *MessageConverter {

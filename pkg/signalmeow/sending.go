@@ -390,7 +390,19 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 }
 
 func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender libsignalgo.ServiceID) *signalpb.Content {
-	if *receiptMessage.Type != signalpb.ReceiptMessage_READ || messageSender.Type != libsignalgo.ServiceIDTypeACI {
+	if messageSender.Type != libsignalgo.ServiceIDTypeACI {
+		return nil
+	}
+	if receiptMessage.GetType() == signalpb.ReceiptMessage_VIEWED && len(receiptMessage.Timestamp) == 1 {
+		return WrapSyncMessage(&signalpb.SyncMessage{
+			Content: &signalpb.SyncMessage_ViewOnceOpen_{
+				ViewOnceOpen: &signalpb.SyncMessage_ViewOnceOpen{
+					SenderAciBinary: messageSender.UUID[:],
+					Timestamp:       proto.Uint64(receiptMessage.Timestamp[0]),
+				},
+			},
+		})
+	} else if receiptMessage.GetType() != signalpb.ReceiptMessage_READ {
 		return nil
 	}
 	read := []*signalpb.SyncMessage_Read{}
@@ -759,7 +771,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	if recipientData.ProbablyMessageRequest() && isTypingOrReceipt {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
 		res := SuccessfulSendResult{Recipient: recipientID}
-		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ || content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_VIEWED {
 			// Still send sync messages for read receipts
 			cli.sendSyncCopy(ctx, content, messageTimestamp, &res)
 		}
