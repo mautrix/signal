@@ -36,6 +36,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/common"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/rpc/messages"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
@@ -1170,4 +1172,20 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 	//	}
 	//}
 	return fmt.Errorf("got 428 error")
+}
+
+func (cli *Client) ReportSpam(ctx context.Context, aci uuid.UUID, serverGUID string, token []byte) error {
+	if cli.GRPC == nil {
+		return fmt.Errorf("gRPC client is not connected")
+	}
+	guid, err := uuid.Parse(serverGUID)
+	if err != nil {
+		return fmt.Errorf("invalid message server GUID: %w", err)
+	}
+	_, err = cli.GRPC.Messages.ReportMessage(ctx, &messages.ReportMessageRequest{
+		SourceServiceIdentifier: &common.ServiceIdentifier{IdentityType: common.IdentityType_IDENTITY_TYPE_ACI, Uuid: aci[:]},
+		MessageGuid:             guid[:],
+		ReportSpamToken:         token,
+	})
+	return err
 }

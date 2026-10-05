@@ -480,6 +480,7 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 			Members: members,
 			Type:    ptr.Ptr(database.RoomTypeDM),
 
+			UserBlocked:    ptr.Ptr(recipient.Blocked),
 			MessageRequest: ptr.Ptr(recipient.ACI != uuid.Nil && recipient.ProbablyMessageRequest()),
 			CanBackfill:    backupChat != nil,
 			ExtraUpdates:   updatePortalSyncMeta,

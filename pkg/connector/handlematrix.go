@@ -40,6 +40,7 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
+	"go.mau.fi/mautrix-signal/pkg/signalmeow/types"
 )
 
 var (
@@ -56,6 +57,7 @@ var (
 	_ bridgev2.DeleteChatHandlingNetworkAPI      = (*SignalClient)(nil)
 	_ bridgev2.PollHandlingNetworkAPI            = (*SignalClient)(nil)
 	_ bridgev2.MessageRequestAcceptingNetworkAPI = (*SignalClient)(nil)
+	_ bridgev2.UserBlockingNetworkAPI            = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -952,6 +954,71 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 			return fmt.Errorf("failed to share profile key to accept message request: %w", res.Error)
 		}
 		// TODO send read receipts too?
+	}
+	return nil
+}
+
+func (s *SignalClient) HandleMatrixBlockUser(ctx context.Context, msg *bridgev2.MatrixBlockUser) error {
+	if s.Client == nil {
+		return bridgev2.ErrNotLoggedIn
+	}
+	userID, groupID, err := signalid.ParsePortalID(msg.Portal.ID)
+	if err != nil {
+		return err
+	}
+	if groupID != "" {
+		return bridgev2.ErrNonDMBlockUser
+	}
+	aci, pni := userID.ToACIAndPNI()
+	if aci == uuid.Nil {
+		return fmt.Errorf("blocking requires a known ACI")
+	}
+	respType := signalpb.SyncMessage_MessageRequestResponse_ACCEPT
+	if msg.Content.Block {
+		respType = signalpb.SyncMessage_MessageRequestResponse_BLOCK
+	}
+	if msg.Content.ReportSpam {
+		if err = s.reportSpam(ctx, msg.Portal, aci); err != nil {
+			return err
+		}
+		if msg.Content.Block {
+			respType = signalpb.SyncMessage_MessageRequestResponse_BLOCK_AND_SPAM
+		} else {
+			respType = signalpb.SyncMessage_MessageRequestResponse_SPAM
+		}
+	}
+	if err = s.syncMessageRequestResponse(ctx, msg.Portal, respType); err != nil {
+		return err
+	}
+	_, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, func(recipient *types.Recipient) (bool, error) {
+		changed := recipient.Blocked != msg.Content.Block
+		recipient.Blocked = msg.Content.Block
+		return changed, nil
+	})
+	return err
+}
+
+func (s *SignalClient) reportSpam(ctx context.Context, portal *bridgev2.Portal, aci uuid.UUID) error {
+	messages, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portal.PortalKey, 100)
+	if err != nil {
+		return err
+	}
+	seen := make(map[string]bool)
+	for _, message := range messages {
+		meta := message.Metadata.(*signalid.MessageMetadata)
+		if message.SenderID != signalid.MakeUserID(aci) || meta.ServerGUID == "" || seen[meta.ServerGUID] {
+			continue
+		}
+		if err = s.Client.ReportSpam(ctx, aci, meta.ServerGUID, meta.ReportingToken); err != nil {
+			return err
+		}
+		seen[meta.ServerGUID] = true
+		if len(seen) == 3 {
+			break
+		}
+	}
+	if len(seen) == 0 {
+		return fmt.Errorf("no received messages with server GUIDs available to report")
 	}
 	return nil
 }

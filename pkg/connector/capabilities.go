@@ -23,11 +23,13 @@ import (
 	"go.mau.fi/util/ffmpeg"
 	"go.mau.fi/util/jsontime"
 	"go.mau.fi/util/ptr"
-
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/event"
+
+	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/signalid"
 )
 
 func supportedIfFFmpeg() event.CapabilitySupportLevel {
@@ -38,7 +40,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2026_07_22"
+	base := "fi.mau.signal.capabilities.2026_10_01"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -192,6 +194,7 @@ var signalDisappearingCap = &event.DisappearingTimerCapability{
 
 var signalCapsNoteToSelf *event.RoomFeatures
 var signalCapsDM *event.RoomFeatures
+var signalCapsPNIDM *event.RoomFeatures
 
 func init() {
 	signalCapsDM = ptr.Clone(signalCaps)
@@ -200,7 +203,16 @@ func init() {
 	signalCapsDM.State = event.StateFeatureMap{
 		event.StateBeeperDisappearingTimer.Type: {Level: event.CapLevelFullySupported},
 	}
+
+	signalCapsPNIDM = ptr.Clone(signalCapsDM)
+	signalCapsPNIDM.ID += "+pni"
+
+	signalCapsDM.BlockUser = true
+	signalCapsDM.ReportSpam = true
+
 	signalCapsNoteToSelf = ptr.Clone(signalCapsDM)
+	signalCapsNoteToSelf.BlockUser = false
+	signalCapsNoteToSelf.ReportSpam = false
 	signalCapsNoteToSelf.EditMaxAge = nil
 	signalCapsNoteToSelf.DeleteMaxAge = nil
 	signalCapsNoteToSelf.ID = capID() + "+note_to_self"
@@ -210,6 +222,10 @@ func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Por
 	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
 		return signalCapsNoteToSelf
 	} else if portal.RoomType == database.RoomTypeDM {
+		userID, _, _ := signalid.ParsePortalID(portal.ID)
+		if userID.Type == libsignalgo.ServiceIDTypePNI {
+			return signalCapsPNIDM
+		}
 		return signalCapsDM
 	}
 	return signalCaps
@@ -245,5 +261,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 11
+	return 1, 12
 }

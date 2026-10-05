@@ -341,6 +341,16 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 		return nil, fmt.Errorf("ConvertMessage() called for non-DataMessage event")
 	}
 	converted := evt.s.Main.MsgConv.ToMatrix(ctx, evt.s.Client, portal, evt.Info.Sender, intent, dataMsg, nil)
+	for _, part := range converted.Parts {
+		meta, ok := part.DBMetadata.(*signalid.MessageMetadata)
+		if !ok {
+			meta = &signalid.MessageMetadata{}
+			part.DBMetadata = meta
+		}
+		meta.ServerGUID = evt.Info.ServerGUID
+		meta.ReportingToken = evt.Info.ReportingToken
+	}
+
 	if converted.Disappear.Type != "" {
 		evtTS := evt.GetTimestamp()
 		if !dataMsg.GetIsViewOnce() {
@@ -689,8 +699,14 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 }
 
 func (s *SignalClient) handleSignalMessageRequestResponse(evt *events.MessageRequestResponse) bool {
-	if evt.Type != signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
-		// TODO do we need to do anything with blocks/deletes here or are they sent as normal delete events?
+	info := &bridgev2.ChatInfo{}
+	switch evt.Type {
+	case signalpb.SyncMessage_MessageRequestResponse_ACCEPT:
+		info.MessageRequest = ptr.Ptr(false)
+		info.UserBlocked = ptr.Ptr(false)
+	case signalpb.SyncMessage_MessageRequestResponse_BLOCK, signalpb.SyncMessage_MessageRequestResponse_BLOCK_AND_SPAM, signalpb.SyncMessage_MessageRequestResponse_BLOCK_AND_DELETE:
+		info.UserBlocked = ptr.Ptr(true)
+	default:
 		return true
 	}
 	var portalKey networkid.PortalKey
@@ -712,9 +728,7 @@ func (s *SignalClient) handleSignalMessageRequestResponse(evt *events.MessageReq
 			},
 		},
 		ChatInfoChange: &bridgev2.ChatInfoChange{
-			ChatInfo: &bridgev2.ChatInfo{
-				MessageRequest: ptr.Ptr(false),
-			},
+			ChatInfo: info,
 		},
 	})
 	return res.Success
@@ -774,27 +788,20 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 		if contact.ACI == s.Client.Store.ACI {
 			s.updateRemoteProfile(ctx, true)
 		}
-		if ptr.Val(contact.Whitelisted) {
-			portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, s.makeDMPortalKey(libsignalgo.NewACIServiceID(contact.ACI)))
-			if err != nil {
-				log.Err(err).Msg("Failed to get existing portal to update contact info")
-				continue
-			} else if portal != nil && portal.MessageRequest {
-				s.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
-					EventMeta: simplevent.EventMeta{
-						Type: bridgev2.RemoteEventChatInfoChange,
-						LogContext: func(c zerolog.Context) zerolog.Context {
-							return c.Str("action", "unmark message request").Str("source", "contact list")
-						},
-						PortalKey: portal.PortalKey,
-					},
-					ChatInfoChange: &bridgev2.ChatInfoChange{
-						ChatInfo: &bridgev2.ChatInfo{
-							MessageRequest: ptr.Ptr(false),
-						},
-					},
-				})
+		portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, s.makeDMPortalKey(libsignalgo.NewACIServiceID(contact.ACI)))
+		if err != nil {
+			log.Err(err).Msg("Failed to get existing portal to update contact info")
+			continue
+		}
+		if portal != nil && (portal.UserBlocked != contact.Blocked || (portal.MessageRequest && ptr.Val(contact.Whitelisted))) {
+			info := &bridgev2.ChatInfo{UserBlocked: ptr.Ptr(contact.Blocked)}
+			if ptr.Val(contact.Whitelisted) {
+				info.MessageRequest = ptr.Ptr(false)
 			}
+			s.UserLogin.QueueRemoteEvent(&simplevent.ChatInfoChange{
+				EventMeta:      simplevent.EventMeta{Type: bridgev2.RemoteEventChatInfoChange, PortalKey: portal.PortalKey},
+				ChatInfoChange: &bridgev2.ChatInfoChange{ChatInfo: info},
+			})
 		}
 	}
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).LastContactSync = jsontime.UnixMilliNow()

@@ -46,6 +46,8 @@ type MessageInfo struct {
 
 	GroupRevision   uint32
 	ServerTimestamp uint64
+	ServerGUID      string
+	ReportingToken  []byte
 }
 
 type ChatEvent struct {
