@@ -405,7 +405,7 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 	}
 	for _, part := range existing {
 		if part.Metadata.(*signalid.MessageMetadata).ViewOnce {
-			return nil, bridgev2.ErrIgnoringRemoteEvent
+			return nil, fmt.Errorf("%w: edit target is view-once media", bridgev2.ErrIgnoringRemoteEvent)
 		}
 	}
 	existing = slices.DeleteFunc(slices.Clone(existing), isEditStub)
@@ -538,9 +538,13 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) bool {
 
 func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
 	ctx := s.Main.Bridge.BackgroundCtx
+	log := s.UserLogin.Log.With().
+		Str("action", "handle signal view once open").
+		Logger()
+	ctx = log.WithContext(ctx)
 	sender, err := signalmeow.ParseStringOrBinaryUUID(evt.GetSenderAci(), evt.GetSenderAciBinary())
 	if err != nil {
-		s.UserLogin.Log.Err(err).Msg("Invalid sender in view-once open sync")
+		log.Err(err).Msg("Invalid sender in view-once open sync")
 		return true
 	}
 	messageID := signalid.MakeMessageID(sender, evt.GetTimestamp())
@@ -548,8 +552,8 @@ func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
 	if !ok {
 		msg, dbErr := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, messageID)
 		if dbErr != nil {
-			s.UserLogin.Log.Err(dbErr).Msg("Failed to get opened view-once message")
-			return false
+			log.Err(dbErr).Msg("Failed to get opened view-once message")
+			return ctx.Err() == nil
 		} else if msg == nil {
 			return true
 		}
@@ -561,7 +565,7 @@ func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
 		PreHandleFunc: func(ctx context.Context, portal *bridgev2.Portal) {
 			messages, dbErr := s.Main.Bridge.DB.Message.GetAllPartsByID(ctx, s.UserLogin.ID, messageID)
 			if dbErr != nil {
-				zerolog.Ctx(ctx).Err(dbErr).Msg("Failed to get opened view-once message")
+				log.Err(dbErr).Msg("Failed to get opened view-once message")
 				return
 			}
 			for _, msg := range messages {
@@ -573,7 +577,7 @@ func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
 					RoomID: portal.MXID, EventID: msg.MXID, Timestamp: msg.Timestamp,
 					DisappearingSetting: database.DisappearingSetting{Type: "view_limited", DisappearAt: time.Now()},
 				}); addErr != nil {
-					zerolog.Ctx(ctx).Err(addErr).Msg("Failed to queue opened view-once media expiry")
+					log.Err(addErr).Msg("Failed to queue opened view-once media expiry")
 				}
 			}
 		},

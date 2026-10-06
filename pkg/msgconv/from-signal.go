@@ -112,9 +112,14 @@ func (mc *MessageConverter) ToMatrix(
 			}
 		}
 		if unavailableReason != "" {
-			cm.Parts = []*bridgev2.ConvertedMessagePart{{Type: event.EventMessage, DBMetadata: &signalid.MessageMetadata{ViewOnce: true}, Content: &event.MessageEventContent{
-				MsgType: event.MsgNotice, Body: unavailableReason,
-			}}}
+			cm.Parts = []*bridgev2.ConvertedMessagePart{{
+				Type:       event.EventMessage,
+				DBMetadata: &signalid.MessageMetadata{ViewOnce: true},
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgNotice,
+					Body:    unavailableReason,
+				},
+			}}
 			return cm
 		}
 	}
