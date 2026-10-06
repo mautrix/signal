@@ -40,7 +40,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2026_10_01"
+	base := "fi.mau.signal.capabilities.2026_10_06"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -263,5 +263,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 12
+	return 1, 13
 }
