@@ -47,11 +47,17 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
-		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &Bv2ChatEvent{ChatEvent: evt, s: s}).Success
+		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
+		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
+			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
+		}
+		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, wrapped).Success
 	case *events.DecryptionError:
 		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapDecryptionError(evt)).Success
 	case *events.Receipt:
 		return s.handleSignalReceipt(evt)
+	case *events.ViewOnceOpen:
+		return s.handleSignalViewOnceOpen(evt)
 	case *events.ReadSelf:
 		return s.handleSignalReadSelf(evt)
 	case *events.DeleteForMe:
@@ -175,7 +181,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	switch innerEvt := evt.Event.(type) {
 	case *signalpb.DataMessage:
 		switch {
-		case innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
+		case innerEvt.GetIsViewOnce(), innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
 			innerEvt.Payment != nil, innerEvt.GiftBadge != nil, innerEvt.PollCreate != nil, innerEvt.PollVote != nil,
 			innerEvt.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT),
 			innerEvt.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
@@ -394,6 +400,14 @@ func (evt *Bv2ChatEvent) ConvertEdit(ctx context.Context, portal *bridgev2.Porta
 	if !ok {
 		return nil, fmt.Errorf("ConvertEdit() called for non-EditMessage event")
 	}
+	if editMsg.GetDataMessage().GetIsViewOnce() {
+		return nil, bridgev2.ErrIgnoringRemoteEvent
+	}
+	for _, part := range existing {
+		if part.Metadata.(*signalid.MessageMetadata).ViewOnce {
+			return nil, fmt.Errorf("%w: edit target is view-once media", bridgev2.ErrIgnoringRemoteEvent)
+		}
+	}
 	existing = slices.DeleteFunc(slices.Clone(existing), isEditStub)
 	if len(existing) == 0 {
 		return nil, fmt.Errorf("%w: edit target has already been edited", bridgev2.ErrIgnoringRemoteEvent)
@@ -520,6 +534,54 @@ func (s *SignalClient) handleSignalReceipt(evt *events.Receipt) bool {
 		return s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(s.Client.Store.ACI, msgTS))
 	})
 	return s.dispatchReceipts(evt.Sender, evt.Content.GetType(), receipts)
+}
+
+func (s *SignalClient) handleSignalViewOnceOpen(evt *events.ViewOnceOpen) bool {
+	ctx := s.Main.Bridge.BackgroundCtx
+	log := s.UserLogin.Log.With().
+		Str("action", "handle signal view once open").
+		Logger()
+	ctx = log.WithContext(ctx)
+	sender, err := signalmeow.ParseStringOrBinaryUUID(evt.GetSenderAci(), evt.GetSenderAciBinary())
+	if err != nil {
+		log.Err(err).Msg("Invalid sender in view-once open sync")
+		return true
+	}
+	messageID := signalid.MakeMessageID(sender, evt.GetTimestamp())
+	portalKey, ok := s.recentMessageRooms.Get(messageID)
+	if !ok {
+		msg, dbErr := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, messageID)
+		if dbErr != nil {
+			log.Err(dbErr).Msg("Failed to get opened view-once message")
+			return ctx.Err() == nil
+		} else if msg == nil {
+			return true
+		}
+		portalKey = msg.Room
+	}
+	return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, &simplevent.EventMeta{
+		Type:      bridgev2.RemoteEventUnknown,
+		PortalKey: portalKey,
+		PreHandleFunc: func(ctx context.Context, portal *bridgev2.Portal) {
+			messages, dbErr := s.Main.Bridge.DB.Message.GetAllPartsByID(ctx, s.UserLogin.ID, messageID)
+			if dbErr != nil {
+				log.Err(dbErr).Msg("Failed to get opened view-once message")
+				return
+			}
+			for _, msg := range messages {
+				meta := msg.Metadata.(*signalid.MessageMetadata)
+				if !meta.ViewOnce || !meta.ContainsAttachments {
+					continue
+				}
+				if addErr := s.Main.Bridge.DisappearLoop.Add(ctx, &database.DisappearingMessage{
+					RoomID: portal.MXID, EventID: msg.MXID, Timestamp: msg.Timestamp,
+					DisappearingSetting: database.DisappearingSetting{Type: "view_limited", DisappearAt: time.Now()},
+				}); addErr != nil {
+					log.Err(addErr).Msg("Failed to queue opened view-once media expiry")
+				}
+			}
+		},
+	}).Success
 }
 
 func (s *SignalClient) handleSignalReadSelf(evt *events.ReadSelf) bool {

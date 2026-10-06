@@ -312,6 +312,10 @@ func WrapSyncMessage(content *signalpb.SyncMessage) *signalpb.Content {
 }
 
 func syncSentMessage(sent *signalpb.SyncMessage_Sent) *signalpb.Content {
+	if sent.Message.GetIsViewOnce() {
+		sent.Message = proto.Clone(sent.Message).(*signalpb.DataMessage)
+		sent.Message.Attachments = nil
+	}
 	return WrapSyncMessage(&signalpb.SyncMessage{
 		Content: &signalpb.SyncMessage_Sent_{
 			Sent: sent,
@@ -386,7 +390,19 @@ func syncMessageFromSoloEditMessage(editMessage *signalpb.EditMessage, result Su
 }
 
 func syncMessageFromReadReceiptMessage(ctx context.Context, receiptMessage *signalpb.ReceiptMessage, messageSender libsignalgo.ServiceID) *signalpb.Content {
-	if *receiptMessage.Type != signalpb.ReceiptMessage_READ || messageSender.Type != libsignalgo.ServiceIDTypeACI {
+	if messageSender.Type != libsignalgo.ServiceIDTypeACI {
+		return nil
+	}
+	if receiptMessage.GetType() == signalpb.ReceiptMessage_VIEWED && len(receiptMessage.Timestamp) == 1 {
+		return WrapSyncMessage(&signalpb.SyncMessage{
+			Content: &signalpb.SyncMessage_ViewOnceOpen_{
+				ViewOnceOpen: &signalpb.SyncMessage_ViewOnceOpen{
+					SenderAciBinary: messageSender.UUID[:],
+					Timestamp:       proto.Uint64(receiptMessage.Timestamp[0]),
+				},
+			},
+		})
+	} else if receiptMessage.GetType() != signalpb.ReceiptMessage_READ {
 		return nil
 	}
 	read := []*signalpb.SyncMessage_Read{}
@@ -755,7 +771,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 	if recipientData.ProbablyMessageRequest() && isTypingOrReceipt {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing/receipt message to recipient as needs PNI signature flag is set")
 		res := SuccessfulSendResult{Recipient: recipientID}
-		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ {
+		if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ || content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_VIEWED {
 			// Still send sync messages for read receipts
 			cli.sendSyncCopy(ctx, content, messageTimestamp, &res)
 		}
@@ -764,7 +780,7 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		zerolog.Ctx(ctx).Debug().Msg("Not sending typing message as typing indicators are disabled")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		return SendMessageResult{WasSuccessful: true, SuccessfulSendResult: res}
-	} else if content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ && cli.Store.DeviceData.AccountRecord != nil && !cli.Store.DeviceData.AccountRecord.GetReadReceipts() {
+	} else if (content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_READ || content.GetReceiptMessage().GetType() == signalpb.ReceiptMessage_VIEWED) && cli.Store.DeviceData.AccountRecord != nil && !cli.Store.DeviceData.AccountRecord.GetReadReceipts() {
 		zerolog.Ctx(ctx).Debug().Msg("Not sending receipt message as read receipts are disabled")
 		res := SuccessfulSendResult{Recipient: recipientID}
 		// Still send sync messages for read receipts

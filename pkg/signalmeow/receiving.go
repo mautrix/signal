@@ -809,6 +809,10 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 				})
 			}
 		}
+	case *signalpb.SyncMessage_ViewOnceOpen_:
+		handlerSuccess = cli.handleEvent(&events.ViewOnceOpen{
+			SyncMessage_ViewOnceOpen: content.ViewOnceOpen,
+		})
 	case *signalpb.SyncMessage_DeleteForMe_:
 		handlerSuccess = cli.handleEvent(&events.DeleteForMe{
 			Timestamp:               envelope.GetClientTimestamp(),

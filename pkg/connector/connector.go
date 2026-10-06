@@ -66,7 +66,6 @@ func (s *SignalConnector) Init(bridge *bridgev2.Bridge) {
 	s.Bridge = bridge
 	s.MsgConv = msgconv.NewMessageConverter(bridge)
 	s.MsgConv.LocationFormat = s.Config.LocationFormat
-	s.MsgConv.DisappearViewOnce = s.Config.DisappearViewOnce
 	s.MsgConv.ExtEvPolls = s.Config.ExtEvPolls
 	bridge.Commands.(*commands.Processor).AddHandlers(CmdDiscardSenderKey)
 }
@@ -117,7 +116,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 		Main:      s,
 		UserLogin: login,
 
-		queueEmptyWaiter: exsync.NewEvent(),
+		recentMessageRooms: exsync.NewRingBuffer[networkid.MessageID, networkid.PortalKey](32),
+		queueEmptyWaiter:   exsync.NewEvent(),
 	}
 	if device != nil {
 		sc.Client = signalmeow.NewClient(

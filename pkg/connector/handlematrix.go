@@ -44,20 +44,21 @@ import (
 )
 
 var (
-	_ bridgev2.EditHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.ReactionHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RedactionHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ReadReceiptHandlingNetworkAPI     = (*SignalClient)(nil)
-	_ bridgev2.TypingHandlingNetworkAPI          = (*SignalClient)(nil)
-	_ bridgev2.RoomNameHandlingNetworkAPI        = (*SignalClient)(nil)
-	_ bridgev2.RoomAvatarHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.RoomTopicHandlingNetworkAPI       = (*SignalClient)(nil)
-	_ bridgev2.ChatViewingNetworkAPI             = (*SignalClient)(nil)
-	_ bridgev2.DisappearTimerChangingNetworkAPI  = (*SignalClient)(nil)
-	_ bridgev2.DeleteChatHandlingNetworkAPI      = (*SignalClient)(nil)
-	_ bridgev2.PollHandlingNetworkAPI            = (*SignalClient)(nil)
-	_ bridgev2.MessageRequestAcceptingNetworkAPI = (*SignalClient)(nil)
-	_ bridgev2.UserBlockingNetworkAPI            = (*SignalClient)(nil)
+	_ bridgev2.EditHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.ReactionHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RedactionHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ReadReceiptHandlingNetworkAPI      = (*SignalClient)(nil)
+	_ bridgev2.TypingHandlingNetworkAPI           = (*SignalClient)(nil)
+	_ bridgev2.RoomNameHandlingNetworkAPI         = (*SignalClient)(nil)
+	_ bridgev2.RoomAvatarHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.RoomTopicHandlingNetworkAPI        = (*SignalClient)(nil)
+	_ bridgev2.ChatViewingNetworkAPI              = (*SignalClient)(nil)
+	_ bridgev2.DisappearTimerChangingNetworkAPI   = (*SignalClient)(nil)
+	_ bridgev2.DeleteChatHandlingNetworkAPI       = (*SignalClient)(nil)
+	_ bridgev2.PollHandlingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.MessageRequestAcceptingNetworkAPI  = (*SignalClient)(nil)
+	_ bridgev2.UserBlockingNetworkAPI             = (*SignalClient)(nil)
+	_ bridgev2.ViewLimitedMediaHandlingNetworkAPI = (*SignalClient)(nil)
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
@@ -94,7 +95,10 @@ func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.Porta
 	} else {
 		res := s.Client.SendMessage(ctx, userID, content)
 		if !res.WasSuccessful {
-			return res.Error
+			if res.Error != nil {
+				return res.Error
+			}
+			return errors.New("failed to send message")
 		}
 		return nil
 	}
@@ -123,6 +127,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 	}
 	return s.doSendMessage(ctx, msg, converted, &signalid.MessageMetadata{
 		ContainsAttachments: len(converted.Attachments) > 0,
+		ViewOnce:            converted.GetIsViewOnce(),
 	})
 }
 
@@ -155,7 +160,29 @@ func (s *SignalClient) doSendMessage(
 	}, nil
 }
 
+func (s *SignalClient) HandleMatrixViewLimitedMedia(ctx context.Context, msg *bridgev2.MatrixViewLimitedMedia) error {
+	meta, ok := msg.Message.Metadata.(*signalid.MessageMetadata)
+	if !ok || !meta.ViewOnce || !meta.ContainsAttachments || msg.Content == nil || *msg.Content != (event.BeeperViewLimitedMedia{Type: "count", Count: 1}) {
+		return bridgev2.ErrUnsupportedViewLimitedType
+	}
+	sender, timestamp, err := signalid.ParseMessageID(msg.Message.ID)
+	if err != nil {
+		return err
+	}
+	return s.sendMessage(ctx, signalid.MakeDMPortalID(libsignalgo.NewACIServiceID(sender)), &signalpb.Content{
+		Content: &signalpb.Content_ReceiptMessage{
+			ReceiptMessage: &signalpb.ReceiptMessage{
+				Type:      signalpb.ReceiptMessage_VIEWED.Enum(),
+				Timestamp: []uint64{timestamp},
+			},
+		},
+	})
+}
+
 func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.MatrixEdit) error {
+	if msg.Content.BeeperViewLimited != nil || msg.EditTarget.Metadata.(*signalid.MessageMetadata).ViewOnce {
+		return fmt.Errorf("%w of view-once media", bridgev2.ErrEditsNotSupported)
+	}
 	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.EditTarget.ID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
