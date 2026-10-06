@@ -233,7 +233,6 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 
 		// Store our profile key
 		_, err = device.RecipientStore.LoadAndUpdateRecipient(ctx, data.ACI, data.PNI, func(recipient *types.Recipient) (bool, error) {
-			recipient.PNI = data.PNI
 			recipient.E164 = data.Number
 			recipient.Profile.Key = profileKey
 			return true, nil
