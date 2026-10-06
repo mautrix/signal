@@ -62,6 +62,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		return s.Main.Bridge.QueueRemoteEvent(s.UserLogin, s.wrapCallEvent(evt)).Success
 	case *events.ContactList:
 		s.handleSignalContactList(evt)
+	case *events.MarkedUnreadSync:
+		s.handleSignalMarkedUnreadSync(evt)
 	case *events.ACIFound:
 		s.handleSignalACIFound(evt)
 	case *events.QueueEmpty:
@@ -749,6 +751,7 @@ func (s *SignalClient) handleSignalACIFound(evt *events.ACIFound) {
 	} else if result == bridgev2.ReIDResultSourceReIDd || result == bridgev2.ReIDResultTargetDeletedAndSourceReIDd {
 		// If the source portal is re-ID'd, we need to sync metadata and participants.
 		// If the source is deleted, then it doesn't matter, any existing target will already be correct
+		s.migrateMarkedUnreadCheckpoint(ctx, pniPortalKey.ID, aciPortalKey.ID, string(portal.MXID))
 		info, err := s.GetChatInfo(ctx, portal)
 		if err != nil {
 			log.Err(err).Msg("Failed to get chat info to update portal after re-ID")
@@ -804,11 +807,320 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			})
 		}
 	}
+	s.markedUnreadLock.Lock()
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).LastContactSync = jsontime.UnixMilliNow()
 	err := s.UserLogin.Save(ctx)
+	s.markedUnreadLock.Unlock()
 	if err != nil {
 		log.Err(err).Msg("Failed to update last contact sync time")
 	}
+}
+
+// resolveMarkedUnreadPortalKey finds an existing Matrix room for a storage
+// observation. Prefer ACI, but an ACI portal without a room must not shadow
+// a usable PNI room. It never creates a portal.
+func (s *SignalClient) resolveMarkedUnreadPortalKey(ctx context.Context, entry events.MarkedUnreadEntry) (networkid.PortalKey, string, bool) {
+	log := zerolog.Ctx(ctx)
+	var candidates []networkid.PortalKey
+	switch {
+	case entry.GroupID != "":
+		candidates = []networkid.PortalKey{s.makePortalKey(entry.GroupID.String())}
+	case entry.ACI != uuid.Nil && entry.PNI != uuid.Nil:
+		candidates = []networkid.PortalKey{
+			s.makeDMPortalKey(libsignalgo.NewACIServiceID(entry.ACI)),
+			s.makeDMPortalKey(libsignalgo.NewPNIServiceID(entry.PNI)),
+		}
+	case entry.ACI != uuid.Nil:
+		candidates = []networkid.PortalKey{s.makeDMPortalKey(libsignalgo.NewACIServiceID(entry.ACI))}
+	case entry.PNI != uuid.Nil:
+		candidates = []networkid.PortalKey{s.makeDMPortalKey(libsignalgo.NewPNIServiceID(entry.PNI))}
+	default:
+		return networkid.PortalKey{}, "", false
+	}
+	for _, key := range candidates {
+		portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, key)
+		if err != nil {
+			log.Err(err).Object("portal_key", key).Msg("Failed to get existing portal for marked unread sync")
+			continue
+		}
+		if portal != nil && portal.MXID != "" {
+			return portal.PortalKey, markedUnreadCheckpointKey(portal.PortalKey.ID, string(portal.MXID)), true
+		}
+	}
+	return networkid.PortalKey{}, "", false
+}
+
+func markedUnreadCheckpointKey(portalID networkid.PortalID, roomID string) string {
+	return string(portalID) + "\x00" + roomID
+}
+
+// saveMarkedUnreadCheckpoint persists a value from a completed event, but
+// only if seq is still the latest ever assigned to checkpointKey. A PNI→ACI
+// re-ID can migrate an older in-flight observation's bookkeeping onto the
+// same key a newer observation already claimed (see
+// migrateMarkedUnreadCheckpoint); without this guard, the older event's
+// later completion could overwrite the newer, still-in-flight value once it
+// finally lands. The lock also protects UserLogin.Save's metadata marshal.
+func (s *SignalClient) saveMarkedUnreadCheckpoint(ctx context.Context, checkpointKey string, markedUnread bool, seq uint64) {
+	s.markedUnreadLock.Lock()
+	meta := s.UserLogin.Metadata.(*signalid.UserLoginMetadata)
+	if !applyMarkedUnreadCheckpointIfCurrent(meta, s.markedUnreadLatestSeq, checkpointKey, markedUnread, seq) {
+		s.markedUnreadLock.Unlock()
+		return
+	}
+	err := s.UserLogin.Save(ctx)
+	s.markedUnreadLock.Unlock()
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Str("checkpoint_key", checkpointKey).Msg("Failed to save marked unread checkpoint")
+	}
+}
+
+// applyMarkedUnreadCheckpointIfCurrent mutates meta and reports true, unless
+// seq is behind the highest seq ever recorded in latestSeq for checkpointKey
+// (a newer observation already superseded this one), in which case meta is
+// left untouched and it reports false. Split out from saveMarkedUnreadCheckpoint
+// so the ordering guarantee is testable without a database-backed UserLogin.
+func applyMarkedUnreadCheckpointIfCurrent(meta *signalid.UserLoginMetadata, latestSeq map[string]uint64, checkpointKey string, markedUnread bool, seq uint64) bool {
+	if seq < latestSeq[checkpointKey] {
+		return false
+	}
+	if meta.MarkedUnreadCheckpoints == nil {
+		meta.MarkedUnreadCheckpoints = make(map[string]bool)
+	}
+	meta.MarkedUnreadCheckpoints[checkpointKey] = markedUnread
+	return true
+}
+
+// Persist all initial false baselines from a storage sync in one Save.
+// Recheck under the lock so a newly pending event is never overwritten.
+func (s *SignalClient) saveMarkedUnreadBaselines(ctx context.Context, keys []string) {
+	if len(keys) == 0 {
+		return
+	}
+	s.markedUnreadLock.Lock()
+	defer s.markedUnreadLock.Unlock()
+	meta := s.UserLogin.Metadata.(*signalid.UserLoginMetadata)
+	if meta.MarkedUnreadCheckpoints == nil {
+		meta.MarkedUnreadCheckpoints = make(map[string]bool, len(keys))
+	}
+	changed := false
+	for _, key := range keys {
+		if _, known := meta.MarkedUnreadCheckpoints[key]; known {
+			continue
+		}
+		if s.pendingMarkedUnread[key] != nil {
+			continue
+		}
+		meta.MarkedUnreadCheckpoints[key] = false
+		changed = true
+	}
+	if changed {
+		if err := s.UserLogin.Save(ctx); err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save marked unread baselines")
+		}
+	}
+}
+
+// setPendingMarkedUnread tracks a queued event by its room-generation key.
+// The assigned seq lets a completion recognize it has been superseded even
+// after the pending entry itself was cleared or migrated to another key.
+func (s *SignalClient) setPendingMarkedUnread(checkpointKey string, markedUnread bool) *pendingMarkedUnreadState {
+	s.markedUnreadLock.Lock()
+	defer s.markedUnreadLock.Unlock()
+	s.markedUnreadSeq++
+	seq := s.markedUnreadSeq
+	if s.markedUnreadLatestSeq == nil {
+		s.markedUnreadLatestSeq = make(map[string]uint64)
+	}
+	s.markedUnreadLatestSeq[checkpointKey] = seq
+	if s.pendingMarkedUnread == nil {
+		s.pendingMarkedUnread = make(map[string]*pendingMarkedUnreadState)
+	}
+	pending := &pendingMarkedUnreadState{unread: markedUnread, seq: seq}
+	s.pendingMarkedUnread[checkpointKey] = pending
+	return pending
+}
+
+// clearPendingMarkedUnread only removes the exact captured attempt, never a
+// newer value or the pending state of another Matrix room generation.
+func (s *SignalClient) clearPendingMarkedUnread(checkpointKey string, expected *pendingMarkedUnreadState) {
+	s.markedUnreadLock.Lock()
+	defer s.markedUnreadLock.Unlock()
+	if s.pendingMarkedUnread[checkpointKey] == expected {
+		delete(s.pendingMarkedUnread, checkpointKey)
+	}
+}
+
+// migrateMarkedUnreadCheckpoint moves this login's settled checkpoint and,
+// if one is in flight, its pending observation, when a PNI portal is re-ID'd
+// to its ACI. The pending move keeps a subsequent reconcile under the new
+// key comparing against the true last-desired value instead of restarting
+// from an unknown baseline. The in-flight event's own PostHandleFunc still
+// clears its pending entry using the key it was queued with (a map lookup
+// under a moved-away key is simply a no-op, never a wrong delete), and
+// persists its checkpoint value only if markedUnreadLatestSeq for the
+// (possibly-migrated) key hasn't since advanced past its own seq.
+func (s *SignalClient) migrateMarkedUnreadCheckpoint(ctx context.Context, fromID, toID networkid.PortalID, roomID string) {
+	if fromID == toID || roomID == "" {
+		return
+	}
+	fromKey := markedUnreadCheckpointKey(fromID, roomID)
+	toKey := markedUnreadCheckpointKey(toID, roomID)
+	s.markedUnreadLock.Lock()
+	defer s.markedUnreadLock.Unlock()
+	if s.markedUnreadLatestSeq == nil {
+		s.markedUnreadLatestSeq = make(map[string]uint64)
+	}
+	meta := s.UserLogin.Metadata.(*signalid.UserLoginMetadata)
+	checkpointVal, hadCheckpoint := meta.MarkedUnreadCheckpoints[fromKey]
+	if hadCheckpoint {
+		delete(meta.MarkedUnreadCheckpoints, fromKey)
+		meta.MarkedUnreadCheckpoints[toKey] = checkpointVal
+	}
+	if fromPending, hadPending := s.pendingMarkedUnread[fromKey]; hadPending {
+		delete(s.pendingMarkedUnread, fromKey)
+		if existing := s.pendingMarkedUnread[toKey]; existing == nil || fromPending.seq > existing.seq {
+			s.pendingMarkedUnread[toKey] = fromPending
+		}
+	}
+	if fromSeq := s.markedUnreadLatestSeq[fromKey]; fromSeq > s.markedUnreadLatestSeq[toKey] {
+		s.markedUnreadLatestSeq[toKey] = fromSeq
+	}
+	delete(s.markedUnreadLatestSeq, fromKey)
+	if hadCheckpoint {
+		if err := s.UserLogin.Save(ctx); err != nil {
+			zerolog.Ctx(ctx).Err(err).
+				Str("from_portal_id", string(fromID)).
+				Str("to_portal_id", string(toID)).
+				Msg("Failed to save user login after migrating marked unread checkpoint")
+		}
+	}
+}
+
+// handleSignalMarkedUnreadSync bridges the Signal Storage Service
+// markedUnread field (ContactRecord / GroupV2Record) to m.marked_unread.
+//
+// Storage syncs currently re-fetch every record on each run (see
+// StorageSync), so this only reconciles against this login's own last known
+// state for the portal instead of the storage manifest version: a value is
+// bridged only when it differs from what was last observed, which also makes
+// repeat/overlapping syncs of the same state a no-op. "Last known" prefers
+// an in-flight pendingMarkedUnread value over the persisted checkpoint, so a
+// second sync that observes the same value while an earlier queued event for
+// it hasn't been confirmed yet doesn't queue a duplicate. The checkpoint
+// itself is kept per-login (UserLoginMetadata.MarkedUnreadCheckpoints), not
+// on the shared PortalMetadata, because a Group V2 portal can be shared by
+// multiple logins when split_portals is disabled, and each login's storage
+// service state is independent.
+//
+// If no portal exists yet, the observation is dropped; a later storage sync
+// after the portal is created will pick up the current state (tryConnect
+// schedules one such follow-up sync after a fresh link's syncChats creates
+// portals for the backed-up chats). A chat's first-ever observed state is
+// only recorded as a baseline when it is false, so an initial resync can't
+// clear an m.marked_unread the bridge never set; a first-ever true is
+// bridged immediately.
+//
+// The checkpoint is advanced from simplevent.EventMeta.PostHandleFunc, which
+// only runs after the portal has actually processed the event, instead of
+// from QueueRemoteEvent's return value: when the bridge's portal event
+// buffer is enabled (the common case), EventHandlingResult.Success from
+// QueueRemoteEvent only means the event was accepted into the portal's
+// queue, not that dp.MarkUnread actually ran. PostHandleFunc closes that
+// timing gap. It does not, however, receive the eventual EventHandlingResult:
+// mautrix-go's RemotePostHandler interface calls PostHandle unconditionally
+// after the portal's handler returns, whether that handler succeeded,
+// failed, or was ignored (e.g. no double puppet configured), and doesn't
+// expose which. So a Matrix write that fails or is ignored after being
+// queued still advances the checkpoint here and won't be retried by a later
+// identical native value; only a subsequent *different* native value will
+// self-correct it. Closing that gap needs an upstream mautrix-go change to
+// pass EventHandlingResult (or similar) into a completion hook; there is no
+// such hook in the pinned maunium.net/go/mautrix version today.
+func (s *SignalClient) handleSignalMarkedUnreadSync(evt *events.MarkedUnreadSync) {
+	log := s.UserLogin.Log.With().Str("action", "handle marked unread sync").Logger()
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
+	var baselines []string
+	for _, entry := range evt.Entries {
+		portalKey, checkpointKey, ok := s.resolveMarkedUnreadPortalKey(ctx, entry)
+		if !ok {
+			continue
+		}
+		markedUnread := entry.MarkedUnread
+
+		s.markedUnreadLock.Lock()
+		lastKnown, wasKnown := s.UserLogin.Metadata.(*signalid.UserLoginMetadata).MarkedUnreadCheckpoints[checkpointKey]
+		if pendingVal := s.pendingMarkedUnread[checkpointKey]; pendingVal != nil {
+			lastKnown, wasKnown = pendingVal.unread, true
+		}
+		s.markedUnreadLock.Unlock()
+		if wasKnown && lastKnown == markedUnread {
+			continue
+		}
+		if !wasKnown && !markedUnread {
+			// First-ever false only establishes a baseline. Batch these
+			// observations into one Save after the storage sync.
+			baselines = append(baselines, checkpointKey)
+			continue
+		}
+		// Recheck existence right before queueing: this loop can run a
+		// while after resolveMarkedUnreadPortalKey's own check, and
+		// mautrix-go v0.28.1's QueueRemoteEvent falls back to its
+		// get-or-create GetPortalByKey whenever split_portals is enabled
+		// (UncertainReceiver below only routes it through the existing-only
+		// GetExistingPortalByKey when split_portals is disabled). A portal
+		// deleted between this recheck and QueueRemoteEvent's own lookup
+		// could still have its row recreated; that residual race is
+		// accepted (see IMAGES.md) since it is bounded and self-corrects on
+		// the next differing storage sync.
+		if portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, portalKey); err != nil {
+			log.Err(err).Object("portal_key", portalKey).Msg("Failed to recheck portal before queueing marked unread event")
+			continue
+		} else if portal == nil || portal.MXID == "" {
+			log.Warn().Object("portal_key", portalKey).Msg("Portal no longer exists; dropping marked unread event")
+			continue
+		}
+		pending := s.setPendingMarkedUnread(checkpointKey, markedUnread)
+		seq := pending.seq
+		res := s.UserLogin.QueueRemoteEvent(&simplevent.MarkUnread{
+			EventMeta: simplevent.EventMeta{
+				Type:              bridgev2.RemoteEventMarkUnread,
+				PortalKey:         portalKey,
+				UncertainReceiver: true,
+				Sender:            s.makeEventSender(s.Client.Store.ACI),
+				Timestamp:         time.Now(),
+				LogContext: func(c zerolog.Context) zerolog.Context {
+					return c.Bool("marked_unread", markedUnread).Str("source", "storage service sync")
+				},
+				PostHandleFunc: func(ctx context.Context, portal *bridgev2.Portal) {
+					if actualKey := markedUnreadPostHandleKey(portal); actualKey != "" {
+						s.saveMarkedUnreadCheckpoint(ctx, actualKey, markedUnread, seq)
+					}
+					s.clearPendingMarkedUnread(checkpointKey, pending)
+				},
+			},
+			Unread: markedUnread,
+		})
+		if !res.Success {
+			// The event was never queued/handled, so PostHandleFunc will
+			// never fire to clear this. Clear it now so the next storage
+			// sync sees the persisted (stale) checkpoint again and retries.
+			s.clearPendingMarkedUnread(checkpointKey, pending)
+			log.Warn().Object("portal_key", portalKey).Bool("marked_unread", markedUnread).Msg("Failed to queue marked unread event, will retry on next storage sync")
+		}
+	}
+	s.saveMarkedUnreadBaselines(ctx, baselines)
+}
+
+// markedUnreadPostHandleKey identifies the room actually processed by the
+// portal, which may have been re-ID'd while the event was queued. If there
+// is no Matrix room, do not advance any checkpoint; the next storage sync
+// will retry. The captured pending key is cleared separately by the callback.
+func markedUnreadPostHandleKey(portal *bridgev2.Portal) string {
+	if portal == nil || portal.MXID == "" {
+		return ""
+	}
+	return markedUnreadCheckpointKey(portal.PortalKey.ID, string(portal.MXID))
 }
 
 func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool) {
@@ -837,7 +1149,9 @@ func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool
 		}
 	}
 	if changed {
+		s.markedUnreadLock.Lock()
 		err = s.UserLogin.Save(ctx)
+		s.markedUnreadLock.Unlock()
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to save updated remote profile")
 		}

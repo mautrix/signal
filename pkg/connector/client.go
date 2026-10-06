@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +43,34 @@ type SignalClient struct {
 
 	queueEmptyWaiter *exsync.Event
 	cancelChatSync   atomic.Pointer[context.CancelFunc]
+
+	// markedUnreadLock guards read-modify-write access to both
+	// pendingMarkedUnread and UserLogin.Metadata's MarkedUnreadCheckpoints
+	// map, which are mutated from the storage sync goroutine, from portal
+	// event loop goroutines (via simplevent.EventMeta.PostHandleFunc), and
+	// from handleSignalACIFound on portal re-ID. Every UserLogin.Save in
+	// this connector must also hold it: Save marshals the checkpoint map,
+	// even when saving unrelated metadata, so an unlocked Save can race a
+	// checkpoint write and crash on concurrent map read/write.
+	markedUnreadLock sync.Mutex
+	// pendingMarkedUnread tracks queued values by portal room generation.
+	// Pointer identity distinguishes successive attempts for a key even when
+	// the desired value changes and later changes back (ABA). It is not
+	// persisted; the stored checkpoint remains authoritative after a restart.
+	pendingMarkedUnread map[string]*pendingMarkedUnreadState
+	// markedUnreadSeq is a monotonic counter assigned to each observation
+	// that becomes pending. markedUnreadLatestSeq records, per checkpoint
+	// key, the highest seq ever assigned there (including keys a re-ID has
+	// since migrated away from). A completion whose seq is behind that
+	// record is stale — a newer observation for the same room has already
+	// superseded it — and must not overwrite the checkpoint with its value.
+	markedUnreadSeq       uint64
+	markedUnreadLatestSeq map[string]uint64
+}
+
+type pendingMarkedUnreadState struct {
+	unread bool
+	seq    uint64
 }
 
 var (
@@ -347,6 +376,17 @@ func (s *SignalClient) tryConnect(ctx context.Context, retryCount int, noLoginSy
 					s.UserLogin.Log.Warn().Msg("No master key for storage sync before backup sync")
 				}
 				s.syncChats(syncCtx, cancel)
+				if s.Client.Store.MasterKey != nil {
+					// On a fresh link, the StorageSync call above ran before
+					// syncChats created any portals, so
+					// handleSignalMarkedUnreadSync's existing-portal-only
+					// check dropped every markedUnread observation for the
+					// backed-up chats. Queue one follow-up sync now that
+					// portals for them exist so those observations get
+					// reconciled. QueueStorageSync coalesces with any sync
+					// already queued by a concurrent notice.
+					s.Client.QueueStorageSync(ctx)
+				}
 			}()
 		} else {
 			cancel()

@@ -61,17 +61,31 @@ func (cli *Client) StorageSync(ctx context.Context) {
 		log.Err(err).Msg("Failed to fetch storage")
 		return
 	}
+	var markedUnreadEntries []events.MarkedUnreadEntry
 	err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
-		return cli.processStorageInTxn(ctx, update)
+		var txnErr error
+		markedUnreadEntries, txnErr = cli.processStorageInTxn(ctx, update)
+		return txnErr
 	})
 	if err != nil {
 		log.Err(err).Msg("Failed to process storage update")
+		return
+	}
+	if len(markedUnreadEntries) > 0 {
+		// Dispatched synchronously (not `go`) while StorageSync still holds
+		// storageSyncLock: overlapping/successive syncs are already
+		// serialized by that lock, and doing this asynchronously would let a
+		// newer sync's dispatch race an older one's, letting stale state win.
+		cli.handleEvent(&events.MarkedUnreadSync{
+			Entries: markedUnreadEntries,
+		})
 	}
 }
 
-func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdate) error {
+func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdate) ([]events.MarkedUnreadEntry, error) {
 	log := zerolog.Ctx(ctx)
 	var changedContacts []*types.Recipient
+	var markedUnreadEntries []events.MarkedUnreadEntry
 	for _, record := range update.NewRecords {
 		switch data := record.StorageRecord.GetRecord().(type) {
 		case *signalpb.StorageRecord_Contact:
@@ -128,11 +142,16 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 				return
 			})
 			if err != nil {
-				return fmt.Errorf("failed to update contact %s/%s: %w", aci, pni, err)
+				return nil, fmt.Errorf("failed to update contact %s/%s: %w", aci, pni, err)
 			}
 			if topLevelChanged {
 				changedContacts = append(changedContacts, recipient)
 			}
+			markedUnreadEntries = append(markedUnreadEntries, events.MarkedUnreadEntry{
+				ACI:          aci,
+				PNI:          pni,
+				MarkedUnread: contact.MarkedUnread,
+			})
 		case *signalpb.StorageRecord_GroupV2:
 			if len(data.GroupV2.MasterKey) != libsignalgo.GroupMasterKeyLength {
 				log.Warn().Msg("Invalid group master key length")
@@ -141,21 +160,25 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 			masterKey := libsignalgo.GroupMasterKey(data.GroupV2.MasterKey)
 			groupID, err := cli.StoreMasterKey(ctx, masterKeyFromBytes(masterKey))
 			if err != nil {
-				return fmt.Errorf("failed to store group master key for %s: %w", groupID, err)
+				return nil, fmt.Errorf("failed to store group master key for %s: %w", groupID, err)
 			}
 			log.Debug().Stringer("group_id", groupID).Msg("Stored group master key from storage service")
+			markedUnreadEntries = append(markedUnreadEntries, events.MarkedUnreadEntry{
+				GroupID:      groupID,
+				MarkedUnread: data.GroupV2.MarkedUnread,
+			})
 		case *signalpb.StorageRecord_Account:
 			log.Trace().Any("account_record", data.Account).Msg("Found account record")
 			cli.Store.AccountRecord = data.Account
 			if len(data.Account.ProfileKey) == libsignalgo.ProfileKeyLength {
 				err := cli.Store.RecipientStore.StoreProfileKey(ctx, cli.Store.ACI, libsignalgo.ProfileKey(data.Account.ProfileKey))
 				if err != nil {
-					return fmt.Errorf("failed to store own profile key: %w", err)
+					return nil, fmt.Errorf("failed to store own profile key: %w", err)
 				}
 			}
 			err := cli.Store.DeviceStore.PutDevice(ctx, &cli.Store.DeviceData)
 			if err != nil {
-				return fmt.Errorf("failed to save device after receiving account record: %w", err)
+				return nil, fmt.Errorf("failed to save device after receiving account record: %w", err)
 			}
 			log.Debug().Msg("Saved device after receiving account record")
 		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
@@ -170,7 +193,7 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 			IsFromDB: true,
 		})
 	}
-	return nil
+	return markedUnreadEntries, nil
 }
 
 type StorageUpdate struct {

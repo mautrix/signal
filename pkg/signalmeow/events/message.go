@@ -39,6 +39,7 @@ func (*DeleteForMe) isSignalEvent()            {}
 func (*MessageRequestResponse) isSignalEvent() {}
 func (*QueueEmpty) isSignalEvent()             {}
 func (*LoggedOut) isSignalEvent()              {}
+func (*MarkedUnreadSync) isSignalEvent()       {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -103,3 +104,21 @@ type MessageRequestResponse struct {
 type QueueEmpty struct{}
 
 type LoggedOut struct{ Error error }
+
+// MarkedUnreadEntry is one storage service record's marked-unread state
+// observed during a storage sync. Exactly one of ACI, PNI, or GroupID is set,
+// identifying the contact or GroupV2 record the state applies to.
+type MarkedUnreadEntry struct {
+	ACI          uuid.UUID
+	PNI          uuid.UUID
+	GroupID      types.GroupIdentifier
+	MarkedUnread bool
+}
+
+// MarkedUnreadSync carries the marked-unread state of every resolvable
+// contact and GroupV2 record seen in a storage service sync. It is emitted
+// regardless of whether the value changed since the last sync; consumers are
+// expected to diff against their own last-known state.
+type MarkedUnreadSync struct {
+	Entries []MarkedUnreadEntry
+}
