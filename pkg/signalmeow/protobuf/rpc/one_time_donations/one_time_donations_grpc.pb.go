@@ -23,10 +23,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	OneTimeDonations_CreateBoost_FullMethodName                   = "/org.signal.chat.purchase.OneTimeDonations/CreateBoost"
-	OneTimeDonations_CreatePayPalBoost_FullMethodName             = "/org.signal.chat.purchase.OneTimeDonations/CreatePayPalBoost"
-	OneTimeDonations_ConfirmPayPalBoost_FullMethodName            = "/org.signal.chat.purchase.OneTimeDonations/ConfirmPayPalBoost"
-	OneTimeDonations_CreateBoostReceiptCredentials_FullMethodName = "/org.signal.chat.purchase.OneTimeDonations/CreateBoostReceiptCredentials"
+	OneTimeDonations_CreateBoost_FullMethodName                  = "/org.signal.chat.purchase.OneTimeDonations/CreateBoost"
+	OneTimeDonations_CreatePayPalBoost_FullMethodName            = "/org.signal.chat.purchase.OneTimeDonations/CreatePayPalBoost"
+	OneTimeDonations_ConfirmPayPalBoost_FullMethodName           = "/org.signal.chat.purchase.OneTimeDonations/ConfirmPayPalBoost"
+	OneTimeDonations_CreateBoostReceiptCredential_FullMethodName = "/org.signal.chat.purchase.OneTimeDonations/CreateBoostReceiptCredential"
 )
 
 // OneTimeDonationsClient is the client API for OneTimeDonations service.
@@ -38,7 +38,7 @@ const (
 // Configuration for one-time donations can be found in ProductConfiguration.
 type OneTimeDonationsClient interface {
 	// Create a Stripe payment intent and return a client secret that can be used to complete the payment.
-	// Once the payment is complete, the paymentIntentId can be used with CreateBoostReceiptCredentials
+	// Once the payment is complete, the paymentIntentId can be used with CreateBoostReceiptCredential
 	CreateBoost(ctx context.Context, in *CreateBoostRequest, opts ...grpc.CallOption) (*CreateBoostResponse, error)
 	// Create a PayPal one-time payment.
 	//
@@ -55,7 +55,7 @@ type OneTimeDonationsClient interface {
 	// Obtain a ZK receipt credential for a completed one-time donation payment.
 	// The receipt credential can then be used to redeem the one-time donation entitlement
 	// via Donations.RedeemReceipt
-	CreateBoostReceiptCredentials(ctx context.Context, in *CreateBoostReceiptCredentialsRequest, opts ...grpc.CallOption) (*CreateBoostReceiptCredentialsResponse, error)
+	CreateBoostReceiptCredential(ctx context.Context, in *CreateBoostReceiptCredentialRequest, opts ...grpc.CallOption) (*CreateBoostReceiptCredentialResponse, error)
 }
 
 type oneTimeDonationsClient struct {
@@ -96,10 +96,10 @@ func (c *oneTimeDonationsClient) ConfirmPayPalBoost(ctx context.Context, in *Con
 	return out, nil
 }
 
-func (c *oneTimeDonationsClient) CreateBoostReceiptCredentials(ctx context.Context, in *CreateBoostReceiptCredentialsRequest, opts ...grpc.CallOption) (*CreateBoostReceiptCredentialsResponse, error) {
+func (c *oneTimeDonationsClient) CreateBoostReceiptCredential(ctx context.Context, in *CreateBoostReceiptCredentialRequest, opts ...grpc.CallOption) (*CreateBoostReceiptCredentialResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateBoostReceiptCredentialsResponse)
-	err := c.cc.Invoke(ctx, OneTimeDonations_CreateBoostReceiptCredentials_FullMethodName, in, out, cOpts...)
+	out := new(CreateBoostReceiptCredentialResponse)
+	err := c.cc.Invoke(ctx, OneTimeDonations_CreateBoostReceiptCredential_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func (c *oneTimeDonationsClient) CreateBoostReceiptCredentials(ctx context.Conte
 // Configuration for one-time donations can be found in ProductConfiguration.
 type OneTimeDonationsServer interface {
 	// Create a Stripe payment intent and return a client secret that can be used to complete the payment.
-	// Once the payment is complete, the paymentIntentId can be used with CreateBoostReceiptCredentials
+	// Once the payment is complete, the paymentIntentId can be used with CreateBoostReceiptCredential
 	CreateBoost(context.Context, *CreateBoostRequest) (*CreateBoostResponse, error)
 	// Create a PayPal one-time payment.
 	//
@@ -132,7 +132,7 @@ type OneTimeDonationsServer interface {
 	// Obtain a ZK receipt credential for a completed one-time donation payment.
 	// The receipt credential can then be used to redeem the one-time donation entitlement
 	// via Donations.RedeemReceipt
-	CreateBoostReceiptCredentials(context.Context, *CreateBoostReceiptCredentialsRequest) (*CreateBoostReceiptCredentialsResponse, error)
+	CreateBoostReceiptCredential(context.Context, *CreateBoostReceiptCredentialRequest) (*CreateBoostReceiptCredentialResponse, error)
 	mustEmbedUnimplementedOneTimeDonationsServer()
 }
 
@@ -152,8 +152,8 @@ func (UnimplementedOneTimeDonationsServer) CreatePayPalBoost(context.Context, *C
 func (UnimplementedOneTimeDonationsServer) ConfirmPayPalBoost(context.Context, *ConfirmPayPalBoostRequest) (*ConfirmPayPalBoostResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ConfirmPayPalBoost not implemented")
 }
-func (UnimplementedOneTimeDonationsServer) CreateBoostReceiptCredentials(context.Context, *CreateBoostReceiptCredentialsRequest) (*CreateBoostReceiptCredentialsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateBoostReceiptCredentials not implemented")
+func (UnimplementedOneTimeDonationsServer) CreateBoostReceiptCredential(context.Context, *CreateBoostReceiptCredentialRequest) (*CreateBoostReceiptCredentialResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateBoostReceiptCredential not implemented")
 }
 func (UnimplementedOneTimeDonationsServer) mustEmbedUnimplementedOneTimeDonationsServer() {}
 func (UnimplementedOneTimeDonationsServer) testEmbeddedByValue()                          {}
@@ -230,20 +230,20 @@ func _OneTimeDonations_ConfirmPayPalBoost_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OneTimeDonations_CreateBoostReceiptCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateBoostReceiptCredentialsRequest)
+func _OneTimeDonations_CreateBoostReceiptCredential_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateBoostReceiptCredentialRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(OneTimeDonationsServer).CreateBoostReceiptCredentials(ctx, in)
+		return srv.(OneTimeDonationsServer).CreateBoostReceiptCredential(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: OneTimeDonations_CreateBoostReceiptCredentials_FullMethodName,
+		FullMethod: OneTimeDonations_CreateBoostReceiptCredential_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OneTimeDonationsServer).CreateBoostReceiptCredentials(ctx, req.(*CreateBoostReceiptCredentialsRequest))
+		return srv.(OneTimeDonationsServer).CreateBoostReceiptCredential(ctx, req.(*CreateBoostReceiptCredentialRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -268,8 +268,8 @@ var OneTimeDonations_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _OneTimeDonations_ConfirmPayPalBoost_Handler,
 		},
 		{
-			MethodName: "CreateBoostReceiptCredentials",
-			Handler:    _OneTimeDonations_CreateBoostReceiptCredentials_Handler,
+			MethodName: "CreateBoostReceiptCredential",
+			Handler:    _OneTimeDonations_CreateBoostReceiptCredential_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

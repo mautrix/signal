@@ -1785,7 +1785,7 @@ func (*SetIapSubscriptionResponse_PaymentRequired) isSetIapSubscriptionResponse_
 
 func (*SetIapSubscriptionResponse_InvalidTransaction) isSetIapSubscriptionResponse_Response() {}
 
-type GetReceiptCredentialsRequest struct {
+type GetReceiptCredentialRequest struct {
 	state                    protoimpl.MessageState `protogen:"open.v1"`
 	SubscriberId             []byte                 `protobuf:"bytes,1,opt,name=subscriberId,proto3" json:"subscriberId,omitempty"`
 	ReceiptCredentialRequest []byte                 `protobuf:"bytes,2,opt,name=receiptCredentialRequest,proto3" json:"receiptCredentialRequest,omitempty"`
@@ -1793,20 +1793,20 @@ type GetReceiptCredentialsRequest struct {
 	sizeCache                protoimpl.SizeCache
 }
 
-func (x *GetReceiptCredentialsRequest) Reset() {
-	*x = GetReceiptCredentialsRequest{}
+func (x *GetReceiptCredentialRequest) Reset() {
+	*x = GetReceiptCredentialRequest{}
 	mi := &file_org_signal_chat_subscriptions_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetReceiptCredentialsRequest) String() string {
+func (x *GetReceiptCredentialRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetReceiptCredentialsRequest) ProtoMessage() {}
+func (*GetReceiptCredentialRequest) ProtoMessage() {}
 
-func (x *GetReceiptCredentialsRequest) ProtoReflect() protoreflect.Message {
+func (x *GetReceiptCredentialRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_subscriptions_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1818,53 +1818,53 @@ func (x *GetReceiptCredentialsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReceiptCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*GetReceiptCredentialsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetReceiptCredentialRequest.ProtoReflect.Descriptor instead.
+func (*GetReceiptCredentialRequest) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_subscriptions_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *GetReceiptCredentialsRequest) GetSubscriberId() []byte {
+func (x *GetReceiptCredentialRequest) GetSubscriberId() []byte {
 	if x != nil {
 		return x.SubscriberId
 	}
 	return nil
 }
 
-func (x *GetReceiptCredentialsRequest) GetReceiptCredentialRequest() []byte {
+func (x *GetReceiptCredentialRequest) GetReceiptCredentialRequest() []byte {
 	if x != nil {
 		return x.ReceiptCredentialRequest
 	}
 	return nil
 }
 
-type GetReceiptCredentialsResponse struct {
+type GetReceiptCredentialResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Response:
 	//
-	//	*GetReceiptCredentialsResponse_Success
-	//	*GetReceiptCredentialsResponse_SubscriberNotFound
-	//	*GetReceiptCredentialsResponse_NoPaidInvoice
-	//	*GetReceiptCredentialsResponse_PaymentRequired
-	//	*GetReceiptCredentialsResponse_AlreadyRedeemed
-	Response      isGetReceiptCredentialsResponse_Response `protobuf_oneof:"response"`
+	//	*GetReceiptCredentialResponse_Success
+	//	*GetReceiptCredentialResponse_SubscriberNotFound
+	//	*GetReceiptCredentialResponse_NoPaidInvoice
+	//	*GetReceiptCredentialResponse_PaymentRequired
+	//	*GetReceiptCredentialResponse_AlreadyRedeemed
+	Response      isGetReceiptCredentialResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetReceiptCredentialsResponse) Reset() {
-	*x = GetReceiptCredentialsResponse{}
+func (x *GetReceiptCredentialResponse) Reset() {
+	*x = GetReceiptCredentialResponse{}
 	mi := &file_org_signal_chat_subscriptions_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetReceiptCredentialsResponse) String() string {
+func (x *GetReceiptCredentialResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetReceiptCredentialsResponse) ProtoMessage() {}
+func (*GetReceiptCredentialResponse) ProtoMessage() {}
 
-func (x *GetReceiptCredentialsResponse) ProtoReflect() protoreflect.Message {
+func (x *GetReceiptCredentialResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_subscriptions_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1876,100 +1876,100 @@ func (x *GetReceiptCredentialsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReceiptCredentialsResponse.ProtoReflect.Descriptor instead.
-func (*GetReceiptCredentialsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetReceiptCredentialResponse.ProtoReflect.Descriptor instead.
+func (*GetReceiptCredentialResponse) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_subscriptions_proto_rawDescGZIP(), []int{17}
 }
 
-func (x *GetReceiptCredentialsResponse) GetResponse() isGetReceiptCredentialsResponse_Response {
+func (x *GetReceiptCredentialResponse) GetResponse() isGetReceiptCredentialResponse_Response {
 	if x != nil {
 		return x.Response
 	}
 	return nil
 }
 
-func (x *GetReceiptCredentialsResponse) GetSuccess() *GetReceiptCredentialsResponse_GetReceiptCredentialsResult {
+func (x *GetReceiptCredentialResponse) GetSuccess() *GetReceiptCredentialResponse_GetReceiptCredentialResult {
 	if x != nil {
-		if x, ok := x.Response.(*GetReceiptCredentialsResponse_Success); ok {
+		if x, ok := x.Response.(*GetReceiptCredentialResponse_Success); ok {
 			return x.Success
 		}
 	}
 	return nil
 }
 
-func (x *GetReceiptCredentialsResponse) GetSubscriberNotFound() *errors.NotFound {
+func (x *GetReceiptCredentialResponse) GetSubscriberNotFound() *errors.NotFound {
 	if x != nil {
-		if x, ok := x.Response.(*GetReceiptCredentialsResponse_SubscriberNotFound); ok {
+		if x, ok := x.Response.(*GetReceiptCredentialResponse_SubscriberNotFound); ok {
 			return x.SubscriberNotFound
 		}
 	}
 	return nil
 }
 
-func (x *GetReceiptCredentialsResponse) GetNoPaidInvoice() *errors.FailedPrecondition {
+func (x *GetReceiptCredentialResponse) GetNoPaidInvoice() *errors.FailedPrecondition {
 	if x != nil {
-		if x, ok := x.Response.(*GetReceiptCredentialsResponse_NoPaidInvoice); ok {
+		if x, ok := x.Response.(*GetReceiptCredentialResponse_NoPaidInvoice); ok {
 			return x.NoPaidInvoice
 		}
 	}
 	return nil
 }
 
-func (x *GetReceiptCredentialsResponse) GetPaymentRequired() *PaymentRequired {
+func (x *GetReceiptCredentialResponse) GetPaymentRequired() *PaymentRequired {
 	if x != nil {
-		if x, ok := x.Response.(*GetReceiptCredentialsResponse_PaymentRequired); ok {
+		if x, ok := x.Response.(*GetReceiptCredentialResponse_PaymentRequired); ok {
 			return x.PaymentRequired
 		}
 	}
 	return nil
 }
 
-func (x *GetReceiptCredentialsResponse) GetAlreadyRedeemed() *errors.FailedPrecondition {
+func (x *GetReceiptCredentialResponse) GetAlreadyRedeemed() *errors.FailedPrecondition {
 	if x != nil {
-		if x, ok := x.Response.(*GetReceiptCredentialsResponse_AlreadyRedeemed); ok {
+		if x, ok := x.Response.(*GetReceiptCredentialResponse_AlreadyRedeemed); ok {
 			return x.AlreadyRedeemed
 		}
 	}
 	return nil
 }
 
-type isGetReceiptCredentialsResponse_Response interface {
-	isGetReceiptCredentialsResponse_Response()
+type isGetReceiptCredentialResponse_Response interface {
+	isGetReceiptCredentialResponse_Response()
 }
 
-type GetReceiptCredentialsResponse_Success struct {
-	Success *GetReceiptCredentialsResponse_GetReceiptCredentialsResult `protobuf:"bytes,1,opt,name=success,proto3,oneof"`
+type GetReceiptCredentialResponse_Success struct {
+	Success *GetReceiptCredentialResponse_GetReceiptCredentialResult `protobuf:"bytes,1,opt,name=success,proto3,oneof"`
 }
 
-type GetReceiptCredentialsResponse_SubscriberNotFound struct {
+type GetReceiptCredentialResponse_SubscriberNotFound struct {
 	// The subscriber did not exist or it did not have an associated subscription
 	SubscriberNotFound *errors.NotFound `protobuf:"bytes,2,opt,name=subscriber_not_found,json=subscriberNotFound,proto3,oneof"`
 }
 
-type GetReceiptCredentialsResponse_NoPaidInvoice struct {
+type GetReceiptCredentialResponse_NoPaidInvoice struct {
 	// No invoice has been issued for this subscription OR invoice is in 'draft' or 'open' state
 	NoPaidInvoice *errors.FailedPrecondition `protobuf:"bytes,3,opt,name=no_paid_invoice,json=noPaidInvoice,proto3,oneof"`
 }
 
-type GetReceiptCredentialsResponse_PaymentRequired struct {
+type GetReceiptCredentialResponse_PaymentRequired struct {
 	// Invoice is in any state other than 'draft', 'open', or 'paid'; Charge failure details may be present
 	PaymentRequired *PaymentRequired `protobuf:"bytes,4,opt,name=payment_required,json=paymentRequired,proto3,oneof"`
 }
 
-type GetReceiptCredentialsResponse_AlreadyRedeemed struct {
+type GetReceiptCredentialResponse_AlreadyRedeemed struct {
 	// Latest paid receipt on subscription was already redeemed for a receipt credential but with a different GetReceiptCredentialRequest
 	AlreadyRedeemed *errors.FailedPrecondition `protobuf:"bytes,5,opt,name=already_redeemed,json=alreadyRedeemed,proto3,oneof"`
 }
 
-func (*GetReceiptCredentialsResponse_Success) isGetReceiptCredentialsResponse_Response() {}
+func (*GetReceiptCredentialResponse_Success) isGetReceiptCredentialResponse_Response() {}
 
-func (*GetReceiptCredentialsResponse_SubscriberNotFound) isGetReceiptCredentialsResponse_Response() {}
+func (*GetReceiptCredentialResponse_SubscriberNotFound) isGetReceiptCredentialResponse_Response() {}
 
-func (*GetReceiptCredentialsResponse_NoPaidInvoice) isGetReceiptCredentialsResponse_Response() {}
+func (*GetReceiptCredentialResponse_NoPaidInvoice) isGetReceiptCredentialResponse_Response() {}
 
-func (*GetReceiptCredentialsResponse_PaymentRequired) isGetReceiptCredentialsResponse_Response() {}
+func (*GetReceiptCredentialResponse_PaymentRequired) isGetReceiptCredentialResponse_Response() {}
 
-func (*GetReceiptCredentialsResponse_AlreadyRedeemed) isGetReceiptCredentialsResponse_Response() {}
+func (*GetReceiptCredentialResponse_AlreadyRedeemed) isGetReceiptCredentialResponse_Response() {}
 
 type GetSubscriptionInformationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -2619,27 +2619,27 @@ func (x *SetIapSubscriptionResponse_SetIapSubscriptionResult) GetLevel() uint64 
 	return 0
 }
 
-type GetReceiptCredentialsResponse_GetReceiptCredentialsResult struct {
+type GetReceiptCredentialResponse_GetReceiptCredentialResult struct {
 	state                     protoimpl.MessageState `protogen:"open.v1"`
 	ReceiptCredentialResponse []byte                 `protobuf:"bytes,1,opt,name=receiptCredentialResponse,proto3" json:"receiptCredentialResponse,omitempty"`
 	unknownFields             protoimpl.UnknownFields
 	sizeCache                 protoimpl.SizeCache
 }
 
-func (x *GetReceiptCredentialsResponse_GetReceiptCredentialsResult) Reset() {
-	*x = GetReceiptCredentialsResponse_GetReceiptCredentialsResult{}
+func (x *GetReceiptCredentialResponse_GetReceiptCredentialResult) Reset() {
+	*x = GetReceiptCredentialResponse_GetReceiptCredentialResult{}
 	mi := &file_org_signal_chat_subscriptions_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetReceiptCredentialsResponse_GetReceiptCredentialsResult) String() string {
+func (x *GetReceiptCredentialResponse_GetReceiptCredentialResult) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetReceiptCredentialsResponse_GetReceiptCredentialsResult) ProtoMessage() {}
+func (*GetReceiptCredentialResponse_GetReceiptCredentialResult) ProtoMessage() {}
 
-func (x *GetReceiptCredentialsResponse_GetReceiptCredentialsResult) ProtoReflect() protoreflect.Message {
+func (x *GetReceiptCredentialResponse_GetReceiptCredentialResult) ProtoReflect() protoreflect.Message {
 	mi := &file_org_signal_chat_subscriptions_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -2651,12 +2651,12 @@ func (x *GetReceiptCredentialsResponse_GetReceiptCredentialsResult) ProtoReflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReceiptCredentialsResponse_GetReceiptCredentialsResult.ProtoReflect.Descriptor instead.
-func (*GetReceiptCredentialsResponse_GetReceiptCredentialsResult) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetReceiptCredentialResponse_GetReceiptCredentialResult.ProtoReflect.Descriptor instead.
+func (*GetReceiptCredentialResponse_GetReceiptCredentialResult) Descriptor() ([]byte, []int) {
 	return file_org_signal_chat_subscriptions_proto_rawDescGZIP(), []int{17, 0}
 }
 
-func (x *GetReceiptCredentialsResponse_GetReceiptCredentialsResult) GetReceiptCredentialResponse() []byte {
+func (x *GetReceiptCredentialResponse_GetReceiptCredentialResult) GetReceiptCredentialResponse() []byte {
 	if x != nil {
 		return x.ReceiptCredentialResponse
 	}
@@ -2677,7 +2677,7 @@ type GetSubscriptionInformationResponse_Subscription struct {
 	CancelAtPeriodEnd bool `protobuf:"varint,5,opt,name=cancel_at_period_end,json=cancelAtPeriodEnd,proto3" json:"cancel_at_period_end,omitempty"`
 	// A three-letter ISO 4217 currency code for currency used in the subscription
 	Currency string `protobuf:"bytes,6,opt,name=currency,proto3" json:"currency,omitempty"`
-	// The amount paid for the subscription in the currency's smallest unit
+	// The amount paid for the subscription in the currency's minor unit
 	Amount uint64 `protobuf:"varint,7,opt,name=amount,proto3" json:"amount,omitempty"`
 	// The subscription's status, mapped to Stripe's statuses. trialing will never be returned
 	Status SubscriptionStatus `protobuf:"varint,8,opt,name=status,proto3,enum=org.signal.chat.purchase.SubscriptionStatus" json:"status,omitempty"`
@@ -2926,17 +2926,17 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\x18SetIapSubscriptionResult\x12\x14\n" +
 	"\x05level\x18\x01 \x01(\x04R\x05levelB\n" +
 	"\n" +
-	"\bresponse\"\x8c\x01\n" +
-	"\x1cGetReceiptCredentialsRequest\x12)\n" +
+	"\bresponse\"\x8b\x01\n" +
+	"\x1bGetReceiptCredentialRequest\x12)\n" +
 	"\fsubscriberId\x18\x01 \x01(\fB\x05\xa2\x97\"\x01 R\fsubscriberId\x12A\n" +
-	"\x18receiptCredentialRequest\x18\x02 \x01(\fB\x05\xa2\x97\"\x01aR\x18receiptCredentialRequest\"\xb1\x05\n" +
-	"\x1dGetReceiptCredentialsResponse\x12o\n" +
-	"\asuccess\x18\x01 \x01(\v2S.org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResultH\x00R\asuccess\x12n\n" +
+	"\x18receiptCredentialRequest\x18\x02 \x01(\fB\x05\xa2\x97\"\x01aR\x18receiptCredentialRequest\"\xad\x05\n" +
+	"\x1cGetReceiptCredentialResponse\x12m\n" +
+	"\asuccess\x18\x01 \x01(\v2Q.org.signal.chat.purchase.GetReceiptCredentialResponse.GetReceiptCredentialResultH\x00R\asuccess\x12n\n" +
 	"\x14subscriber_not_found\x18\x02 \x01(\v2 .org.signal.chat.errors.NotFoundB\x18\xc2\xd5\"\x14subscriber_not_foundH\x00R\x12subscriberNotFound\x12i\n" +
 	"\x0fno_paid_invoice\x18\x03 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x13\xc2\xd5\"\x0fno_paid_invoiceH\x00R\rnoPaidInvoice\x12l\n" +
 	"\x10payment_required\x18\x04 \x01(\v2).org.signal.chat.purchase.PaymentRequiredB\x14\xc2\xd5\"\x10payment_requiredH\x00R\x0fpaymentRequired\x12m\n" +
-	"\x10already_redeemed\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x14\xc2\xd5\"\x10already_redeemedH\x00R\x0falreadyRedeemed\x1a[\n" +
-	"\x1bGetReceiptCredentialsResult\x12<\n" +
+	"\x10already_redeemed\x18\x05 \x01(\v2*.org.signal.chat.errors.FailedPreconditionB\x14\xc2\xd5\"\x10already_redeemedH\x00R\x0falreadyRedeemed\x1aZ\n" +
+	"\x1aGetReceiptCredentialResult\x12<\n" +
 	"\x19receiptCredentialResponse\x18\x01 \x01(\fR\x19receiptCredentialResponseB\n" +
 	"\n" +
 	"\bresponse\"N\n" +
@@ -2991,7 +2991,7 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\x1aSUBSCRIPTION_STATUS_UNPAID\x10\x05*U\n" +
 	"\x10BankTransferType\x12\x1e\n" +
 	"\x1aBANK_TRANSFER_TYPE_UNKNOWN\x10\x00\x12!\n" +
-	"\x1dBANK_TRANSFER_TYPE_SEPA_DEBIT\x10\x012\xf0\n" +
+	"\x1dBANK_TRANSFER_TYPE_SEPA_DEBIT\x10\x012\xed\n" +
 	"\n" +
 	"\rSubscriptions\x12{\n" +
 	"\x10UpdateSubscriber\x121.org.signal.chat.purchase.UpdateSubscriberRequest\x1a2.org.signal.chat.purchase.UpdateSubscriberResponse\"\x00\x12{\n" +
@@ -3000,8 +3000,8 @@ const file_org_signal_chat_subscriptions_proto_rawDesc = "" +
 	"\x19CreatePayPalPaymentMethod\x12:.org.signal.chat.purchase.CreatePayPalPaymentMethodRequest\x1a;.org.signal.chat.purchase.CreatePayPalPaymentMethodResponse\"\x00\x12\x90\x01\n" +
 	"\x17SetDefaultPaymentMethod\x128.org.signal.chat.purchase.SetDefaultPaymentMethodRequest\x1a9.org.signal.chat.purchase.SetDefaultPaymentMethodResponse\"\x00\x12\x87\x01\n" +
 	"\x14SetSubscriptionLevel\x125.org.signal.chat.purchase.SetSubscriptionLevelRequest\x1a6.org.signal.chat.purchase.SetSubscriptionLevelResponse\"\x00\x12\x99\x01\n" +
-	"\x1aGetSubscriptionInformation\x12;.org.signal.chat.purchase.GetSubscriptionInformationRequest\x1a<.org.signal.chat.purchase.GetSubscriptionInformationResponse\"\x00\x12\x8a\x01\n" +
-	"\x15GetReceiptCredentials\x126.org.signal.chat.purchase.GetReceiptCredentialsRequest\x1a7.org.signal.chat.purchase.GetReceiptCredentialsResponse\"\x00\x12\x81\x01\n" +
+	"\x1aGetSubscriptionInformation\x12;.org.signal.chat.purchase.GetSubscriptionInformationRequest\x1a<.org.signal.chat.purchase.GetSubscriptionInformationResponse\"\x00\x12\x87\x01\n" +
+	"\x14GetReceiptCredential\x125.org.signal.chat.purchase.GetReceiptCredentialRequest\x1a6.org.signal.chat.purchase.GetReceiptCredentialResponse\"\x00\x12\x81\x01\n" +
 	"\x12SetIapSubscription\x123.org.signal.chat.purchase.SetIapSubscriptionRequest\x1a4.org.signal.chat.purchase.SetIapSubscriptionResponse\"\x00\x12u\n" +
 	"\x0eGetBankMandate\x12/.org.signal.chat.purchase.GetBankMandateRequest\x1a0.org.signal.chat.purchase.GetBankMandateResponse\"\x00\x1a\x04\xc8\xd5\"\x02B\x02P\x01b\x06proto3"
 
@@ -3040,8 +3040,8 @@ var file_org_signal_chat_subscriptions_proto_goTypes = []any{
 	(*SetSubscriptionLevelResponse)(nil),                                      // 17: org.signal.chat.purchase.SetSubscriptionLevelResponse
 	(*SetIapSubscriptionRequest)(nil),                                         // 18: org.signal.chat.purchase.SetIapSubscriptionRequest
 	(*SetIapSubscriptionResponse)(nil),                                        // 19: org.signal.chat.purchase.SetIapSubscriptionResponse
-	(*GetReceiptCredentialsRequest)(nil),                                      // 20: org.signal.chat.purchase.GetReceiptCredentialsRequest
-	(*GetReceiptCredentialsResponse)(nil),                                     // 21: org.signal.chat.purchase.GetReceiptCredentialsResponse
+	(*GetReceiptCredentialRequest)(nil),                                       // 20: org.signal.chat.purchase.GetReceiptCredentialRequest
+	(*GetReceiptCredentialResponse)(nil),                                      // 21: org.signal.chat.purchase.GetReceiptCredentialResponse
 	(*GetSubscriptionInformationRequest)(nil),                                 // 22: org.signal.chat.purchase.GetSubscriptionInformationRequest
 	(*GetSubscriptionInformationResponse)(nil),                                // 23: org.signal.chat.purchase.GetSubscriptionInformationResponse
 	(*GetBankMandateRequest)(nil),                                             // 24: org.signal.chat.purchase.GetBankMandateRequest
@@ -3055,7 +3055,7 @@ var file_org_signal_chat_subscriptions_proto_goTypes = []any{
 	(*SetIapSubscriptionRequest_AppStorePurchase)(nil),                        // 32: org.signal.chat.purchase.SetIapSubscriptionRequest.AppStorePurchase
 	(*SetIapSubscriptionRequest_PlayBillingPurchase)(nil),                     // 33: org.signal.chat.purchase.SetIapSubscriptionRequest.PlayBillingPurchase
 	(*SetIapSubscriptionResponse_SetIapSubscriptionResult)(nil),               // 34: org.signal.chat.purchase.SetIapSubscriptionResponse.SetIapSubscriptionResult
-	(*GetReceiptCredentialsResponse_GetReceiptCredentialsResult)(nil),         // 35: org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResult
+	(*GetReceiptCredentialResponse_GetReceiptCredentialResult)(nil),           // 35: org.signal.chat.purchase.GetReceiptCredentialResponse.GetReceiptCredentialResult
 	(*GetSubscriptionInformationResponse_Subscription)(nil),                   // 36: org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription
 	(*emptypb.Empty)(nil),                                                     // 37: google.protobuf.Empty
 	(*errors.FailedZkAuthentication)(nil),                                     // 38: org.signal.chat.errors.FailedZkAuthentication
@@ -3102,11 +3102,11 @@ var file_org_signal_chat_subscriptions_proto_depIdxs = []int32{
 	40, // 36: org.signal.chat.purchase.SetIapSubscriptionResponse.subscription_processor_conflict:type_name -> org.signal.chat.errors.FailedPrecondition
 	40, // 37: org.signal.chat.purchase.SetIapSubscriptionResponse.payment_required:type_name -> org.signal.chat.errors.FailedPrecondition
 	40, // 38: org.signal.chat.purchase.SetIapSubscriptionResponse.invalid_transaction:type_name -> org.signal.chat.errors.FailedPrecondition
-	35, // 39: org.signal.chat.purchase.GetReceiptCredentialsResponse.success:type_name -> org.signal.chat.purchase.GetReceiptCredentialsResponse.GetReceiptCredentialsResult
-	39, // 40: org.signal.chat.purchase.GetReceiptCredentialsResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
-	40, // 41: org.signal.chat.purchase.GetReceiptCredentialsResponse.no_paid_invoice:type_name -> org.signal.chat.errors.FailedPrecondition
-	16, // 42: org.signal.chat.purchase.GetReceiptCredentialsResponse.payment_required:type_name -> org.signal.chat.purchase.PaymentRequired
-	40, // 43: org.signal.chat.purchase.GetReceiptCredentialsResponse.already_redeemed:type_name -> org.signal.chat.errors.FailedPrecondition
+	35, // 39: org.signal.chat.purchase.GetReceiptCredentialResponse.success:type_name -> org.signal.chat.purchase.GetReceiptCredentialResponse.GetReceiptCredentialResult
+	39, // 40: org.signal.chat.purchase.GetReceiptCredentialResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
+	40, // 41: org.signal.chat.purchase.GetReceiptCredentialResponse.no_paid_invoice:type_name -> org.signal.chat.errors.FailedPrecondition
+	16, // 42: org.signal.chat.purchase.GetReceiptCredentialResponse.payment_required:type_name -> org.signal.chat.purchase.PaymentRequired
+	40, // 43: org.signal.chat.purchase.GetReceiptCredentialResponse.already_redeemed:type_name -> org.signal.chat.errors.FailedPrecondition
 	36, // 44: org.signal.chat.purchase.GetSubscriptionInformationResponse.success:type_name -> org.signal.chat.purchase.GetSubscriptionInformationResponse.Subscription
 	37, // 45: org.signal.chat.purchase.GetSubscriptionInformationResponse.no_subscription:type_name -> google.protobuf.Empty
 	39, // 46: org.signal.chat.purchase.GetSubscriptionInformationResponse.subscriber_not_found:type_name -> org.signal.chat.errors.NotFound
@@ -3123,7 +3123,7 @@ var file_org_signal_chat_subscriptions_proto_depIdxs = []int32{
 	12, // 57: org.signal.chat.purchase.Subscriptions.SetDefaultPaymentMethod:input_type -> org.signal.chat.purchase.SetDefaultPaymentMethodRequest
 	14, // 58: org.signal.chat.purchase.Subscriptions.SetSubscriptionLevel:input_type -> org.signal.chat.purchase.SetSubscriptionLevelRequest
 	22, // 59: org.signal.chat.purchase.Subscriptions.GetSubscriptionInformation:input_type -> org.signal.chat.purchase.GetSubscriptionInformationRequest
-	20, // 60: org.signal.chat.purchase.Subscriptions.GetReceiptCredentials:input_type -> org.signal.chat.purchase.GetReceiptCredentialsRequest
+	20, // 60: org.signal.chat.purchase.Subscriptions.GetReceiptCredential:input_type -> org.signal.chat.purchase.GetReceiptCredentialRequest
 	18, // 61: org.signal.chat.purchase.Subscriptions.SetIapSubscription:input_type -> org.signal.chat.purchase.SetIapSubscriptionRequest
 	24, // 62: org.signal.chat.purchase.Subscriptions.GetBankMandate:input_type -> org.signal.chat.purchase.GetBankMandateRequest
 	5,  // 63: org.signal.chat.purchase.Subscriptions.UpdateSubscriber:output_type -> org.signal.chat.purchase.UpdateSubscriberResponse
@@ -3133,7 +3133,7 @@ var file_org_signal_chat_subscriptions_proto_depIdxs = []int32{
 	13, // 67: org.signal.chat.purchase.Subscriptions.SetDefaultPaymentMethod:output_type -> org.signal.chat.purchase.SetDefaultPaymentMethodResponse
 	17, // 68: org.signal.chat.purchase.Subscriptions.SetSubscriptionLevel:output_type -> org.signal.chat.purchase.SetSubscriptionLevelResponse
 	23, // 69: org.signal.chat.purchase.Subscriptions.GetSubscriptionInformation:output_type -> org.signal.chat.purchase.GetSubscriptionInformationResponse
-	21, // 70: org.signal.chat.purchase.Subscriptions.GetReceiptCredentials:output_type -> org.signal.chat.purchase.GetReceiptCredentialsResponse
+	21, // 70: org.signal.chat.purchase.Subscriptions.GetReceiptCredential:output_type -> org.signal.chat.purchase.GetReceiptCredentialResponse
 	19, // 71: org.signal.chat.purchase.Subscriptions.SetIapSubscription:output_type -> org.signal.chat.purchase.SetIapSubscriptionResponse
 	25, // 72: org.signal.chat.purchase.Subscriptions.GetBankMandate:output_type -> org.signal.chat.purchase.GetBankMandateResponse
 	63, // [63:73] is the sub-list for method output_type
@@ -3205,11 +3205,11 @@ func file_org_signal_chat_subscriptions_proto_init() {
 		(*SetIapSubscriptionResponse_InvalidTransaction)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[17].OneofWrappers = []any{
-		(*GetReceiptCredentialsResponse_Success)(nil),
-		(*GetReceiptCredentialsResponse_SubscriberNotFound)(nil),
-		(*GetReceiptCredentialsResponse_NoPaidInvoice)(nil),
-		(*GetReceiptCredentialsResponse_PaymentRequired)(nil),
-		(*GetReceiptCredentialsResponse_AlreadyRedeemed)(nil),
+		(*GetReceiptCredentialResponse_Success)(nil),
+		(*GetReceiptCredentialResponse_SubscriberNotFound)(nil),
+		(*GetReceiptCredentialResponse_NoPaidInvoice)(nil),
+		(*GetReceiptCredentialResponse_PaymentRequired)(nil),
+		(*GetReceiptCredentialResponse_AlreadyRedeemed)(nil),
 	}
 	file_org_signal_chat_subscriptions_proto_msgTypes[19].OneofWrappers = []any{
 		(*GetSubscriptionInformationResponse_Success)(nil),
