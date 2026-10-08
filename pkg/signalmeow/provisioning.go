@@ -187,6 +187,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			AccountEntropyPool: libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()),
 			EphemeralBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetEphemeralBackupKey()),
 			MediaRootBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetMediaRootBackupKey()),
+			AuthCredentialSalt: provisioningMessage.GetAuthCredentialSalt(),
 		}
 		if provisioningMessage.GetAccountEntropyPool() != "" {
 			data.MasterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
