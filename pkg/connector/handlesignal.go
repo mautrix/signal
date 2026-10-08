@@ -842,7 +842,7 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			log.Err(err).Msg("Failed to get ghost to update contact info")
 			continue
 		}
-		userInfo, err := s.contactToUserInfo(ctx, contact)
+		userInfo, err := s.contactToUserInfo(ctx, contact, ghost.Metadata.(*signalid.GhostMetadata).Username, false)
 		if err != nil {
 			log.Err(err).Msg("Failed to convert contact info")
 			continue

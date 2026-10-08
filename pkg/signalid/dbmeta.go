@@ -43,4 +43,5 @@ type UserLoginMetadata struct {
 
 type GhostMetadata struct {
 	ProfileFetchedAt jsontime.UnixMilli `json:"profile_fetched_at"`
+	Username         string             `json:"username"`
 }

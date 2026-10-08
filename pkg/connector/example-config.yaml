@@ -2,10 +2,11 @@
 # {{.ProfileName}} - The Signal profile name set by the user.
 # {{.ContactName}} - The name for the user from your phone's contact list. This is not safe on multi-user instances.
 # {{.Nickname}} - The nickname set for the user in the native Signal app. This is not safe on multi-user instances.
+# {{.Username}} - The username of the user. Only applicable when starting chats.
 # {{.PhoneNumber}} - The phone number of the user.
 # {{.UUID}} - The UUID of the Signal user.
 # {{.AboutEmoji}} - The emoji set by the user in their profile.
-displayname_template: '{{or .ProfileName .PhoneNumber "Unknown user"}}'
+displayname_template: '{{or .ProfileName .PhoneNumber .Username "Unknown user"}}'
 # Should avatars from the user's contact list be used? This is not safe on multi-user instances.
 use_contact_avatars: false
 # Should the bridge request the user's contact list from the phone on startup?

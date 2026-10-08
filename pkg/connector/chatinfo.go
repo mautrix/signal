@@ -75,7 +75,7 @@ func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *b
 	if userID.Type != libsignalgo.ServiceIDTypePNI && (!s.Main.Config.UseOutdatedProfiles && meta.ProfileFetchedAt.After(contact.Profile.FetchedAt)) {
 		return nil, nil
 	}
-	return s.contactToUserInfo(ctx, contact)
+	return s.contactToUserInfo(ctx, contact, meta.Username, false)
 }
 
 func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
@@ -99,7 +99,7 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 	}
 }
 
-func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Recipient) (*bridgev2.UserInfo, error) {
+func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Recipient, username string, saveUsername bool) (*bridgev2.UserInfo, error) {
 	isBot := false
 	ui := &bridgev2.UserInfo{
 		IsBot:       &isBot,
@@ -110,13 +110,20 @@ func (s *SignalClient) contactToUserInfo(ctx context.Context, contact *types.Rec
 				changed = meta.ProfileFetchedAt.IsZero() && !contact.Profile.FetchedAt.IsZero()
 				meta.ProfileFetchedAt.Time = contact.Profile.FetchedAt
 			}
-			return false
+			if saveUsername && username != "" && meta.Username != username {
+				meta.Username = username
+				changed = true
+			}
+			return
 		},
 	}
 	if contact.E164 != "" {
 		ui.Identifiers = append(ui.Identifiers, "tel:"+contact.E164)
 	}
-	name := s.Main.Config.FormatDisplayname(contact)
+	if username != "" {
+		ui.Identifiers = append(ui.Identifiers, "signal:"+username)
+	}
+	name := s.Main.Config.FormatDisplayname(contact, username)
 	ui.Name = &name
 	if s.Main.Config.UseContactAvatars && contact.ContactAvatar.Hash != "" {
 		ui.Avatar = &bridgev2.Avatar{
@@ -243,30 +250,33 @@ func (s *SignalClient) resolveUsername(ctx context.Context, username string) (ac
 
 const signalUserLinkPrefix = "https://signal.me/#eu/"
 
-func (s *SignalClient) resolveLink(ctx context.Context, linkHandle string) (aci, pni uuid.UUID, err error) {
-	username, err := s.Client.ResolveUsernameLink(ctx, linkHandle)
+func (s *SignalClient) resolveLink(ctx context.Context, linkHandle string) (aci, pni uuid.UUID, username string, err error) {
+	username, err = s.Client.ResolveUsernameLink(ctx, linkHandle)
 	if err != nil {
 		err = bridgev2.WrapRespErr(err, mautrix.MInvalidParam)
 		return
 	} else if username == "" {
 		return
 	}
-	return s.resolveUsername(ctx, username)
+	aci, pni, err = s.resolveUsername(ctx, username)
+	return
 }
 
 func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ bool) (*bridgev2.ResolveIdentifierResponse, error) {
 	var aci, pni uuid.UUID
 	var e164Number uint64
 	var recipient *types.Recipient
+	var username string
 	serviceID, err := signalid.ParseUserIDAsServiceID(networkid.UserID(number))
 	if err == nil {
 		aci, pni = serviceID.ToACIAndPNI()
 	} else if strings.HasPrefix(number, "+") {
 		aci, pni, e164Number, recipient, err = s.resolvePhone(ctx, number)
 	} else if signalmeow.SignalUsernameRegex.MatchString(number) {
+		username = strings.TrimPrefix(number, "@")
 		aci, pni, err = s.resolveUsername(ctx, number)
 	} else if handle, ok := strings.CutPrefix(number, signalUserLinkPrefix); ok {
-		aci, pni, err = s.resolveLink(ctx, handle)
+		aci, pni, username, err = s.resolveLink(ctx, handle)
 	} else {
 		err = bridgev2.RespError(mautrix.MInvalidParam.WithMessage("Input must be an international phone number, username, link or user ID"))
 	}
@@ -288,7 +298,7 @@ func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ b
 		Stringer("pni", pni).
 		Msg("Found resolve identifier target user")
 
-	userInfo, err := s.contactToUserInfo(ctx, recipient)
+	userInfo, err := s.contactToUserInfo(ctx, recipient, username, true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert contact: %w", err)
 	}
@@ -433,14 +443,10 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 	}
 	resp := make([]*bridgev2.ResolveIdentifierResponse, len(recipients))
 	for i, recipient := range recipients {
-		userInfo, err := s.contactToUserInfo(ctx, recipient)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert contact: %w", err)
-		}
 		recipientResp := &bridgev2.ResolveIdentifierResponse{
-			UserInfo: userInfo,
-			Chat:     s.makeCreateDMResponse(ctx, recipient, nil),
+			Chat: s.makeCreateDMResponse(ctx, recipient, nil),
 		}
+		var username string
 		if recipient.ACI != uuid.Nil {
 			recipientResp.UserID = signalid.MakeUserID(recipient.ACI)
 			ghost, err := s.Main.Bridge.GetGhostByID(ctx, recipientResp.UserID)
@@ -448,8 +454,13 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 				return nil, fmt.Errorf("failed to get ghost for %s: %w", recipient.ACI, err)
 			}
 			recipientResp.Ghost = ghost
+			username = ghost.Metadata.(*signalid.GhostMetadata).Username
 		} else {
 			recipientResp.UserID = signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(recipient.PNI))
+		}
+		recipientResp.UserInfo, err = s.contactToUserInfo(ctx, recipient, username, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert contact: %w", err)
 		}
 		resp[i] = recipientResp
 	}
@@ -484,7 +495,7 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 	var serviceID libsignalgo.ServiceID
 	var avatar *bridgev2.Avatar
 	if recipient.ACI == uuid.Nil {
-		namePtr = ptr.Ptr(s.Main.Config.FormatDisplayname(recipient))
+		namePtr = ptr.Ptr(s.Main.Config.FormatDisplayname(recipient, ""))
 		serviceID = libsignalgo.NewPNIServiceID(recipient.PNI)
 	} else {
 		if backupChat == nil {
