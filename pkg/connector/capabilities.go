@@ -242,7 +242,7 @@ var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 		ResolveIdentifier: bridgev2.ResolveIdentifierCapabilities{
 			CreateDM:       true,
 			LookupPhone:    true,
-			LookupUsername: false, // TODO implement
+			LookupUsername: true,
 			ContactList:    true,
 		},
 		GroupCreation: map[string]bridgev2.GroupTypeCapabilities{

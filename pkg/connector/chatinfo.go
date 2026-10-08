@@ -195,45 +195,88 @@ func (s *SignalClient) CreateChatWithGhost(ctx context.Context, ghost *bridgev2.
 	return resp.Chat, nil
 }
 
+func (s *SignalClient) resolvePhone(ctx context.Context, number string) (aci, pni uuid.UUID, e164Number uint64, recipient *types.Recipient, err error) {
+	number, err = bridgev2.CleanPhoneNumber(number)
+	if err != nil {
+		err = bridgev2.WrapRespErr(err, mautrix.MInvalidParam)
+		return
+	}
+	e164Number, err = strconv.ParseUint(strings.TrimPrefix(number, "+"), 10, 64)
+	if err != nil {
+		err = bridgev2.WrapRespErr(fmt.Errorf("error parsing phone number: %w", err), mautrix.MInvalidParam)
+		return
+	}
+	e164String := fmt.Sprintf("+%d", e164Number)
+	if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {
+		err = fmt.Errorf("error looking up number in local contact list: %w", err)
+	} else if recipient != nil && (recipient.ACI == uuid.Nil || !s.Client.Store.RecipientStore.IsUnregistered(ctx, libsignalgo.NewACIServiceID(recipient.ACI))) {
+		aci = recipient.ACI
+		pni = recipient.PNI
+	} else if resp, lookupErr := s.Client.LookupPhone(ctx, e164Number); lookupErr != nil {
+		err = fmt.Errorf("error looking up number on server: %w", lookupErr)
+	} else {
+		aci = resp[e164Number].ACI
+		pni = resp[e164Number].PNI
+		if aci == uuid.Nil && pni == uuid.Nil {
+			return
+		}
+		recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
+		}
+		aci, pni = recipient.ACI, recipient.PNI
+		if aci != uuid.Nil {
+			s.Client.Store.RecipientStore.MarkUnregistered(ctx, libsignalgo.NewACIServiceID(aci), false)
+		}
+	}
+	return
+}
+
+func (s *SignalClient) resolveUsername(ctx context.Context, username string) (aci, pni uuid.UUID, err error) {
+	serviceID, err := s.Client.ResolveUsername(ctx, username)
+	if err != nil {
+		return
+	}
+	aci, pni = serviceID.ToACIAndPNI()
+	return
+}
+
+const signalUserLinkPrefix = "https://signal.me/#eu/"
+
+func (s *SignalClient) resolveLink(ctx context.Context, linkHandle string) (aci, pni uuid.UUID, err error) {
+	username, err := s.Client.ResolveUsernameLink(ctx, linkHandle)
+	if err != nil {
+		err = bridgev2.WrapRespErr(err, mautrix.MInvalidParam)
+		return
+	} else if username == "" {
+		return
+	}
+	return s.resolveUsername(ctx, username)
+}
+
 func (s *SignalClient) ResolveIdentifier(ctx context.Context, number string, _ bool) (*bridgev2.ResolveIdentifierResponse, error) {
 	var aci, pni uuid.UUID
 	var e164Number uint64
 	var recipient *types.Recipient
 	serviceID, err := signalid.ParseUserIDAsServiceID(networkid.UserID(number))
-	if err != nil {
-		number, err = bridgev2.CleanPhoneNumber(number)
-		if err != nil {
-			return nil, bridgev2.WrapRespErr(err, mautrix.MInvalidParam)
-		}
-		e164Number, err = strconv.ParseUint(strings.TrimPrefix(number, "+"), 10, 64)
-		if err != nil {
-			return nil, bridgev2.WrapRespErr(fmt.Errorf("error parsing phone number: %w", err), mautrix.MInvalidParam)
-		}
-		e164String := fmt.Sprintf("+%d", e164Number)
-		if recipient, err = s.Client.ContactByE164(ctx, e164String); err != nil {
-			return nil, fmt.Errorf("error looking up number in local contact list: %w", err)
-		} else if recipient != nil && (recipient.ACI == uuid.Nil || !s.Client.Store.RecipientStore.IsUnregistered(ctx, libsignalgo.NewACIServiceID(recipient.ACI))) {
-			aci = recipient.ACI
-			pni = recipient.PNI
-		} else if resp, err := s.Client.LookupPhone(ctx, e164Number); err != nil {
-			return nil, fmt.Errorf("error looking up number on server: %w", err)
-		} else {
-			aci = resp[e164Number].ACI
-			pni = resp[e164Number].PNI
-			if aci == uuid.Nil && pni == uuid.Nil {
-				return nil, nil
-			}
-			recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
-			if err != nil {
-				zerolog.Ctx(ctx).Err(err).Msg("Failed to save recipient entry after looking up phone")
-			}
-			aci, pni = recipient.ACI, recipient.PNI
-			if aci != uuid.Nil {
-				s.Client.Store.RecipientStore.MarkUnregistered(ctx, libsignalgo.NewACIServiceID(aci), false)
-			}
-		}
-	} else {
+	if err == nil {
 		aci, pni = serviceID.ToACIAndPNI()
+	} else if strings.HasPrefix(number, "+") {
+		aci, pni, e164Number, recipient, err = s.resolvePhone(ctx, number)
+	} else if signalmeow.SignalUsernameRegex.MatchString(number) {
+		aci, pni, err = s.resolveUsername(ctx, number)
+	} else if handle, ok := strings.CutPrefix(number, signalUserLinkPrefix); ok {
+		aci, pni, err = s.resolveLink(ctx, handle)
+	} else {
+		err = bridgev2.RespError(mautrix.MInvalidParam.WithMessage("Input must be an international phone number, username, link or user ID"))
+	}
+	if err != nil {
+		return nil, err
+	}
+	if recipient == nil {
+		if aci == uuid.Nil && pni == uuid.Nil {
+			return nil, nil
+		}
 		recipient, err = s.Client.Store.RecipientStore.LoadAndUpdateRecipient(ctx, aci, pni, nil)
 		if err != nil {
 			return nil, fmt.Errorf("error loading recipient: %w", err)
