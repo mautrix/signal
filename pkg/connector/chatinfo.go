@@ -225,6 +225,7 @@ func (s *SignalClient) resolvePhone(ctx context.Context, number string) (aci, pn
 		aci = resp[e164Number].ACI
 		pni = resp[e164Number].PNI
 		if aci == uuid.Nil && pni == uuid.Nil {
+			recipient = nil
 			return
 		}
 		recipient, err = s.Client.Store.RecipientStore.UpdateRecipientE164(ctx, aci, pni, e164String)
