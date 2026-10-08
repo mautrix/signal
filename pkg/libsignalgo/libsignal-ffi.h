@@ -2331,6 +2331,22 @@ static_assert_64bit(alignof(SignalType_MutPointer_SignalPairOfPairOfCStringPtrOw
 typedef SignalUuid* SignalType_MutPointer_SignalUuid;
 static_assert_64bit(sizeof(SignalType_MutPointer_SignalUuid) == 8);
 static_assert_64bit(alignof(SignalType_MutPointer_SignalUuid) == 8);
+typedef void (*SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray153_uint8_t_ConstPointer_void)(SignalType_MutPointer_SignalFfiError, SignalType_ConstPointer_FixedArray153_uint8_t, SignalType_ConstPointer_void);
+static_assert_64bit(sizeof(SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray153_uint8_t_ConstPointer_void) == 8);
+static_assert_64bit(alignof(SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray153_uint8_t_ConstPointer_void) == 8);
+typedef struct {
+  SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray153_uint8_t_ConstPointer_void complete;
+  const void* context;
+  uint64_t cancellation_id;
+} SignalCPromisec_uchar153;
+static_assert_64bit(offsetof(SignalCPromisec_uchar153, complete) == 0);
+static_assert_64bit(offsetof(SignalCPromisec_uchar153, context) == 8);
+static_assert_64bit(offsetof(SignalCPromisec_uchar153, cancellation_id) == 16);
+static_assert_64bit(sizeof(SignalCPromisec_uchar153) == 24);
+static_assert_64bit(alignof(SignalCPromisec_uchar153) == 8);
+typedef SignalCPromisec_uchar153* SignalType_MutPointer_SignalCPromisec_uchar153;
+static_assert_64bit(sizeof(SignalType_MutPointer_SignalCPromisec_uchar153) == 8);
+static_assert_64bit(alignof(SignalType_MutPointer_SignalCPromisec_uchar153) == 8);
 typedef void (*SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray32_uint8_t_ConstPointer_void)(SignalType_MutPointer_SignalFfiError, SignalType_ConstPointer_FixedArray32_uint8_t, SignalType_ConstPointer_void);
 static_assert_64bit(sizeof(SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray32_uint8_t_ConstPointer_void) == 8);
 static_assert_64bit(alignof(SignalType_FunctionPointer_void_MutPointer_SignalFfiError_ConstPointer_FixedArray32_uint8_t_ConstPointer_void) == 8);
@@ -3593,6 +3609,7 @@ typedef enum {
   SignalErrorCodeMfaNotVerified = 236,
   SignalErrorCodeMfaKeyNotFound = 237,
   SignalErrorCodeWebAuthnRegistrationUnsuccessful = 238,
+  SignalErrorCodeProfileNotFound = 239,
 } SignalErrorCode;
 static_assert_64bit(sizeof(SignalErrorCode) == 4);
 static_assert_64bit(alignof(SignalErrorCode) == 4);
@@ -3683,6 +3700,12 @@ static_assert_64bit(offsetof(SignalCallQualitySurveyInternalFfiArg, call_telemet
 static_assert_64bit(offsetof(SignalCallQualitySurveyInternalFfiArg, call_id_hash) == 192);
 static_assert_64bit(sizeof(SignalCallQualitySurveyInternalFfiArg) == 216);
 static_assert_64bit(alignof(SignalCallQualitySurveyInternalFfiArg) == 8);
+typedef enum {
+  SignalLoginReceiptLevelFfiArgNormal,
+  SignalLoginReceiptLevelFfiArgSandbox,
+} SignalLoginReceiptLevelFfiArg;
+static_assert_64bit(sizeof(SignalLoginReceiptLevelFfiArg) == 4);
+static_assert_64bit(alignof(SignalLoginReceiptLevelFfiArg) == 4);
 typedef enum {
   SignalPaymentProviderFfiArgGooglePlayBilling,
   SignalPaymentProviderFfiArgAppleAppStore,
@@ -4000,6 +4023,14 @@ SignalFfiError* signal_authenticated_chat_connection_remove_mfa_key(
   SignalConstPointerTokioAsyncContext async_runtime,
   SignalConstPointerAuthenticatedChatConnection chat,
   int32_t key_id
+);
+SignalFfiError* signal_authenticated_chat_connection_report_message(
+  SignalCPromisebool* promise,
+  SignalConstPointerTokioAsyncContext async_runtime,
+  SignalConstPointerAuthenticatedChatConnection chat,
+  const SignalType_FixedArray17_uint8_t* source,
+  SignalUuid message_guid,
+  SignalBorrowedBuffer report_spam_token
 );
 SignalFfiError* signal_authenticated_chat_connection_reserve_username_hash(
   SignalCPromisec_uchar32* promise,
@@ -4460,6 +4491,10 @@ SignalFfiError* signal_chat_connection_info_destroy(
 );
 SignalFfiError* signal_chat_connection_info_ip_version(
   uint8_t* out,
+  SignalConstPointerChatConnectionInfo connection_info
+);
+SignalFfiError* signal_chat_connection_info_is_direct(
+  bool* out,
   SignalConstPointerChatConnectionInfo connection_info
 );
 SignalFfiError* signal_chat_connection_info_local_port(
@@ -6765,7 +6800,8 @@ SignalFfiError* signal_unauthenticated_chat_connection_create_login_receipt_cred
   const int8_t* purchase_identifier,
   SignalBorrowedBuffer receipt_credential_request_context,
   SignalConstPointerServerPublicParams server_params,
-  uint64_t purchase_time
+  uint64_t purchase_time,
+  SignalLoginReceiptLevelFfiArg expected_level
 );
 SignalFfiError* signal_unauthenticated_chat_connection_destroy(
   SignalMutPointerUnauthenticatedChatConnection p
@@ -6797,6 +6833,21 @@ SignalFfiError* signal_unauthenticated_chat_connection_get_pre_keys_unrestricted
   SignalConstPointerUnauthenticatedChatConnection chat,
   const SignalType_FixedArray17_uint8_t* target,
   int32_t device
+);
+SignalFfiError* signal_unauthenticated_chat_connection_get_profile_key_credential(
+  SignalCPromisec_uchar153* promise,
+  SignalConstPointerTokioAsyncContext async_runtime,
+  SignalConstPointerUnauthenticatedChatConnection chat,
+  const SignalType_FixedArray473_uint8_t* profile_key_request_context,
+  SignalConstPointerServerPublicParams server_params
+);
+SignalFfiError* signal_unauthenticated_chat_connection_get_subscription_receipt_credential(
+  SignalCPromiseOwnedBuffer* promise,
+  SignalConstPointerTokioAsyncContext async_runtime,
+  SignalConstPointerUnauthenticatedChatConnection chat,
+  const SignalType_FixedArray32_uint8_t* subscriber_id,
+  SignalBorrowedBuffer receipt_credential_request_context,
+  SignalConstPointerServerPublicParams server_params
 );
 SignalFfiError* signal_unauthenticated_chat_connection_info(
   SignalMutPointerChatConnectionInfo* out,
