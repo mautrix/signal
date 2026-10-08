@@ -125,25 +125,35 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		aciPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic()))
 		aciPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate()))
 		aciIdentityKeyPair := exerrors.Must(libsignalgo.NewIdentityKeyPair(aciPublicKey, aciPrivateKey))
-		pniPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic()))
-		pniPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate()))
-		pniIdentityKeyPair := exerrors.Must(libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey))
 		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
 
-		username := *provisioningMessage.Number
 		password := random.String(22)
 		code := provisioningMessage.ProvisioningCode
 		aciRegistrationID := mrand.IntN(16383) + 1
-		pniRegistrationID := mrand.IntN(16383) + 1
 		aciSignedPreKey := GenerateSignedPreKey(1, aciIdentityKeyPair)
-		pniSignedPreKey := GenerateSignedPreKey(1, pniIdentityKeyPair)
 		aciPQLastResortPreKey := GenerateKyberPreKeys(1, 1, aciIdentityKeyPair)[0]
-		pniPQLastResortPreKey := GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
+		var pniIdentityKeyPair *libsignalgo.IdentityKeyPair
+		var pniRegistrationID int
+		var pniSignedPreKey *libsignalgo.SignedPreKeyRecord
+		var pniPQLastResortPreKey *libsignalgo.KyberPreKeyRecord
+		var hasE164 bool
+		if provisioningMessage.GetPni() != "" {
+			hasE164 = true
+
+			pniPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic()))
+			pniPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate()))
+			pniIdentityKeyPair = exerrors.Must(libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey))
+
+			pniRegistrationID = mrand.IntN(16383) + 1
+			pniSignedPreKey = GenerateSignedPreKey(1, pniIdentityKeyPair)
+			pniPQLastResortPreKey = GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
+		}
 		deviceResponse, err := confirmDevice(
 			ctx,
-			username,
+			provisioningMessage.GetAci(),
 			password,
 			*code,
+			hasE164,
 			aciRegistrationID,
 			pniRegistrationID,
 			aciSignedPreKey,
@@ -172,7 +182,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			ACI:                deviceResponse.ACI,
 			PNI:                deviceResponse.PNI,
 			DeviceID:           deviceId,
-			Number:             *provisioningMessage.Number,
+			Number:             provisioningMessage.GetNumber(),
 			Password:           password,
 			AccountEntropyPool: libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()),
 			EphemeralBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetEphemeralBackupKey()),
@@ -204,7 +214,6 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			return
 		}
 
-		// In case this is an existing device, we gotta clear out keys
 		device.ClearDeviceKeys(ctx)
 
 		// Store identity keys?
@@ -216,22 +225,21 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			}
 			return
 		}
-		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
-		if err != nil {
-			c <- ProvisioningResponse{
-				State: StateProvisioningError,
-				Err:   fmt.Errorf("error saving identity key: %w", err),
+		device.ACIPreKeyStore.StoreSignedPreKey(ctx, 1, aciSignedPreKey)
+		device.ACIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, aciPQLastResortPreKey)
+		if hasE164 {
+			_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
+			if err != nil {
+				c <- ProvisioningResponse{
+					State: StateProvisioningError,
+					Err:   fmt.Errorf("error saving identity key: %w", err),
+				}
+				return
 			}
-			return
+			device.PNIPreKeyStore.StoreSignedPreKey(ctx, 1, pniSignedPreKey)
+			device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
 		}
 
-		// Store signed prekeys (now that we have a device)
-		device.ACIPreKeyStore.StoreSignedPreKey(ctx, 1, aciSignedPreKey)
-		device.PNIPreKeyStore.StoreSignedPreKey(ctx, 1, pniSignedPreKey)
-		device.ACIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, aciPQLastResortPreKey)
-		device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
-
-		// Store our profile key
 		_, err = device.RecipientStore.LoadAndUpdateRecipient(ctx, data.ACI, data.PNI, func(recipient *types.Recipient) (bool, error) {
 			recipient.E164 = data.Number
 			recipient.Profile.Key = profileKey
@@ -274,9 +282,9 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 		return "", fmt.Errorf("failed to unmarshal provisioning UUID: %w", err)
 	}
 
-	linkCapabilities := []string{"backup5"}
+	linkCapabilities := []string{"backup5,nopni2"}
 	if !allowBackup {
-		linkCapabilities = []string{}
+		linkCapabilities = []string{"nopni2"}
 	}
 	provisioningURL := (&url.URL{
 		Scheme: "sgnl",
@@ -333,16 +341,18 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 	return provisioningMessage, err
 }
 
-var signalCapabilities = map[string]any{
-	"attachmentBackfill":        true,
-	"spqr":                      true,
-	"usernameChangeSyncMessage": true,
+func getSignalCapabilities(phonenumberless bool) map[string]any {
+	return map[string]any{
+		"attachmentBackfill":        true,
+		"spqr":                      true,
+		"usernameChangeSyncMessage": true,
+		"optionalPhoneNumber":       phonenumberless,
+	}
 }
 
-var signalCapabilitiesBody = exerrors.Must(json.Marshal(signalCapabilities))
-
 func (cli *Client) RegisterCapabilities(ctx context.Context) error {
-	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodPut, "/v1/devices/capabilities", signalCapabilitiesBody, nil)
+	body := exerrors.Must(json.Marshal(getSignalCapabilities(cli.Store.PNI == uuid.Nil)))
+	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodPut, "/v1/devices/capabilities", body, nil)
 	if err != nil {
 		return err
 	}
@@ -362,6 +372,7 @@ func confirmDevice(
 	username string,
 	password string,
 	code string,
+	hasE164 bool,
 	aciRegistrationID int,
 	pniRegistrationID int,
 	aciSignedPreKey *libsignalgo.SignedPreKeyRecord,
@@ -393,33 +404,33 @@ func confirmDevice(
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert signed ACI prekey to JSON: %w", err)
 	}
-	pniSignedPreKeyJson, err := SignedPreKeyToJSON(pniSignedPreKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert signed PNI prekey to JSON: %w", err)
-	}
-
 	aciPQLastResortPreKeyJson, err := KyberPreKeyToJSON(aciPQLastResortPreKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ACI kyber last resort prekey to JSON: %w", err)
 	}
-	pniPQLastResortPreKeyJson, err := KyberPreKeyToJSON(pniPQLastResortPreKey)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert PNI kyber last resort prekey to JSON: %w", err)
-	}
 
+	accountAttributes := map[string]any{
+		"fetchesMessages": true,
+		"name":            encryptedDeviceName,
+		"registrationId":  aciRegistrationID,
+		"capabilities":    getSignalCapabilities(!hasE164),
+	}
 	data := map[string]any{
-		"verificationCode": code,
-		"accountAttributes": map[string]any{
-			"fetchesMessages":   true,
-			"name":              encryptedDeviceName,
-			"registrationId":    aciRegistrationID,
-			"pniRegistrationId": pniRegistrationID,
-			"capabilities":      signalCapabilities,
-		},
+		"verificationCode":      code,
+		"accountAttributes":     accountAttributes,
 		"aciSignedPreKey":       aciSignedPreKeyJson,
-		"pniSignedPreKey":       pniSignedPreKeyJson,
 		"aciPqLastResortPreKey": aciPQLastResortPreKeyJson,
-		"pniPqLastResortPreKey": pniPQLastResortPreKeyJson,
+	}
+	if hasE164 {
+		accountAttributes["pniRegistrationId"] = pniRegistrationID
+		data["pniSignedPreKey"], err = SignedPreKeyToJSON(pniSignedPreKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert signed PNI prekey to JSON: %w", err)
+		}
+		data["pniPqLastResortPreKey"], err = KyberPreKeyToJSON(pniPQLastResortPreKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert PNI kyber last resort prekey to JSON: %w", err)
+		}
 	}
 
 	jsonBytes, err := json.Marshal(data)
@@ -446,13 +457,13 @@ func confirmDevice(
 	if err != nil {
 		return nil, fmt.Errorf("failed to read from websocket after devices call: %w", err)
 	}
+	zerolog.Ctx(ctx).Trace().Any("response", receivedMsg).Msg("Raw confirm device response")
 
 	status := int(receivedMsg.GetResponse().GetStatus())
 	if status < 200 || status >= 300 {
 		return nil, DeviceLinkError{StatusCode: status, Message: receivedMsg.GetResponse().GetMessage()}
 	}
 
-	// unmarshal JSON response into ConfirmDeviceResponse
 	deviceResp := ConfirmDeviceResponse{}
 	err = json.Unmarshal(receivedMsg.Response.Body, &deviceResp)
 	if err != nil {

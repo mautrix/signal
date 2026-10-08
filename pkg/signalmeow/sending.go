@@ -743,7 +743,8 @@ func (cli *Client) SendMessage(ctx context.Context, recipientID libsignalgo.Serv
 		if content.GetDataMessage().GetFlags() == uint32(signalpb.DataMessage_PROFILE_KEY_UPDATE) {
 			recipientData.Whitelisted = ptr.Ptr(true)
 		}
-		needsPNISignature := recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature
+		needsPNISignature := recipientID.Type == libsignalgo.ServiceIDTypeACI && recipientData.NeedsPNISignature &&
+			cli.Store.PNI != uuid.Nil
 		if needsPNISignature && !isTypingOrReceipt && content.PniSignatureMessage == nil {
 			zerolog.Ctx(ctx).Debug().
 				Stringer("recipient", recipientID).

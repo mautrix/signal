@@ -17,6 +17,7 @@
 package connector
 
 import (
+	"cmp"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -883,6 +884,13 @@ func (s *SignalClient) updateRemoteProfile(ctx context.Context, resendState bool
 		}
 	}
 	changed := false
+	if s.Client.Store.AccountRecord != nil && s.Client.Store.AccountRecord.Username != s.UserLogin.RemoteProfile.Username {
+		s.UserLogin.RemoteProfile.Username = s.Client.Store.AccountRecord.Username
+		if s.Client.Store.PNI == uuid.Nil {
+			s.UserLogin.RemoteName = cmp.Or(s.Client.Store.AccountRecord.Username, s.Client.Store.ACI.String())
+		}
+		changed = true
+	}
 	if s.UserLogin.RemoteProfile.Name != s.Ghost.Name {
 		s.UserLogin.RemoteProfile.Name = s.Ghost.Name
 		changed = true

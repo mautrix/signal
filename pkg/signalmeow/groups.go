@@ -328,7 +328,7 @@ func (cli *Client) fetchNewGroupCreds(ctx context.Context, today time.Time) (*Gr
 		Str("action", "fetch new group creds").
 		Logger()
 	sevenDaysOut := today.Add(7 * 24 * time.Hour)
-	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d&pniAsServiceId=true", today.Unix(), sevenDaysOut.Unix())
+	path := fmt.Sprintf("/v1/certificate/auth/group?redemptionStartSeconds=%d&redemptionEndSeconds=%d&v101=true&zkcCredential=true", today.Unix(), sevenDaysOut.Unix())
 	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, path, nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("SendRequest error: %w", err)
@@ -367,14 +367,27 @@ func (cli *Client) GetAuthorizationForToday(ctx context.Context, masterKey libsi
 		return nil, err
 	}
 
-	// Receive the auth credential
-	authCredential, err := libsignalgo.ReceiveAuthCredentialWithPni(
-		prodServerPublicParams,
-		cli.Store.ACI,
-		cli.Store.PNI,
-		redemptionTime,
-		*authCredentialResponse,
-	)
+	var authCredential *libsignalgo.AuthCredentialWithPni
+	if cli.Store.PNI == uuid.Nil {
+		if cli.Store.AuthCredentialSalt == nil {
+			return nil, fmt.Errorf("missing auth credential salt for pni-less receive")
+		}
+		authCredential, err = libsignalgo.ReceiveAuthCredentialZKC(
+			prodServerPublicParams,
+			cli.Store.ACI,
+			cli.Store.AuthCredentialSalt,
+			redemptionTime,
+			*authCredentialResponse,
+		)
+	} else {
+		authCredential, err = libsignalgo.ReceiveAuthCredentialWithPni(
+			prodServerPublicParams,
+			cli.Store.ACI,
+			cli.Store.PNI,
+			redemptionTime,
+			*authCredentialResponse,
+		)
+	}
 	if err != nil {
 		log.Err(err).Msg("ReceiveAuthCredentialWithPni error")
 		return nil, err

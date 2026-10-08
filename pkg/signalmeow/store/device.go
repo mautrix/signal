@@ -44,6 +44,7 @@ type DeviceData struct {
 	AccountEntropyPool libsignalgo.AccountEntropyPool
 	EphemeralBackupKey *libsignalgo.BackupKey
 	MediaRootBackupKey *libsignalgo.BackupKey
+	AuthCredentialSalt []byte
 }
 
 func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {
@@ -51,6 +52,9 @@ func (d *DeviceData) ACIServiceID() libsignalgo.ServiceID {
 }
 
 func (d *DeviceData) PNIServiceID() libsignalgo.ServiceID {
+	if d.PNI == uuid.Nil {
+		return libsignalgo.EmptyServiceID
+	}
 	return libsignalgo.NewPNIServiceID(d.PNI)
 }
 
@@ -136,7 +140,7 @@ func (d *Device) ClearPassword(ctx context.Context) error {
 func (d *Device) PreKeyStore(serviceID libsignalgo.ServiceID) PreKeyStore {
 	if serviceID == d.ACIServiceID() {
 		return d.ACIPreKeyStore
-	} else if serviceID == d.PNIServiceID() {
+	} else if d.PNI != uuid.Nil && serviceID == d.PNIServiceID() {
 		return d.PNIPreKeyStore
 	}
 	return nil
@@ -145,7 +149,7 @@ func (d *Device) PreKeyStore(serviceID libsignalgo.ServiceID) PreKeyStore {
 func (d *Device) SessionStore(serviceID libsignalgo.ServiceID) SessionStore {
 	if serviceID == d.ACIServiceID() {
 		return d.ACISessionStore
-	} else if serviceID == d.PNIServiceID() {
+	} else if d.PNI != uuid.Nil && serviceID == d.PNIServiceID() {
 		return d.PNISessionStore
 	}
 	return nil
@@ -154,7 +158,7 @@ func (d *Device) SessionStore(serviceID libsignalgo.ServiceID) SessionStore {
 func (d *Device) IdentityStore(serviceID libsignalgo.ServiceID) libsignalgo.IdentityKeyStore {
 	if serviceID == d.ACIServiceID() {
 		return d.ACIIdentityStore
-	} else if serviceID == d.PNIServiceID() {
+	} else if d.PNI != uuid.Nil && serviceID == d.PNIServiceID() {
 		return d.PNIIdentityStore
 	}
 	return nil

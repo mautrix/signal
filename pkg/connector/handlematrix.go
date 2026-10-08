@@ -957,7 +957,7 @@ func (s *SignalClient) HandleMatrixAcceptMessageRequest(ctx context.Context, msg
 			return fmt.Errorf("failed to get own profile key: %w", err)
 		}
 		var pniSig *signalpb.PniSignatureMessage
-		if s.Client.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY {
+		if s.Client.Store.PNI != uuid.Nil && s.Client.Store.AccountRecord.GetPhoneNumberSharingMode() == signalpb.AccountRecord_EVERYBODY {
 			sig, err := s.Client.Store.PNIIdentityKeyPair.SignAlternateIdentity(s.Client.Store.ACIIdentityKeyPair.GetIdentityKey())
 			if err != nil {
 				return fmt.Errorf("failed to generate PNI signature: %w", err)
