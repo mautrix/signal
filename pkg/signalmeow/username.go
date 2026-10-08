@@ -32,7 +32,7 @@ import (
 
 const SignalUserLinkPrefix = "https://signal.me/#eu/"
 
-var SignalUsernameRegex = regexp.MustCompile(`^@?([a-z0-9_]{3,32})\.(\d{2,9})$`)
+var SignalUsernameRegex = regexp.MustCompile(`^@?([A-Za-z0-9_]{3,32})\.(\d{2,9})$`)
 
 func (cli *Client) ResolveUsernameLink(ctx context.Context, link string) (string, error) {
 	link = strings.TrimPrefix(link, SignalUserLinkPrefix)
