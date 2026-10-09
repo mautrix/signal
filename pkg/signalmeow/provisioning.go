@@ -137,7 +137,14 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 		var pniSignedPreKey *libsignalgo.SignedPreKeyRecord
 		var pniPQLastResortPreKey *libsignalgo.KyberPreKeyRecord
 		var hasE164 bool
-		if provisioningMessage.GetPni() != "" {
+		aci, err := ParseStringOrBinaryServiceID(provisioningMessage.GetAci(), provisioningMessage.GetAciBinary())
+		if err != nil {
+			log.Err(err).Msg("error parsing ACI")
+			c <- ProvisioningResponse{State: StateProvisioningError, Err: fmt.Errorf("failed to parse aci: %w", err)}
+			return
+		}
+		pni, _ := ParseStringOrBinaryUUID(provisioningMessage.GetPni(), provisioningMessage.GetPniBinary())
+		if pni != uuid.Nil {
 			hasE164 = true
 
 			pniPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic()))
@@ -148,9 +155,10 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			pniSignedPreKey = GenerateSignedPreKey(1, pniIdentityKeyPair)
 			pniPQLastResortPreKey = GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
 		}
+		zerolog.Ctx(ctx).Debug().Any("msg", provisioningMessage).Msg("Provisioning message")
 		deviceResponse, err := confirmDevice(
 			ctx,
-			provisioningMessage.GetAci(),
+			aci.String(),
 			password,
 			*code,
 			hasE164,
