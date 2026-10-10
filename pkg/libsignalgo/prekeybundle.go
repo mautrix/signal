@@ -30,7 +30,7 @@ import (
 func ProcessPreKeyBundle(ctx context.Context, bundle *PreKeyBundle, forAddress, localAddress *Address, sessionStore SessionStore, identityStore IdentityKeyStore) error {
 	callbackCtx := NewCallbackContext(ctx)
 	defer callbackCtx.Unref()
-	var now C.uint64_t = C.uint64_t(time.Now().Unix())
+	var now C.uint64_t = C.uint64_t(time.Now().UnixMilli())
 	signalFfiError := C.signal_process_prekey_bundle(
 		bundle.constPtr(),
 		forAddress.constPtr(),
