@@ -72,6 +72,8 @@ func (c *ProvisioningCipher) Decrypt(env *signalpb.ProvisionEnvelope) (*signalpb
 	body := env.GetBody()
 	if body == nil {
 		return nil, fmt.Errorf("no body: %v", env)
+	} else if len(body) < int(CIPHERTEXT_OFFSET+CIPHER_KEY_SIZE+MAC_SIZE) {
+		return nil, fmt.Errorf("body too short: %d", len(body))
 	}
 	if body[0] != 1 {
 		return nil, fmt.Errorf("invalid ProvisionMessage version: %v", body[0])

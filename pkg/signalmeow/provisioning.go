@@ -155,7 +155,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			pniSignedPreKey = GenerateSignedPreKey(1, pniIdentityKeyPair)
 			pniPQLastResortPreKey = GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
 		}
-		zerolog.Ctx(ctx).Debug().Any("msg", provisioningMessage).Msg("Provisioning message")
+		zerolog.Ctx(ctx).Trace().Any("msg", provisioningMessage).Msg("Provisioning message")
 		deviceResponse, err := confirmDevice(
 			ctx,
 			aci.String(),

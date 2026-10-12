@@ -214,6 +214,8 @@ func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context) (*bridgev2.ChatI
 	groupChange, err := evt.s.Client.DecryptGroupChange(ctx, gv2)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt group change: %w", err)
+	} else if groupChange.Revision != gv2.GetRevision() {
+		return nil, fmt.Errorf("group change revision mismatch: got %d, want %d", groupChange.Revision, gv2.GetRevision())
 	}
 	// XXX: is this ID compatible with types.GroupIdentifier?
 	return evt.s.groupChangeToChatInfoChange(ctx, types.GroupIdentifier(evt.Info.ChatID), gv2.GetRevision(), groupChange)

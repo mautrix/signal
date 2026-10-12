@@ -948,6 +948,12 @@ func (cli *Client) incomingEditMessage(
 	if editMessage.GetDataMessage().GetGroupV2() != nil {
 		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
 		groupMasterKeyBytes := editMessage.GetDataMessage().GetGroupV2().GetMasterKey()
+		if len(groupMasterKeyBytes) != libsignalgo.GroupMasterKeyLength {
+			zerolog.Ctx(ctx).Warn().
+				Int("group_master_key_length", len(groupMasterKeyBytes)).
+				Msg("Unexpected group master key length")
+			return true, false
+		}
 		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
 		var err error
 		groupID, err = cli.StoreMasterKey(ctx, masterKey)
@@ -981,13 +987,17 @@ func (cli *Client) incomingDataMessage(
 	envelope *signalpb.Envelope,
 ) (handlerSuccess, sendDeliveryReceipt bool) {
 	// If there's a profile key, save it
-	if dataMessage.ProfileKey != nil {
+	if len(dataMessage.ProfileKey) == libsignalgo.ProfileKeyLength {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
 		err := cli.Store.RecipientStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
 			return
 		}
+	} else if dataMessage.ProfileKey != nil {
+		zerolog.Ctx(ctx).Warn().
+			Int("profile_key_length", len(dataMessage.ProfileKey)).
+			Msg("Unexpected profile key length")
 	}
 
 	// If it's a group message, get the ID and invalidate cache if necessary
@@ -996,6 +1006,12 @@ func (cli *Client) incomingDataMessage(
 	if dataMessage.GetGroupV2() != nil {
 		// Pull out the master key then store it ASAP - we should pass around GroupIdentifier
 		groupMasterKeyBytes := dataMessage.GetGroupV2().GetMasterKey()
+		if len(groupMasterKeyBytes) != libsignalgo.GroupMasterKeyLength {
+			zerolog.Ctx(ctx).Warn().
+				Int("group_master_key_length", len(groupMasterKeyBytes)).
+				Msg("Unexpected group master key length")
+			return true, false
+		}
 		masterKey := masterKeyFromBytes(libsignalgo.GroupMasterKey(groupMasterKeyBytes))
 		var err error
 		groupID, err = cli.StoreMasterKey(ctx, masterKey)
