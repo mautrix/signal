@@ -205,19 +205,25 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 	return bridgev2.RemoteEventUnknown
 }
 
-func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context) (*bridgev2.ChatInfoChange, error) {
+func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfoChange, error) {
 	dm, _ := evt.Event.(*signalpb.DataMessage)
 	gv2 := dm.GetGroupV2()
 	if gv2 == nil || gv2.GroupChange == nil {
 		return nil, fmt.Errorf("GetChatInfoChange() called for non-GroupChange event")
 	}
+	portalRevision := portal.Metadata.(*signalid.PortalMetadata).Revision
 	groupChange, err := evt.s.Client.DecryptGroupChange(ctx, gv2)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt group change: %w", err)
-	} else if groupChange.Revision != gv2.GetRevision() {
-		return nil, fmt.Errorf("group change revision mismatch: got %d, want %d", groupChange.Revision, gv2.GetRevision())
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to decrypt group change")
+		return nil, nil
+	} else if groupChange.Revision != gv2.GetRevision() || groupChange.Revision != portalRevision+1 {
+		zerolog.Ctx(ctx).Warn().
+			Uint32("decrypted_revision", groupChange.Revision).
+			Uint32("envelope_revision", gv2.GetRevision()).
+			Uint32("portal_revision", portalRevision).
+			Msg("Group change revision mismatch, ignoring event")
+		return nil, nil
 	}
-	// XXX: is this ID compatible with types.GroupIdentifier?
 	return evt.s.groupChangeToChatInfoChange(ctx, types.GroupIdentifier(evt.Info.ChatID), gv2.GetRevision(), groupChange)
 }
 
