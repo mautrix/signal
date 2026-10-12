@@ -84,8 +84,14 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 	device.AccountEntropyPool = libsignalgo.AccountEntropyPool(accountEntropyPool.String)
 	device.EphemeralBackupKey = libsignalgo.BytesToBackupKey(ephemeralBackupKey)
 	device.MediaRootBackupKey = libsignalgo.BytesToBackupKey(mediaRootBackupKey)
-	baseStore := &sqlStore{Container: c, AccountID: device.ACI, blockCache: make(map[uuid.UUID]bool)}
+	baseStore := &sqlStore{
+		Container:   c,
+		AccountID:   device.ACI,
+		aciIdentity: libsignalgo.NewIdentityKeyFromPublicKey(device.ACIIdentityKeyPair.GetPublicKey()),
+		blockCache:  make(map[uuid.UUID]bool),
+	}
 	aciStore := &scopedSQLStore{Container: c, AccountID: device.ACI, ServiceID: device.ACIServiceID()}
+	baseStore.aciStore = aciStore
 	device.ACIPreKeyStore = aciStore
 	device.ACISessionStore = aciStore
 	device.ACIIdentityStore = &sqlIdentityStore{
@@ -106,6 +112,8 @@ func (c *Container) scanDevice(row dbutil.Scannable) (*Device, error) {
 			OwnKeyPair:          device.PNIIdentityKeyPair,
 			LocalRegistrationID: uint32(device.PNIRegistrationID),
 		}
+		baseStore.pniStore = pniStore
+		baseStore.pniIdentity = libsignalgo.NewIdentityKeyFromPublicKey(device.PNIIdentityKeyPair.GetPublicKey())
 	} else {
 		var errPNIlessAccount = fmt.Errorf("account %s has no PNI identity set", device.ACI)
 		device.PNIPreKeyStore = &noopStore{Error: errPNIlessAccount}

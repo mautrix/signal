@@ -142,5 +142,5 @@ func (pkb *PreKeyBundle) GetIdentityKey() (*IdentityKey, error) {
 	if signalFfiError != nil {
 		return nil, wrapError(signalFfiError)
 	}
-	return NewIdentityKeyFromPublicKey(wrapPublicKey(pk.raw))
+	return NewIdentityKeyFromPublicKey(wrapPublicKey(pk.raw)), nil
 }

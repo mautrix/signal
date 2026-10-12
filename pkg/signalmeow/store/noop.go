@@ -123,6 +123,10 @@ func (n *noopStore) RemoveAllSessionsForServiceID(ctx context.Context, theirID l
 	return n.Error
 }
 
+func (n *noopStore) ArchiveAllSessionsForServiceID(ctx context.Context, theirID libsignalgo.ServiceID) error {
+	return n.Error
+}
+
 func (n *noopStore) RemoveAllSessions(ctx context.Context) error {
 	return n.Error
 }

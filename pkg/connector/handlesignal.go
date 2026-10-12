@@ -75,6 +75,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		s.queueEmptyWaiter.Set()
 	case *events.LoggedOut:
 		s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateBadCredentials, Message: evt.Error.Error()})
+	case *events.IdentityChange:
+		// TODO send notice
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}

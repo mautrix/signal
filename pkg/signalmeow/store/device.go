@@ -21,6 +21,14 @@ type sqlStore struct {
 
 	blockCacheLock sync.RWMutex
 	blockCache     map[uuid.UUID]bool
+
+	aciStore *scopedSQLStore
+	pniStore *scopedSQLStore
+
+	aciIdentity *libsignalgo.IdentityKey
+	pniIdentity *libsignalgo.IdentityKey
+
+	identityChangeCallback func(libsignalgo.ServiceID)
 }
 
 type scopedSQLStore struct {
@@ -109,6 +117,10 @@ func (d *Device) DoContactTxn(ctx context.Context, fn func(context.Context) erro
 func (d *Device) DoDecryptionTxn(ctx context.Context, fn func(context.Context) error) error {
 	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 2)
 	return d.db.DoTxn(ctx, nil, fn)
+}
+
+func (d *Device) SetIdentityChangeCallback(callback func(libsignalgo.ServiceID)) {
+	d.sqlStore.identityChangeCallback = callback
 }
 
 func (d *Device) ClearDeviceKeys(ctx context.Context) error {

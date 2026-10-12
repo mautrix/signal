@@ -40,6 +40,7 @@ func (*DeleteForMe) isSignalEvent()            {}
 func (*MessageRequestResponse) isSignalEvent() {}
 func (*QueueEmpty) isSignalEvent()             {}
 func (*LoggedOut) isSignalEvent()              {}
+func (*IdentityChange) isSignalEvent()         {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -108,3 +109,7 @@ type MessageRequestResponse struct {
 type QueueEmpty struct{}
 
 type LoggedOut struct{ Error error }
+
+type IdentityChange struct {
+	ServiceID libsignalgo.ServiceID
+}
