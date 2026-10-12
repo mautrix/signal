@@ -152,10 +152,24 @@ func (mc *MessageConverter) ToMatrix(
 		return cm
 	}
 	if dm.GetIsViewOnce() {
-		cm.Disappear.DisappearAt = time.UnixMilli(int64(dm.GetTimestamp())).Add(45 * 24 * time.Hour)
-		if cm.Disappear.Timer == 0 {
-			cm.Disappear.Type = event.DisappearingTypeAfterSend
-			cm.Disappear.Timer = 45 * 24 * time.Hour
+		if !mc.Bridge.Config.ViewLimitedMedia && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > 5*time.Minute) {
+			cm.Disappear = database.DisappearingSetting{
+				Type:  event.DisappearingTypeAfterRead,
+				Timer: 5 * time.Minute,
+			}
+			cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
+				Type: event.EventMessage,
+				Content: &event.MessageEventContent{
+					MsgType: event.MsgText,
+					Body:    "This is a view-once message. It will disappear in 5 minutes.",
+				},
+			})
+		} else {
+			cm.Disappear.DisappearAt = time.UnixMilli(int64(dm.GetTimestamp())).Add(45 * 24 * time.Hour)
+			if cm.Disappear.Timer == 0 {
+				cm.Disappear.Type = event.DisappearingTypeAfterSend
+				cm.Disappear.Timer = 45 * 24 * time.Hour
+			}
 		}
 	}
 	for i, att := range dm.GetAttachments() {
