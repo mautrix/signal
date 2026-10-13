@@ -877,6 +877,9 @@ func (s *SignalClient) handleSignalContactList(evt *events.ContactList) {
 			})
 		}
 	}
+	if evt.IsFromDB {
+		return
+	}
 	s.UserLogin.Metadata.(*signalid.UserLoginMetadata).LastContactSync = jsontime.UnixMilliNow()
 	err := s.UserLogin.Save(ctx)
 	if err != nil {
