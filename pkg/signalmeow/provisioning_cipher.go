@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 
+	"go.mau.fi/util/exerrors"
 	"golang.org/x/crypto/hkdf"
 	"google.golang.org/protobuf/proto"
 
@@ -42,11 +43,7 @@ func NewProvisioningCipher() *ProvisioningCipher {
 
 func (c *ProvisioningCipher) GetPublicKey() *libsignalgo.PublicKey {
 	if c.keyPair == nil {
-		keyPair, err := libsignalgo.GenerateIdentityKeyPair()
-		if err != nil {
-			panic(fmt.Errorf("unable to generate key pair: %w", err))
-		}
-		c.keyPair = keyPair
+		c.keyPair = exerrors.Must(libsignalgo.GenerateIdentityKeyPair())
 	}
 	return c.keyPair.GetPublicKey()
 }

@@ -87,6 +87,7 @@ func (dle DeviceLinkError) Error() string {
 
 func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, deviceName string, allowBackup bool) chan ProvisioningResponse {
 	log := zerolog.Ctx(ctx).With().Str("action", "perform provisioning").Logger()
+	ctx = log.WithContext(ctx)
 	c := make(chan ProvisioningResponse, 4)
 	go func() {
 		defer close(c)
@@ -99,7 +100,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			Path:   web.WebsocketProvisioningPath,
 		}).String())
 		if err != nil {
-			log.Err(err).Any("resp", resp).Msg("error opening provisioning websocket")
+			log.Err(err).Any("resp", resp).Msg("Failed to open websocket for provisioning")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -108,7 +109,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 
 		provisioningURL, err := startProvisioning(timeoutCtx, ws, provisioningCipher, allowBackup)
 		if err != nil {
-			log.Err(err).Msg("startProvisioning error")
+			log.Err(err).Msg("Failed to send provisioning start request")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
@@ -116,168 +117,192 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 
 		provisioningMessage, err := continueProvisioning(timeoutCtx, ws, provisioningCipher)
 		if err != nil {
-			log.Err(err).Msg("continueProvisioning error")
+			log.Err(err).Msg("Failed to send provisioning continue request")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
 			return
 		}
-		ws.Close(websocket.StatusNormalClosure, "")
+		_ = ws.Close(websocket.StatusNormalClosure, "")
 
-		aciPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic()))
-		aciPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate()))
-		aciIdentityKeyPair := exerrors.Must(libsignalgo.NewIdentityKeyPair(aciPublicKey, aciPrivateKey))
-		profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
-
-		password := random.String(22)
-		code := provisioningMessage.ProvisioningCode
-		aciRegistrationID := mrand.IntN(16383) + 1
-		aciSignedPreKey := GenerateSignedPreKey(1, aciIdentityKeyPair)
-		aciPQLastResortPreKey := GenerateKyberPreKeys(1, 1, aciIdentityKeyPair)[0]
-		var pniIdentityKeyPair *libsignalgo.IdentityKeyPair
-		var pniRegistrationID int
-		var pniSignedPreKey *libsignalgo.SignedPreKeyRecord
-		var pniPQLastResortPreKey *libsignalgo.KyberPreKeyRecord
-		var hasE164 bool
-		aci, err := ParseStringOrBinaryServiceID(provisioningMessage.GetAci(), provisioningMessage.GetAciBinary())
+		data, err := finishProvisioning(ctx, deviceStore, provisioningMessage, deviceName)
 		if err != nil {
-			log.Err(err).Msg("error parsing ACI")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: fmt.Errorf("failed to parse aci: %w", err)}
-			return
-		}
-		pni, _ := ParseStringOrBinaryUUID(provisioningMessage.GetPni(), provisioningMessage.GetPniBinary())
-		if pni != uuid.Nil {
-			hasE164 = true
-
-			pniPublicKey := exerrors.Must(libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic()))
-			pniPrivateKey := exerrors.Must(libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate()))
-			pniIdentityKeyPair = exerrors.Must(libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey))
-
-			pniRegistrationID = mrand.IntN(16383) + 1
-			pniSignedPreKey = GenerateSignedPreKey(1, pniIdentityKeyPair)
-			pniPQLastResortPreKey = GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
-		}
-		zerolog.Ctx(ctx).Trace().Any("msg", provisioningMessage).Msg("Provisioning message")
-		deviceResponse, err := confirmDevice(
-			ctx,
-			aci.String(),
-			password,
-			*code,
-			hasE164,
-			aciRegistrationID,
-			pniRegistrationID,
-			aciSignedPreKey,
-			pniSignedPreKey,
-			aciPQLastResortPreKey,
-			pniPQLastResortPreKey,
-			aciIdentityKeyPair,
-			deviceName,
-		)
-		if err != nil {
-			log.Err(err).Msg("confirmDevice error")
+			log.Err(err).Msg("Failed to finish provisioning")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
-			return
-		}
-
-		deviceId := 1
-		if deviceResponse.DeviceID != 0 {
-			deviceId = deviceResponse.DeviceID
-		}
-
-		data := &store.DeviceData{
-			ACIIdentityKeyPair: aciIdentityKeyPair,
-			PNIIdentityKeyPair: pniIdentityKeyPair,
-			ACIRegistrationID:  aciRegistrationID,
-			PNIRegistrationID:  pniRegistrationID,
-			ACI:                deviceResponse.ACI,
-			PNI:                deviceResponse.PNI,
-			DeviceID:           deviceId,
-			Number:             provisioningMessage.GetNumber(),
-			Password:           password,
-			AccountEntropyPool: libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()),
-			EphemeralBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetEphemeralBackupKey()),
-			MediaRootBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetMediaRootBackupKey()),
-			AuthCredentialSalt: provisioningMessage.GetAuthCredentialSalt(),
-		}
-		if provisioningMessage.GetAccountEntropyPool() != "" {
-			data.MasterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
-			if err != nil {
-				log.Err(err).Msg("Failed to derive master key from account entropy pool")
-			} else {
-				log.Debug().Msg("Derived master key from account entropy pool")
-			}
 		} else {
-			log.Warn().Msg("No account entropy pool in provisioning message")
+			c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 		}
-
-		// Store the provisioning data
-		err = deviceStore.PutDevice(ctx, data)
-		if err != nil {
-			log.Err(err).Msg("error storing new device")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
-			return
-		}
-
-		device, err := deviceStore.DeviceByACI(ctx, data.ACI)
-		if err != nil {
-			log.Err(err).Msg("error retrieving new device")
-			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
-			return
-		}
-
-		device.ClearDeviceKeys(ctx)
-
-		// Store identity keys?
-		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.ACIServiceID(), device.ACIIdentityKeyPair.GetIdentityKey())
-		if err != nil {
-			c <- ProvisioningResponse{
-				State: StateProvisioningError,
-				Err:   fmt.Errorf("error saving identity key: %w", err),
-			}
-			return
-		}
-		device.ACIPreKeyStore.StoreSignedPreKey(ctx, 1, aciSignedPreKey)
-		device.ACIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, aciPQLastResortPreKey)
-		if hasE164 {
-			_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
-			if err != nil {
-				c <- ProvisioningResponse{
-					State: StateProvisioningError,
-					Err:   fmt.Errorf("error saving identity key: %w", err),
-				}
-				return
-			}
-			device.PNIPreKeyStore.StoreSignedPreKey(ctx, 1, pniSignedPreKey)
-			device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
-		}
-
-		_, err = device.RecipientStore.LoadAndUpdateRecipient(ctx, data.ACI, data.PNI, func(recipient *types.Recipient) (bool, error) {
-			recipient.E164 = data.Number
-			recipient.Profile.Key = profileKey
-			return true, nil
-		})
-		if err != nil {
-			c <- ProvisioningResponse{
-				State: StateProvisioningError,
-				Err:   fmt.Errorf("error storing profile key: %w", err),
-			}
-			return
-		}
-
-		// Return the provisioning data
-		c <- ProvisioningResponse{State: StateProvisioningDataReceived, ProvisioningData: data}
 	}()
 	return c
 }
 
+func finishProvisioning(
+	ctx context.Context,
+	deviceStore store.DeviceStore,
+	provisioningMessage *signalpb.ProvisionMessage,
+	deviceName string,
+) (*store.DeviceData, error) {
+	aciPublicKey, err := libsignalgo.DeserializePublicKey(provisioningMessage.GetAciIdentityKeyPublic())
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize aci public key: %w", err)
+	}
+	aciPrivateKey, err := libsignalgo.DeserializePrivateKey(provisioningMessage.GetAciIdentityKeyPrivate())
+	if err != nil {
+		return nil, fmt.Errorf("failed to deserialize aci private key: %w", err)
+	}
+	aciIdentityKeyPair, err := libsignalgo.NewIdentityKeyPair(aciPublicKey, aciPrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create aci identity key pair: %w", err)
+	}
+	profileKey := libsignalgo.ProfileKey(provisioningMessage.GetProfileKey())
+
+	password := random.String(22)
+	code := provisioningMessage.ProvisioningCode
+	aciRegistrationID := mrand.IntN(16383) + 1
+	aciSignedPreKey := GenerateSignedPreKey(1, aciIdentityKeyPair)
+	aciPQLastResortPreKey := GenerateKyberPreKeys(1, 1, aciIdentityKeyPair)[0]
+	var pniIdentityKeyPair *libsignalgo.IdentityKeyPair
+	var pniRegistrationID int
+	var pniSignedPreKey *libsignalgo.SignedPreKeyRecord
+	var pniPQLastResortPreKey *libsignalgo.KyberPreKeyRecord
+	var hasE164 bool
+	aci, err := ParseStringOrBinaryServiceID(provisioningMessage.GetAci(), provisioningMessage.GetAciBinary())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse aci: %w", err)
+	}
+	pni, _ := ParseStringOrBinaryUUID(provisioningMessage.GetPni(), provisioningMessage.GetPniBinary())
+	if pni != uuid.Nil {
+		hasE164 = true
+
+		pniPublicKey, err := libsignalgo.DeserializePublicKey(provisioningMessage.GetPniIdentityKeyPublic())
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize pni public key: %w", err)
+		}
+		pniPrivateKey, err := libsignalgo.DeserializePrivateKey(provisioningMessage.GetPniIdentityKeyPrivate())
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize pni private key: %w", err)
+		}
+		pniIdentityKeyPair, err = libsignalgo.NewIdentityKeyPair(pniPublicKey, pniPrivateKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create pni identity key pair: %w", err)
+		}
+
+		pniRegistrationID = mrand.IntN(16383) + 1
+		pniSignedPreKey = GenerateSignedPreKey(1, pniIdentityKeyPair)
+		pniPQLastResortPreKey = GenerateKyberPreKeys(1, 1, pniIdentityKeyPair)[0]
+	}
+	zerolog.Ctx(ctx).Trace().Any("msg", provisioningMessage).Msg("Provisioning message")
+	deviceResponse, err := confirmDevice(
+		ctx,
+		aci.String(),
+		password,
+		*code,
+		hasE164,
+		aciRegistrationID,
+		pniRegistrationID,
+		aciSignedPreKey,
+		pniSignedPreKey,
+		aciPQLastResortPreKey,
+		pniPQLastResortPreKey,
+		aciIdentityKeyPair,
+		deviceName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to confirm device: %w", err)
+	}
+
+	deviceId := 1
+	if deviceResponse.DeviceID != 0 {
+		deviceId = deviceResponse.DeviceID
+	}
+
+	data := &store.DeviceData{
+		ACIIdentityKeyPair: aciIdentityKeyPair,
+		PNIIdentityKeyPair: pniIdentityKeyPair,
+		ACIRegistrationID:  aciRegistrationID,
+		PNIRegistrationID:  pniRegistrationID,
+		ACI:                deviceResponse.ACI,
+		PNI:                deviceResponse.PNI,
+		DeviceID:           deviceId,
+		Number:             provisioningMessage.GetNumber(),
+		Password:           password,
+		AccountEntropyPool: libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()),
+		EphemeralBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetEphemeralBackupKey()),
+		MediaRootBackupKey: libsignalgo.BytesToBackupKey(provisioningMessage.GetMediaRootBackupKey()),
+		AuthCredentialSalt: provisioningMessage.GetAuthCredentialSalt(),
+	}
+	if provisioningMessage.GetAccountEntropyPool() != "" {
+		data.MasterKey, err = libsignalgo.AccountEntropyPool(provisioningMessage.GetAccountEntropyPool()).DeriveSVRKey()
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to derive master key from account entropy pool")
+		} else {
+			zerolog.Ctx(ctx).Debug().Msg("Derived master key from account entropy pool")
+		}
+	} else {
+		zerolog.Ctx(ctx).Warn().Msg("No account entropy pool in provisioning message")
+	}
+
+	// Store the provisioning data
+	err = deviceStore.PutDevice(ctx, data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to store new device: %w", err)
+	}
+
+	device, err := deviceStore.DeviceByACI(ctx, data.ACI)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve stored device: %w", err)
+	}
+
+	err = device.ClearDeviceKeys(ctx)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to clear device keys")
+	}
+
+	_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.ACIServiceID(), device.ACIIdentityKeyPair.GetIdentityKey())
+	if err != nil {
+		return nil, fmt.Errorf("failed to save aci identity key: %w", err)
+	}
+	err = device.ACIPreKeyStore.StoreSignedPreKey(ctx, 1, aciSignedPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save signed prekey for aci: %w", err)
+	}
+	err = device.ACIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, aciPQLastResortPreKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save last resort kyber prekey for aci: %w", err)
+	}
+	if hasE164 {
+		_, err = device.IdentityKeyStore.SaveIdentityKey(ctx, device.PNIServiceID(), device.PNIIdentityKeyPair.GetIdentityKey())
+		if err != nil {
+			return nil, fmt.Errorf("failed to save pni identity key: %w", err)
+		}
+		err = device.PNIPreKeyStore.StoreSignedPreKey(ctx, 1, pniSignedPreKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save signed prekey for pni: %w", err)
+		}
+		err = device.PNIPreKeyStore.StoreLastResortKyberPreKey(ctx, 1, pniPQLastResortPreKey)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save last resort kyber prekey for pni: %w", err)
+		}
+	}
+
+	_, err = device.RecipientStore.LoadAndUpdateRecipient(ctx, data.ACI, data.PNI, func(recipient *types.Recipient) (bool, error) {
+		recipient.E164 = data.Number
+		recipient.Profile.Key = profileKey
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to save profile key: %w", err)
+	}
+
+	return data, nil
+}
+
 // Returns the provisioningUrl and an error
 func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher, allowBackup bool) (string, error) {
-	log := zerolog.Ctx(ctx).With().Str("action", "start provisioning").Logger()
 	pubKey := provisioningCipher.GetPublicKey()
 
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
-		log.Err(err).Msg("error reading websocket message")
-		return "", err
+		return "", fmt.Errorf("failed to read websocket message: %w", err)
 	}
 
 	// Ensure the message is a request and has a valid verb and path
@@ -309,20 +334,17 @@ func startProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCiph
 	response := web.CreateWSResponse(ctx, msg.GetRequest().GetId(), 200)
 	err = wspb.Write(ctx, ws, response)
 	if err != nil {
-		log.Err(err).Msg("error writing websocket message")
-		return "", err
+		return "", fmt.Errorf("failed to write websocket message: %w", err)
 	}
 	return provisioningURL, nil
 }
 
 func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningCipher *ProvisioningCipher) (*signalpb.ProvisionMessage, error) {
-	log := zerolog.Ctx(ctx).With().Str("action", "continue provisioning").Logger()
 	envelope := &signalpb.ProvisionEnvelope{}
 	msg := &signalpb.WebSocketMessage{}
 	err := wspb.Read(ctx, ws, msg)
 	if err != nil {
-		log.Err(err).Msg("error reading websocket message")
-		return nil, err
+		return nil, fmt.Errorf("failed to read websocket message: %w", err)
 	}
 
 	// Wait for provisioning message in a request, then send a response
@@ -332,22 +354,22 @@ func continueProvisioning(ctx context.Context, ws *websocket.Conn, provisioningC
 
 		err = proto.Unmarshal(msg.Request.Body, envelope)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal provisioning message: %w", err)
 		}
 
 		response := web.CreateWSResponse(ctx, *msg.Request.Id, 200)
 		err = wspb.Write(ctx, ws, response)
 		if err != nil {
-			log.Err(err).Msg("error writing websocket message")
-			return nil, err
+			return nil, fmt.Errorf("failed to write websocket message: %w", err)
 		}
 	} else {
-		err = fmt.Errorf("invalid provisioning message, type: %v, verb: %v, path: %v", *msg.Type, *msg.Request.Verb, *msg.Request.Path)
-		log.Err(err).Msg("problem reading websocket message")
-		return nil, err
+		return nil, fmt.Errorf("invalid provisioning message, type: %v, verb: %v, path: %v", *msg.Type, *msg.Request.Verb, *msg.Request.Path)
 	}
 	provisioningMessage, err := provisioningCipher.Decrypt(envelope)
-	return provisioningMessage, err
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt provisioning message: %w", err)
+	}
+	return provisioningMessage, nil
 }
 
 func getSignalCapabilities(phonenumberless bool) map[string]any {
@@ -398,22 +420,21 @@ func confirmDevice(
 		return nil, fmt.Errorf("failed to encrypt device name: %w", err)
 	}
 
-	ws, resp, err := web.OpenWebsocket(ctx, (&url.URL{
+	ws, _, err := web.OpenWebsocket(ctx, (&url.URL{
 		Scheme: "wss",
 		Host:   web.APIHostname,
 		Path:   web.WebsocketPath,
 	}).String())
 	if err != nil {
-		log.Err(err).Any("resp", resp).Msg("error opening websocket")
-		return nil, err
+		return nil, fmt.Errorf("failed to open websocket: %w", err)
 	}
 	defer ws.Close(websocket.StatusInternalError, "Websocket StatusInternalError")
 
-	aciSignedPreKeyJson, err := SignedPreKeyToJSON(aciSignedPreKey)
+	aciSignedPreKeyJSON, err := SignedPreKeyToJSON(aciSignedPreKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert signed ACI prekey to JSON: %w", err)
 	}
-	aciPQLastResortPreKeyJson, err := KyberPreKeyToJSON(aciPQLastResortPreKey)
+	aciPQLastResortPreKeyJSON, err := KyberPreKeyToJSON(aciPQLastResortPreKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ACI kyber last resort prekey to JSON: %w", err)
 	}
@@ -427,8 +448,8 @@ func confirmDevice(
 	data := map[string]any{
 		"verificationCode":      code,
 		"accountAttributes":     accountAttributes,
-		"aciSignedPreKey":       aciSignedPreKeyJson,
-		"aciPqLastResortPreKey": aciPQLastResortPreKeyJson,
+		"aciSignedPreKey":       aciSignedPreKeyJSON,
+		"aciPqLastResortPreKey": aciPQLastResortPreKeyJSON,
 	}
 	if hasE164 {
 		accountAttributes["pniRegistrationId"] = pniRegistrationID
