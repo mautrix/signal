@@ -430,6 +430,7 @@ func (cli *Client) SendContactSyncRequest(ctx context.Context) error {
 	}
 
 	cli.LastContactRequestTime = time.Now()
+	log.Info().Msg("Sending contact sync request")
 	_, err := cli.sendContent(ctx, cli.Store.ACIServiceID(), uint64(time.Now().UnixMilli()), WrapSyncMessage(&signalpb.SyncMessage{
 		Content: &signalpb.SyncMessage_Request_{
 			Request: &signalpb.SyncMessage_Request{
