@@ -763,6 +763,24 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 		return fmt.Errorf("failed to parse portal ID: %w", err)
 	}
 
+	if groupID != "" {
+		memberInfo, err := s.Main.Bridge.Matrix.GetMemberInfo(ctx, msg.Portal.MXID, s.UserLogin.UserMXID)
+		if err != nil {
+			return fmt.Errorf("failed to get own member info: %w", err)
+		} else if memberInfo.Membership == event.MembershipJoin {
+			portalMeta := msg.Portal.Metadata.(*signalid.PortalMetadata)
+			ownACI := s.Client.Store.ACI
+			revision, err := s.Client.UpdateGroup(ctx, &signalmeow.GroupChange{
+				DeleteMembers: []*uuid.UUID{&ownACI},
+				Revision:      portalMeta.Revision + 1,
+			}, groupID)
+			if err != nil {
+				return fmt.Errorf("failed to leave group before deleting chat: %w", err)
+			}
+			portalMeta.Revision = revision
+		}
+	}
+
 	if msg.Content.FromMessageRequest {
 		// TODO block and delete support?
 		err = s.syncMessageRequestResponse(ctx, msg.Portal, signalpb.SyncMessage_MessageRequestResponse_DELETE)
