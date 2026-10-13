@@ -262,7 +262,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 		case <-loopCtx.Done():
 			return
 		case <-initialConnectChan:
-			log.Info().Msg("Both websockets connected, sending contacts sync request")
+			log.Info().Msg("Both websockets connected")
 			err = cli.RegisterCapabilities(loopCtx)
 			if err != nil {
 				zerolog.Ctx(ctx).Err(err).Msg("Failed to register capabilities")
