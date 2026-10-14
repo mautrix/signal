@@ -176,7 +176,7 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	if mime == "" {
 		mime = http.DetectContentType(data)
 	}
-	if content.MSC3245Voice != nil && mime != "audio/aac" && ffmpeg.Supported() {
+	if ((content.MSC3245Voice != nil && mime != "audio/aac") || (content.MsgType == event.MsgAudio && strings.HasPrefix(mime, "audio/ogg"))) && ffmpeg.Supported() {
 		data, err = ffmpeg.ConvertBytes(ctx, data, ".aac", []string{}, []string{"-c:a", "aac"}, mime)
 		if err != nil {
 			return nil, err
