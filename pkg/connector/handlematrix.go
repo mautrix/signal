@@ -37,6 +37,7 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/msgconv"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
@@ -126,7 +127,7 @@ func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.Ma
 		return nil, err
 	}
 	return s.doSendMessage(ctx, msg, converted, &signalid.MessageMetadata{
-		ContainsAttachments: len(converted.Attachments) > 0,
+		ContainsAttachments: msgconv.ContainsAttachments(converted),
 		ViewOnce:            converted.GetIsViewOnce(),
 	})
 }
@@ -211,7 +212,7 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 	}
 	prevID := msg.EditTarget.ID
 	msg.EditTarget.ID = signalid.MakeMessageID(s.Client.Store.ACI, ts)
-	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: len(converted.Attachments) > 0}
+	msg.EditTarget.Metadata = &signalid.MessageMetadata{ContainsAttachments: msgconv.ContainsAttachments(converted)}
 	msg.EditTarget.EditCount++
 	if prevID != msg.EditTarget.ID {
 		err = s.Main.Bridge.DB.DoTxn(ctx, nil, func(ctx context.Context) error {
