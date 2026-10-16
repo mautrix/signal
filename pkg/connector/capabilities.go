@@ -40,7 +40,7 @@ func supportedIfFFmpeg() event.CapabilitySupportLevel {
 }
 
 func capID() string {
-	base := "fi.mau.signal.capabilities.2026_10_06"
+	base := "fi.mau.signal.capabilities.2026_10_16"
 	if ffmpeg.Supported() {
 		return base + "+ffmpeg"
 	}
@@ -48,7 +48,7 @@ func capID() string {
 }
 
 const MaxFileSize = 100 * 1024 * 1024
-const MaxTextLength = 2000
+const MaxTextLength = 64 * 1024
 
 var signalCaps = &event.RoomFeatures{
 	ID: capID(),
@@ -158,7 +158,7 @@ var signalCaps = &event.RoomFeatures{
 		event.MemberActionBan:          event.CapLevelFullySupported,
 		event.MemberActionKick:         event.CapLevelFullySupported,
 	},
-	MaxTextLength:        MaxTextLength, // TODO support arbitrary sized text messages with files
+	MaxTextLength:        MaxTextLength,
 	LocationMessage:      event.CapLevelPartialSupport,
 	Poll:                 event.CapLevelFullySupported,
 	PollEnd:              event.CapLevelUnsupported,
@@ -263,5 +263,5 @@ func (s *SignalConnector) GetCapabilities() *bridgev2.NetworkGeneralCapabilities
 }
 
 func (s *SignalConnector) GetBridgeInfoVersion() (info, capabilities int) {
-	return 1, 13
+	return 1, 14
 }

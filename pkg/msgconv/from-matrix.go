@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exmime"
@@ -152,7 +153,31 @@ func (mc *MessageConverter) ToSignal(
 		dm.BodyRanges = nil
 		dm.Preview = nil
 	}
+	if err := mc.uploadLongText(ctx, dm); err != nil {
+		return nil, err
+	}
 	return dm, nil
+}
+
+const maxInlineBodySize = 2 * 1024
+
+func (mc *MessageConverter) uploadLongText(ctx context.Context, dm *signalpb.DataMessage) error {
+	body := dm.GetBody()
+	if len(body) <= maxInlineBodySize {
+		return nil
+	}
+	att, err := getClient(ctx).UploadAttachment(ctx, []byte(body))
+	if err != nil {
+		return fmt.Errorf("%w (long text): %w", bridgev2.ErrMediaReuploadFailed, err)
+	}
+	att.ContentType = proto.String(LongTextContentType)
+	dm.Attachments = append([]*signalpb.AttachmentPointer{att}, dm.Attachments...)
+	cut := maxInlineBodySize
+	for !utf8.RuneStart(body[cut]) {
+		cut--
+	}
+	dm.Body = proto.String(body[:cut])
+	return nil
 }
 
 func maybeInt[T constraints.Integer](v T) *T {
