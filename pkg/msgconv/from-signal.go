@@ -173,7 +173,7 @@ func (mc *MessageConverter) ToMatrix(
 		}
 	}
 	for i, att := range dm.GetAttachments() {
-		if att.GetContentType() != "text/x-signal-plain" || att.GetSize() > matrixTextMaxLength {
+		if att.GetContentType() != LongTextContentType || att.GetSize() > matrixTextMaxLength {
 			part := mc.convertAttachmentToMatrix(ctx, i, att, attMap)
 			if dm.GetIsViewOnce() {
 				if part.Content.MsgType == event.MsgImage || part.Content.MsgType == event.MsgVideo {
@@ -217,7 +217,7 @@ func (mc *MessageConverter) ToMatrix(
 	for i, part := range cm.Parts {
 		part.ID = signalid.MakeMessagePartID(i)
 		meta := &signalid.MessageMetadata{
-			ContainsAttachments: len(dm.GetAttachments()) > 0,
+			ContainsAttachments: ContainsAttachments(dm),
 			ViewOnce:            dm.GetIsViewOnce(),
 		}
 		if meta.ViewOnce {
