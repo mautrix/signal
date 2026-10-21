@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exmime"
@@ -152,7 +153,31 @@ func (mc *MessageConverter) ToSignal(
 		dm.BodyRanges = nil
 		dm.Preview = nil
 	}
+	if err := mc.uploadLongText(ctx, dm); err != nil {
+		return nil, err
+	}
 	return dm, nil
+}
+
+const maxInlineBodySize = 2 * 1024
+
+func (mc *MessageConverter) uploadLongText(ctx context.Context, dm *signalpb.DataMessage) error {
+	body := dm.GetBody()
+	if len(body) <= maxInlineBodySize {
+		return nil
+	}
+	att, err := getClient(ctx).UploadAttachment(ctx, []byte(body))
+	if err != nil {
+		return fmt.Errorf("%w (long text): %w", bridgev2.ErrMediaReuploadFailed, err)
+	}
+	att.ContentType = proto.String(LongTextContentType)
+	dm.Attachments = append([]*signalpb.AttachmentPointer{att}, dm.Attachments...)
+	cut := maxInlineBodySize
+	for !utf8.RuneStart(body[cut]) {
+		cut--
+	}
+	dm.Body = proto.String(body[:cut])
+	return nil
 }
 
 func maybeInt[T constraints.Integer](v T) *T {
@@ -176,10 +201,10 @@ func (mc *MessageConverter) convertFileToSignal(ctx context.Context, evt *event.
 	if mime == "" {
 		mime = http.DetectContentType(data)
 	}
-	if ((content.MSC3245Voice != nil && mime != "audio/aac") || (content.MsgType == event.MsgAudio && strings.HasPrefix(mime, "audio/ogg"))) && ffmpeg.Supported() {
+	if content.MSC3245Voice != nil && mime != "audio/aac" && ffmpeg.Supported() {
 		data, err = ffmpeg.ConvertBytes(ctx, data, ".aac", []string{}, []string{"-c:a", "aac"}, mime)
 		if err != nil {
-			return nil, fmt.Errorf("%w (audio to aac): %w", bridgev2.ErrMediaConvertFailed, err)
+			return nil, err
 		}
 		mime = "audio/aac"
 		fileName += ".aac"

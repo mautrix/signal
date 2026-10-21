@@ -107,7 +107,6 @@ var signalCaps = &event.RoomFeatures{
 				"audio/flac": event.CapLevelFullySupported,
 				"audio/mp4":  event.CapLevelFullySupported,
 				"audio/wav":  event.CapLevelFullySupported,
-				"audio/ogg":  supportedIfFFmpeg(),
 			},
 			MaxSize: MaxFileSize,
 		},
