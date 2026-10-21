@@ -249,7 +249,7 @@ func (cli *Client) sendToGroupWithSenderKey(
 				cli.Store.RecipientStore.MarkUnregistered(ctx, serviceID, true)
 				result.FailedToSendTo = append(result.FailedToSendTo, FailedSendResult{
 					Recipient: serviceID,
-					Error:     fmt.Errorf("multi-recipient send 404"),
+					Error:     fmt.Errorf("%w (multi-recipient send returned 404)", ErrUnregisteredUser),
 				})
 			} else {
 				result.SuccessfullySentTo = append(result.SuccessfullySentTo, SuccessfulSendResult{
@@ -277,6 +277,8 @@ func (cli *Client) sendToGroupWithSenderKey(
 		doUnlock()
 		// Retry recursively after fixing device lists
 		return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
+	case 413, 428, 429:
+		return nil, fmt.Errorf("%w (multi-recipient send returned %d)", ErrRateLimited, resp.GetStatus())
 	default:
 		return nil, fmt.Errorf("unexpected status code %d in multi-recipient send", resp.GetStatus())
 	}

@@ -222,10 +222,12 @@ func (s *SignalWebsocket) connectLoop(
 					return
 				}
 				if request == nil {
-					log.Fatal().Msg("Received nil request")
+					log.Error().Msg("Received nil request")
+					continue
 				}
 				if requestHandler == nil {
-					log.Fatal().Msg("Received request but no handler")
+					log.Error().Uint64("request_id", request.GetId()).Msg("Received request but no handler")
+					continue
 				}
 
 				// Handle the request with the request handler function
@@ -287,20 +289,21 @@ func (s *SignalWebsocket) connectLoop(
 		if resp != nil {
 			if resp.StatusCode != 101 {
 				// Server didn't want to open websocket
-				if resp.StatusCode >= 500 {
-					// We can try again if it's a 5xx
-					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("5xx opening websocket: %v", resp.Status))
+				statusErr := HTTPStatusError{StatusCode: resp.StatusCode, Status: resp.Status}
+				if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
+					// We can try again if it's a 5xx or a rate limit
+					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("error opening websocket: %w", statusErr))
 				} else if resp.StatusCode == 403 {
 					// We are logged out, so we should stop trying to reconnect
 					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("403 opening websocket, we are logged out"))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
 					// Unexpected status code
-					s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("unexpected status opening websocket: %v", resp.Status))
+					s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("unexpected status opening websocket: %w", statusErr))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
 					// Something is very wrong
-					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected error opening websocket: %v", resp.Status))
+					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected error opening websocket: %w", statusErr))
 				}
 				// Retry the connection
 				retrying = true
@@ -420,10 +423,12 @@ func (s *SignalWebsocket) connectLoop(
 		wg.Wait()
 		log.Debug().Msg("Finished websocket cleanup")
 		if errorCount > 500 {
-			// Something is really wrong, we better panic.
+			// Something is really wrong, stop reconnecting.
 			// This is a last defense against a runaway error loop,
 			// like the WS continually closing and reconnecting
-			log.Fatal().Int("error_count", errorCount).Msg("Too many errors, panicking")
+			log.Error().Int("error_count", errorCount).Msg("Too many errors, stopping connection loop")
+			s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("too many websocket errors (%d)", errorCount))
+			return
 		}
 	}
 }
@@ -467,10 +472,10 @@ func readLoop(
 			incomingRequestChan <- msg.Request
 		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
 			if msg.Response == nil {
-				log.Fatal().Msg("Received response with no response")
+				return errors.New("received response message with no response")
 			}
 			if msg.Response.Id == nil {
-				log.Fatal().Msg("Received response with no id")
+				return errors.New("received response message with no id")
 			}
 			responseChannel, ok := responseChannels.Pop(*msg.Response.Id)
 			if !ok {
@@ -678,8 +683,8 @@ func OpenWebsocket(ctx context.Context, url string) (*websocket.Conn, *http.Resp
 func CreateWSResponse(ctx context.Context, id uint64, status int) *signalpb.WebSocketMessage {
 	if status != 200 && status != 400 {
 		// TODO support more responses to Signal? Are there more?
-		zerolog.Ctx(ctx).Fatal().Int("status", status).Msg("Error creating response. Non 200/400 not supported yet.")
-		return nil
+		zerolog.Ctx(ctx).Error().Int("status", status).Msg("Non 200/400 websocket response status not supported yet, sending 400")
+		status = 400
 	}
 	msg_type := signalpb.WebSocketMessage_RESPONSE
 	message := "OK"

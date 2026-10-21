@@ -1037,6 +1037,8 @@ func (cli *Client) sendContent(
 		}
 		cli.Store.RecipientStore.MarkUnregistered(ctx, recipient, true)
 		return sentUnidentified, fmt.Errorf("%w (send returned 404)", ErrUnregisteredUser)
+	} else if *response.Status == 413 || *response.Status == 429 {
+		return sentUnidentified, fmt.Errorf("%w (send returned %d)", ErrRateLimited, *response.Status)
 	} else if *response.Status != 200 {
 		return sentUnidentified, fmt.Errorf("unexpected status code while sending: %d", *response.Status)
 	}
@@ -1189,7 +1191,7 @@ func (cli *Client) handle428(ctx context.Context, recipient libsignalgo.ServiceI
 	//		}
 	//	}
 	//}
-	return fmt.Errorf("got 428 error")
+	return fmt.Errorf("%w (send returned 428, retry after %ds)", ErrRateLimited, retryAfterSeconds)
 }
 
 func (cli *Client) ReportSpam(ctx context.Context, aci uuid.UUID, serverGUID string, token []byte) error {
