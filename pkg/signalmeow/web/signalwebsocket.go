@@ -326,6 +326,7 @@ func (s *SignalWebsocket) connectLoop(
 		s.ws.Store(ws)
 		retrying = false
 		backoff = initialBackoff
+		connectedAt := time.Now()
 
 		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
@@ -405,12 +406,16 @@ func (s *SignalWebsocket) connectLoop(
 		if ctxCauseErr == nil || errors.Is(ctxCauseErr, context.Canceled) {
 			s.pushStatus(ctx, SignalWebsocketConnectionEventCleanShutdown, nil)
 		} else {
-			errorCount++
+			if time.Since(connectedAt) > time.Minute {
+				errorCount = 0
+			}
 			s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, ctxCauseErr)
 			if errors.Is(ctxCauseErr, ErrForcedReconnect) {
 				// Skip the delay for forced reconnects
 				// TODO should the delay be lowered globally?
 				isFirstConnect = true
+			} else {
+				errorCount++
 			}
 		}
 
