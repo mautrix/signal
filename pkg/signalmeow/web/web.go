@@ -157,6 +157,16 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 	return resp, nil
 }
 
+// HTTPStatusError is returned when a Signal server responds with an unexpected HTTP status.
+type HTTPStatusError struct {
+	StatusCode int
+	Status     string
+}
+
+func (e HTTPStatusError) Error() string {
+	return e.Status
+}
+
 func CloseBody(resp *http.Response) {
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()

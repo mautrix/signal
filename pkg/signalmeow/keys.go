@@ -408,6 +408,7 @@ func addBase64PaddingAndDecode(data string) ([]byte, error) {
 var (
 	ErrUnregisteredUser = errors.New("user is unregistered")
 	ErrDevicesChanged   = errors.New("device list changed while sending skdm")
+	ErrRateLimited      = errors.New("rate limited by server")
 )
 
 func (cli *Client) FetchAndProcessPreKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, specificDeviceID int) error {
