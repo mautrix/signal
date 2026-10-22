@@ -688,7 +688,7 @@ func OpenWebsocket(ctx context.Context, url string) (*websocket.Conn, *http.Resp
 func CreateWSResponse(ctx context.Context, id uint64, status int) *signalpb.WebSocketMessage {
 	if status != 200 && status != 400 {
 		// TODO support more responses to Signal? Are there more?
-		//bridgelint:ignore GR004 callers only pass constant statuses, so anything else is a bridge bug
+		//bridgelint:ignore GR004 statuses come from the bridge's own handlers, so anything else is a bridge bug
 		zerolog.Ctx(ctx).Fatal().Int("status", status).Msg("Error creating response. Non 200/400 not supported yet.")
 		return nil
 	}
