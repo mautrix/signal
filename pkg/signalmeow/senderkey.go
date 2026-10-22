@@ -279,6 +279,11 @@ func (cli *Client) sendToGroupWithSenderKey(
 		return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
 	case 413, 428, 429:
 		return nil, fmt.Errorf("%w (multi-recipient send returned %d)", ErrRateLimited, resp.GetStatus())
+	case 500, 503:
+		log.Warn().Uint32("status_code", resp.GetStatus()).
+			Msg("Multi-recipient send failed with server error, retrying")
+		doUnlock()
+		return cli.sendToGroupWithSenderKey(ctx, groupID, allRecipients, sec, content, messageTimestamp, retries+1)
 	default:
 		return nil, fmt.Errorf("unexpected status code %d in multi-recipient send", resp.GetStatus())
 	}
