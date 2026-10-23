@@ -47,6 +47,8 @@ type RecipientStore interface {
 	MarkUnregistered(ctx context.Context, serviceID libsignalgo.ServiceID, unregistered bool)
 
 	LoadAllContacts(ctx context.Context) ([]*types.Recipient, error)
+
+	DoContactTxn(ctx context.Context, fn func(context.Context) error) error
 }
 
 var _ RecipientStore = (*sqlStore)(nil)
@@ -209,6 +211,14 @@ func (s *sqlStore) mergeRecipients(ctx context.Context, first, second *types.Rec
 		return first, fmt.Errorf("failed to store merged row: %w", err)
 	}
 	return first, nil
+}
+
+func (s *sqlStore) DoContactTxn(ctx context.Context, fn func(context.Context) error) error {
+	s.contactLock.Lock()
+	defer s.contactLock.Unlock()
+	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 1)
+	ctx = context.WithValue(ctx, contextKeyContactLock, true)
+	return s.db.DoTxn(ctx, nil, fn)
 }
 
 func (s *sqlStore) LoadAndUpdateRecipient(ctx context.Context, aci, pni uuid.UUID, updater RecipientUpdaterFunc) (outRecipient *types.Recipient, outErr error) {
