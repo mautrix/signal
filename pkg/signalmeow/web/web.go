@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -99,7 +100,7 @@ type HTTPReqOpt struct {
 	OverrideURL string // Override the full URL, if set ignores path and Host
 }
 
-var httpReqCounter = 0
+var httpReqCounter atomic.Int64
 
 func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPReqOpt) (*http.Response, error) {
 	// Set defaults
@@ -143,8 +144,7 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 		req.SetBasicAuth(*opt.Username, *opt.Password)
 	}
 
-	httpReqCounter++
-	log = log.With().Int("request_number", httpReqCounter).Logger()
+	log = log.With().Int64("request_number", httpReqCounter.Add(1)).Logger()
 	log.Trace().Msg("Sending HTTP request")
 	start := time.Now()
 	resp, err := SignalHTTPClient.Do(req)
@@ -252,9 +252,8 @@ func GetAttachment(ctx context.Context, path string, cdnNumber uint32) (*http.Re
 	req.Header.Add("Content-Type", "application/octet-stream")
 	req.Header.Set("User-Agent", UserAgent)
 
-	httpReqCounter++
 	log = log.With().
-		Int("request_number", httpReqCounter).
+		Int64("request_number", httpReqCounter.Add(1)).
 		Str("url", urlStr).
 		Logger()
 
