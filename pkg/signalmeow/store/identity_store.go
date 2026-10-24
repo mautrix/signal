@@ -39,6 +39,7 @@ type IdentityKeyStore interface {
 	SaveIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey) (bool, error)
 	GetIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID) (*libsignalgo.IdentityKey, error)
 	IsTrustedIdentity(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey, direction libsignalgo.SignalDirection) (bool, error)
+	SetIdentityChangeCallback(callback func(libsignalgo.ServiceID))
 }
 
 var _ libsignalgo.IdentityKeyStore = (*sqlIdentityStore)(nil)
@@ -71,6 +72,10 @@ func (s *sqlIdentityStore) GetLocalRegistrationID(ctx context.Context) (uint32, 
 
 func scanIdentityKey(row dbutil.Scannable) (*libsignalgo.IdentityKey, error) {
 	return scanRecord(row, libsignalgo.DeserializeIdentityKey)
+}
+
+func (s *sqlStore) SetIdentityChangeCallback(callback func(libsignalgo.ServiceID)) {
+	s.identityChangeCallback = callback
 }
 
 func (s *sqlStore) SaveIdentityKey(ctx context.Context, theirServiceID libsignalgo.ServiceID, identityKey *libsignalgo.IdentityKey) (bool, error) {
