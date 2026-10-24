@@ -474,7 +474,11 @@ func readLoop(
 				Str("request_verb", *msg.Request.Verb).
 				Str("request_path", *msg.Request.Path).
 				Msg("Received WS request")
-			incomingRequestChan <- msg.Request
+			select {
+			case incomingRequestChan <- msg.Request:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		} else if *msg.Type == signalpb.WebSocketMessage_RESPONSE {
 			if msg.Response == nil {
 				return errors.New("received response message with no response")
