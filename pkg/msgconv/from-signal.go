@@ -607,7 +607,7 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 		if err != nil {
 			return nil, err
 		}
-		content.URL, err = mc.Bridge.Matrix.GenerateContentURI(ctx, mediaID)
+		content.URL, content.File, err = mc.Bridge.GenerateContentURI(ctx, getPortal(ctx).MXID, mediaID)
 	} else {
 		err = mc.actuallyReuploadAttachment(ctx, content, att, attMap)
 		if err != nil {
