@@ -94,7 +94,7 @@ func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.
 		},
 		sendCache: exsync.NewRingBuffer[sendCacheKey, *signalpb.Content](InMemorySendCacheSize),
 	}
-	device.SetIdentityChangeCallback(func(id libsignalgo.ServiceID) {
+	device.IdentityKeyStore.SetIdentityChangeCallback(func(id libsignalgo.ServiceID) {
 		c.handleEvent(&events.IdentityChange{ServiceID: id})
 	})
 	return c
