@@ -20,15 +20,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
-	"sync"
 
 	"go.mau.fi/util/emojishortcodes"
-	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/proto"
 	"maunium.net/go/mautrix"
 	"maunium.net/go/mautrix/bridgev2"
@@ -49,8 +46,6 @@ const PackKeyLength = 32
 const PackURLLength = len(PackURLFormat) - len("%x")*2 + PackIDLength*2 + PackKeyLength*2
 
 var zeroPackID = make([]byte, PackIDLength)
-
-var StickerPackDownloadParallelism = 8
 
 func ParseStickerMeta(info *event.BridgedSticker) *signalpb.DataMessage_Sticker {
 	if info == nil || info.Network != StickerSourceID || len(info.PackURL) != PackURLLength {
@@ -123,12 +118,9 @@ func (mc *MessageConverter) DownloadImagePack(ctx context.Context, url string) (
 		},
 	}
 	imagesByID := make(map[uint32]id.ContentURIString, len(manifest.Stickers))
-	var imagesLock sync.Mutex
 	uploadImage := func(sticker *signalpb.Pack_Sticker) (id.ContentURIString, error) {
 		stickerID := sticker.GetId()
-		imagesLock.Lock()
 		existing, ok := imagesByID[stickerID]
-		imagesLock.Unlock()
 		if ok {
 			return existing, nil
 		}
@@ -150,56 +142,21 @@ func (mc *MessageConverter) DownloadImagePack(ctx context.Context, url string) (
 			dbKey := database.Key(fmt.Sprintf("stickercache:%x:%d", packID, stickerID))
 			if cached := mc.Bridge.DB.KV.Get(ctx, dbKey); cached != "" {
 				mxc = id.ContentURIString(cached)
-			} else {
-				data, err := signalmeow.DownloadStickerPackItem(ctx, packID, packKey, stickerID)
-				if err != nil {
-					return "", fmt.Errorf("failed to download sticker %d: %w", stickerID, err)
-				}
-				mxc, _, err = mc.Bridge.Bot.UploadMedia(ctx, "", data, "", sticker.GetContentType())
-				if err != nil {
-					return "", fmt.Errorf("failed to upload sticker %d: %w", stickerID, err)
-				}
-				mc.Bridge.DB.KV.Set(ctx, dbKey, string(mxc))
+				imagesByID[stickerID] = mxc
+				return mxc, nil
 			}
+			data, err := signalmeow.DownloadStickerPackItem(ctx, packID, packKey, stickerID)
+			if err != nil {
+				return "", fmt.Errorf("failed to download sticker %d: %w", stickerID, err)
+			}
+			mxc, _, err = mc.Bridge.Bot.UploadMedia(ctx, "", data, "", sticker.GetContentType())
+			if err != nil {
+				return "", fmt.Errorf("failed to upload sticker %d: %w", stickerID, err)
+			}
+			mc.Bridge.DB.KV.Set(ctx, dbKey, string(mxc))
 		}
-		imagesLock.Lock()
 		imagesByID[stickerID] = mxc
-		imagesLock.Unlock()
 		return mxc, nil
-	}
-	uniqueStickers := make(map[uint32]*signalpb.Pack_Sticker, len(manifest.Stickers)+1)
-	for _, sticker := range manifest.Stickers {
-		uniqueStickers[sticker.GetId()] = sticker
-	}
-	if manifest.Cover != nil {
-		if _, ok := uniqueStickers[manifest.Cover.GetId()]; !ok {
-			uniqueStickers[manifest.Cover.GetId()] = manifest.Cover
-		}
-	}
-	var wg sync.WaitGroup
-	wg.Add(len(uniqueStickers))
-	sema := semaphore.NewWeighted(int64(StickerPackDownloadParallelism))
-	var errorList []error
-	var errorLock sync.Mutex
-	for _, sticker := range uniqueStickers {
-		go func() {
-			defer wg.Done()
-			if sema.Acquire(ctx, 1) != nil {
-				return
-			}
-			defer sema.Release(1)
-			if _, err := uploadImage(sticker); err != nil {
-				errorLock.Lock()
-				errorList = append(errorList, err)
-				errorLock.Unlock()
-			}
-		}()
-	}
-	wg.Wait()
-	if err = ctx.Err(); err != nil {
-		return nil, err
-	} else if err = errors.Join(errorList...); err != nil {
-		return nil, err
 	}
 	duplicateCounter := make(map[string]int)
 	for _, sticker := range manifest.Stickers {
