@@ -136,6 +136,23 @@ func wrapRespError(err error) error {
 	return fmt.Errorf("%w: %w", mapped, err)
 }
 
+func wrapDirectMediaError(err error) error {
+	var statusErr web.HTTPStatusError
+	if !errors.As(err, &statusErr) {
+		return err
+	}
+	switch statusErr.StatusCode {
+	case http.StatusNotFound, http.StatusGone:
+		return mautrix.MNotFound.WithMessage("Media not found on Signal")
+	case http.StatusUnauthorized, http.StatusForbidden:
+		return mautrix.MForbidden.WithMessage("Signal denied access to the media")
+	case http.StatusTooManyRequests:
+		return mautrix.MLimitExceeded.WithMessage("Rate limited by Signal, please try again later").WithCanRetry(true)
+	default:
+		return mautrix.MUnknown.WithMessage("Unexpected response from Signal").WithStatus(http.StatusBadGateway).WithCanRetry(true)
+	}
+}
+
 func connectionErrorState(err error) status.BridgeState {
 	state := status.BridgeState{
 		StateEvent: status.StateTransientDisconnect,
