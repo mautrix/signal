@@ -154,7 +154,10 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 			case <-loopCtx.Done():
 				log.Info().Msg("Context done, exiting websocket status loop")
 				return
-			case status := <-authChan:
+			case status, ok := <-authChan:
+				if !ok {
+					return
+				}
 				lastAuthStatus = status
 				currentStatus = status
 
@@ -182,7 +185,10 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 					default:
 					}
 				}
-			case status := <-unauthChan:
+			case status, ok := <-unauthChan:
+				if !ok {
+					return
+				}
 				lastUnauthStatus = status
 				currentStatus = status
 
