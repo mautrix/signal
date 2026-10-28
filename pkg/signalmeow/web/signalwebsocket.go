@@ -297,13 +297,9 @@ func (s *SignalWebsocket) connectLoop(
 					// We are logged out, so we should stop trying to reconnect
 					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("%w opening websocket, we are logged out", statusErr))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
-				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
-					// Unexpected status code
-					s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("unexpected status opening websocket: %w", statusErr))
-					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
-					// Something is very wrong
-					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected error opening websocket: %w", statusErr))
+					// Unexpected status code
+					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected status opening websocket: %w", statusErr))
 				}
 				// Retry the connection
 				retrying = true
