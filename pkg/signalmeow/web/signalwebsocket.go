@@ -256,6 +256,7 @@ func (s *SignalWebsocket) connectLoop(
 	retrying := false
 	errorCount := 0
 	isFirstConnect := true
+	var connectedAt time.Time
 	wsURL := (&url.URL{
 		Scheme: "wss",
 		Host:   APIHostname,
@@ -273,7 +274,7 @@ func (s *SignalWebsocket) connectLoop(
 			case <-ctx.Done():
 			}
 			backoff += backoffIncrement
-		} else if !isFirstConnect && s.basicAuth != nil {
+		} else if !isFirstConnect && (s.basicAuth != nil || time.Since(connectedAt) < time.Minute) {
 			select {
 			case <-time.After(initialBackoff):
 			case <-ctx.Done():
@@ -322,7 +323,7 @@ func (s *SignalWebsocket) connectLoop(
 		s.ws.Store(ws)
 		retrying = false
 		backoff = initialBackoff
-		connectedAt := time.Now()
+		connectedAt = time.Now()
 
 		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
