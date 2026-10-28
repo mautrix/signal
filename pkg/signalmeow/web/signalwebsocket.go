@@ -293,9 +293,9 @@ func (s *SignalWebsocket) connectLoop(
 				if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 					// We can try again if it's a 5xx or a rate limit
 					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("error opening websocket: %w", statusErr))
-				} else if resp.StatusCode == 403 {
+				} else if resp.StatusCode == http.StatusForbidden || (resp.StatusCode == http.StatusUnauthorized && s.basicAuth != nil) {
 					// We are logged out, so we should stop trying to reconnect
-					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("403 opening websocket, we are logged out"))
+					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("%w opening websocket, we are logged out", statusErr))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
 					// Unexpected status code
