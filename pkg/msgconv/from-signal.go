@@ -35,6 +35,7 @@ import (
 	"github.com/rs/zerolog"
 	"go.mau.fi/util/exmime"
 	"go.mau.fi/util/ffmpeg"
+	"go.mau.fi/util/ffmpeg/waveform"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -700,8 +701,25 @@ func (mc *MessageConverter) actuallyReuploadAttachment(
 			}
 			content.Info.MimeType = "audio/ogg"
 			content.MSC3245Voice = &event.MSC3245Voice{}
-			// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
-			//content.MSC1767Audio = &event.MSC1767Audio{}
+			if ffmpeg.ProbeSupported() {
+				probeRes, err := ffmpeg.Probe(ctx, replFile)
+				if err != nil {
+					zerolog.Ctx(ctx).Err(err).Msg("Failed to probe voice message for duration")
+				} else if probeRes.Format != nil {
+					durationMs := int(1000 * probeRes.Format.Duration)
+					content.MSC1767Audio = &event.MSC1767Audio{Duration: durationMs}
+					content.Info.Duration = durationMs
+				}
+				waveformData, err := waveform.Generate(ctx, replFile, 100, 256)
+				if err != nil {
+					zerolog.Ctx(ctx).Err(err).Msg("Failed to generate voice message waveform")
+				} else {
+					if content.MSC1767Audio == nil {
+						content.MSC1767Audio = &event.MSC1767Audio{}
+					}
+					content.MSC1767Audio.Waveform = waveformData
+				}
+			}
 		}
 		return &bridgev2.FileStreamResult{
 			ReplacementFile: replFile,
