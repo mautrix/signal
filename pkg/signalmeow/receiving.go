@@ -187,7 +187,7 @@ func (cli *Client) StartReceiveLoops(ctx context.Context) (chan SignalConnection
 				}
 			case status, ok := <-unauthChan:
 				if !ok {
-					return
+					unauthChan = nil
 				}
 				lastUnauthStatus = status
 				currentStatus = status
