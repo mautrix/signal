@@ -344,6 +344,7 @@ func (cli *Client) uploadAttachmentLegacy(
 		ContentType: web.ContentTypeOctetStream,
 		Username:    &username,
 		Password:    &password,
+		Upload:      true,
 	})
 	web.CloseBody(resp)
 	if err != nil {
@@ -368,6 +369,7 @@ func (cli *Client) uploadAttachmentTUS(
 		Body:        encryptedWithMAC,
 		ContentType: web.ContentTypeOffsetOctetStream,
 		Headers:     uploadAttributes.Headers,
+		Upload:      true,
 	})
 	web.CloseBody(resp)
 	// TODO actually support resuming on error
