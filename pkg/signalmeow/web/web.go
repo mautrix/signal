@@ -75,6 +75,9 @@ var signalTransport = &http.Transport{
 var SignalHTTPClient = &http.Client{
 	Transport: signalTransport,
 }
+var SignalUploadHTTPClient = &http.Client{
+	Transport: signalTransport,
+}
 
 func init() {
 	SignalCertPool.AddCert(exerrors.Must(x509.ParseCertificate(signalRootCertBytes)))
@@ -98,6 +101,7 @@ type HTTPReqOpt struct {
 	ContentType ContentType
 	Headers     map[string]string
 	OverrideURL string // Override the full URL, if set ignores path and Host
+	Upload      bool
 }
 
 var httpReqCounter atomic.Int64
@@ -146,8 +150,12 @@ func SendHTTPRequest(ctx context.Context, host, method, path string, opt *HTTPRe
 
 	log = log.With().Int64("request_number", httpReqCounter.Add(1)).Logger()
 	log.Trace().Msg("Sending HTTP request")
+	client := SignalHTTPClient
+	if opt.Upload {
+		client = SignalUploadHTTPClient
+	}
 	start := time.Now()
-	resp, err := SignalHTTPClient.Do(req)
+	resp, err := client.Do(req)
 	dur := time.Since(start)
 	if err != nil {
 		log.Err(err).Dur("duration", dur).Msg("Error sending request")
