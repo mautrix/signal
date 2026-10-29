@@ -153,11 +153,6 @@ func connectionErrorState(err error) status.BridgeState {
 	return state
 }
 
-func isUnauthorized(err error) bool {
-	var statusErr web.HTTPStatusError
-	return errors.As(err, &statusErr) && statusErr.StatusCode == http.StatusUnauthorized
-}
-
 func (s *SignalClient) sendLoggedOutState(err error) {
 	state := status.BridgeState{
 		StateEvent: status.StateBadCredentials,

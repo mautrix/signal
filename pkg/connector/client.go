@@ -203,14 +203,8 @@ func (s *SignalClient) bridgeStateLoop(statusChan <-chan signalmeow.SignalConnec
 			s.UserLogin.BridgeState.Send(connectionErrorState(err))
 
 		case signalmeow.SignalConnectionEventFatalError:
-			if isUnauthorized(err) {
-				s.stopChatSync()
-				s.UserLogin.Log.Debug().Msg("Sending BadCredentials BridgeState")
-				s.sendLoggedOutState(err)
-			} else {
-				s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
-				s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "signal-connection-failed", Info: map[string]any{"go_error": err.Error()}})
-			}
+			s.UserLogin.Log.Debug().Msg("Sending UnknownError BridgeState")
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateUnknownError, Error: "signal-connection-failed", Info: map[string]any{"go_error": err.Error()}})
 
 		case signalmeow.SignalConnectionCleanShutdown:
 			if s.Client.IsLoggedIn() {
@@ -254,12 +248,13 @@ func (s *SignalClient) ConnectBackground(ctx context.Context, _ *bridgev2.Connec
 			case web.SignalWebsocketConnectionEventLoggedOut:
 				log.Err(status.Err).Msg("Authed websocket logged out")
 				s.sendLoggedOutState(status.Err)
+				err = s.Client.ClearKeysAndDisconnect(ctx)
+				if err != nil {
+					log.Err(err).Msg("Failed to clear keys and disconnect")
+				}
 				return fmt.Errorf("authed websocket logged out: %w", status.Err)
 			case web.SignalWebsocketConnectionEventError, web.SignalWebsocketConnectionEventFatalError:
 				log.Err(status.Err).Msg("Authed websocket error")
-				if isUnauthorized(status.Err) {
-					s.sendLoggedOutState(status.Err)
-				}
 				return fmt.Errorf("authed websocket errored: %w", status.Err)
 			case web.SignalWebsocketConnectionEventCleanShutdown:
 				log.Info().Msg("Authed websocket clean shutdown")

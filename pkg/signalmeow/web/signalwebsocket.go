@@ -256,6 +256,7 @@ func (s *SignalWebsocket) connectLoop(
 	retrying := false
 	errorCount := 0
 	isFirstConnect := true
+	var connectedAt time.Time
 	wsURL := (&url.URL{
 		Scheme: "wss",
 		Host:   APIHostname,
@@ -273,7 +274,7 @@ func (s *SignalWebsocket) connectLoop(
 			case <-ctx.Done():
 			}
 			backoff += backoffIncrement
-		} else if !isFirstConnect && s.basicAuth != nil {
+		} else if !isFirstConnect && (s.basicAuth != nil || time.Since(connectedAt) < time.Minute) {
 			select {
 			case <-time.After(initialBackoff):
 			case <-ctx.Done():
@@ -293,17 +294,13 @@ func (s *SignalWebsocket) connectLoop(
 				if resp.StatusCode >= 500 || resp.StatusCode == http.StatusTooManyRequests {
 					// We can try again if it's a 5xx or a rate limit
 					s.pushStatus(ctx, SignalWebsocketConnectionEventDisconnected, fmt.Errorf("error opening websocket: %w", statusErr))
-				} else if resp.StatusCode == 403 {
+				} else if resp.StatusCode == http.StatusForbidden || (resp.StatusCode == http.StatusUnauthorized && s.basicAuth != nil) {
 					// We are logged out, so we should stop trying to reconnect
-					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("403 opening websocket, we are logged out"))
-					return // NOT RETRYING, KILLING THE CONNECTION LOOP
-				} else if resp.StatusCode > 0 && resp.StatusCode < 500 {
-					// Unexpected status code
-					s.pushStatus(ctx, SignalWebsocketConnectionEventFatalError, fmt.Errorf("unexpected status opening websocket: %w", statusErr))
+					s.pushStatus(ctx, SignalWebsocketConnectionEventLoggedOut, fmt.Errorf("%w opening websocket, we are logged out", statusErr))
 					return // NOT RETRYING, KILLING THE CONNECTION LOOP
 				} else {
-					// Something is very wrong
-					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected error opening websocket: %w", statusErr))
+					// Unexpected status code
+					s.pushStatus(ctx, SignalWebsocketConnectionEventError, fmt.Errorf("unexpected status opening websocket: %w", statusErr))
 				}
 				// Retry the connection
 				retrying = true
@@ -326,7 +323,7 @@ func (s *SignalWebsocket) connectLoop(
 		s.ws.Store(ws)
 		retrying = false
 		backoff = initialBackoff
-		connectedAt := time.Now()
+		connectedAt = time.Now()
 
 		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
