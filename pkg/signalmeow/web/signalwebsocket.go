@@ -493,9 +493,9 @@ func readLoop(
 			logEvt := log.Debug().
 				Uint64("response_id", msg.Response.GetId()).
 				Uint32("response_status", msg.Response.GetStatus()).
-				Str("response_message", msg.Response.GetMessage())
-			if log.GetLevel() == zerolog.TraceLevel || len(msg.Response.Body) < 256 {
-				logEvt.Strs("response_headers", msg.Response.Headers)
+				Str("response_message", msg.Response.GetMessage()).
+				Strs("response_headers", msg.Response.Headers)
+			if log.GetLevel() == zerolog.TraceLevel || msg.Response.GetStatus() >= 400 {
 				if json.Valid(msg.Response.Body) {
 					logEvt.RawJSON("response_body", msg.Response.Body)
 				} else {
