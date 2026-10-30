@@ -325,7 +325,7 @@ func (s *SignalWebsocket) connectLoop(
 		backoff = initialBackoff
 		connectedAt = time.Now()
 
-		responseChannels := exsync.NewMap[uint64, chan *signalpb.WebSocketResponseMessage]()
+		pendingRequests := exsync.NewMap[uint64, SignalWebsocketSendMessage]()
 		loopCtx, loopCancel := context.WithCancelCause(ctx)
 		s.cancelConn.Store(&loopCancel)
 		var wg sync.WaitGroup
@@ -334,7 +334,7 @@ func (s *SignalWebsocket) connectLoop(
 		// Read loop (for reading incoming reqeusts and responses to outgoing requests)
 		go func() {
 			defer wg.Done()
-			err := readLoop(loopCtx, ws, incomingRequestChan, responseChannels)
+			err := readLoop(loopCtx, ws, incomingRequestChan, pendingRequests)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in readLoop: %w", err)
@@ -350,7 +350,7 @@ func (s *SignalWebsocket) connectLoop(
 		// Write loop (for sending outgoing requests and responses to incoming requests)
 		go func() {
 			defer wg.Done()
-			err := writeLoop(loopCtx, ws, s.sendChannel, responseChannels)
+			err := writeLoop(loopCtx, ws, s.sendChannel, pendingRequests)
 			// Don't want to put an err into loopCancel if we don't have one
 			if err != nil {
 				err = fmt.Errorf("error in writeLoop: %w", err)
@@ -418,8 +418,8 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Clean up
 		ws.Close(websocket.StatusGoingAway, "Going away")
-		for _, responseChannel := range responseChannels.SwapData(nil) {
-			close(responseChannel)
+		for _, request := range pendingRequests.SwapData(nil) {
+			close(request.ResponseChannel)
 		}
 		loopCancel(nil)
 		wg.Wait()
@@ -439,7 +439,7 @@ func readLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	incomingRequestChan chan *signalpb.WebSocketRequestMessage,
-	responseChannels *exsync.Map[uint64, chan *signalpb.WebSocketResponseMessage],
+	pendingRequests *exsync.Map[uint64, SignalWebsocketSendMessage],
 ) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_read_loop").
@@ -483,7 +483,7 @@ func readLoop(
 			if msg.Response.Id == nil {
 				return errors.New("received response message with no id")
 			}
-			responseChannel, ok := responseChannels.Pop(*msg.Response.Id)
+			request, ok := pendingRequests.Pop(*msg.Response.Id)
 			if !ok {
 				log.Warn().
 					Uint64("response_id", *msg.Response.Id).
@@ -494,7 +494,8 @@ func readLoop(
 				Uint64("response_id", msg.Response.GetId()).
 				Uint32("response_status", msg.Response.GetStatus()).
 				Str("response_message", msg.Response.GetMessage())
-			if log.GetLevel() == zerolog.TraceLevel || len(msg.Response.Body) < 256 {
+			isCredentials := strings.HasSuffix(request.RequestMessage.GetPath(), "/auth")
+			if log.GetLevel() == zerolog.TraceLevel || (len(msg.Response.Body) < 256 && !isCredentials) {
 				logEvt.Strs("response_headers", msg.Response.Headers)
 				if json.Valid(msg.Response.Body) {
 					logEvt.RawJSON("response_body", msg.Response.Body)
@@ -503,8 +504,8 @@ func readLoop(
 				}
 			}
 			logEvt.Msg("Received WS response")
-			responseChannel <- msg.Response
-			close(responseChannel)
+			request.ResponseChannel <- msg.Response
+			close(request.ResponseChannel)
 		} else if *msg.Type == signalpb.WebSocketMessage_UNKNOWN {
 			return fmt.Errorf("received message with unknown type: %v", *msg.Type)
 		} else {
@@ -527,7 +528,7 @@ func writeLoop(
 	ctx context.Context,
 	ws *websocket.Conn,
 	sendChannel chan SignalWebsocketSendMessage,
-	responseChannels *exsync.Map[uint64, chan *signalpb.WebSocketResponseMessage],
+	pendingRequests *exsync.Map[uint64, SignalWebsocketSendMessage],
 ) error {
 	log := zerolog.Ctx(ctx).With().
 		Str("loop", "signal_websocket_write_loop").
@@ -550,7 +551,7 @@ func writeLoop(
 					Request: request.RequestMessage,
 				}
 				request.RequestMessage.Id = &i
-				responseChannels.Set(i, request.ResponseChannel)
+				pendingRequests.Set(i, request)
 				if !request.RequestTime.IsZero() {
 					elapsed := time.Since(request.RequestTime)
 					if elapsed > 1*time.Minute {
