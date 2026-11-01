@@ -651,7 +651,7 @@ func (cli *Client) handleDecryptedResult(
 			})
 		}
 	case *signalpb.Content_CallMessage:
-		if !isBlocked && (content.CallMessage.Offer != nil || content.CallMessage.Hangup != nil) {
+		if !isBlocked && (content.CallMessage.Offer != nil || (content.CallMessage.Hangup != nil && content.CallMessage.Hangup.GetType() != signalpb.CallMessage_Hangup_HANGUP_ACCEPTED)) {
 			handlerSuccess = cli.handleEvent(&events.Call{
 				Info: events.MessageInfo{
 					Sender:          theirServiceID.UUID,
