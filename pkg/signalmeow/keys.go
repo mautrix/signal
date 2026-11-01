@@ -64,6 +64,13 @@ func (cli *Client) RegisterAllPreKeys(ctx context.Context, pks store.PreKeyStore
 		return fmt.Errorf("failed to get all kyber prekeys: %w", err)
 	}
 
+	if len(preKeys) > PREKEY_BATCH_SIZE {
+		preKeys = preKeys[len(preKeys)-PREKEY_BATCH_SIZE:]
+	}
+	if len(kyberPreKeys) > PREKEY_BATCH_SIZE {
+		kyberPreKeys = kyberPreKeys[len(kyberPreKeys)-PREKEY_BATCH_SIZE:]
+	}
+
 	// We need to have some keys to upload
 	if len(preKeys) == 0 && len(kyberPreKeys) == 0 {
 		return fmt.Errorf("no prekeys to upload")
