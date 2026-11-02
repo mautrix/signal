@@ -112,6 +112,8 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		PowerLevels: &bridgev2.PowerLevelOverrides{
 			Events: map[event.Type]int{
 				event.StatePowerLevels: moderatorPL,
+				event.EventReaction:    defaultPL,
+				event.EventRedaction:   defaultPL,
 			},
 		},
 		ExcludeChangesFromTimeline: true,
