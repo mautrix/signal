@@ -277,7 +277,7 @@ func (cli *Client) UploadAttachment(ctx context.Context, body []byte) (*signalpb
 	}
 
 	// Get upload attributes from Signal server
-	attributesPath := "/v4/attachments/form/upload"
+	attributesPath := fmt.Sprintf("/v4/attachments/form/upload?uploadLength=%d", len(encryptedWithMAC))
 	resp, err := cli.AuthedWS.SendRequest(ctx, http.MethodGet, attributesPath, nil, nil)
 	if err != nil {
 		log.Err(err).Msg("Failed to request upload attributes")
