@@ -233,13 +233,16 @@ func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal)
 	if !ok || dataMsg.GroupV2 == nil {
 		return
 	}
-	portalRev := portal.Metadata.(*signalid.PortalMetadata).Revision
+	portalMeta := portal.Metadata.(*signalid.PortalMetadata)
+	portalRev := portalMeta.Revision
 	if evt.Info.GroupRevision > portalRev {
 		toRevision := evt.Info.GroupRevision
 		if dataMsg.GetGroupV2().GetGroupChange() != nil {
 			toRevision--
 		}
 		evt.s.catchUpGroup(ctx, portal, portalRev, toRevision, dataMsg.GetTimestamp())
+	} else if portalMeta.InfoVersion < currentPortalInfoVersion && portal.MXID != "" {
+		evt.s.catchUpGroup(ctx, portal, 0, portalRev, dataMsg.GetTimestamp())
 	}
 }
 
