@@ -143,6 +143,8 @@ func (n *noopStore) IsTrustedIdentity(ctx context.Context, theirServiceID libsig
 	return true, n.Error
 }
 
+func (n *noopStore) SetIdentityChangeCallback(callback func(libsignalgo.ServiceID)) {}
+
 func (n *noopStore) GetIdentityKeyPair(ctx context.Context) (*libsignalgo.IdentityKeyPair, error) {
 	return nil, n.Error
 }

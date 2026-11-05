@@ -21,6 +21,8 @@ import (
 	"database/sql"
 	"errors"
 	"time"
+
+	"go.mau.fi/util/dbutil"
 )
 
 type BufferedEvent struct {
@@ -34,6 +36,7 @@ type EventBuffer interface {
 	PutBufferedEvent(ctx context.Context, ciphertextHash [32]byte, plaintext []byte, serverTimestamp uint64) error
 	ClearBufferedEventPlaintext(ctx context.Context, ciphertextHash [32]byte) error
 	DeleteBufferedEventsOlderThan(ctx context.Context, maxTS time.Time) error
+	DoDecryptionTxn(ctx context.Context, fn func(context.Context) error) error
 }
 
 var _ EventBuffer = (*sqlStore)(nil)
@@ -51,6 +54,11 @@ const (
 	clearBufferedEventPlaintextQuery = `UPDATE signalmeow_event_buffer SET plaintext=NULL WHERE account_id=$1 AND ciphertext_hash=$2`
 	deleteOldBufferedEventsQuery     = `DELETE FROM signalmeow_event_buffer WHERE account_id=$1 AND insert_timestamp<$2 AND plaintext IS NULL`
 )
+
+func (s *sqlStore) DoDecryptionTxn(ctx context.Context, fn func(context.Context) error) error {
+	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 2)
+	return s.db.DoTxn(ctx, nil, fn)
+}
 
 func (s *sqlStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*BufferedEvent, error) {
 	var evt BufferedEvent
