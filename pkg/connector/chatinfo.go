@@ -445,11 +445,15 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 	}
 	resp := make([]*bridgev2.ResolveIdentifierResponse, len(recipients))
 	for i, recipient := range recipients {
-		recipientResp := &bridgev2.ResolveIdentifierResponse{
-			Chat: s.makeCreateDMResponse(ctx, recipient, nil),
+		if err = ctx.Err(); err != nil {
+			return nil, err
 		}
+		recipientResp := &bridgev2.ResolveIdentifierResponse{}
 		var username string
 		if recipient.ACI != uuid.Nil {
+			recipientResp.Chat = &bridgev2.CreateChatResponse{
+				PortalKey: s.makeDMPortalKey(libsignalgo.NewACIServiceID(recipient.ACI)),
+			}
 			recipientResp.UserID = signalid.MakeUserID(recipient.ACI)
 			ghost, err := s.Main.Bridge.GetGhostByID(ctx, recipientResp.UserID)
 			if err != nil {
@@ -458,7 +462,11 @@ func (s *SignalClient) GetContactList(ctx context.Context) ([]*bridgev2.ResolveI
 			recipientResp.Ghost = ghost
 			username = ghost.Metadata.(*signalid.GhostMetadata).Username
 		} else {
-			recipientResp.UserID = signalid.MakeUserIDFromServiceID(libsignalgo.NewPNIServiceID(recipient.PNI))
+			pniServiceID := libsignalgo.NewPNIServiceID(recipient.PNI)
+			recipientResp.Chat = &bridgev2.CreateChatResponse{
+				PortalKey: s.makeDMPortalKey(pniServiceID),
+			}
+			recipientResp.UserID = signalid.MakeUserIDFromServiceID(pniServiceID)
 		}
 		recipientResp.UserInfo, err = s.contactToUserInfo(ctx, recipient, username, false)
 		if err != nil {
