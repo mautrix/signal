@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"go.mau.fi/util/dbutil"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/protobuf/signalpb"
@@ -95,9 +94,6 @@ type Device struct {
 	DeviceStore    DeviceStore
 	BackupStore    BackupStore
 	EventBuffer    EventBuffer
-
-	sqlStore *sqlStore
-	db       *dbutil.Database
 }
 
 type contextKey int64
@@ -105,23 +101,6 @@ type contextKey int64
 const (
 	contextKeyContactLock contextKey = 1
 )
-
-func (d *Device) DoContactTxn(ctx context.Context, fn func(context.Context) error) error {
-	d.sqlStore.contactLock.Lock()
-	defer d.sqlStore.contactLock.Unlock()
-	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 1)
-	ctx = context.WithValue(ctx, contextKeyContactLock, true)
-	return d.db.DoTxn(ctx, nil, fn)
-}
-
-func (d *Device) DoDecryptionTxn(ctx context.Context, fn func(context.Context) error) error {
-	ctx = context.WithValue(ctx, dbutil.ContextKeyDoTxnCallerSkip, 2)
-	return d.db.DoTxn(ctx, nil, fn)
-}
-
-func (d *Device) SetIdentityChangeCallback(callback func(libsignalgo.ServiceID)) {
-	d.sqlStore.identityChangeCallback = callback
-}
 
 func (d *Device) ClearDeviceKeys(ctx context.Context) error {
 	// We need to clear out keys associated with the Signal device that no longer has valid credentials
