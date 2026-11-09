@@ -319,6 +319,11 @@ func (s *SignalWebsocket) connectLoop(
 		}
 
 		// Succssfully connected
+		if resp != nil {
+			if alerts := resp.Header.Values("X-Signal-Alert"); len(alerts) > 0 {
+				log.Warn().Strs("alerts", alerts).Msg("Signal server sent alerts when opening websocket")
+			}
+		}
 		s.pushStatus(ctx, SignalWebsocketConnectionEventConnected, nil)
 		s.ws.Store(ws)
 		retrying = false
