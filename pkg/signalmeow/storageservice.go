@@ -101,8 +101,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					recipient.Profile.Name = strings.TrimSpace(fmt.Sprintf("%s %s", contact.GivenName, contact.FamilyName))
 				}
 				if contact.SystemGivenName != "" || contact.SystemFamilyName != "" {
-					changed = true
-					recipient.ContactName = strings.TrimSpace(fmt.Sprintf("%s %s", contact.SystemGivenName, contact.SystemFamilyName))
+					newContactName := strings.TrimSpace(fmt.Sprintf("%s %s", contact.SystemGivenName, contact.SystemFamilyName))
+					changed = changed || recipient.ContactName != newContactName
+					recipient.ContactName = newContactName
 				}
 				newNickname := ""
 				if contact.Nickname != nil {
@@ -120,7 +121,7 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					changed = true
 					recipient.Blocked = contact.Blocked
 				}
-				if !ptr.Val(recipient.Whitelisted) {
+				if !ptr.Val(recipient.Whitelisted) && (recipient.Whitelisted == nil || contact.Whitelisted) {
 					changed = true
 					recipient.Whitelisted = &contact.Whitelisted
 				}
