@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -60,6 +61,8 @@ type SignalWebsocket struct {
 	closeCalled   atomic.Bool
 	cancel        atomic.Pointer[context.CancelFunc]
 	cancelConn    atomic.Pointer[context.CancelCauseFunc]
+
+	primaryDeviceIdle atomic.Bool
 }
 
 func NewSignalWebsocket(basicAuth *url.Userinfo) *SignalWebsocket {
@@ -106,6 +109,10 @@ type SignalWebsocketConnectionStatus struct {
 
 func (s *SignalWebsocket) IsConnected() bool {
 	return s.ws.Load() != nil
+}
+
+func (s *SignalWebsocket) PrimaryDeviceIdle() bool {
+	return s != nil && s.primaryDeviceIdle.Load()
 }
 
 func (s *SignalWebsocket) Close() (err error) {
@@ -320,9 +327,11 @@ func (s *SignalWebsocket) connectLoop(
 
 		// Succssfully connected
 		if resp != nil {
-			if alerts := resp.Header.Values("X-Signal-Alert"); len(alerts) > 0 {
+			alerts := resp.Header.Values("X-Signal-Alert")
+			if len(alerts) > 0 {
 				log.Warn().Strs("alerts", alerts).Msg("Signal server sent alerts when opening websocket")
 			}
+			s.primaryDeviceIdle.Store(slices.Contains(alerts, "idle-primary-device"))
 		}
 		s.pushStatus(ctx, SignalWebsocketConnectionEventConnected, nil)
 		s.ws.Store(ws)
