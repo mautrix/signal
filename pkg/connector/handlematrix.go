@@ -313,6 +313,8 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 		dm.Delete = &signalpb.DataMessage_Delete{
 			TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
 		}
+	} else if msg.OrigSender != nil {
+		return errDeleteOthersMessage
 	} else if isAdmin, err := s.isGroupAdmin(ctx, msg.Portal); err != nil {
 		return err
 	} else if !isAdmin {
