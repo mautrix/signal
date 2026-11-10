@@ -25,3 +25,6 @@ note_to_self_avatar: mxc://maunium.net/REBIVrqjZwmaWpssCZpBlmlL
 location_format: 'https://www.google.com/maps/place/%[1]s,%[2]s'
 # Should polls be sent using unstable MSC3381 event types?
 extev_polls: false
+# Should Signal stories be bridged into a per-login "Signal Stories" room?
+# Stories are removed from the room 24 hours after they were posted.
+enable_stories: false

@@ -37,6 +37,7 @@ import (
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
+	"go.mau.fi/mautrix-signal/pkg/msgconv"
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow"
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/events"
@@ -47,6 +48,7 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
+		s.redirectStoryDelete(evt)
 		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
 		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
 			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
@@ -74,6 +76,8 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		s.queueEmptyWaiter.Set()
 	case *events.LoggedOut:
 		s.sendLoggedOutState(evt.Error)
+	case *events.Story:
+		return s.handleSignalStory(evt)
 	case *events.IdentityChange:
 		// TODO send notice
 	default:
@@ -161,6 +165,69 @@ func convertDecryptionError(_ context.Context, _ *bridgev2.Portal, _ bridgev2.Ma
 	}, nil
 }
 
+func (s *SignalClient) handleSignalStory(evt *events.Story) bool {
+	ts := time.UnixMilli(int64(evt.Timestamp))
+	if !s.Main.Config.EnableStories || time.Since(ts) > msgconv.StoryLifetime {
+		return true
+	}
+	if evt.Deleted {
+		return s.UserLogin.QueueRemoteEvent(&simplevent.MessageRemove{
+			EventMeta: simplevent.EventMeta{
+				Type:      bridgev2.RemoteEventMessageRemove,
+				PortalKey: s.makeStoriesPortalKey(),
+				Sender:    s.makeEventSender(evt.Info.Sender),
+				Timestamp: ts,
+			},
+			TargetMessage: signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp),
+		}).Success
+	}
+	return s.UserLogin.QueueRemoteEvent(&simplevent.Message[*events.Story]{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventMessage,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.Stringer("sender_id", evt.Info.Sender).Uint64("story_ts", evt.Timestamp)
+			},
+			PortalKey:    s.makeStoriesPortalKey(),
+			CreatePortal: true,
+			Sender:       s.makeEventSender(evt.Info.Sender),
+			Timestamp:    ts,
+			StreamOrder:  int64(evt.Timestamp),
+		},
+		Data:               evt,
+		ID:                 signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp),
+		ConvertMessageFunc: s.convertStory,
+	}).Success
+}
+
+func (s *SignalClient) redirectStoryDelete(evt *events.ChatEvent) {
+	dm, ok := evt.Event.(*signalpb.DataMessage)
+	if !ok || dm.Delete == nil || !s.Main.Config.EnableStories {
+		return
+	}
+	ctx := s.UserLogin.Log.WithContext(s.Main.Bridge.BackgroundCtx)
+	msg, err := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, signalid.MakeMessageID(evt.Info.Sender, dm.Delete.GetTargetSentTimestamp()))
+	if err != nil {
+		zerolog.Ctx(ctx).Err(err).Msg("Failed to check if delete target is a story")
+	} else if msg != nil && msg.Room.ID == storiesPortalID {
+		evt.Info.ChatID = string(storiesPortalID)
+	}
+}
+
+func (s *SignalClient) convertStory(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, evt *events.Story) (*bridgev2.ConvertedMessage, error) {
+	var caption string
+	if evt.Info.ChatID != "" {
+		groupName := "a group"
+		groupPortal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, s.makePortalKey(evt.Info.ChatID))
+		if err != nil {
+			return nil, err
+		} else if groupPortal != nil && groupPortal.Name != "" {
+			groupName = groupPortal.Name
+		}
+		caption = "Story in " + groupName
+	}
+	return s.Main.MsgConv.StoryToMatrix(ctx, s.Client, portal, evt.Info.Sender, intent, evt.Story, evt.Timestamp, caption), nil
+}
+
 type Bv2ChatEvent struct {
 	*events.ChatEvent
 	s *SignalClient
@@ -187,6 +254,11 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 			innerEvt.Payment != nil, innerEvt.GiftBadge != nil, innerEvt.PollCreate != nil, innerEvt.PollVote != nil,
 			innerEvt.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT),
 			innerEvt.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
+			return bridgev2.RemoteEventMessage
+		case innerEvt.Reaction != nil && innerEvt.StoryContext != nil:
+			if innerEvt.Reaction.GetRemove() {
+				return bridgev2.RemoteEventUnknown
+			}
 			return bridgev2.RemoteEventMessage
 		case innerEvt.Reaction != nil:
 			if innerEvt.Reaction.GetRemove() {
@@ -230,7 +302,7 @@ func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context, portal *bridgev2
 
 func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal) {
 	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
-	if !ok || dataMsg.GroupV2 == nil {
+	if !ok || dataMsg.GroupV2 == nil || portal.ID == storiesPortalID {
 		return
 	}
 	portalMeta := portal.Metadata.(*signalid.PortalMetadata)

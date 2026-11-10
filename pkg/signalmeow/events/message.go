@@ -41,6 +41,7 @@ func (*MessageRequestResponse) isSignalEvent() {}
 func (*QueueEmpty) isSignalEvent()             {}
 func (*LoggedOut) isSignalEvent()              {}
 func (*IdentityChange) isSignalEvent()         {}
+func (*Story) isSignalEvent()                  {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -55,6 +56,13 @@ type MessageInfo struct {
 type ChatEvent struct {
 	Info  MessageInfo
 	Event signalpb.ChatEventContent
+}
+
+type Story struct {
+	Info      MessageInfo
+	Timestamp uint64
+	Story     *signalpb.StoryMessage
+	Deleted   bool
 }
 
 type DecryptionError struct {

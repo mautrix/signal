@@ -64,6 +64,12 @@ var (
 			WithStatus(event.MessageStatusFail).
 			WithIsCertain(true).
 			WithSendNotice(true)
+	errStoriesReadOnly = bridgev2.WrapErrorInStatus(errors.New("can't send to Signal stories")).
+				WithErrorAsMessage().
+				WithErrorReason(event.MessageStatusUnsupported).
+				WithStatus(event.MessageStatusFail).
+				WithIsCertain(true).
+				WithSendNotice(true)
 	errUnsupportedDisappearingType = bridgev2.WrapErrorInStatus(errors.New("only disappearing timers that start after reading are supported on Signal")).
 					WithErrorAsMessage().
 					WithErrorReason(event.MessageStatusUnsupported).

@@ -669,7 +669,7 @@ func (cli *Client) handleDecryptedResult(
 	case *signalpb.Content_NullMessage:
 		// This is intentionally ignored
 	case *signalpb.Content_StoryMessage:
-		// This is also ignored for now
+		handlerSuccess = cli.incomingStoryMessage(ctx, content.StoryMessage, theirServiceID.UUID, envelope.GetClientTimestamp(), envelope.GetServerTimestamp(), isBlocked)
 	default:
 		if rawContent.PniSignatureMessage == nil && rawContent.SenderKeyDistributionMessage == nil {
 			log.Warn().Type("content_type", content).Msg("Unrecognized message content type")
@@ -734,6 +734,17 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		}
 	case *signalpb.SyncMessage_Sent_:
 		syncSent := content.Sent
+		if syncSent.GetIsRecipientUpdate() {
+			if isStoryDeletion(syncSent.GetStoryMessageRecipients()) {
+				handlerSuccess = cli.handleEvent(&events.Story{
+					Info:      events.MessageInfo{Sender: cli.Store.ACI, ServerTimestamp: envelope.GetServerTimestamp()},
+					Timestamp: syncSent.GetTimestamp(),
+					Deleted:   true,
+				})
+			}
+		} else if syncSent.GetStoryMessage() != nil {
+			handlerSuccess = cli.incomingStoryMessage(ctx, syncSent.GetStoryMessage(), cli.Store.ACI, syncSent.GetTimestamp(), envelope.GetServerTimestamp(), false)
+		}
 		if syncSent.GetMessage() != nil || syncSent.GetEditMessage() != nil {
 			syncDestinationServiceID, err := ParseStringOrBinaryServiceID(syncSent.GetDestinationServiceId(), syncSent.GetDestinationServiceIdBinary())
 			if err != nil && !errors.Is(err, ErrEmptyUUIDInput) {
@@ -1059,6 +1070,58 @@ func (cli *Client) incomingDataMessage(
 			Event: dataMessage,
 		}), true
 	}
+}
+
+func isStoryDeletion(recipients []*signalpb.SyncMessage_Sent_StoryMessageRecipient) bool {
+	if len(recipients) == 0 {
+		return false
+	}
+	for _, recipient := range recipients {
+		if len(recipient.GetDistributionListIds()) > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (cli *Client) incomingStoryMessage(
+	ctx context.Context,
+	story *signalpb.StoryMessage,
+	senderACI uuid.UUID,
+	timestamp, serverTimestamp uint64,
+	isBlocked bool,
+) bool {
+	if isBlocked {
+		return true
+	}
+	if len(story.ProfileKey) == libsignalgo.ProfileKeyLength && senderACI != cli.Store.ACI {
+		err := cli.Store.RecipientStore.StoreProfileKey(ctx, senderACI, libsignalgo.ProfileKey(story.ProfileKey))
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to store profile key from story")
+		}
+	}
+	var groupID types.GroupIdentifier
+	if story.GetGroup() != nil {
+		if len(story.GetGroup().GetMasterKey()) != libsignalgo.GroupMasterKeyLength {
+			zerolog.Ctx(ctx).Warn().Msg("Unexpected group master key length in story")
+			return true
+		}
+		var err error
+		groupID, err = cli.StoreMasterKey(ctx, masterKeyFromBytes(libsignalgo.GroupMasterKey(story.GetGroup().GetMasterKey())))
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to store group master key from story")
+			return false
+		}
+	}
+	return cli.handleEvent(&events.Story{
+		Info: events.MessageInfo{
+			Sender:          senderACI,
+			ChatID:          string(groupID),
+			ServerTimestamp: serverTimestamp,
+		},
+		Timestamp: timestamp,
+		Story:     story,
+	})
 }
 
 func (cli *Client) sendDeliveryReceipts(ctx context.Context, deliveredTimestamps []uint64, senderUUID uuid.UUID) error {

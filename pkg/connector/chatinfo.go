@@ -83,6 +83,9 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
+	if portal.ID == storiesPortalID {
+		return s.wrapStoriesInfo(), nil
+	}
 	userID, groupID, err := signalid.ParsePortalID(portal.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse portal id: %w", err)
@@ -96,6 +99,24 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 			return nil, err
 		}
 		return s.makeCreateDMResponse(ctx, contact, nil).PortalInfo, nil
+	}
+}
+
+func (s *SignalClient) wrapStoriesInfo() *bridgev2.ChatInfo {
+	return &bridgev2.ChatInfo{
+		Name:  ptr.Ptr("Signal Stories"),
+		Topic: ptr.Ptr("Stories from your Signal contacts"),
+		Type:  ptr.Ptr(database.RoomTypeDefault),
+		Members: &bridgev2.ChatMemberList{
+			MemberMap: map[networkid.UserID]bridgev2.ChatMember{
+				signalid.MakeUserID(s.Client.Store.ACI): {EventSender: s.makeEventSender(s.Client.Store.ACI)},
+			},
+		},
+		UserLocal: &bridgev2.UserLocalPortalInfo{
+			MutedUntil: ptr.Ptr(event.MutedForever),
+			Tag:        ptr.Ptr(event.RoomTagLowPriority),
+		},
+		CanBackfill: false,
 	}
 }
 

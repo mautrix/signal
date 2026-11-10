@@ -98,7 +98,7 @@ func PerformProvisioning(ctx context.Context, deviceStore store.DeviceStore, dev
 			Scheme: "wss",
 			Host:   web.APIHostname,
 			Path:   web.WebsocketProvisioningPath,
-		}).String())
+		}).String(), nil)
 		if err != nil {
 			log.Err(err).Any("resp", resp).Msg("Failed to open websocket for provisioning")
 			c <- ProvisioningResponse{State: StateProvisioningError, Err: err}
@@ -424,7 +424,7 @@ func confirmDevice(
 		Scheme: "wss",
 		Host:   web.APIHostname,
 		Path:   web.WebsocketPath,
-	}).String())
+	}).String(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open websocket: %w", err)
 	}
