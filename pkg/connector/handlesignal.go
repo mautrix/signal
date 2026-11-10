@@ -162,10 +162,9 @@ func convertDecryptionError(_ context.Context, _ *bridgev2.Portal, _ bridgev2.Ma
 }
 
 func (s *SignalClient) handleSignalIdentityChange(evt *events.IdentityChange) {
-	if evt.ServiceID.Type != libsignalgo.ServiceIDTypeACI || evt.ServiceID.UUID == s.Client.Store.ACI {
+	if !s.Main.Config.IdentityChangeNotices || evt.ServiceID.Type != libsignalgo.ServiceIDTypeACI || evt.ServiceID.UUID == s.Client.Store.ACI {
 		return
 	}
-	ts := time.Now()
 	s.UserLogin.QueueRemoteEvent(&simplevent.Message[*events.IdentityChange]{
 		EventMeta: simplevent.EventMeta{
 			Type: bridgev2.RemoteEventMessage,
@@ -174,10 +173,9 @@ func (s *SignalClient) handleSignalIdentityChange(evt *events.IdentityChange) {
 			},
 			PortalKey: s.makeDMPortalKey(evt.ServiceID),
 			Sender:    s.makeEventSender(evt.ServiceID.UUID),
-			Timestamp: ts,
 		},
 		Data:               evt,
-		ID:                 networkid.MessageID(fmt.Sprintf("idchange|%s|%d", evt.ServiceID.UUID, ts.UnixMilli())),
+		ID:                 "idchange|" + signalid.MakeMessageID(evt.ServiceID.UUID, uint64(time.Now().UnixMilli())),
 		ConvertMessageFunc: convertIdentityChange,
 	})
 }
