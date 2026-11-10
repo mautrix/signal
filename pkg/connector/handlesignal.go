@@ -182,7 +182,6 @@ func (s *SignalClient) handleSignalStory(evt *events.Story) bool {
 		}).Success
 	}
 	storyID := signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp)
-	s.recentMessageRooms.Push(storyID, s.makeStoriesPortalKey())
 	return s.UserLogin.QueueRemoteEvent(&simplevent.Message[*events.Story]{
 		EventMeta: simplevent.EventMeta{
 			Type: bridgev2.RemoteEventMessage,
@@ -207,16 +206,22 @@ func (s *SignalClient) redirectStoryDelete(evt *events.ChatEvent) {
 		return
 	}
 	targetID := signalid.MakeMessageID(evt.Info.Sender, dm.Delete.GetTargetSentTimestamp())
-	if portalKey, ok := s.recentMessageRooms.Get(targetID); ok && portalKey.ID == storiesPortalID {
-		evt.Info.ChatID = string(storiesPortalID)
-		return
-	}
 	ctx := s.UserLogin.Log.WithContext(s.Main.Bridge.BackgroundCtx)
 	msg, err := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, targetID)
 	if err != nil {
 		zerolog.Ctx(ctx).Err(err).Msg("Failed to check if delete target is a story")
 	} else if msg != nil && msg.Room.ID == storiesPortalID {
 		evt.Info.ChatID = string(storiesPortalID)
+	} else if msg == nil {
+		s.UserLogin.QueueRemoteEvent(&simplevent.MessageRemove{
+			EventMeta: simplevent.EventMeta{
+				Type:      bridgev2.RemoteEventMessageRemove,
+				PortalKey: s.makeStoriesPortalKey(),
+				Sender:    s.makeEventSender(evt.Info.Sender),
+				Timestamp: time.UnixMilli(int64(dm.GetTimestamp())),
+			},
+			TargetMessage: targetID,
+		})
 	}
 }
 
