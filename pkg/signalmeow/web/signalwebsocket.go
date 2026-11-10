@@ -331,7 +331,11 @@ func (s *SignalWebsocket) connectLoop(
 			if len(alerts) > 0 {
 				log.Warn().Strs("alerts", alerts).Msg("Signal server sent alerts when opening websocket")
 			}
-			s.primaryDeviceIdle.Store(slices.Contains(alerts, "idle-primary-device"))
+			s.primaryDeviceIdle.Store(slices.ContainsFunc(alerts, func(value string) bool {
+				return slices.ContainsFunc(strings.Split(value, ","), func(part string) bool {
+					return strings.TrimSpace(part) == "idle-primary-device"
+				})
+			}))
 		}
 		s.pushStatus(ctx, SignalWebsocketConnectionEventConnected, nil)
 		s.ws.Store(ws)
