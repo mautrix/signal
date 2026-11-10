@@ -698,6 +698,24 @@ func (s *SignalClient) addressableMessageToID(ctx context.Context, portalKey net
 	}
 }
 
+func (s *SignalClient) hasLiveMessages(ctx context.Context, portalKey networkid.PortalKey) (bool, error) {
+	portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, portalKey)
+	if err != nil || portal == nil {
+		return false, err
+	}
+	messages, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portalKey, 10)
+	if err != nil {
+		return false, err
+	}
+	for _, msg := range messages {
+		if strings.HasPrefix(string(msg.ID), "decrypterr|") {
+			continue
+		}
+		return portal.Disappear.Timer == 0 || time.Since(msg.Timestamp) < portal.Disappear.Timer, nil
+	}
+	return false, nil
+}
+
 func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 	log := s.UserLogin.Log.With().
 		Str("action", "handle signal delete for me").
@@ -731,15 +749,12 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 		if !ok {
 			continue
 		}
-		lastMessage, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portalKey, 1)
+		hasMessages, err := s.hasLiveMessages(ctx, portalKey)
 		if err != nil {
 			log.Err(err).Object("portal_key", portalKey).Msg("Failed to check for messages before local-only chat delete")
 			return false
-		} else if len(lastMessage) > 0 {
-			log.Debug().
-				Object("portal_key", portalKey).
-				Str("last_message_id", string(lastMessage[0].ID)).
-				Msg("Not deleting chat with messages for local-only delete")
+		} else if hasMessages {
+			log.Debug().Object("portal_key", portalKey).Msg("Not deleting chat with messages for local-only delete")
 			continue
 		}
 
