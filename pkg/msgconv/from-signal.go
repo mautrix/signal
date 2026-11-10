@@ -153,6 +153,27 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Parts = append(cm.Parts, mc.convertPollTerminateToMatrix(ctx, sender, dm.PollTerminate))
 		return cm
 	}
+	if dm.PinMessage != nil || dm.UnpinMessage != nil {
+		body := "Pinned a message"
+		targetAuthor, targetTS := dm.PinMessage.GetTargetAuthorAciBinary(), dm.PinMessage.GetTargetSentTimestamp()
+		if dm.PinMessage == nil {
+			body = "Unpinned a message"
+			targetAuthor, targetTS = dm.UnpinMessage.GetTargetAuthorAciBinary(), dm.UnpinMessage.GetTargetSentTimestamp()
+		}
+		if len(targetAuthor) == 16 {
+			cm.ReplyTo = &networkid.MessageOptionalPartID{
+				MessageID: signalid.MakeMessageID(uuid.UUID(targetAuthor), targetTS),
+			}
+		}
+		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    body,
+			},
+		})
+		return cm
+	}
 	if dm.GetIsViewOnce() {
 		if !mc.Bridge.Config.ViewLimitedMedia && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > 5*time.Minute) {
 			cm.Disappear = database.DisappearingSetting{
