@@ -170,7 +170,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 				return fmt.Errorf("failed to save device after receiving account record: %w", err)
 			}
 			log.Debug().Msg("Saved device after receiving account record")
-		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
+		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList, *signalpb.StorageRecord_StickerPack,
+			*signalpb.StorageRecord_CallLink, *signalpb.StorageRecord_ChatFolder, *signalpb.StorageRecord_NotificationProfile,
+			*signalpb.StorageRecord_FavoriteSticker:
 			// irrelevant data
 		default:
 			log.Warn().Type("type", data).Str("item_id", record.StorageID).Msg("Unknown storage record type")
