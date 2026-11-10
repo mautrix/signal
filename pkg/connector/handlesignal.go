@@ -126,6 +126,8 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 	}, nil
 }
 
+const decryptionErrorIDPrefix = "decrypterr|"
+
 func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2.RemoteMessage {
 	return &simplevent.Message[*events.DecryptionError]{
 		EventMeta: simplevent.EventMeta{
@@ -143,7 +145,7 @@ func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2
 		},
 		Data: evt,
 		// TODO use main message id and edit it if it later becomes decryptable?
-		ID: "decrypterr|" + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
+		ID: decryptionErrorIDPrefix + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
 
 		ConvertMessageFunc: convertDecryptionError,
 	}
@@ -708,7 +710,7 @@ func (s *SignalClient) hasLiveMessages(ctx context.Context, portalKey networkid.
 		return false, err
 	}
 	for _, msg := range messages {
-		if strings.HasPrefix(string(msg.ID), "decrypterr|") {
+		if strings.HasPrefix(string(msg.ID), decryptionErrorIDPrefix) {
 			continue
 		}
 		return portal.Disappear.Timer == 0 || time.Since(msg.Timestamp) < portal.Disappear.Timer, nil
