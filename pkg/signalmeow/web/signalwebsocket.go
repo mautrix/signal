@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -116,6 +117,9 @@ func (s *SignalWebsocket) Close() (err error) {
 	s.closeCalled.Store(true)
 	if ws := s.ws.Swap(nil); ws != nil {
 		err = ws.Close(websocket.StatusNormalClosure, "")
+		if errors.Is(err, net.ErrClosed) {
+			err = nil
+		}
 	}
 	if cancelLoop := s.cancel.Swap(nil); cancelLoop != nil {
 		(*cancelLoop)()
