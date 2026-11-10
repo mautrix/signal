@@ -123,11 +123,10 @@ func (cli *Client) connectAuthedWS(ctx context.Context, requestHandler web.Reque
 		Str("username", username).
 		Logger()
 	ctx = log.WithContext(ctx)
-	var header http.Header
+	authedWS := web.NewSignalWebsocket(url.UserPassword(username, password))
 	if cli.ReceiveStories {
-		header = http.Header{"X-Signal-Receive-Stories": {"true"}}
+		authedWS.Header = http.Header{"X-Signal-Receive-Stories": {"true"}}
 	}
-	authedWS := web.NewSignalWebsocket(url.UserPassword(username, password), header)
 	statusChan := authedWS.Connect(ctx, requestHandler)
 	cli.AuthedWS = authedWS
 	return statusChan, nil
@@ -142,7 +141,7 @@ func (cli *Client) connectUnauthedWS(ctx context.Context) (chan web.SignalWebsoc
 		Str("websocket_type", "unauthed").
 		Logger()
 	ctx = log.WithContext(ctx)
-	unauthedWS := web.NewSignalWebsocket(nil, nil)
+	unauthedWS := web.NewSignalWebsocket(nil)
 	statusChan := unauthedWS.Connect(ctx, nil)
 	cli.UnauthedWS = unauthedWS
 	return statusChan, nil

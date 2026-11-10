@@ -48,7 +48,6 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
-		s.redirectStoryDelete(evt)
 		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
 		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
 			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
@@ -200,31 +199,6 @@ func (s *SignalClient) handleSignalStory(evt *events.Story) bool {
 	}).Success
 }
 
-func (s *SignalClient) redirectStoryDelete(evt *events.ChatEvent) {
-	dm, ok := evt.Event.(*signalpb.DataMessage)
-	if !ok || dm.Delete == nil || !s.Main.Config.EnableStories {
-		return
-	}
-	targetID := signalid.MakeMessageID(evt.Info.Sender, dm.Delete.GetTargetSentTimestamp())
-	ctx := s.UserLogin.Log.WithContext(s.Main.Bridge.BackgroundCtx)
-	msg, err := s.Main.Bridge.DB.Message.GetFirstPartByID(ctx, s.UserLogin.ID, targetID)
-	if err != nil {
-		zerolog.Ctx(ctx).Err(err).Msg("Failed to check if delete target is a story")
-	} else if msg != nil && msg.Room.ID == storiesPortalID {
-		evt.Info.ChatID = string(storiesPortalID)
-	} else if msg == nil {
-		s.UserLogin.QueueRemoteEvent(&simplevent.MessageRemove{
-			EventMeta: simplevent.EventMeta{
-				Type:      bridgev2.RemoteEventMessageRemove,
-				PortalKey: s.makeStoriesPortalKey(),
-				Sender:    s.makeEventSender(evt.Info.Sender),
-				Timestamp: time.UnixMilli(int64(dm.GetTimestamp())),
-			},
-			TargetMessage: targetID,
-		})
-	}
-}
-
 func (s *SignalClient) convertStory(ctx context.Context, portal *bridgev2.Portal, intent bridgev2.MatrixAPI, evt *events.Story) (*bridgev2.ConvertedMessage, error) {
 	var caption string
 	if evt.Info.ChatID != "" {
@@ -314,7 +288,7 @@ func (evt *Bv2ChatEvent) GetChatInfoChange(ctx context.Context, portal *bridgev2
 
 func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal) {
 	dataMsg, ok := evt.Event.(*signalpb.DataMessage)
-	if !ok || dataMsg.GroupV2 == nil || portal.ID == storiesPortalID {
+	if !ok || dataMsg.GroupV2 == nil {
 		return
 	}
 	portalMeta := portal.Metadata.(*signalid.PortalMetadata)

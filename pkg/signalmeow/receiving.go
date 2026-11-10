@@ -615,10 +615,18 @@ func (cli *Client) handleDecryptedResult(
 		}
 		return nil
 	case *signalpb.Content_DataMessage:
-		handlerSuccess, sendDeliveryReceipt = cli.incomingDataMessage(
-			ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked, envelope,
-		)
-		deliveryReceiptTS = content.DataMessage.GetTimestamp()
+		if envelope.GetStory() && content.DataMessage.GetDelete() != nil {
+			handlerSuccess = cli.handleEvent(&events.Story{
+				Info:      events.MessageInfo{Sender: theirServiceID.UUID, ServerTimestamp: envelope.GetServerTimestamp()},
+				Timestamp: content.DataMessage.GetDelete().GetTargetSentTimestamp(),
+				Deleted:   true,
+			})
+		} else {
+			handlerSuccess, sendDeliveryReceipt = cli.incomingDataMessage(
+				ctx, content.DataMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked, envelope,
+			)
+			deliveryReceiptTS = content.DataMessage.GetTimestamp()
+		}
 	case *signalpb.Content_EditMessage:
 		handlerSuccess, sendDeliveryReceipt = cli.incomingEditMessage(
 			ctx, content.EditMessage, theirServiceID.UUID, theirServiceID, envelope.GetServerTimestamp(), isBlocked,

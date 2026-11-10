@@ -103,6 +103,13 @@ func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal)
 }
 
 func (s *SignalClient) wrapStoriesInfo() *bridgev2.ChatInfo {
+	userLocal := &bridgev2.UserLocalPortalInfo{}
+	if s.Main.Config.MuteStories {
+		userLocal.MutedUntil = ptr.Ptr(event.MutedForever)
+	}
+	if s.Main.Config.StoriesTag != "" {
+		userLocal.Tag = ptr.Ptr(s.Main.Config.StoriesTag)
+	}
 	return &bridgev2.ChatInfo{
 		Name:  ptr.Ptr("Signal Stories"),
 		Topic: ptr.Ptr("Stories from your Signal contacts"),
@@ -112,10 +119,7 @@ func (s *SignalClient) wrapStoriesInfo() *bridgev2.ChatInfo {
 				signalid.MakeUserID(s.Client.Store.ACI): {EventSender: s.makeEventSender(s.Client.Store.ACI)},
 			},
 		},
-		UserLocal: &bridgev2.UserLocalPortalInfo{
-			MutedUntil: ptr.Ptr(event.MutedForever),
-			Tag:        ptr.Ptr(event.RoomTagLowPriority),
-		},
+		UserLocal:   userLocal,
 		CanBackfill: false,
 	}
 }

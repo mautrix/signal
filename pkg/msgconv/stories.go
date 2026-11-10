@@ -96,32 +96,17 @@ func (mc *MessageConverter) convertStoryContextToMatrix(
 	if storyAuthor == client.Store.ACI {
 		whose = "your story"
 	}
-	canReply := mc.canReplyToStory(ctx, portal, storyID)
 	dm = proto.Clone(dm).(*signalpb.DataMessage)
 	dm.StoryContext = nil
 	if dm.Reaction != nil {
 		dm.Body = proto.String(fmt.Sprintf("Reacted %s to %s", dm.GetReaction().GetEmoji(), whose))
 		dm.Reaction = nil
-	} else if !canReply {
+	} else if !mc.Bridge.Config.CrossRoomReplies {
 		prefixBody(dm, "Replied to "+whose)
 	}
 	cm := mc.ToMatrix(ctx, client, portal, sender, intent, dm, attMap)
-	if canReply {
-		cm.ReplyTo = &networkid.MessageOptionalPartID{MessageID: storyID}
-	}
+	cm.ReplyTo = &networkid.MessageOptionalPartID{MessageID: storyID}
 	return cm
-}
-
-func (mc *MessageConverter) canReplyToStory(ctx context.Context, portal *bridgev2.Portal, storyID networkid.MessageID) bool {
-	if !mc.Bridge.Config.CrossRoomReplies {
-		return false
-	}
-	story, err := mc.Bridge.DB.Message.GetFirstPartByID(ctx, portal.Receiver, storyID)
-	if err != nil {
-		zerolog.Ctx(ctx).Err(err).Msg("Failed to get story message for reply")
-		return false
-	}
-	return story != nil
 }
 
 func prefixBody(dm *signalpb.DataMessage, prefix string) {
