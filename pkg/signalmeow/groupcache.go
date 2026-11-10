@@ -304,6 +304,9 @@ func (gc *GroupCache) ApplyUpdate(change *GroupChange, endorsementResponse libsi
 	if change.ModifyAnnouncementsOnly != nil {
 		cached.AnnouncementsOnly = *change.ModifyAnnouncementsOnly
 	}
+	if change.TerminateGroup {
+		cached.Terminated = true
+	}
 	if change.ModifyDisappearingMessagesDuration != nil {
 		cached.DisappearingMessagesDuration = *change.ModifyDisappearingMessagesDuration
 	}

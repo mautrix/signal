@@ -28,6 +28,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
+	"maunium.net/go/mautrix/bridgev2/simplevent"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -39,6 +40,7 @@ import (
 
 var defaultPL = 0
 var moderatorPL = 50
+var terminatedPL = 100
 
 func roleToPL(role signalmeow.GroupMemberRole) *int {
 	switch role {
@@ -68,6 +70,21 @@ func applyAttributesAccess(plc *bridgev2.PowerLevelOverrides, attributeAccess si
 	plc.Events[event.StateRoomAvatar] = attributePL
 	plc.Events[event.StateTopic] = attributePL
 	plc.Events[event.StateBeeperDisappearingTimer] = attributePL
+}
+
+func applyTerminated(plc *bridgev2.PowerLevelOverrides) {
+	plc.EventsDefault = &terminatedPL
+	plc.StateDefault = &terminatedPL
+	plc.Invite = &terminatedPL
+	plc.Kick = &terminatedPL
+	plc.Ban = &terminatedPL
+	plc.Redact = &terminatedPL
+	for _, evtType := range []event.Type{
+		event.EventReaction, event.EventRedaction, event.StatePowerLevels, event.StateRoomName,
+		event.StateRoomAvatar, event.StateTopic, event.StateBeeperDisappearingTimer,
+	} {
+		plc.Events[evtType] = terminatedPL
+	}
 }
 
 func applyMembersAccess(plc *bridgev2.PowerLevelOverrides, memberAccess signalmeow.AccessControl) {
@@ -124,6 +141,9 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		applyAttributesAccess(members.PowerLevels, groupInfo.AccessControl.Attributes)
 		applyMembersAccess(members.PowerLevels, groupInfo.AccessControl.Members)
 		joinRule = inviteLinkToJoinRule(groupInfo.AccessControl.AddFromInviteLink)
+	}
+	if groupInfo.Terminated {
+		applyTerminated(members.PowerLevels)
 	}
 	for _, member := range groupInfo.RequestingMembers {
 		members.MemberMap.Set(bridgev2.ChatMember{
@@ -265,7 +285,8 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 	var pls *bridgev2.PowerLevelOverrides
 	if groupChange.ModifyAnnouncementsOnly != nil ||
 		groupChange.ModifyAttributesAccess != nil ||
-		groupChange.ModifyMemberAccess != nil {
+		groupChange.ModifyMemberAccess != nil ||
+		groupChange.TerminateGroup {
 		pls = &bridgev2.PowerLevelOverrides{Events: make(map[event.Type]int)}
 		if groupChange.ModifyAnnouncementsOnly != nil {
 			applyAnnouncementsOnly(pls, *groupChange.ModifyAnnouncementsOnly)
@@ -275,6 +296,10 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 		}
 		if groupChange.ModifyMemberAccess != nil {
 			applyMembersAccess(pls, *groupChange.ModifyMemberAccess)
+		}
+		if groupChange.TerminateGroup {
+			applyTerminated(pls)
+			s.queueGroupEndedNotice(groupID, rev, groupChange.SourceServiceID)
 		}
 	}
 	if groupChange.ModifyAddFromInviteLinkAccess != nil {
@@ -374,6 +399,42 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 		ic.MemberChanges = &bridgev2.ChatMemberList{MemberMap: mc, PowerLevels: pls}
 	}
 	return ic, nil
+}
+
+func (s *SignalClient) queueGroupEndedNotice(groupID types.GroupIdentifier, rev uint32, sender libsignalgo.ServiceID) {
+	s.UserLogin.QueueRemoteEvent(&simplevent.Message[libsignalgo.ServiceID]{
+		EventMeta: simplevent.EventMeta{
+			Type:      bridgev2.RemoteEventMessage,
+			PortalKey: s.makePortalKey(string(groupID)),
+			Timestamp: time.Now(),
+		},
+		Data:               sender,
+		ID:                 networkid.MessageID(fmt.Sprintf("groupended|%s|%d", groupID, rev)),
+		ConvertMessageFunc: s.convertGroupEndedNotice,
+	})
+}
+
+func (s *SignalClient) convertGroupEndedNotice(ctx context.Context, portal *bridgev2.Portal, _ bridgev2.MatrixAPI, sender libsignalgo.ServiceID) (*bridgev2.ConvertedMessage, error) {
+	body := "The group was ended"
+	if sender.Type == libsignalgo.ServiceIDTypeACI && sender.UUID == s.Client.Store.ACI {
+		body = "You ended the group"
+	} else if sender.Type == libsignalgo.ServiceIDTypeACI {
+		ghost, err := portal.Bridge.GetGhostByID(ctx, signalid.MakeUserID(sender.UUID))
+		if err != nil {
+			return nil, err
+		} else if ghost.Name != "" {
+			body = fmt.Sprintf("%s ended the group", ghost.Name)
+		}
+	}
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    body,
+			},
+		}},
+	}, nil
 }
 
 func (s *SignalClient) addChatMemberWithACIQuery(
