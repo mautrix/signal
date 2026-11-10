@@ -731,6 +731,17 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 		if !ok {
 			continue
 		}
+		lastMessage, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portalKey, 1)
+		if err != nil {
+			log.Err(err).Object("portal_key", portalKey).Msg("Failed to check for messages before local-only chat delete")
+			return false
+		} else if len(lastMessage) > 0 {
+			log.Debug().
+				Object("portal_key", portalKey).
+				Str("last_message_id", string(lastMessage[0].ID)).
+				Msg("Not deleting chat with messages for local-only delete")
+			continue
+		}
 
 		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
 			EventMeta: simplevent.EventMeta{
