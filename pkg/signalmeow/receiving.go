@@ -378,6 +378,19 @@ func (cli *Client) incomingAPIMessageHandler(ctx context.Context, req *signalpb.
 		Str("envelope_type", signalpb.Envelope_Type_name[int32(envelope.GetType())]).
 		Msg("Received envelope")
 
+	if envelope.GetType() == signalpb.Envelope_SERVER_DELIVERY_RECEIPT {
+		if sourceServiceID.Type == libsignalgo.ServiceIDTypeACI && sourceServiceID.UUID != uuid.Nil && !cli.handleEvent(&events.Receipt{
+			Sender: sourceServiceID.UUID,
+			Content: &signalpb.ReceiptMessage{
+				Type:      signalpb.ReceiptMessage_DELIVERY.Enum(),
+				Timestamp: []uint64{envelope.GetClientTimestamp()},
+			},
+		}) {
+			return nil, ErrHandlerFailed
+		}
+		return &web.SimpleResponse{Status: 200}, nil
+	}
+
 	result := cli.decryptEnvelope(ctx, envelope, sourceServiceID, destinationServiceID)
 
 	err = cli.handleDecryptedResult(ctx, result, envelope, destinationServiceID)
