@@ -223,6 +223,7 @@ func (evt *Bv2ChatEvent) GetType() bridgev2.RemoteEventType {
 		switch {
 		case innerEvt.GetIsViewOnce(), innerEvt.Body != nil, innerEvt.Attachments != nil, innerEvt.Contact != nil, innerEvt.Sticker != nil,
 			innerEvt.Payment != nil, innerEvt.GiftBadge != nil, innerEvt.PollCreate != nil, innerEvt.PollVote != nil,
+			innerEvt.PinMessage != nil, innerEvt.UnpinMessage != nil,
 			innerEvt.GetRequiredProtocolVersion() > uint32(signalpb.DataMessage_CURRENT),
 			innerEvt.GetFlags()&uint32(signalpb.DataMessage_EXPIRATION_TIMER_UPDATE) != 0:
 			return bridgev2.RemoteEventMessage
