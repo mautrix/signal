@@ -1,9 +1,3 @@
-	if dm.PinMessage != nil || dm.UnpinMessage != nil {
-		var part *bridgev2.ConvertedMessagePart
-		part, cm.ReplyTo = mc.convertPinToMatrix(dm)
-		cm.Parts = append(cm.Parts, part)
-		return cm
-	}
 // mautrix-signal - A Matrix-Signal puppeting bridge.
 // Copyright (C) 2024 Tulir Asokan
 //
@@ -160,24 +154,9 @@ func (mc *MessageConverter) ToMatrix(
 		return cm
 	}
 	if dm.PinMessage != nil || dm.UnpinMessage != nil {
-		body := "Pinned a message"
-		targetAuthor, targetTS := dm.PinMessage.GetTargetAuthorAciBinary(), dm.PinMessage.GetTargetSentTimestamp()
-		if dm.PinMessage == nil {
-			body = "Unpinned a message"
-			targetAuthor, targetTS = dm.UnpinMessage.GetTargetAuthorAciBinary(), dm.UnpinMessage.GetTargetSentTimestamp()
-		}
-		if len(targetAuthor) == 16 {
-			cm.ReplyTo = &networkid.MessageOptionalPartID{
-				MessageID: signalid.MakeMessageID(uuid.UUID(targetAuthor), targetTS),
-			}
-		}
-		cm.Parts = append(cm.Parts, &bridgev2.ConvertedMessagePart{
-			Type: event.EventMessage,
-			Content: &event.MessageEventContent{
-				MsgType: event.MsgNotice,
-				Body:    body,
-			},
-		})
+		var part *bridgev2.ConvertedMessagePart
+		part, cm.ReplyTo = mc.convertPinToMatrix(dm)
+		cm.Parts = append(cm.Parts, part)
 		return cm
 	}
 	if dm.GetIsViewOnce() {
