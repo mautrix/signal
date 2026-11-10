@@ -1806,7 +1806,6 @@ func (cli *Client) GetGroupHistoryPage(ctx context.Context, gid types.GroupIdent
 			"Cached-Send-Endorsements": "0",
 		},
 	}
-	// highest known epoch seems to always be 5, but that may change in the future. includeLastState is always false
 	path := fmt.Sprintf("/v2/groups/logs/%d?maxSupportedChangeEpoch=%d&includeFirstState=%t&includeLastState=false", fromRevision, 7, includeFirstState)
 	response, err := web.SendHTTPRequest(ctx, web.StorageHostname, http.MethodGet, path, opts)
 	defer web.CloseBody(response)
