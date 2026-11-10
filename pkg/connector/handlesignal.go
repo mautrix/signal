@@ -75,7 +75,7 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	case *events.LoggedOut:
 		s.sendLoggedOutState(evt.Error)
 	case *events.IdentityChange:
-		// TODO send notice
+		s.handleSignalIdentityChange(evt)
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}
@@ -156,6 +156,46 @@ func convertDecryptionError(_ context.Context, _ *bridgev2.Portal, _ bridgev2.Ma
 			Content: &event.MessageEventContent{
 				MsgType: event.MsgNotice,
 				Body:    "Message couldn't be decrypted. It may have been in this chat or a group chat. Please check your Signal app.",
+			},
+		}},
+	}, nil
+}
+
+func (s *SignalClient) handleSignalIdentityChange(evt *events.IdentityChange) {
+	if evt.ServiceID.Type != libsignalgo.ServiceIDTypeACI || evt.ServiceID.UUID == s.Client.Store.ACI {
+		return
+	}
+	ts := time.Now()
+	s.UserLogin.QueueRemoteEvent(&simplevent.Message[*events.IdentityChange]{
+		EventMeta: simplevent.EventMeta{
+			Type: bridgev2.RemoteEventMessage,
+			LogContext: func(c zerolog.Context) zerolog.Context {
+				return c.Stringer("sender_id", evt.ServiceID)
+			},
+			PortalKey: s.makeDMPortalKey(evt.ServiceID),
+			Sender:    s.makeEventSender(evt.ServiceID.UUID),
+			Timestamp: ts,
+		},
+		Data:               evt,
+		ID:                 networkid.MessageID(fmt.Sprintf("idchange|%s|%d", evt.ServiceID.UUID, ts.UnixMilli())),
+		ConvertMessageFunc: convertIdentityChange,
+	})
+}
+
+func convertIdentityChange(ctx context.Context, portal *bridgev2.Portal, _ bridgev2.MatrixAPI, evt *events.IdentityChange) (*bridgev2.ConvertedMessage, error) {
+	name := evt.ServiceID.UUID.String()
+	ghost, err := portal.Bridge.GetGhostByID(ctx, signalid.MakeUserID(evt.ServiceID.UUID))
+	if err != nil {
+		return nil, err
+	} else if ghost.Name != "" {
+		name = ghost.Name
+	}
+	return &bridgev2.ConvertedMessage{
+		Parts: []*bridgev2.ConvertedMessagePart{{
+			Type: event.EventMessage,
+			Content: &event.MessageEventContent{
+				MsgType: event.MsgNotice,
+				Body:    fmt.Sprintf("Your safety number with %s has changed.", name),
 			},
 		}},
 	}, nil
