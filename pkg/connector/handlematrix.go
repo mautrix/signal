@@ -302,20 +302,48 @@ func (s *SignalClient) HandleMatrixReactionRemove(ctx context.Context, msg *brid
 }
 
 func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridgev2.MatrixMessageRemove) error {
-	_, targetSentTimestamp, err := signalid.ParseMessageID(msg.TargetMessage.ID)
+	targetAuthorACI, targetSentTimestamp, err := signalid.ParseMessageID(msg.TargetMessage.ID)
 	if err != nil {
 		return fmt.Errorf("failed to parse target message ID: %w", err)
-	} else if msg.TargetMessage.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
-		return errDeleteOthersMessage
 	}
-	ts := getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)
-	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(&signalpb.DataMessage{
-		Timestamp: proto.Uint64(ts),
-		Delete: &signalpb.DataMessage_Delete{
+	dm := &signalpb.DataMessage{
+		Timestamp: proto.Uint64(getTimestampForEvent(msg.InputTransactionID, msg.Event, msg.OrigSender)),
+	}
+	if msg.TargetMessage.SenderID == signalid.MakeUserID(s.Client.Store.ACI) {
+		dm.Delete = &signalpb.DataMessage_Delete{
 			TargetSentTimestamp: proto.Uint64(targetSentTimestamp),
-		},
-	}))
+		}
+	} else if isAdmin, err := s.isGroupAdmin(ctx, msg.Portal); err != nil {
+		return err
+	} else if !isAdmin {
+		return errDeleteOthersMessage
+	} else {
+		dm.AdminDelete = &signalpb.DataMessage_AdminDelete{
+			TargetAuthorAciBinary: targetAuthorACI[:],
+			TargetSentTimestamp:   proto.Uint64(targetSentTimestamp),
+		}
+	}
+	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(dm))
 	return wrapSendError(err)
+}
+
+func (s *SignalClient) isGroupAdmin(ctx context.Context, portal *bridgev2.Portal) (bool, error) {
+	_, groupID, err := signalid.ParsePortalID(portal.ID)
+	if err != nil {
+		return false, err
+	} else if groupID == "" {
+		return false, nil
+	}
+	group, _, err := s.Client.RetrieveGroupByID(ctx, groupID, portal.Metadata.(*signalid.PortalMetadata).Revision)
+	if err != nil {
+		return false, fmt.Errorf("failed to get group info: %w", err)
+	}
+	for _, member := range group.Members {
+		if member.ACI == s.Client.Store.ACI {
+			return member.Role == signalmeow.GroupMember_ADMINISTRATOR, nil
+		}
+	}
+	return false, nil
 }
 
 func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bridgev2.MatrixReadReceipt) error {
