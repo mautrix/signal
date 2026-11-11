@@ -43,6 +43,7 @@ type SignalConfig struct {
 	NoteToSelfAvatar      id.ContentURIString `yaml:"note_to_self_avatar"`
 	LocationFormat        string              `yaml:"location_format"`
 	ExtEvPolls            bool                `yaml:"extev_polls"`
+	IdentityChangeNotices bool                `yaml:"identity_change_notices"`
 	EnableStories         bool                `yaml:"enable_stories"`
 	MuteStories           bool                `yaml:"mute_stories"`
 	StoriesTag            event.RoomTag       `yaml:"stories_tag"`
@@ -110,6 +111,7 @@ func upgradeConfig(helper up.Helper) {
 	helper.Copy(up.Str, "note_to_self_avatar")
 	helper.Copy(up.Str, "location_format")
 	helper.Copy(up.Bool, "extev_polls")
+	helper.Copy(up.Bool, "identity_change_notices")
 	helper.Copy(up.Bool, "enable_stories")
 	helper.Copy(up.Bool, "mute_stories")
 	helper.Copy(up.Str|up.Null, "stories_tag")

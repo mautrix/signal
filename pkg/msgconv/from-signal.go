@@ -156,6 +156,12 @@ func (mc *MessageConverter) ToMatrix(
 		cm.Parts = append(cm.Parts, mc.convertPollTerminateToMatrix(ctx, sender, dm.PollTerminate))
 		return cm
 	}
+	if dm.PinMessage != nil || dm.UnpinMessage != nil {
+		var part *bridgev2.ConvertedMessagePart
+		part, cm.ReplyTo = mc.convertPinToMatrix(dm)
+		cm.Parts = append(cm.Parts, part)
+		return cm
+	}
 	if dm.GetIsViewOnce() {
 		if !mc.Bridge.Config.ViewLimitedMedia && (cm.Disappear.Timer == 0 || cm.Disappear.Timer > 5*time.Minute) {
 			cm.Disappear = database.DisappearingSetting{
@@ -842,6 +848,28 @@ func (mc *MessageConverter) convertPollTerminateToMatrix(ctx context.Context, se
 			"org.matrix.msc3381.poll.end": map[string]any{},
 		},
 	}
+}
+
+func (mc *MessageConverter) convertPinToMatrix(dm *signalpb.DataMessage) (*bridgev2.ConvertedMessagePart, *networkid.MessageOptionalPartID) {
+	body := "Pinned a message"
+	targetAuthor, targetTS := dm.GetPinMessage().GetTargetAuthorAciBinary(), dm.GetPinMessage().GetTargetSentTimestamp()
+	if dm.PinMessage == nil {
+		body = "Unpinned a message"
+		targetAuthor, targetTS = dm.GetUnpinMessage().GetTargetAuthorAciBinary(), dm.GetUnpinMessage().GetTargetSentTimestamp()
+	}
+	var replyTo *networkid.MessageOptionalPartID
+	if len(targetAuthor) == 16 {
+		replyTo = &networkid.MessageOptionalPartID{
+			MessageID: signalid.MakeMessageID(uuid.UUID(targetAuthor), targetTS),
+		}
+	}
+	return &bridgev2.ConvertedMessagePart{
+		Type: event.EventMessage,
+		Content: &event.MessageEventContent{
+			MsgType: event.MsgNotice,
+			Body:    body,
+		},
+	}, replyTo
 }
 
 var invalidPollVote = &bridgev2.ConvertedMessagePart{
