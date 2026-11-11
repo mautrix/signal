@@ -922,7 +922,7 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 			Stringer("aci", sender.UUID).
 			Stringer("pni", pni).
 			Msg("Fetching PNI identity for signature verification as it wasn't found in store")
-		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 0)
+		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 1)
 		if err != nil {
 			return fmt.Errorf("failed to fetch prekey for PNI %s after identity wasn't found in store: %w", pni, err)
 		} else if pniIdentity, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, pniServiceID); err != nil {
