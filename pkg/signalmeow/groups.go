@@ -501,6 +501,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	decryptedGroup.AvatarPath = encryptedGroup.AvatarUrl
 	decryptedGroup.Revision = encryptedGroup.Version
 	decryptedGroup.Terminated = encryptedGroup.Terminated
+	decryptedGroup.AnnouncementsOnly = encryptedGroup.AnnouncementsOnly
 
 	// Decrypt members
 	for _, member := range encryptedGroup.Members {
