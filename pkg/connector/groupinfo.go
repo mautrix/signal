@@ -39,6 +39,7 @@ import (
 
 var defaultPL = 0
 var moderatorPL = 50
+var terminatedPL = 100
 
 func roleToPL(role signalmeow.GroupMemberRole) *int {
 	switch role {
@@ -68,6 +69,21 @@ func applyAttributesAccess(plc *bridgev2.PowerLevelOverrides, attributeAccess si
 	plc.Events[event.StateRoomAvatar] = attributePL
 	plc.Events[event.StateTopic] = attributePL
 	plc.Events[event.StateBeeperDisappearingTimer] = attributePL
+}
+
+func applyTerminated(plc *bridgev2.PowerLevelOverrides) {
+	plc.EventsDefault = &terminatedPL
+	plc.StateDefault = &terminatedPL
+	plc.Invite = &terminatedPL
+	plc.Kick = &terminatedPL
+	plc.Ban = &terminatedPL
+	plc.Redact = &terminatedPL
+	for _, evtType := range []event.Type{
+		event.EventReaction, event.EventRedaction, event.StatePowerLevels, event.StateRoomName,
+		event.StateRoomAvatar, event.StateTopic, event.StateBeeperDisappearingTimer,
+	} {
+		plc.Events[evtType] = terminatedPL
+	}
 }
 
 func applyMembersAccess(plc *bridgev2.PowerLevelOverrides, memberAccess signalmeow.AccessControl) {
@@ -124,6 +140,9 @@ func (s *SignalClient) wrapGroupInfo(ctx context.Context, groupInfo *signalmeow.
 		applyAttributesAccess(members.PowerLevels, groupInfo.AccessControl.Attributes)
 		applyMembersAccess(members.PowerLevels, groupInfo.AccessControl.Members)
 		joinRule = inviteLinkToJoinRule(groupInfo.AccessControl.AddFromInviteLink)
+	}
+	if groupInfo.Terminated {
+		applyTerminated(members.PowerLevels)
 	}
 	for _, member := range groupInfo.RequestingMembers {
 		members.MemberMap.Set(bridgev2.ChatMember{
@@ -265,7 +284,8 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 	var pls *bridgev2.PowerLevelOverrides
 	if groupChange.ModifyAnnouncementsOnly != nil ||
 		groupChange.ModifyAttributesAccess != nil ||
-		groupChange.ModifyMemberAccess != nil {
+		groupChange.ModifyMemberAccess != nil ||
+		groupChange.TerminateGroup {
 		pls = &bridgev2.PowerLevelOverrides{Events: make(map[event.Type]int)}
 		if groupChange.ModifyAnnouncementsOnly != nil {
 			applyAnnouncementsOnly(pls, *groupChange.ModifyAnnouncementsOnly)
@@ -275,6 +295,9 @@ func (s *SignalClient) groupChangeToChatInfoChange(ctx context.Context, groupID 
 		}
 		if groupChange.ModifyMemberAccess != nil {
 			applyMembersAccess(pls, *groupChange.ModifyMemberAccess)
+		}
+		if groupChange.TerminateGroup {
+			applyTerminated(pls)
 		}
 	}
 	if groupChange.ModifyAddFromInviteLinkAccess != nil {
