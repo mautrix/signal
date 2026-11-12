@@ -850,6 +850,9 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		if err != nil {
 			log.Err(err).Msg("Failed to parse conversation ID in call event sync message")
 			break
+		} else if peer.IsEmpty() || (peer.Type != libsignalgo.ServiceIDTypeACI && peer.Type != libsignalgo.ServiceIDTypePNI) {
+			log.Warn().Hex("conversation_id", callEvent.GetConversationId()).Msg("Invalid conversation ID in call event sync message")
+			break
 		}
 		handlerSuccess = cli.handleEvent(&events.Call{
 			Info: events.MessageInfo{
