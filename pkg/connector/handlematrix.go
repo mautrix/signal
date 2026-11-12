@@ -324,7 +324,49 @@ func (s *SignalClient) HandleMatrixMessageRemove(ctx context.Context, msg *bridg
 		}
 	}
 	err = s.sendMessage(ctx, msg.Portal.ID, signalmeow.WrapDataMessage(dm))
-	return wrapSendError(err)
+	if err != nil {
+		return wrapSendError(err)
+	}
+	s.redactRemainingParts(ctx, msg)
+	return nil
+}
+
+func (s *SignalClient) redactRemainingParts(ctx context.Context, msg *bridgev2.MatrixMessageRemove) {
+	log := zerolog.Ctx(ctx)
+	parts, err := s.Main.Bridge.DB.Message.GetAllPartsByID(ctx, msg.Portal.Receiver, msg.TargetMessage.ID)
+	if err != nil {
+		log.Err(err).Msg("Failed to get other parts of deleted message")
+		return
+	} else if len(parts) <= 1 {
+		return
+	}
+	intent, ok := msg.Portal.GetIntentFor(ctx, bridgev2.EventSender{
+		IsFromMe:    true,
+		SenderLogin: s.UserLogin.ID,
+		Sender:      signalid.MakeUserID(s.Client.Store.ACI),
+	}, s.UserLogin, bridgev2.RemoteEventMessageRemove)
+	if !ok {
+		log.Warn().Msg("Failed to get intent for redacting other parts of deleted message")
+		return
+	}
+	for _, part := range parts {
+		if part.RowID == msg.TargetMessage.RowID {
+			continue
+		}
+		if !part.HasFakeMXID() {
+			_, err = intent.SendMessage(ctx, msg.Portal.MXID, event.EventRedaction, &event.Content{
+				Parsed: &event.RedactionEventContent{Redacts: part.MXID},
+			}, &bridgev2.MatrixSendExtra{MessageMeta: part})
+			if err != nil {
+				log.Err(err).Stringer("part_mxid", part.MXID).Msg("Failed to redact other part of deleted message")
+				continue
+			}
+		}
+		err = s.Main.Bridge.DB.Message.Delete(ctx, part.RowID)
+		if err != nil {
+			log.Err(err).Stringer("part_mxid", part.MXID).Msg("Failed to delete other part of deleted message from database")
+		}
+	}
 }
 
 func (s *SignalClient) isGroupAdmin(ctx context.Context, portal *bridgev2.Portal) (bool, error) {
