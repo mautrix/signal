@@ -60,6 +60,7 @@ func applyAnnouncementsOnly(plc *bridgev2.PowerLevelOverrides, announcementsOnly
 	}
 	plc.Events[event.EventReaction] = defaultPL
 	plc.Events[event.EventRedaction] = defaultPL
+	plc.Events[event.EventUnstablePollResponse] = defaultPL
 }
 
 func applyAttributesAccess(plc *bridgev2.PowerLevelOverrides, attributeAccess signalmeow.AccessControl) {
@@ -81,7 +82,7 @@ func applyTerminated(plc *bridgev2.PowerLevelOverrides) {
 	plc.Ban = &terminatedPL
 	plc.Redact = &terminatedPL
 	for _, evtType := range []event.Type{
-		event.EventReaction, event.EventRedaction, event.StatePowerLevels, event.StateRoomName,
+		event.EventReaction, event.EventRedaction, event.EventUnstablePollResponse, event.StatePowerLevels, event.StateRoomName,
 		event.StateRoomAvatar, event.StateTopic, event.StateBeeperDisappearingTimer,
 	} {
 		plc.Events[evtType] = terminatedPL
@@ -203,7 +204,7 @@ func addMemberToMap(mc map[networkid.UserID]bridgev2.ChatMember, member bridgev2
 	mc[member.EventSender.Sender] = member
 }
 
-const currentPortalInfoVersion = 2
+const currentPortalInfoVersion = 3
 
 func updatePortalSyncMeta(ctx context.Context, portal *bridgev2.Portal) bool {
 	meta := portal.Metadata.(*signalid.PortalMetadata)
