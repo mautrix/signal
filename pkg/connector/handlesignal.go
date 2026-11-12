@@ -107,7 +107,19 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 	content := &event.MessageEventContent{
 		MsgType: event.MsgNotice,
 	}
-	if data.IsRinging {
+	if data.Outgoing {
+		content.MsgType = event.MsgText
+		content.Body = "Started a call"
+		callType := event.BeeperActionMessageCallTypeVoice
+		if data.IsVideo {
+			content.Body = "Started a video call"
+			callType = event.BeeperActionMessageCallTypeVideo
+		}
+		content.BeeperActionMessage = &event.BeeperActionMessage{
+			Type:     event.BeeperActionMessageCall,
+			CallType: callType,
+		}
+	} else if data.IsRinging {
 		content.Body = "Incoming call"
 		if userID, _, _ := signalid.ParsePortalID(portal.ID); !userID.IsEmpty() {
 			content.MsgType = event.MsgText
