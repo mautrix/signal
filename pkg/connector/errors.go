@@ -42,18 +42,24 @@ func init() {
 		"signal-rate-limited":      "Rate limited by Signal, reconnecting",
 		"signal-connect-failed":    "Failed to connect to Signal, retrying",
 		"signal-connection-failed": "Connection to Signal failed",
-		"signal-idle-primary-device": "Signal hasn't seen your phone in a long time. The bridge is still connected, " +
-			"but Signal will unlink it if you don't open Signal on your phone soon.",
 	})
 }
 
 var _ status.BridgeStateFiller = (*SignalClient)(nil)
 
+const idlePrimaryDeviceNoticeCode = "signal-idle-primary-device"
+
 func (s *SignalClient) FillBridgeState(state status.BridgeState) status.BridgeState {
-	if state.StateEvent == status.StateConnected && s.Client != nil && s.Client.AuthedWS.PrimaryDeviceIdle() {
-		state.StateEvent = status.StateTransientDisconnect
-		state.Error = "signal-idle-primary-device"
+	if state.StateEvent == status.StateConnected && s.Client.PrimaryDeviceIdle() {
 		state.UserAction = status.UserActionOpenNative
+		if state.Info == nil {
+			state.Info = make(map[string]any)
+		}
+		state.Info[status.InfoKeyNotice] = map[string]any{
+			"code": idlePrimaryDeviceNoticeCode,
+			"message": "Signal hasn't seen your phone in a long time. The bridge is still connected, " +
+				"but Signal will unlink it if you don't open Signal on your phone soon.",
+		}
 	}
 	return state
 }

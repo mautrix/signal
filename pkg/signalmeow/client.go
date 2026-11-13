@@ -156,3 +156,7 @@ func (cli *Client) GetRemoteConfig(ctx context.Context) (json.RawMessage, error)
 	}
 	return resp.Body, web.DecodeWSResponseBody(ctx, nil, resp)
 }
+
+func (cli *Client) PrimaryDeviceIdle() bool {
+	return cli != nil && cli.AuthedWS.PrimaryDeviceIdle()
+}
