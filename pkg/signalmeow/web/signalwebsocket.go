@@ -116,6 +116,10 @@ func (s *SignalWebsocket) PrimaryDeviceIdle() bool {
 	return s != nil && s.primaryDeviceIdle.Load()
 }
 
+func (s *SignalWebsocket) ClearPrimaryDeviceIdle() bool {
+	return s != nil && s.primaryDeviceIdle.CompareAndSwap(true, false)
+}
+
 func (s *SignalWebsocket) Close() (err error) {
 	if s == nil {
 		return nil

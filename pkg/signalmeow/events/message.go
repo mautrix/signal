@@ -39,6 +39,7 @@ func (*ACIFound) isSignalEvent()               {}
 func (*DeleteForMe) isSignalEvent()            {}
 func (*MessageRequestResponse) isSignalEvent() {}
 func (*QueueEmpty) isSignalEvent()             {}
+func (*PrimaryDeviceSeen) isSignalEvent()      {}
 func (*LoggedOut) isSignalEvent()              {}
 func (*IdentityChange) isSignalEvent()         {}
 
@@ -107,6 +108,8 @@ type MessageRequestResponse struct {
 }
 
 type QueueEmpty struct{}
+
+type PrimaryDeviceSeen struct{}
 
 type LoggedOut struct{ Error error }
 

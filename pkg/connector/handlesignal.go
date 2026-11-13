@@ -34,6 +34,7 @@ import (
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/networkid"
 	"maunium.net/go/mautrix/bridgev2/simplevent"
+	"maunium.net/go/mautrix/bridgev2/status"
 	"maunium.net/go/mautrix/event"
 
 	"go.mau.fi/mautrix-signal/pkg/libsignalgo"
@@ -72,6 +73,10 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		s.handleSignalACIFound(evt)
 	case *events.QueueEmpty:
 		s.queueEmptyWaiter.Set()
+	case *events.PrimaryDeviceSeen:
+		if s.UserLogin.BridgeState.GetPrevUnsent().Error == "signal-idle-primary-device" {
+			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
+		}
 	case *events.LoggedOut:
 		s.sendLoggedOutState(evt.Error)
 	case *events.IdentityChange:
