@@ -547,6 +547,13 @@ func (cli *Client) handleDecryptedResult(
 	}
 	logEvt.Bool("unencrypted", result.Unencrypted).Msg("Decrypted message")
 
+	if theirServiceID == cli.Store.ACIServiceID() && deviceID == 1 &&
+		time.Since(time.UnixMilli(int64(envelope.GetServerTimestamp()))) < 24*time.Hour &&
+		cli.AuthedWS.ClearPrimaryDeviceIdle() {
+		log.Info().Msg("Received message from primary device, clearing idle primary device warning")
+		cli.handleEvent(&events.PrimaryDeviceSeen{})
+	}
+
 	// Handle unencrypted types early and refuse any other unencrypted message
 	if rawContent.GetDecryptionErrorMessage() != nil {
 		handlerSuccess = true
