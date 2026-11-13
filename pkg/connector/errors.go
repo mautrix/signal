@@ -19,7 +19,6 @@ package connector
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"net/http"
 
 	"google.golang.org/grpc/codes"
@@ -43,37 +42,20 @@ func init() {
 		"signal-rate-limited":      "Rate limited by Signal, reconnecting",
 		"signal-connect-failed":    "Failed to connect to Signal, retrying",
 		"signal-connection-failed": "Connection to Signal failed",
+		"signal-idle-primary-device": "Signal hasn't seen your phone in a long time. The bridge is still connected, " +
+			"but Signal will unlink it if you don't open Signal on your phone soon.",
 	})
 }
 
 var _ status.BridgeStateFiller = (*SignalClient)(nil)
 
-const (
-	bridgeStateNoticeKey        = "notice"
-	idlePrimaryDeviceNoticeCode = "signal-idle-primary-device"
-)
-
-// The idle primary device warning is attached to CONNECTED as info instead of changing the state event,
-// because clients treat any shown non-CONNECTED state (and any error/message) as a disconnected account.
 func (s *SignalClient) FillBridgeState(state status.BridgeState) status.BridgeState {
 	if state.StateEvent == status.StateConnected && s.Client != nil && s.Client.AuthedWS.PrimaryDeviceIdle() {
-		state.Info = maps.Clone(state.Info)
-		if state.Info == nil {
-			state.Info = make(map[string]any)
-		}
-		state.Info[bridgeStateNoticeKey] = map[string]any{
-			"code": idlePrimaryDeviceNoticeCode,
-			"message": "Signal hasn't seen your phone in a long time. The bridge is still connected, " +
-				"but Signal will unlink it if you don't open Signal on your phone soon.",
-			"user_action": status.UserActionOpenNative,
-		}
+		state.StateEvent = status.StateTransientDisconnect
+		state.Error = "signal-idle-primary-device"
+		state.UserAction = status.UserActionOpenNative
 	}
 	return state
-}
-
-func hasIdlePrimaryDeviceNotice(state status.BridgeState) bool {
-	notice, ok := state.Info[bridgeStateNoticeKey].(map[string]any)
-	return ok && notice["code"] == idlePrimaryDeviceNoticeCode
 }
 
 var (
