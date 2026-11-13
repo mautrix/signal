@@ -97,6 +97,9 @@ func (mc *MessageConverter) ToMatrix(
 		ThreadRoot: nil,
 		Parts:      make([]*bridgev2.ConvertedMessagePart, 0, calculateLength(dm)),
 	}
+	if dm.StoryContext != nil {
+		return mc.convertStoryContextToMatrix(ctx, client, portal, sender, intent, dm, attMap)
+	}
 	if dm.GetIsViewOnce() {
 		var unavailableReason string
 		if sender == client.Store.ACI {

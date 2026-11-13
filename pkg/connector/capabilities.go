@@ -223,7 +223,9 @@ func init() {
 }
 
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
-	if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
+	if portal.ID == storiesPortalID {
+		return signalCapsStories
+	} else if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
 		return signalCapsNoteToSelf
 	} else if portal.RoomType == database.RoomTypeDM {
 		userID, _, _ := signalid.ParsePortalID(portal.ID)
@@ -234,6 +236,8 @@ func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Por
 	}
 	return signalCaps
 }
+
+var signalCapsStories = &event.RoomFeatures{ID: capID() + "+stories"}
 
 var signalGeneralCaps = &bridgev2.NetworkGeneralCapabilities{
 	DisappearingMessages: true,

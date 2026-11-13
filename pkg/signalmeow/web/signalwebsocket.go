@@ -55,6 +55,7 @@ type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage)
 type SignalWebsocket struct {
 	ws            atomic.Pointer[websocket.Conn]
 	basicAuth     *url.Userinfo
+	Header        http.Header
 	sendChannel   chan SignalWebsocketSendMessage
 	statusChannel chan SignalWebsocketConnectionStatus
 	closeLock     sync.RWMutex
@@ -297,7 +298,7 @@ func (s *SignalWebsocket) connectLoop(
 		}
 		isFirstConnect = false
 
-		ws, resp, err := OpenWebsocket(ctx, wsURL)
+		ws, resp, err := openWebsocket(ctx, wsURL, s.Header)
 		if resp != nil {
 			if resp.StatusCode != 101 {
 				// Server didn't want to open websocket
@@ -695,9 +696,16 @@ func (s *SignalWebsocket) sendRequestInternal(
 }
 
 func OpenWebsocket(ctx context.Context, url string) (*websocket.Conn, *http.Response, error) {
+	return openWebsocket(ctx, url, nil)
+}
+
+func openWebsocket(ctx context.Context, url string, header http.Header) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
 		HTTPClient: SignalHTTPClient,
-		HTTPHeader: make(http.Header, 2),
+		HTTPHeader: make(http.Header, 2+len(header)),
+	}
+	for key, values := range header {
+		opt.HTTPHeader[key] = values
 	}
 	opt.HTTPHeader.Set("User-Agent", UserAgent)
 	opt.HTTPHeader.Set("X-Signal-Agent", SignalAgent)

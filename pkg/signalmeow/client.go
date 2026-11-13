@@ -51,6 +51,7 @@ type Client struct {
 	ProfileCache           *ProfileCache
 	LastContactRequestTime time.Time
 	SyncContactsOnConnect  bool
+	ReceiveStories         bool
 
 	encryptionLock sync.Mutex
 
@@ -125,6 +126,9 @@ func (cli *Client) connectAuthedWS(ctx context.Context, requestHandler web.Reque
 		Logger()
 	ctx = log.WithContext(ctx)
 	authedWS := web.NewSignalWebsocket(url.UserPassword(username, password))
+	if cli.ReceiveStories {
+		authedWS.Header = http.Header{"X-Signal-Receive-Stories": {"true"}}
+	}
 	statusChan := authedWS.Connect(ctx, requestHandler)
 	cli.AuthedWS = authedWS
 	return statusChan, nil

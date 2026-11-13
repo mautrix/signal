@@ -63,6 +63,9 @@ var (
 )
 
 func (s *SignalClient) sendMessage(ctx context.Context, portalID networkid.PortalID, content *signalpb.Content) error {
+	if portalID == storiesPortalID {
+		return errStoriesReadOnly
+	}
 	userID, groupID, err := signalid.ParsePortalID(portalID)
 	if err != nil {
 		return err
@@ -347,7 +350,7 @@ func (s *SignalClient) isGroupAdmin(ctx context.Context, portal *bridgev2.Portal
 }
 
 func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bridgev2.MatrixReadReceipt) error {
-	if !receipt.ReadUpTo.After(receipt.LastRead) {
+	if receipt.Portal.ID == storiesPortalID || !receipt.ReadUpTo.After(receipt.LastRead) {
 		return nil
 	}
 	if receipt.LastRead.IsZero() {
@@ -399,6 +402,9 @@ func (s *SignalClient) HandleMatrixReadReceipt(ctx context.Context, receipt *bri
 }
 
 func (s *SignalClient) HandleMatrixTyping(ctx context.Context, typing *bridgev2.MatrixTyping) error {
+	if typing.Portal.ID == storiesPortalID {
+		return nil
+	}
 	userID, groupID, err := signalid.ParsePortalID(typing.Portal.ID)
 	if err != nil {
 		return err
@@ -486,7 +492,7 @@ func (s *SignalClient) HandleMatrixRoomTopic(ctx context.Context, msg *bridgev2.
 }
 
 func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2.MatrixMembershipChange) (*bridgev2.MatrixMembershipResult, error) {
-	if msg.Type.IsSelf && msg.OrigSender != nil {
+	if (msg.Type.IsSelf && msg.OrigSender != nil) || msg.Portal.ID == storiesPortalID {
 		return nil, nil
 	}
 	var targetIntent bridgev2.MatrixAPI
