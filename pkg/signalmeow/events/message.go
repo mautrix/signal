@@ -82,6 +82,8 @@ type Call struct {
 	Info      MessageInfo
 	Timestamp uint64
 	IsRinging bool
+	Outgoing  bool
+	IsVideo   bool
 }
 
 type ContactList struct {
