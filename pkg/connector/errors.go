@@ -71,6 +71,12 @@ var (
 				WithStatus(event.MessageStatusFail).
 				WithIsCertain(true).
 				WithSendNotice(true)
+	errAnnouncementsOnly = bridgev2.WrapErrorInStatus(errors.New("only admins can send messages in this group")).
+				WithErrorAsMessage().
+				WithErrorReason(event.MessageStatusNoPermission).
+				WithStatus(event.MessageStatusFail).
+				WithIsCertain(true).
+				WithSendNotice(true)
 	errInviteToDM = bridgev2.WrapErrorInStatus(errors.New("can't invite more users to Signal DMs")).
 			WithErrorAsMessage().
 			WithErrorReason(event.MessageStatusUnsupported).
