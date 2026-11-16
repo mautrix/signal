@@ -131,8 +131,6 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 	}, nil
 }
 
-const decryptionErrorIDPrefix = "decrypterr|"
-
 func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2.RemoteMessage {
 	return &simplevent.Message[*events.DecryptionError]{
 		EventMeta: simplevent.EventMeta{
@@ -150,7 +148,7 @@ func (s *SignalClient) wrapDecryptionError(evt *events.DecryptionError) bridgev2
 		},
 		Data: evt,
 		// TODO use main message id and edit it if it later becomes decryptable?
-		ID: decryptionErrorIDPrefix + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
+		ID: "decrypterr|" + signalid.MakeMessageID(evt.Sender, evt.Timestamp),
 
 		ConvertMessageFunc: convertDecryptionError,
 	}
@@ -744,24 +742,6 @@ func (s *SignalClient) addressableMessageToID(ctx context.Context, portalKey net
 	}
 }
 
-func (s *SignalClient) hasLiveMessages(ctx context.Context, portalKey networkid.PortalKey) (bool, error) {
-	portal, err := s.Main.Bridge.GetExistingPortalByKey(ctx, portalKey)
-	if err != nil || portal == nil {
-		return false, err
-	}
-	messages, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portalKey, 10)
-	if err != nil {
-		return false, err
-	}
-	for _, msg := range messages {
-		if strings.HasPrefix(string(msg.ID), decryptionErrorIDPrefix) {
-			continue
-		}
-		return portal.Disappear.Timer == 0 || time.Since(msg.Timestamp) < portal.Disappear.Timer, nil
-	}
-	return false, nil
-}
-
 func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 	log := s.UserLogin.Log.With().
 		Str("action", "handle signal delete for me").
@@ -774,33 +754,6 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 		}
 		portalKey, ok := s.conversationIDToPortalKey(ctx, conv.GetConversation())
 		if !ok {
-			continue
-		}
-
-		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
-			EventMeta: simplevent.EventMeta{
-				Type:        bridgev2.RemoteEventChatDelete,
-				PortalKey:   portalKey,
-				Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
-				StreamOrder: int64(evt.Timestamp),
-			},
-			OnlyForMe: true,
-		})
-		if !res.Success {
-			return false
-		}
-	}
-	for _, conv := range evt.GetLocalOnlyConversationDeletes() {
-		portalKey, ok := s.conversationIDToPortalKey(ctx, conv.GetConversation())
-		if !ok {
-			continue
-		}
-		hasMessages, err := s.hasLiveMessages(ctx, portalKey)
-		if err != nil {
-			log.Err(err).Object("portal_key", portalKey).Msg("Failed to check for messages before local-only chat delete")
-			return false
-		} else if hasMessages {
-			log.Debug().Object("portal_key", portalKey).Msg("Not deleting chat with messages for local-only delete")
 			continue
 		}
 
