@@ -547,6 +547,13 @@ func (cli *Client) handleDecryptedResult(
 	}
 	logEvt.Bool("unencrypted", result.Unencrypted).Msg("Decrypted message")
 
+	if theirServiceID == cli.Store.ACIServiceID() && deviceID == 1 &&
+		time.Since(time.UnixMilli(int64(envelope.GetServerTimestamp()))) < 24*time.Hour &&
+		cli.AuthedWS.ClearPrimaryDeviceIdle() {
+		log.Info().Msg("Received message from primary device, clearing idle primary device warning")
+		cli.handleEvent(&events.PrimaryDeviceSeen{})
+	}
+
 	// Handle unencrypted types early and refuse any other unencrypted message
 	if rawContent.GetDecryptionErrorMessage() != nil {
 		handlerSuccess = true
@@ -941,7 +948,7 @@ func (cli *Client) handlePNISignatureMessage(ctx context.Context, sender libsign
 			Stringer("aci", sender.UUID).
 			Stringer("pni", pni).
 			Msg("Fetching PNI identity for signature verification as it wasn't found in store")
-		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 0)
+		err = cli.FetchAndProcessPreKey(ctx, pniServiceID, 1)
 		if err != nil {
 			return fmt.Errorf("failed to fetch prekey for PNI %s after identity wasn't found in store: %w", pni, err)
 		} else if pniIdentity, err = cli.Store.IdentityKeyStore.GetIdentityKey(ctx, pniServiceID); err != nil {
