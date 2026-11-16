@@ -55,10 +55,12 @@ func (cli *Client) StorageSync(ctx context.Context) {
 	cli.storageSyncQueued.Store(false)
 	log := cli.Log.With().Str("action", "sync storage").Logger()
 	ctx = log.WithContext(ctx)
-	// TODO only fetch changed entries
-	update, err := cli.FetchStorage(ctx, cli.Store.MasterKey, 0, nil)
+	update, err := cli.FetchStorage(ctx, cli.Store.MasterKey, cli.storageVersion, cli.storageRecords)
 	if err != nil {
 		log.Err(err).Msg("Failed to fetch storage")
+		return
+	} else if update == nil {
+		log.Debug().Uint64("version", cli.storageVersion).Msg("Storage manifest is already up to date")
 		return
 	}
 	err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
@@ -66,7 +68,17 @@ func (cli *Client) StorageSync(ctx context.Context) {
 	})
 	if err != nil {
 		log.Err(err).Msg("Failed to process storage update")
+		return
 	}
+	log.Debug().
+		Uint64("previous_version", cli.storageVersion).
+		Uint64("version", update.Version).
+		Int("new_records", len(update.NewRecords)).
+		Int("removed_records", len(update.RemovedRecords)).
+		Int("missing_records", len(update.MissingRecords)).
+		Msg("Processed storage update")
+	cli.storageVersion = update.Version
+	cli.storageRecords = update.KnownRecords
 }
 
 func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdate) error {
@@ -101,8 +113,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					recipient.Profile.Name = strings.TrimSpace(fmt.Sprintf("%s %s", contact.GivenName, contact.FamilyName))
 				}
 				if contact.SystemGivenName != "" || contact.SystemFamilyName != "" {
-					changed = true
-					recipient.ContactName = strings.TrimSpace(fmt.Sprintf("%s %s", contact.SystemGivenName, contact.SystemFamilyName))
+					newContactName := strings.TrimSpace(fmt.Sprintf("%s %s", contact.SystemGivenName, contact.SystemFamilyName))
+					changed = changed || recipient.ContactName != newContactName
+					recipient.ContactName = newContactName
 				}
 				newNickname := ""
 				if contact.Nickname != nil {
@@ -120,7 +133,7 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 					changed = true
 					recipient.Blocked = contact.Blocked
 				}
-				if !ptr.Val(recipient.Whitelisted) {
+				if !ptr.Val(recipient.Whitelisted) && (recipient.Whitelisted == nil || contact.Whitelisted) {
 					changed = true
 					recipient.Whitelisted = &contact.Whitelisted
 				}
@@ -158,7 +171,9 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 				return fmt.Errorf("failed to save device after receiving account record: %w", err)
 			}
 			log.Debug().Msg("Saved device after receiving account record")
-		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList:
+		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList, *signalpb.StorageRecord_StickerPack,
+			*signalpb.StorageRecord_CallLink, *signalpb.StorageRecord_ChatFolder, *signalpb.StorageRecord_NotificationProfile,
+			*signalpb.StorageRecord_FavoriteSticker:
 			// irrelevant data
 		default:
 			log.Warn().Type("type", data).Str("item_id", record.StorageID).Msg("Unknown storage record type")
@@ -178,6 +193,7 @@ type StorageUpdate struct {
 	NewRecords     []*DecryptedStorageRecord
 	RemovedRecords []string
 	MissingRecords []string
+	KnownRecords   []string
 }
 
 func (cli *Client) FetchStorage(ctx context.Context, masterKey []byte, currentVersion uint64, existingKeys []string) (*StorageUpdate, error) {
@@ -189,6 +205,7 @@ func (cli *Client) FetchStorage(ctx context.Context, masterKey []byte, currentVe
 		return nil, nil
 	}
 	removedKeys := make([]string, 0)
+	knownKeys := make([]string, 0, len(manifest.GetIdentifiers()))
 	newKeys := manifestRecordToMap(manifest.GetIdentifiers())
 	slices.Sort(existingKeys)
 	existingKeys = slices.Compact(existingKeys)
@@ -196,6 +213,7 @@ func (cli *Client) FetchStorage(ctx context.Context, masterKey []byte, currentVe
 		_, isStillThere := newKeys[key]
 		if isStillThere {
 			delete(newKeys, key)
+			knownKeys = append(knownKeys, key)
 		} else {
 			removedKeys = append(removedKeys, key)
 		}
@@ -205,11 +223,15 @@ func (cli *Client) FetchStorage(ctx context.Context, masterKey []byte, currentVe
 	if err != nil {
 		return nil, err
 	}
+	for _, record := range newRecords {
+		knownKeys = append(knownKeys, record.StorageID)
+	}
 	return &StorageUpdate{
 		Version:        manifest.GetVersion(),
 		NewRecords:     newRecords,
 		RemovedRecords: removedKeys,
 		MissingRecords: missingKeys,
+		KnownRecords:   knownKeys,
 	}, nil
 }
 
