@@ -174,18 +174,17 @@ func (s *SignalClient) handleSignalStory(evt *events.Story) bool {
 	if !s.Main.Config.EnableStories || time.Since(ts) > msgconv.StoryLifetime {
 		return true
 	}
+	storyID := signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp)
 	if evt.Deleted {
 		return s.UserLogin.QueueRemoteEvent(&simplevent.MessageRemove{
 			EventMeta: simplevent.EventMeta{
 				Type:      bridgev2.RemoteEventMessageRemove,
 				PortalKey: s.makeStoriesPortalKey(),
 				Sender:    s.makeEventSender(evt.Info.Sender),
-				Timestamp: ts,
 			},
-			TargetMessage: signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp),
+			TargetMessage: storyID,
 		}).Success
 	}
-	storyID := signalid.MakeMessageID(evt.Info.Sender, evt.Timestamp)
 	return s.UserLogin.QueueRemoteEvent(&simplevent.Message[*events.Story]{
 		EventMeta: simplevent.EventMeta{
 			Type: bridgev2.RemoteEventMessage,
@@ -474,7 +473,7 @@ func (evt *Bv2ChatEvent) ConvertMessage(ctx context.Context, portal *bridgev2.Po
 
 	if converted.Disappear.Type != "" {
 		evtTS := evt.GetTimestamp()
-		if !dataMsg.GetIsViewOnce() {
+		if !dataMsg.GetIsViewOnce() && (dataMsg.StoryContext == nil || dataMsg.GroupV2 == nil) {
 			portal.UpdateDisappearingSetting(ctx, converted.Disappear, bridgev2.UpdateDisappearingSettingOpts{
 				Sender:     intent,
 				Timestamp:  evtTS,

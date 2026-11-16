@@ -223,7 +223,7 @@ func init() {
 }
 
 func (s *SignalClient) GetCapabilities(ctx context.Context, portal *bridgev2.Portal) *event.RoomFeatures {
-	if portal.ID == storiesPortalID {
+	if portal.ID == signalid.StoriesPortalID {
 		return signalCapsStories
 	} else if portal.Receiver == s.UserLogin.ID && portal.ID == networkid.PortalID(s.UserLogin.ID) {
 		return signalCapsNoteToSelf

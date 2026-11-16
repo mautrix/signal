@@ -83,7 +83,7 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {
-	if portal.ID == storiesPortalID {
+	if portal.ID == signalid.StoriesPortalID {
 		return s.wrapStoriesInfo(), nil
 	}
 	userID, groupID, err := signalid.ParsePortalID(portal.ID)

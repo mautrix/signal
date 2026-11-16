@@ -55,7 +55,7 @@ type RequestHandlerFunc func(context.Context, *signalpb.WebSocketRequestMessage)
 type SignalWebsocket struct {
 	ws            atomic.Pointer[websocket.Conn]
 	basicAuth     *url.Userinfo
-	Header        http.Header
+	header        atomic.Pointer[http.Header]
 	sendChannel   chan SignalWebsocketSendMessage
 	statusChannel chan SignalWebsocketConnectionStatus
 	closeLock     sync.RWMutex
@@ -178,6 +178,10 @@ func (s *SignalWebsocket) pushOutgoing(ctx context.Context, send SignalWebsocket
 }
 
 var ErrForcedReconnect = errors.New("forced reconnect")
+
+func (s *SignalWebsocket) SetHeader(header http.Header) {
+	s.header.Store(&header)
+}
 
 func (s *SignalWebsocket) ForceReconnect() {
 	if s == nil {
@@ -302,7 +306,7 @@ func (s *SignalWebsocket) connectLoop(
 		}
 		isFirstConnect = false
 
-		ws, resp, err := openWebsocket(ctx, wsURL, s.Header)
+		ws, resp, err := openWebsocket(ctx, wsURL, s.header.Load())
 		if resp != nil {
 			if resp.StatusCode != 101 {
 				// Server didn't want to open websocket
@@ -703,13 +707,15 @@ func OpenWebsocket(ctx context.Context, url string) (*websocket.Conn, *http.Resp
 	return openWebsocket(ctx, url, nil)
 }
 
-func openWebsocket(ctx context.Context, url string, header http.Header) (*websocket.Conn, *http.Response, error) {
+func openWebsocket(ctx context.Context, url string, header *http.Header) (*websocket.Conn, *http.Response, error) {
 	opt := &websocket.DialOptions{
 		HTTPClient: SignalHTTPClient,
-		HTTPHeader: make(http.Header, 2+len(header)),
+		HTTPHeader: make(http.Header, 3),
 	}
-	for key, values := range header {
-		opt.HTTPHeader[key] = values
+	if header != nil {
+		for key, values := range *header {
+			opt.HTTPHeader[key] = values
+		}
 	}
 	opt.HTTPHeader.Set("User-Agent", UserAgent)
 	opt.HTTPHeader.Set("X-Signal-Agent", SignalAgent)

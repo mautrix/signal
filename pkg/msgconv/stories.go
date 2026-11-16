@@ -91,7 +91,7 @@ func (mc *MessageConverter) convertStoryContextToMatrix(
 	if err != nil {
 		zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to parse story context author")
 	}
-	storyID := signalid.MakeMessageID(storyAuthor, dm.GetStoryContext().GetSentTimestamp())
+	storySentTS := dm.GetStoryContext().GetSentTimestamp()
 	whose := "a story"
 	if storyAuthor == client.Store.ACI {
 		whose = "your story"
@@ -105,7 +105,14 @@ func (mc *MessageConverter) convertStoryContextToMatrix(
 		prefixBody(dm, "Replied to "+whose)
 	}
 	cm := mc.ToMatrix(ctx, client, portal, sender, intent, dm, attMap)
-	cm.ReplyTo = &networkid.MessageOptionalPartID{MessageID: storyID}
+	if err == nil {
+		cm.ReplyTo = &networkid.MessageOptionalPartID{MessageID: signalid.MakeMessageID(storyAuthor, storySentTS)}
+		cm.ReplyToRoom = signalid.MakeStoriesPortalKey(signalid.MakeUserLoginID(client.Store.ACI))
+		cm.ReplyToUser = signalid.MakeUserID(storyAuthor)
+		if storyAuthor == client.Store.ACI {
+			cm.ReplyToLogin = signalid.MakeUserLoginID(storyAuthor)
+		}
+	}
 	return cm
 }
 

@@ -126,12 +126,17 @@ func (cli *Client) connectAuthedWS(ctx context.Context, requestHandler web.Reque
 		Logger()
 	ctx = log.WithContext(ctx)
 	authedWS := web.NewSignalWebsocket(url.UserPassword(username, password))
-	if cli.ReceiveStories {
-		authedWS.Header = http.Header{"X-Signal-Receive-Stories": {"true"}}
-	}
+	authedWS.SetHeader(cli.storiesHeader())
 	statusChan := authedWS.Connect(ctx, requestHandler)
 	cli.AuthedWS = authedWS
 	return statusChan, nil
+}
+
+func (cli *Client) storiesHeader() http.Header {
+	if !cli.ReceiveStories || cli.Store.AccountRecord.GetStoriesDisabled() {
+		return nil
+	}
+	return http.Header{"X-Signal-Receive-Stories": {"true"}}
 }
 
 func (cli *Client) connectUnauthedWS(ctx context.Context) (chan web.SignalWebsocketConnectionStatus, error) {

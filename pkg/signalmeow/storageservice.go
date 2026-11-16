@@ -159,6 +159,7 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 			log.Debug().Stringer("group_id", groupID).Msg("Stored group master key from storage service")
 		case *signalpb.StorageRecord_Account:
 			log.Trace().Any("account_record", data.Account).Msg("Found account record")
+			storiesDisabledChanged := cli.Store.AccountRecord.GetStoriesDisabled() != data.Account.GetStoriesDisabled()
 			cli.Store.AccountRecord = data.Account
 			if len(data.Account.ProfileKey) == libsignalgo.ProfileKeyLength {
 				err := cli.Store.RecipientStore.StoreProfileKey(ctx, cli.Store.ACI, libsignalgo.ProfileKey(data.Account.ProfileKey))
@@ -171,6 +172,11 @@ func (cli *Client) processStorageInTxn(ctx context.Context, update *StorageUpdat
 				return fmt.Errorf("failed to save device after receiving account record: %w", err)
 			}
 			log.Debug().Msg("Saved device after receiving account record")
+			if storiesDisabledChanged && cli.ReceiveStories && cli.AuthedWS != nil {
+				log.Info().Bool("stories_disabled", data.Account.GetStoriesDisabled()).Msg("Reconnecting authed websocket after stories setting changed")
+				cli.AuthedWS.SetHeader(cli.storiesHeader())
+				cli.AuthedWS.ForceReconnect()
+			}
 		case *signalpb.StorageRecord_GroupV1, *signalpb.StorageRecord_StoryDistributionList, *signalpb.StorageRecord_StickerPack,
 			*signalpb.StorageRecord_CallLink, *signalpb.StorageRecord_ChatFolder, *signalpb.StorageRecord_NotificationProfile,
 			*signalpb.StorageRecord_FavoriteSticker:

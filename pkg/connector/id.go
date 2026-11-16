@@ -27,10 +27,8 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 )
 
-const storiesPortalID networkid.PortalID = "stories"
-
 func (s *SignalClient) makeStoriesPortalKey() networkid.PortalKey {
-	return networkid.PortalKey{ID: storiesPortalID, Receiver: s.UserLogin.ID}
+	return signalid.MakeStoriesPortalKey(s.UserLogin.ID)
 }
 
 func (s *SignalClient) makePortalKey(chatID string) networkid.PortalKey {

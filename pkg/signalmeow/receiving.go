@@ -626,6 +626,11 @@ func (cli *Client) handleDecryptedResult(
 		log.Err(err).Stringer("sender", theirServiceID).Msg("Failed to check if sender is blocked")
 	}
 
+	if cli.Store.AccountRecord.GetStoriesDisabled() && (rawContent.GetStoryMessage() != nil || rawContent.GetDataMessage().GetStoryContext() != nil) {
+		log.Debug().Msg("Dropping story message as stories are disabled")
+		return nil
+	}
+
 	var sendDeliveryReceipt bool
 	var deliveryReceiptTS uint64
 	switch content := rawContent.Content.(type) {
@@ -762,7 +767,9 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		}
 	case *signalpb.SyncMessage_Sent_:
 		syncSent := content.Sent
-		if syncSent.GetIsRecipientUpdate() {
+		if cli.Store.AccountRecord.GetStoriesDisabled() && (syncSent.GetStoryMessage() != nil || len(syncSent.GetStoryMessageRecipients()) > 0) {
+			log.Debug().Msg("Dropping story sync message as stories are disabled")
+		} else if syncSent.GetIsRecipientUpdate() {
 			if isStoryDeletion(syncSent.GetStoryMessageRecipients()) {
 				handlerSuccess = cli.handleEvent(&events.Story{
 					Info:      events.MessageInfo{Sender: cli.Store.ACI, ServerTimestamp: envelope.GetServerTimestamp()},
