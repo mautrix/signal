@@ -74,7 +74,7 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	case *events.QueueEmpty:
 		s.queueEmptyWaiter.Set()
 	case *events.PrimaryDeviceSeen:
-		if s.UserLogin.BridgeState.GetPrevUnsent().Error == "signal-idle-primary-device" {
+		if s.UserLogin.BridgeState.GetPrevUnsent().StateEvent == status.StateConnected {
 			s.UserLogin.BridgeState.Send(status.BridgeState{StateEvent: status.StateConnected})
 		}
 	case *events.LoggedOut:
