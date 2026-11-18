@@ -757,12 +757,39 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 			continue
 		}
 
+		var deletedAt uint64
+		for _, msg := range conv.GetMostRecentMessages() {
+			deletedAt = max(deletedAt, msg.GetSentTimestamp())
+		}
+		for _, msg := range conv.GetMostRecentNonExpiringMessages() {
+			deletedAt = max(deletedAt, msg.GetSentTimestamp())
+		}
+		if deletedAt == 0 {
+			deletedAt = evt.Timestamp
+		}
 		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
 			EventMeta: simplevent.EventMeta{
 				Type:        bridgev2.RemoteEventChatDelete,
 				PortalKey:   portalKey,
 				Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
 				StreamOrder: int64(evt.Timestamp),
+				PreHandleWithResultFunc: func(ctx context.Context, portal *bridgev2.Portal) *bridgev2.EventHandlingResult {
+					newerMessages, err := s.Main.Bridge.DB.Message.GetMessagesBetweenTimeQuery(ctx, portal.PortalKey, time.UnixMilli(int64(deletedAt)), time.Now())
+					if err != nil {
+						zerolog.Ctx(ctx).Err(err).Msg("Failed to get newer messages to check if chat delete is outdated")
+						return nil
+					}
+					for _, msg := range newerMessages {
+						if _, _, err = signalid.ParseMessageID(msg.ID); err == nil {
+							zerolog.Ctx(ctx).Debug().
+								Time("message_ts", msg.Timestamp).
+								Uint64("deleted_at", deletedAt).
+								Msg("Ignoring chat delete that is older than the last message")
+							return ptr.Ptr(bridgev2.EventHandlingResultIgnored)
+						}
+					}
+					return nil
+				},
 			},
 			OnlyForMe: true,
 		})
