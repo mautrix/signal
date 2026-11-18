@@ -509,14 +509,14 @@ func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index
 const SignalStickerSize = 200
 
 func fixStickerDimensions(info *event.FileInfo) {
-	if info.Width == info.Height {
+	if info.Width == info.Height || info.Width <= 0 || info.Height <= 0 {
 		info.Width = SignalStickerSize
 		info.Height = SignalStickerSize
 	} else if info.Width > info.Height {
-		info.Height = info.Height * SignalStickerSize / info.Width
+		info.Height = max(info.Height*SignalStickerSize/info.Width, 1)
 		info.Width = SignalStickerSize
 	} else {
-		info.Width = info.Width * SignalStickerSize / info.Height
+		info.Width = max(info.Width*SignalStickerSize/info.Height, 1)
 		info.Height = SignalStickerSize
 	}
 }
@@ -538,7 +538,7 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 			},
 		}
 	}
-	// Signal stickers are 512x512, so tell Matrix clients to render them as 200x200 to match Signal
+	// Signal renders stickers in a 200x200 box, so tell Matrix clients to fit them in the same box
 	// https://github.com/signalapp/Signal-Desktop/blob/v7.77.0-beta.1/ts/components/conversation/Message.dom.tsx#L135
 	fixStickerDimensions(converted.Content.Info)
 	converted.Content.Body = sticker.GetEmoji()
