@@ -137,6 +137,54 @@ func (d *Device) ClearDeviceKeys(ctx context.Context) error {
 	return err
 }
 
+func (d *Device) UpdatePNI(
+	ctx context.Context,
+	pni uuid.UUID,
+	identityKeyPair *libsignalgo.IdentityKeyPair,
+	registrationID int,
+	number string,
+	signedPreKey *libsignalgo.SignedPreKeyRecord,
+	lastResortKyberPreKey *libsignalgo.KyberPreKeyRecord,
+) error {
+	pniStore := &scopedSQLStore{Container: d.sqlStore.Container, AccountID: d.ACI, ServiceID: libsignalgo.NewPNIServiceID(pni)}
+	newData := d.DeviceData
+	newData.PNI = pni
+	newData.PNIIdentityKeyPair = identityKeyPair
+	newData.PNIRegistrationID = registrationID
+	newData.Number = number
+	err := d.db.DoTxn(ctx, nil, func(ctx context.Context) error {
+		err := pniStore.StoreSignedPreKey(ctx, 0, signedPreKey)
+		if err != nil {
+			return fmt.Errorf("failed to save signed prekey: %w", err)
+		}
+		if lastResortKyberPreKey != nil {
+			err = pniStore.StoreLastResortKyberPreKey(ctx, 0, lastResortKyberPreKey)
+			if err != nil {
+				return fmt.Errorf("failed to save last resort kyber prekey: %w", err)
+			}
+		}
+		_, err = d.IdentityKeyStore.SaveIdentityKey(ctx, newData.PNIServiceID(), identityKeyPair.GetIdentityKey())
+		if err != nil {
+			return fmt.Errorf("failed to save identity key: %w", err)
+		}
+		return d.DeviceStore.PutDevice(ctx, &newData)
+	})
+	if err != nil {
+		return err
+	}
+	d.DeviceData = newData
+	d.PNIPreKeyStore = pniStore
+	d.PNISessionStore = pniStore
+	d.PNIIdentityStore = &sqlIdentityStore{
+		sqlStore:            d.sqlStore,
+		OwnKeyPair:          identityKeyPair,
+		LocalRegistrationID: uint32(registrationID),
+	}
+	d.sqlStore.pniStore = pniStore
+	d.sqlStore.pniIdentity = libsignalgo.NewIdentityKeyFromPublicKey(identityKeyPair.GetPublicKey())
+	return nil
+}
+
 func (d *Device) IsDeviceLoggedIn() bool {
 	return d != nil &&
 		d.ACI != uuid.Nil &&

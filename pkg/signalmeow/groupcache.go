@@ -102,6 +102,12 @@ func (gc *GroupCache) GetCredentials(
 	return cred, nil
 }
 
+func (gc *GroupCache) ClearCredentials() {
+	gc.credentialsLock.Lock()
+	gc.credentials = nil
+	gc.credentialsLock.Unlock()
+}
+
 func (gc *GroupCache) getCachedCredentials(today int64) *GroupCredential {
 	if gc.credentials == nil {
 		return nil
