@@ -749,12 +749,17 @@ func (mc *MessageConverter) actuallyReuploadAttachment(
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert audio to ogg/opus: %w", err)
 			}
+			info, err := os.Stat(replFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get info of converted file: %w", err)
+			}
 			if content.Body == "" {
 				content.Body = "Voice message.ogg"
 			} else {
 				content.Body += ".ogg"
 			}
 			content.Info.MimeType = "audio/ogg"
+			content.Info.Size = int(info.Size())
 			content.MSC3245Voice = &event.MSC3245Voice{}
 			// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
 			//content.MSC1767Audio = &event.MSC1767Audio{}
