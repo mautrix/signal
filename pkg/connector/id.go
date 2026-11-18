@@ -27,6 +27,10 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalid"
 )
 
+func (s *SignalClient) makeStoriesPortalKey() networkid.PortalKey {
+	return signalid.MakeStoriesPortalKey(s.UserLogin.ID)
+}
+
 func (s *SignalClient) makePortalKey(chatID string) networkid.PortalKey {
 	key := networkid.PortalKey{ID: networkid.PortalID(chatID)}
 	// For non-group chats, add receiver

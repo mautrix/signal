@@ -132,6 +132,7 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 			sc.UserLogin.Log.With().Str("component", "signalmeow").Logger(),
 			sc.handleSignalEvent,
 		)
+		sc.Client.ReceiveStories = s.Config.EnableStories
 		sc.Client.SyncContactsOnConnect = s.Config.SyncContactsOnStartup &&
 			time.Since(login.Metadata.(*signalid.UserLoginMetadata).LastContactSync.Time) > 3*24*time.Hour
 	}
