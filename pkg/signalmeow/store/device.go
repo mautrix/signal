@@ -153,7 +153,15 @@ func (d *Device) UpdatePNI(
 	newData.PNIRegistrationID = registrationID
 	newData.Number = number
 	err := d.db.DoTxn(ctx, nil, func(ctx context.Context) error {
-		err := pniStore.StoreSignedPreKey(ctx, 0, signedPreKey)
+		_, err := d.db.Exec(ctx, "DELETE FROM signalmeow_pre_keys WHERE account_id=$1 AND service_id=$2", pniStore.AccountID, pniStore.ServiceID)
+		if err != nil {
+			return fmt.Errorf("failed to delete old prekeys: %w", err)
+		}
+		_, err = d.db.Exec(ctx, "DELETE FROM signalmeow_kyber_pre_keys WHERE account_id=$1 AND service_id=$2", pniStore.AccountID, pniStore.ServiceID)
+		if err != nil {
+			return fmt.Errorf("failed to delete old kyber prekeys: %w", err)
+		}
+		err = pniStore.StoreSignedPreKey(ctx, 0, signedPreKey)
 		if err != nil {
 			return fmt.Errorf("failed to save signed prekey: %w", err)
 		}
