@@ -757,6 +757,13 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 			continue
 		}
 
+		deletedAt := evt.Timestamp
+		for _, msg := range conv.GetMostRecentMessages() {
+			deletedAt = max(deletedAt, msg.GetSentTimestamp())
+		}
+		for _, msg := range conv.GetMostRecentNonExpiringMessages() {
+			deletedAt = max(deletedAt, msg.GetSentTimestamp())
+		}
 		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
 			EventMeta: simplevent.EventMeta{
 				Type:        bridgev2.RemoteEventChatDelete,
@@ -767,7 +774,7 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 					lastMessage, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portal.PortalKey, 1)
 					if err != nil {
 						zerolog.Ctx(ctx).Err(err).Msg("Failed to get last message to check if chat delete is outdated")
-					} else if len(lastMessage) == 1 && lastMessage[0].Timestamp.UnixMilli() > int64(evt.Timestamp) {
+					} else if len(lastMessage) == 1 && lastMessage[0].Timestamp.UnixMilli() > int64(deletedAt) {
 						zerolog.Ctx(ctx).Debug().
 							Time("last_message_ts", lastMessage[0].Timestamp).
 							Msg("Ignoring chat delete that is older than the last message")
