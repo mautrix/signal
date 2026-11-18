@@ -742,6 +742,12 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			log.Info().Msg("Received master key")
 			cli.QueueStorageSync(ctx)
 		}
+	case *signalpb.SyncMessage_PniChangeNumber_:
+		retry, err := cli.handlePNIChangeNumber(ctx, content.PniChangeNumber, envelope)
+		if err != nil {
+			log.Err(err).Msg("Failed to handle PNI change number sync message")
+			handlerSuccess = !retry
+		}
 	case *signalpb.SyncMessage_FetchLatest_:
 		switch content.FetchLatest.GetType() {
 		case signalpb.SyncMessage_FetchLatest_STORAGE_MANIFEST:
@@ -894,6 +900,52 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		}
 	}
 	return
+}
+
+func (cli *Client) handlePNIChangeNumber(ctx context.Context, msg *signalpb.SyncMessage_PniChangeNumber, envelope *signalpb.Envelope) (retry bool, err error) {
+	pni, err := ParseStringOrBinaryUUID(envelope.GetUpdatedPni(), envelope.GetUpdatedPniBinary())
+	if err != nil {
+		return false, fmt.Errorf("failed to parse updated PNI: %w", err)
+	} else if pni == uuid.Nil {
+		return false, fmt.Errorf("updated PNI is empty")
+	} else if len(msg.GetIdentityKeyPair()) == 0 || len(msg.GetSignedPreKey()) == 0 || msg.RegistrationId == nil || msg.NewE164 == nil {
+		return false, fmt.Errorf("missing key material in PNI change number sync message")
+	} else if pni == cli.Store.PNI && int(msg.GetRegistrationId()) == cli.Store.PNIRegistrationID {
+		zerolog.Ctx(ctx).Debug().Msg("Ignoring PNI change number sync message for current PNI")
+		return false, nil
+	}
+	identityKeyPair, err := libsignalgo.DeserializeIdentityKeyPair(msg.GetIdentityKeyPair())
+	if err != nil {
+		return false, fmt.Errorf("failed to deserialize identity key pair: %w", err)
+	}
+	signedPreKey, err := libsignalgo.DeserializeSignedPreKeyRecord(msg.GetSignedPreKey())
+	if err != nil {
+		return false, fmt.Errorf("failed to deserialize signed prekey: %w", err)
+	}
+	var lastResortKyberPreKey *libsignalgo.KyberPreKeyRecord
+	if len(msg.GetLastResortKyberPreKey()) > 0 {
+		lastResortKyberPreKey, err = libsignalgo.DeserializeKyberPreKeyRecord(msg.GetLastResortKyberPreKey())
+		if err != nil {
+			return false, fmt.Errorf("failed to deserialize last resort kyber prekey: %w", err)
+		}
+	}
+	oldPNI := cli.Store.PNI
+	err = cli.Store.UpdatePNI(ctx, pni, identityKeyPair, int(msg.GetRegistrationId()), msg.GetNewE164(), signedPreKey, lastResortKyberPreKey)
+	if err != nil {
+		return true, fmt.Errorf("failed to save new PNI: %w", err)
+	}
+	cli.GroupCache.ClearCredentials()
+	zerolog.Ctx(ctx).Info().
+		Stringer("old_pni", oldPNI).
+		Stringer("new_pni", pni).
+		Msg("Updated PNI after phone number change")
+	go func() {
+		err := cli.CheckAndUploadNewPreKeys(ctx, cli.Store.PNIPreKeyStore)
+		if err != nil {
+			zerolog.Ctx(ctx).Err(err).Msg("Failed to upload prekeys for new PNI")
+		}
+	}()
+	return false, nil
 }
 
 func (cli *Client) saveSyncPNIIdentityKey(ctx context.Context, serviceID libsignalgo.ServiceID, identityKeyBytes []byte) (bool, error) {
