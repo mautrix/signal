@@ -1,4 +1,4 @@
-# v26.11 (unreleased)
+# v26.11
 
 * Updated libsignal to v0.106.1.
 * Added support for sending more than 2048 characters of text to Signal by
@@ -6,7 +6,26 @@
 * Added automatic retrying of group message sends if the server returns a 500
   or 503 error.
 * Added support for encrypting direct media with FLOE ([MSC4571]).
+* Added automatic reconnect on some websocket connection errors.
+* Added optional notices when safety number of another user changes.
+* Added support for handling server-sent delivery receipts (used for message
+  requests).
+* Added support for deleting other users' messages as admin in Signal groups.
+* Changed storage sync to only sync changed entries.
+* Changed power levels to allow reactions and poll votes in read-only groups.
+* Changed typing indicators to be sent with the online-only flag, so they don't
+  get delivered if the recipient on Signal is offline.
+* Changed startup to not try connecting logins that are known to be logged out.
+* Increased request timeout when uploading attachments to Signal.
+* Fixed uploading media to Signal, which broke due to a parameter now being
+  required.
+* Fixed inaccurate call end notice when a call is accepted on another device.
+* Fixed extra newlines when bridging lists and some other formatting from Matrix.
 * Fixed memory leak in libsignal store implementation.
+* Fixed incorrect ciphertext type causing retry requests to fail.
+* Fixed prekey upload failing if the database has too many of them.
+* Fixed storage sync unnecessarily marking recipients as changed.
+* Fixed handling PNI signature messages when the PNI device keys aren't known.
 
 [MSC4571]: https://github.com/matrix-org/matrix-spec-proposals/pull/4571
 
