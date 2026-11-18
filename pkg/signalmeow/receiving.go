@@ -845,6 +845,32 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			Timestamp:               envelope.GetClientTimestamp(),
 			SyncMessage_DeleteForMe: content.DeleteForMe,
 		})
+	case *signalpb.SyncMessage_CallEvent_:
+		callEvent := content.CallEvent
+		callType := callEvent.GetType()
+		if callEvent.GetDirection() != signalpb.SyncMessage_CallEvent_OUTGOING ||
+			(callType != signalpb.SyncMessage_CallEvent_AUDIO_CALL && callType != signalpb.SyncMessage_CallEvent_VIDEO_CALL) ||
+			(callEvent.GetEvent() != signalpb.SyncMessage_CallEvent_ACCEPTED && callEvent.GetEvent() != signalpb.SyncMessage_CallEvent_NOT_ACCEPTED) {
+			break
+		}
+		peer, err := libsignalgo.ServiceIDFromBytes(callEvent.GetConversationId())
+		if err != nil {
+			log.Err(err).Msg("Failed to parse conversation ID in call event sync message")
+			break
+		} else if peer.IsEmpty() || (peer.Type != libsignalgo.ServiceIDTypeACI && peer.Type != libsignalgo.ServiceIDTypePNI) {
+			log.Warn().Hex("conversation_id", callEvent.GetConversationId()).Msg("Invalid conversation ID in call event sync message")
+			break
+		}
+		handlerSuccess = cli.handleEvent(&events.Call{
+			Info: events.MessageInfo{
+				Sender:          cli.Store.ACI,
+				ChatID:          peer.String(),
+				ServerTimestamp: envelope.GetServerTimestamp(),
+			},
+			Timestamp: callEvent.GetTimestamp(),
+			Outgoing:  true,
+			IsVideo:   callType == signalpb.SyncMessage_CallEvent_VIDEO_CALL,
+		})
 	case *signalpb.SyncMessage_MessageRequestResponse_:
 		aciUUID, _ := ParseStringOrBinaryUUID(content.MessageRequestResponse.GetThreadAci(), content.MessageRequestResponse.GetThreadAciBinary())
 		if aciUUID != uuid.Nil && content.MessageRequestResponse.GetType() == signalpb.SyncMessage_MessageRequestResponse_ACCEPT {
