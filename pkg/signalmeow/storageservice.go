@@ -63,7 +63,7 @@ func (cli *Client) StorageSync(ctx context.Context) {
 		log.Debug().Uint64("version", cli.storageVersion).Msg("Storage manifest is already up to date")
 		return
 	}
-	err = cli.Store.DoContactTxn(ctx, func(ctx context.Context) error {
+	err = cli.Store.RecipientStore.DoContactTxn(ctx, func(ctx context.Context) error {
 		return cli.processStorageInTxn(ctx, update)
 	})
 	if err != nil {
