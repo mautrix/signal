@@ -64,14 +64,18 @@ func (mc *MessageConverter) convertURLPreviewToSignal(ctx context.Context, conte
 	if len(content.BeeperLinkPreviews) == 0 {
 		return nil
 	}
-	output := make([]*signalpb.Preview, len(content.BeeperLinkPreviews))
+	output := make([]*signalpb.Preview, 0, len(content.BeeperLinkPreviews))
 	for i, preview := range content.BeeperLinkPreviews {
-		output[i] = &signalpb.Preview{
+		if preview.Title == "" && preview.Description == "" && preview.ImageURL == "" && preview.ImageEncryption == nil {
+			continue
+		}
+		signalPreview := &signalpb.Preview{
 			Url:         proto.String(preview.MatchedURL),
 			Title:       proto.String(preview.Title),
 			Description: proto.String(preview.Description),
 			Date:        proto.Uint64(uint64(time.Now().UnixMilli())),
 		}
+		output = append(output, signalPreview)
 		if preview.ImageURL != "" || preview.ImageEncryption != nil {
 			data, err := mc.Bridge.Bot.DownloadMedia(ctx, preview.ImageURL, preview.ImageEncryption)
 			if err != nil {
@@ -86,7 +90,7 @@ func (mc *MessageConverter) convertURLPreviewToSignal(ctx context.Context, conte
 			uploaded.ContentType = proto.String(preview.ImageType)
 			uploaded.Width = proto.Uint32(uint32(preview.ImageWidth))
 			uploaded.Height = proto.Uint32(uint32(preview.ImageHeight))
-			output[i].Image = uploaded
+			signalPreview.Image = uploaded
 		}
 	}
 	return output
