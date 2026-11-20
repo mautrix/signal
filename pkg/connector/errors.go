@@ -156,6 +156,9 @@ func wrapRespError(err error) error {
 }
 
 func wrapDirectMediaError(err error) error {
+	if errors.Is(err, signalmeow.ErrAttachmentNotFound) {
+		return mautrix.MNotFound.WithMessage("Attachment no longer available on Signal")
+	}
 	var statusErr web.HTTPStatusError
 	if !errors.As(err, &statusErr) {
 		return err
