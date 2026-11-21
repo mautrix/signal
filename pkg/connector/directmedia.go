@@ -107,6 +107,7 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 		rawDataResp, err = client.Client.DownloadUserAvatar(ctx, info.ProfileAvatarPath, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("Direct download failed")
+			client.refreshGhostAvatarAfterFailure(log.WithContext(ctx), info.ContactID, info.ProfileAvatarPath)
 			return nil, wrapDirectMediaError(err)
 		}
 	case *signalid.DirectMediaSticker:

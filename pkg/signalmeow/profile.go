@@ -165,6 +165,18 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID, 
 	// Check if we have a cached profile that is less than an hour old
 	// or if we have a cached error that is less than an hour old
 	profile, err := cli.getCachedProfileByID(signalID, refreshAfter)
+	if profile != nil {
+		currentKey, keyErr := cli.ProfileKeyForSignalID(ctx, signalID)
+		if keyErr == nil && currentKey != nil && *currentKey != profile.Key {
+			zerolog.Ctx(ctx).Debug().
+				Stringer("profile_aci", signalID).
+				Msg("Profile key changed since cached profile was fetched, refetching")
+			cli.ProfileCache.lock.Lock()
+			delete(cli.ProfileCache.profiles, signalID.String())
+			cli.ProfileCache.lock.Unlock()
+			profile = nil
+		}
+	}
 	if err != nil || profile != nil {
 		return profile, err
 	}

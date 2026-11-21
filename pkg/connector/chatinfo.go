@@ -623,6 +623,32 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 	}
 }
 
+const avatarFailureProfileRefreshAfter = 5 * time.Minute
+
+func (s *SignalClient) refreshGhostAvatarAfterFailure(ctx context.Context, contactID uuid.UUID, avatarPath string) {
+	if !s.avatarRefreshLock.TryLock() {
+		return
+	}
+	defer s.avatarRefreshLock.Unlock()
+	log := zerolog.Ctx(ctx)
+	ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, signalid.MakeUserID(contactID))
+	if err != nil {
+		log.Err(err).Msg("Failed to get ghost to refresh avatar")
+		return
+	} else if ghost == nil || ghost.AvatarID != makeAvatarPathID(avatarPath) {
+		return
+	}
+	info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, avatarFailureProfileRefreshAfter)
+	if err != nil {
+		log.Err(err).Msg("Failed to refresh profile after avatar download failure")
+	} else if info != nil {
+		ghost.UpdateInfo(ctx, info)
+		log.Debug().
+			Bool("avatar_changed", ghost.AvatarID != makeAvatarPathID(avatarPath)).
+			Msg("Refreshed ghost info after avatar download failure")
+	}
+}
+
 func makeAvatarPathID(avatarPath string) networkid.AvatarID {
 	if avatarPath == "" {
 		return ""

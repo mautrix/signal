@@ -50,6 +50,8 @@ type SignalClient struct {
 	profileRefreshLock    sync.Mutex
 	profileRefreshQueue   exmaps.Set[uuid.UUID]
 	profileRefreshRunning bool
+
+	avatarRefreshLock sync.Mutex
 }
 
 var (
