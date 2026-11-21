@@ -19,6 +19,7 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +44,7 @@ type SignalClient struct {
 	recentMessageRooms *exsync.RingBuffer[networkid.MessageID, networkid.PortalKey]
 	queueEmptyWaiter   *exsync.Event
 	cancelChatSync     atomic.Pointer[context.CancelFunc]
+	avatarRefreshLock  sync.Mutex
 }
 
 var (
