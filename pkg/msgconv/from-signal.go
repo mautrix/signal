@@ -641,7 +641,9 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 	}
 	if err := checkIfAttachmentExists(att, attMap); err != nil {
 		return nil, err
-	} else if mc.DirectMedia {
+	}
+	var directMediaOK bool
+	if mc.DirectMedia {
 		digest := att.Digest
 		var plaintextDigest bool
 		if digest == nil && len(att.GetClientUuid()) == 16 {
@@ -664,8 +666,14 @@ func (mc *MessageConverter) reuploadAttachment(ctx context.Context, att *signalp
 			return nil, err
 		}
 		content.URL, content.File, err = mc.Bridge.GenerateContentURI(ctx, getPortal(ctx).MXID, mediaID)
-	} else {
-		err = mc.actuallyReuploadAttachment(ctx, content, att, attMap)
+		if err != nil {
+			zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to generate direct media URI, falling back to reuploading attachment")
+		} else {
+			directMediaOK = true
+		}
+	}
+	if !directMediaOK {
+		err := mc.actuallyReuploadAttachment(ctx, content, att, attMap)
 		if err != nil {
 			return nil, err
 		}
