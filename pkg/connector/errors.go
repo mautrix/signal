@@ -172,6 +172,14 @@ func wrapDirectMediaError(err error) error {
 	}
 }
 
+func isProfileAvatarGoneError(err error) bool {
+	var statusErr web.HTTPStatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.StatusCode == http.StatusForbidden || statusErr.StatusCode == http.StatusNotFound
+	}
+	return errors.Is(err, signalmeow.ErrAvatarDecryptFailed)
+}
+
 func connectionErrorState(err error) status.BridgeState {
 	state := status.BridgeState{
 		StateEvent: status.StateTransientDisconnect,
