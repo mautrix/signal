@@ -623,13 +623,18 @@ func (s *SignalClient) makeCreateDMResponse(ctx context.Context, recipient *type
 	}
 }
 
-const avatarFailureProfileRefreshAfter = 5 * time.Minute
+const (
+	avatarFailureProfileRefreshAfter   = 5 * time.Minute
+	avatarFailureProfileRefreshTimeout = 30 * time.Second
+)
 
 func (s *SignalClient) refreshGhostAvatarAfterFailure(ctx context.Context, contactID uuid.UUID, avatarPath string) {
 	if !s.avatarRefreshLock.TryLock() {
 		return
 	}
 	defer s.avatarRefreshLock.Unlock()
+	ctx, cancel := context.WithTimeout(ctx, avatarFailureProfileRefreshTimeout)
+	defer cancel()
 	log := zerolog.Ctx(ctx)
 	ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, signalid.MakeUserID(contactID))
 	if err != nil {
