@@ -285,7 +285,7 @@ func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal)
 			toRevision--
 		}
 		evt.s.catchUpGroup(ctx, portal, portalRev, toRevision, dataMsg.GetTimestamp())
-	} else if portalMeta.InfoVersion < currentPortalInfoVersion && portal.MXID != "" {
+	} else if portalMeta.InfoVersion < currentPortalInfoVersion && portal.MXID != "" && evt.GetType() != bridgev2.RemoteEventChatInfoChange {
 		evt.s.catchUpGroup(ctx, portal, 0, portalRev, dataMsg.GetTimestamp())
 	}
 }
