@@ -56,6 +56,10 @@ func (cli *Client) StorageSync(ctx context.Context) {
 	cli.storageSyncLock.Lock()
 	defer cli.storageSyncLock.Unlock()
 	cli.storageSyncQueued.Store(false)
+	if cli.storageResetPending.CompareAndSwap(true, false) {
+		cli.storageVersion = 0
+		cli.storageRecords = nil
+	}
 	log := cli.Log.With().Str("action", "sync storage").Logger()
 	ctx = log.WithContext(ctx)
 	update, err := cli.FetchStorage(ctx, cli.Store.MasterKey, cli.storageVersion, cli.storageRecords)

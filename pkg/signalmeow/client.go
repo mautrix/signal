@@ -73,6 +73,7 @@ type Client struct {
 	storageSyncLock     sync.Mutex
 	storageSyncQueued   atomic.Bool
 	storageKeyRequested atomic.Bool
+	storageResetPending atomic.Bool
 	storageVersion      uint64
 	storageRecords      []string
 
