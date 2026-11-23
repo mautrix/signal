@@ -62,10 +62,14 @@ func (cli *Client) StorageSync(ctx context.Context) {
 	if err != nil {
 		log.Err(err).Msg("Failed to fetch storage")
 		if errors.Is(err, ErrStorageManifestDecryptFailed) && cli.storageKeyRequested.CompareAndSwap(false, true) {
-			cli.SendStorageMasterKeyRequest(ctx)
+			if cli.SendStorageMasterKeyRequest(ctx) != nil {
+				cli.storageKeyRequested.Store(false)
+			}
 		}
 		return
-	} else if update == nil {
+	}
+	cli.storageKeyRequested.Store(false)
+	if update == nil {
 		log.Debug().Uint64("version", cli.storageVersion).Msg("Storage manifest is already up to date")
 		return
 	}

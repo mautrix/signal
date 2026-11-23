@@ -735,6 +735,7 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			}
 			if err == nil {
 				cli.Store.AccountEntropyPool = aep
+				cli.storageKeyRequested.Store(false)
 			}
 		} else {
 			log.Debug().Msg("No account entropy pool in sync message")
