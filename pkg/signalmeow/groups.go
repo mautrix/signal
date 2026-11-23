@@ -639,7 +639,11 @@ func (cli *Client) fetchGroupByID(ctx context.Context, gid types.GroupIdentifier
 	if groupMasterKey == "" {
 		return nil, fmt.Errorf("%w for %s", ErrGroupMasterKeyNotFound, gid)
 	}
-	return cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
+	group, err := cli.fetchGroupWithMasterKey(ctx, groupMasterKey)
+	if errors.Is(err, AuthorizationFailedError) || errors.Is(err, NotFoundError) {
+		cli.GroupCache.Delete(gid)
+	}
+	return group, err
 }
 
 func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey types.SerializedGroupMasterKey) (*Group, error) {
@@ -658,7 +662,13 @@ func (cli *Client) fetchGroupWithMasterKey(ctx context.Context, groupMasterKey t
 	if err != nil {
 		return nil, err
 	}
-	if response.StatusCode != 200 {
+	switch response.StatusCode {
+	case http.StatusOK:
+	case http.StatusForbidden:
+		return nil, AuthorizationFailedError
+	case http.StatusNotFound:
+		return nil, NotFoundError
+	default:
 		return nil, fmt.Errorf("unexpected response status: %d", response.StatusCode)
 	}
 	return cli.parseGroupResponse(ctx, response, groupMasterKey)

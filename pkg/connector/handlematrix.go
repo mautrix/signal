@@ -653,7 +653,15 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	gc.Revision = msg.Portal.Metadata.(*signalid.PortalMetadata).Revision + 1
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
+		if msg.Type == bridgev2.Leave && (errors.Is(err, signalmeow.AuthorizationFailedError) || errors.Is(err, signalmeow.NotFoundError)) {
+			log.Debug().Err(err).Msg("Ignoring authorization/not-found error when leaving group")
+			s.Client.GroupCache.Delete(groupID)
+			return nil, nil
+		}
 		return nil, wrapSendError(err)
+	}
+	if msg.Type == bridgev2.Leave {
+		s.Client.GroupCache.Delete(groupID)
 	}
 	if (msg.Type == bridgev2.Invite || msg.Type == bridgev2.AcceptKnock) && targetSignalID.Type != libsignalgo.ServiceIDTypePNI {
 		err = targetIntent.EnsureJoined(ctx, msg.Portal.MXID)
@@ -826,11 +834,15 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 				DeleteMembers: []*uuid.UUID{&ownACI},
 				Revision:      portalMeta.Revision + 1,
 			}, groupID)
-			if err != nil {
+			if errors.Is(err, signalmeow.AuthorizationFailedError) || errors.Is(err, signalmeow.NotFoundError) {
+				zerolog.Ctx(ctx).Debug().Err(err).Msg("Ignoring authorization/not-found error when leaving group before deleting chat")
+			} else if err != nil {
 				return wrapSendError(fmt.Errorf("failed to leave group before deleting chat: %w", err))
+			} else {
+				portalMeta.Revision = revision
 			}
-			portalMeta.Revision = revision
 		}
+		s.Client.GroupCache.Delete(groupID)
 	}
 
 	if msg.Content.FromMessageRequest {
