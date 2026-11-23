@@ -731,6 +731,10 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 			} else if !bytes.Equal(aepMasterKey, cli.Store.MasterKey) {
 				cli.Store.MasterKey = aepMasterKey
 				cli.storageKeyRequested.Store(false)
+				cli.storageSyncLock.Lock()
+				cli.storageVersion = 0
+				cli.storageRecords = nil
+				cli.storageSyncLock.Unlock()
 				log.Info().Msg("Replaced stored master key with one derived from new account entropy pool")
 			} else {
 				log.Debug().Msg("Derived master key matches one in sync message")
