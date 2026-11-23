@@ -728,9 +728,13 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 				cli.Store.MasterKey = aepMasterKey
 				log.Debug().Msg("Derived master key from account entropy pool (no master key in sync message)")
 			} else if !bytes.Equal(aepMasterKey, cli.Store.MasterKey) {
-				log.Warn().Msg("Derived master key doesn't match one in sync message")
+				cli.Store.MasterKey = aepMasterKey
+				log.Info().Msg("Replaced stored master key with one derived from new account entropy pool")
 			} else {
 				log.Debug().Msg("Derived master key matches one in sync message")
+			}
+			if err == nil {
+				cli.Store.AccountEntropyPool = aep
 			}
 		} else {
 			log.Debug().Msg("No account entropy pool in sync message")

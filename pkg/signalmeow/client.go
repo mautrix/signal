@@ -70,10 +70,11 @@ type Client struct {
 	cdAuth          *basicExpiringCredentials
 	cdToken         []byte
 
-	storageSyncLock   sync.Mutex
-	storageSyncQueued atomic.Bool
-	storageVersion    uint64
-	storageRecords    []string
+	storageSyncLock     sync.Mutex
+	storageSyncQueued   atomic.Bool
+	storageKeyRequested atomic.Bool
+	storageVersion      uint64
+	storageRecords      []string
 
 	writeCallbackCounter chan time.Time
 }
