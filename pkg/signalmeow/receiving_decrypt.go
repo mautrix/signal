@@ -143,7 +143,7 @@ func (cli *Client) bufferedDecryptTxn(ctx context.Context, ciphertext []byte, se
 		return
 	}
 
-	err = cli.Store.DoDecryptionTxn(ctx, func(ctx context.Context) (innerErr error) {
+	err = cli.Store.EventBuffer.DoDecryptionTxn(ctx, func(ctx context.Context) (innerErr error) {
 		plaintext, innerErr = decrypt(ctx)
 		if innerErr != nil {
 			return
