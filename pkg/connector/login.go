@@ -80,16 +80,7 @@ const (
 )
 
 var (
-	ErrLoginTimedOut = bridgev2.RespError{
-		ErrCode:    "FI.MAU.BRIDGE.LOGIN_TIMED_OUT",
-		Err:        "The QR code wasn't scanned in time, please start a new login",
-		StatusCode: http.StatusGone,
-	}
-	ErrLoginCancelled = bridgev2.RespError{
-		ErrCode:    "FI.MAU.BRIDGE.LOGIN_CANCELLED",
-		Err:        "Login process was cancelled",
-		StatusCode: http.StatusGone,
-	}
+	ErrLoginTimedOut               = bridgev2.ErrLoginTimedOut.WithMessage("The QR code wasn't scanned in time, please start a new login")
 	ErrDeviceLinkMissingCapability = bridgev2.RespError{
 		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_MISSING_CAPABILITY",
 		Err:        "Signal rejected linking because the bridge is missing a capability required by your account's other devices. Please try again later",
@@ -167,7 +158,7 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, ErrLoginTimedOut
 		}
-		return nil, ErrLoginCancelled
+		return nil, bridgev2.ErrLoginCancelled
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeDisplayAndWait,
@@ -214,7 +205,7 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, ErrLoginTimedOut
 		}
-		return nil, ErrLoginCancelled
+		return nil, bridgev2.ErrLoginCancelled
 	}
 }
 
