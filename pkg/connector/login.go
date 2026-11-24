@@ -26,6 +26,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"go.mau.fi/util/l10n"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/status"
@@ -37,8 +38,8 @@ import (
 
 func (s *SignalConnector) GetLoginFlows() []bridgev2.LoginFlow {
 	return []bridgev2.LoginFlow{{
-		Name:        "QR",
-		Description: "Scan a QR code to pair the bridge to your Signal app",
+		Name:        msgFlowQRName.Message(),
+		Description: msgFlowQRDescription.Message(),
 		ID:          "qr",
 	}}
 }
@@ -171,7 +172,7 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeDisplayAndWait,
 		StepID:       LoginStepQR,
-		Instructions: "Scan the QR code on your Signal app to log in",
+		Instructions: msgStepQRInstructions.Message(),
 		DisplayAndWaitParams: &bridgev2.LoginDisplayAndWaitParams{
 			Type: bridgev2.LoginDisplayTypeQR,
 			Data: resp.ProvisioningURL,
@@ -236,7 +237,7 @@ func (qr *QRLogin) loginComplete(ctx context.Context, provData *store.DeviceData
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
 		StepID:       LoginStepComplete,
-		Instructions: fmt.Sprintf("Successfully logged in as %s / %s", provData.Number, provData.ACI),
+		Instructions: msgStepCompleteInstructions.Render(l10n.Params{"phone": provData.Number, "aci": provData.ACI.String()}),
 		CompleteParams: &bridgev2.LoginCompleteParams{
 			UserLoginID: ul.ID,
 			UserLogin:   ul,
