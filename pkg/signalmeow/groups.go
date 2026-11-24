@@ -486,7 +486,7 @@ func decryptGroup(ctx context.Context, encryptedGroup *signalpb.Group, groupMast
 	descriptionBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedGroup.Description)
 	if err == nil {
 		// treat a failure in obtaining the description as non-fatal
-		decryptedGroup.Description = cleanupStringProperty(descriptionBlob.GetDescriptionText())
+		decryptedGroup.Description = cleanupMultilineStringProperty(descriptionBlob.GetDescriptionText())
 	}
 
 	if encryptedGroup.DisappearingMessagesTimer != nil && len(encryptedGroup.DisappearingMessagesTimer) > 0 {
@@ -594,17 +594,23 @@ func encryptBlobIntoGroupProperty(groupSecretParams libsignalgo.GroupSecretParam
 }
 
 func cleanupStringProperty(property string) string {
-	// strip non-printable characters from the string
-	property = strings.Map(cleanupStringMapping, property)
-	// strip \n and \t from start and end of the property if it exists
-	return strings.TrimSpace(property)
+	return cleanupString(property, false)
 }
 
-func cleanupStringMapping(r rune) rune {
-	if unicode.IsGraphic(r) {
-		return r
-	}
-	return -1
+func cleanupMultilineStringProperty(property string) string {
+	return cleanupString(property, true)
+}
+
+func cleanupString(property string, keepNewlines bool) string {
+	property = strings.Map(func(r rune) rune {
+		// Format characters (Cf) are kept because emoji sequences depend on them:
+		// ZWJ joins 👩‍❤️‍💋‍👩 and tag characters build subdivision flags like 🏴󠁧󠁢󠁳󠁣󠁴󠁿.
+		if unicode.IsGraphic(r) || unicode.Is(unicode.Cf, r) || (keepNewlines && r == '\n') {
+			return r
+		}
+		return -1
+	}, property)
+	return strings.TrimSpace(property)
 }
 
 func decryptGroupAvatar(encryptedAvatar []byte, groupMasterKey types.SerializedGroupMasterKey) ([]byte, error) {
@@ -849,7 +855,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 		descriptionBlob, err := decryptGroupPropertyIntoBlob(groupSecretParams, encryptedActions.ModifyDescription.Description)
 		if err == nil {
 			// treat a failure in obtaining the description as non-fatal
-			newDescription := cleanupStringProperty(descriptionBlob.GetDescriptionText())
+			newDescription := cleanupMultilineStringProperty(descriptionBlob.GetDescriptionText())
 			decryptedGroupChange.ModifyDescription = &newDescription
 		}
 	}
