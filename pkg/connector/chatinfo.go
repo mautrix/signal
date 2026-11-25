@@ -79,7 +79,63 @@ func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *b
 }
 
 func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
+	if ghost.Name != "" && ghost.NameSet && ghost.AvatarSet {
+		if userID, err := signalid.ParseUserIDAsServiceID(ghost.ID); err == nil && userID.Type == libsignalgo.ServiceIDTypeACI {
+			return nil, nil
+		}
+	}
 	return s.GetUserInfoWithRefreshAfter(ctx, ghost, signalmeow.DefaultProfileRefreshAfter)
+}
+
+const profileRefreshInterval = 100 * time.Millisecond
+
+func (s *SignalClient) queueProfileRefresh(aci uuid.UUID) {
+	s.profileRefreshLock.Lock()
+	defer s.profileRefreshLock.Unlock()
+	if s.profileRefreshQueue == nil {
+		s.profileRefreshQueue = make(map[uuid.UUID]struct{})
+	}
+	s.profileRefreshQueue[aci] = struct{}{}
+	if !s.profileRefreshRunning {
+		s.profileRefreshRunning = true
+		go s.refreshQueuedProfiles()
+	}
+}
+
+func (s *SignalClient) popProfileRefresh() (uuid.UUID, bool) {
+	s.profileRefreshLock.Lock()
+	defer s.profileRefreshLock.Unlock()
+	for aci := range s.profileRefreshQueue {
+		delete(s.profileRefreshQueue, aci)
+		return aci, true
+	}
+	s.profileRefreshRunning = false
+	return uuid.Nil, false
+}
+
+func (s *SignalClient) refreshQueuedProfiles() {
+	log := s.UserLogin.Log.With().Str("action", "refresh queued profiles").Logger()
+	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
+	for {
+		aci, ok := s.popProfileRefresh()
+		if !ok {
+			return
+		} else if !s.IsLoggedIn() {
+			continue
+		}
+		ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, signalid.MakeUserID(aci))
+		if err != nil {
+			log.Err(err).Stringer("aci", aci).Msg("Failed to get ghost to refresh profile")
+		} else if ghost != nil {
+			info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, signalmeow.DefaultProfileRefreshAfter)
+			if err != nil {
+				log.Err(err).Stringer("aci", aci).Msg("Failed to get user info to refresh profile")
+			} else if info != nil {
+				ghost.UpdateInfo(ctx, info)
+			}
+			time.Sleep(profileRefreshInterval)
+		}
+	}
 }
 
 func (s *SignalClient) GetChatInfo(ctx context.Context, portal *bridgev2.Portal) (*bridgev2.ChatInfo, error) {

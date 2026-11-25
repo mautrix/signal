@@ -48,6 +48,9 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
+		if evt.Info.Sender != s.Client.Store.ACI && s.Client.IsProfileStale(evt.Info.Sender, signalmeow.DefaultProfileRefreshAfter) {
+			s.queueProfileRefresh(evt.Info.Sender)
+		}
 		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
 		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
 			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
@@ -81,6 +84,10 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		s.sendLoggedOutState(evt.Error)
 	case *events.IdentityChange:
 		s.handleSignalIdentityChange(evt)
+	case *events.ProfileKeyChanged:
+		if evt.ACI != s.Client.Store.ACI {
+			s.queueProfileRefresh(evt.ACI)
+		}
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}

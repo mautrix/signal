@@ -1023,7 +1023,7 @@ func (cli *Client) incomingDataMessage(
 	// If there's a profile key, save it
 	if len(dataMessage.ProfileKey) == libsignalgo.ProfileKeyLength {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := cli.Store.RecipientStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
+		err := cli.storeProfileKey(ctx, messageSenderACI, profileKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
 			return

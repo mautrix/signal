@@ -42,6 +42,7 @@ func (*QueueEmpty) isSignalEvent()             {}
 func (*PrimaryDeviceSeen) isSignalEvent()      {}
 func (*LoggedOut) isSignalEvent()              {}
 func (*IdentityChange) isSignalEvent()         {}
+func (*ProfileKeyChanged) isSignalEvent()      {}
 
 type MessageInfo struct {
 	Sender uuid.UUID
@@ -115,4 +116,8 @@ type LoggedOut struct{ Error error }
 
 type IdentityChange struct {
 	ServiceID libsignalgo.ServiceID
+}
+
+type ProfileKeyChanged struct {
+	ACI uuid.UUID
 }
