@@ -125,6 +125,8 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 
 		recentMessageRooms: exsync.NewRingBuffer[networkid.MessageID, networkid.PortalKey](32),
 		queueEmptyWaiter:   exsync.NewEvent(),
+
+		profileRefreshQueue: exsync.NewSet[uuid.UUID](),
 	}
 	if device != nil {
 		sc.Client = signalmeow.NewClient(

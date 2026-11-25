@@ -19,7 +19,6 @@ package connector
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,9 +45,8 @@ type SignalClient struct {
 	queueEmptyWaiter   *exsync.Event
 	cancelChatSync     atomic.Pointer[context.CancelFunc]
 
-	profileRefreshLock    sync.Mutex
-	profileRefreshQueue   map[uuid.UUID]struct{}
-	profileRefreshRunning bool
+	profileRefreshQueue   *exsync.Set[uuid.UUID]
+	profileRefreshRunning atomic.Bool
 }
 
 var (
