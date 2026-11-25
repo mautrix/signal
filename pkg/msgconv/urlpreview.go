@@ -66,7 +66,7 @@ func (mc *MessageConverter) convertURLPreviewToSignal(ctx context.Context, conte
 	}
 	output := make([]*signalpb.Preview, 0, len(content.BeeperLinkPreviews))
 	for i, preview := range content.BeeperLinkPreviews {
-		if preview == nil || preview.Title == "" && preview.Description == "" && preview.ImageURL == "" && preview.ImageEncryption == nil {
+		if preview == nil || (preview.Title == "" && preview.Description == "" && preview.ImageURL == "" && preview.ImageEncryption == nil) {
 			continue
 		}
 		signalPreview := &signalpb.Preview{
