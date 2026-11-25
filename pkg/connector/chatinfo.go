@@ -81,6 +81,9 @@ func (s *SignalClient) GetUserInfoWithRefreshAfter(ctx context.Context, ghost *b
 func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (*bridgev2.UserInfo, error) {
 	if ghost.Name != "" && ghost.NameSet && ghost.AvatarSet {
 		if userID, err := signalid.ParseUserIDAsServiceID(ghost.ID); err == nil && userID.Type == libsignalgo.ServiceIDTypeACI {
+			if s.IsLoggedIn() && userID.UUID != s.Client.Store.ACI && s.Client.IsProfileStale(userID.UUID, signalmeow.DefaultProfileRefreshAfter) {
+				s.queueProfileRefresh(userID.UUID)
+			}
 			return nil, nil
 		}
 	}
