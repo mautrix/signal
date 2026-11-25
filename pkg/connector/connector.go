@@ -26,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"go.mau.fi/util/dbutil"
 	"go.mau.fi/util/exhttp"
+	"go.mau.fi/util/exmaps"
 	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/commands"
@@ -126,7 +127,7 @@ func (s *SignalConnector) LoadUserLogin(ctx context.Context, login *bridgev2.Use
 		recentMessageRooms: exsync.NewRingBuffer[networkid.MessageID, networkid.PortalKey](32),
 		queueEmptyWaiter:   exsync.NewEvent(),
 
-		profileRefreshQueue: exsync.NewSet[uuid.UUID](),
+		profileRefreshQueue: make(exmaps.Set[uuid.UUID]),
 	}
 	if device != nil {
 		sc.Client = signalmeow.NewClient(

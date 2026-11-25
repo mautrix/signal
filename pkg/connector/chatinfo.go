@@ -93,36 +93,47 @@ func (s *SignalClient) GetUserInfo(ctx context.Context, ghost *bridgev2.Ghost) (
 const profileRefreshInterval = 100 * time.Millisecond
 
 func (s *SignalClient) queueProfileRefresh(aci uuid.UUID) {
+	s.profileRefreshLock.Lock()
+	defer s.profileRefreshLock.Unlock()
 	s.profileRefreshQueue.Add(aci)
-	if s.profileRefreshRunning.CompareAndSwap(false, true) {
+	if !s.profileRefreshRunning {
+		s.profileRefreshRunning = true
 		go s.refreshQueuedProfiles()
 	}
+}
+
+func (s *SignalClient) popProfileRefresh() (uuid.UUID, bool) {
+	s.profileRefreshLock.Lock()
+	defer s.profileRefreshLock.Unlock()
+	for aci := range s.profileRefreshQueue {
+		s.profileRefreshQueue.Remove(aci)
+		return aci, true
+	}
+	s.profileRefreshRunning = false
+	return uuid.Nil, false
 }
 
 func (s *SignalClient) refreshQueuedProfiles() {
 	log := s.UserLogin.Log.With().Str("action", "refresh queued profiles").Logger()
 	ctx := log.WithContext(s.Main.Bridge.BackgroundCtx)
 	for {
-		for _, aci := range s.profileRefreshQueue.AsList() {
-			if !s.profileRefreshQueue.Pop(aci) || !s.IsLoggedIn() {
-				continue
-			}
-			ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, signalid.MakeUserID(aci))
-			if err != nil {
-				log.Err(err).Stringer("aci", aci).Msg("Failed to get ghost to refresh profile")
-			} else if ghost != nil {
-				info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, signalmeow.DefaultProfileRefreshAfter)
-				if err != nil {
-					log.Err(err).Stringer("aci", aci).Msg("Failed to get user info to refresh profile")
-				} else if info != nil {
-					ghost.UpdateInfo(ctx, info)
-				}
-				time.Sleep(profileRefreshInterval)
-			}
-		}
-		s.profileRefreshRunning.Store(false)
-		if s.profileRefreshQueue.Size() == 0 || !s.profileRefreshRunning.CompareAndSwap(false, true) {
+		aci, ok := s.popProfileRefresh()
+		if !ok {
 			return
+		} else if !s.IsLoggedIn() {
+			continue
+		}
+		ghost, err := s.Main.Bridge.GetExistingGhostByID(ctx, signalid.MakeUserID(aci))
+		if err != nil {
+			log.Err(err).Stringer("aci", aci).Msg("Failed to get ghost to refresh profile")
+		} else if ghost != nil {
+			info, err := s.GetUserInfoWithRefreshAfter(ctx, ghost, signalmeow.DefaultProfileRefreshAfter)
+			if err != nil {
+				log.Err(err).Stringer("aci", aci).Msg("Failed to get user info to refresh profile")
+			} else if info != nil {
+				ghost.UpdateInfo(ctx, info)
+			}
+			time.Sleep(profileRefreshInterval)
 		}
 	}
 }
