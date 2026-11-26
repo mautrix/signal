@@ -21,6 +21,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -42,6 +43,8 @@ import (
 	"go.mau.fi/mautrix-signal/pkg/signalmeow/web"
 )
 
+var ErrStorageManifestDecryptFailed = errors.New("failed to decrypt storage manifest")
+
 // A sync that is already waiting to start will see whatever change triggered this call.
 func (cli *Client) QueueStorageSync(ctx context.Context) {
 	if cli.storageSyncQueued.CompareAndSwap(false, true) {
@@ -53,13 +56,24 @@ func (cli *Client) StorageSync(ctx context.Context) {
 	cli.storageSyncLock.Lock()
 	defer cli.storageSyncLock.Unlock()
 	cli.storageSyncQueued.Store(false)
+	if cli.storageResetPending.CompareAndSwap(true, false) {
+		cli.storageVersion = 0
+		cli.storageRecords = nil
+	}
 	log := cli.Log.With().Str("action", "sync storage").Logger()
 	ctx = log.WithContext(ctx)
 	update, err := cli.FetchStorage(ctx, cli.Store.MasterKey, cli.storageVersion, cli.storageRecords)
 	if err != nil {
 		log.Err(err).Msg("Failed to fetch storage")
+		if errors.Is(err, ErrStorageManifestDecryptFailed) && cli.storageKeyRequested.CompareAndSwap(false, true) {
+			if cli.SendStorageMasterKeyRequest(ctx) != nil {
+				cli.storageKeyRequested.Store(false)
+			}
+		}
 		return
-	} else if update == nil {
+	}
+	cli.storageKeyRequested.Store(false)
+	if update == nil {
 		log.Debug().Uint64("version", cli.storageVersion).Msg("Storage manifest is already up to date")
 		return
 	}
@@ -316,7 +330,7 @@ func (cli *Client) fetchStorageManifest(ctx context.Context, storageKey []byte, 
 	} else if err = proto.Unmarshal(body, &encryptedManifest); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal encrypted storage manifest: %w", err)
 	} else if decryptedManifestBytes, err := decryptBytes(deriveStorageManifestKey(storageKey, encryptedManifest.GetVersion()), encryptedManifest.GetValue()); err != nil {
-		return nil, fmt.Errorf("failed to decrypt storage manifest: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrStorageManifestDecryptFailed, err)
 	} else if err = proto.Unmarshal(decryptedManifestBytes, &manifestRecord); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal decrypted manifest record: %w", err)
 	} else {

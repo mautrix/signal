@@ -26,6 +26,7 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+	"go.mau.fi/util/l10n"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/database"
 	"maunium.net/go/mautrix/bridgev2/status"
@@ -37,8 +38,8 @@ import (
 
 func (s *SignalConnector) GetLoginFlows() []bridgev2.LoginFlow {
 	return []bridgev2.LoginFlow{{
-		Name:        "QR",
-		Description: "Scan a QR code to pair the bridge to your Signal app",
+		Name:        msgFlowQRName.Message(),
+		Description: msgFlowQRDescription.Message(),
 		ID:          "qr",
 	}}
 }
@@ -79,16 +80,7 @@ const (
 )
 
 var (
-	ErrLoginTimedOut = bridgev2.RespError{
-		ErrCode:    "FI.MAU.BRIDGE.LOGIN_TIMED_OUT",
-		Err:        "The QR code wasn't scanned in time, please start a new login",
-		StatusCode: http.StatusGone,
-	}
-	ErrLoginCancelled = bridgev2.RespError{
-		ErrCode:    "FI.MAU.BRIDGE.LOGIN_CANCELLED",
-		Err:        "Login process was cancelled",
-		StatusCode: http.StatusGone,
-	}
+	ErrLoginTimedOut               = bridgev2.ErrLoginTimedOut.WithMessage("The QR code wasn't scanned in time, please start a new login")
 	ErrDeviceLinkMissingCapability = bridgev2.RespError{
 		ErrCode:    "FI.MAU.SIGNAL.DEVICE_LINK_MISSING_CAPABILITY",
 		Err:        "Signal rejected linking because the bridge is missing a capability required by your account's other devices. Please try again later",
@@ -166,12 +158,12 @@ func (qr *QRLogin) Start(ctx context.Context) (*bridgev2.LoginStep, error) {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, ErrLoginTimedOut
 		}
-		return nil, ErrLoginCancelled
+		return nil, bridgev2.ErrLoginCancelled
 	}
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeDisplayAndWait,
 		StepID:       LoginStepQR,
-		Instructions: "Scan the QR code on your Signal app to log in",
+		Instructions: msgStepQRInstructions.Message(),
 		DisplayAndWaitParams: &bridgev2.LoginDisplayAndWaitParams{
 			Type: bridgev2.LoginDisplayTypeQR,
 			Data: resp.ProvisioningURL,
@@ -213,7 +205,7 @@ func (qr *QRLogin) Wait(ctx context.Context) (*bridgev2.LoginStep, error) {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return nil, ErrLoginTimedOut
 		}
-		return nil, ErrLoginCancelled
+		return nil, bridgev2.ErrLoginCancelled
 	}
 }
 
@@ -236,7 +228,7 @@ func (qr *QRLogin) loginComplete(ctx context.Context, provData *store.DeviceData
 	return &bridgev2.LoginStep{
 		Type:         bridgev2.LoginStepTypeComplete,
 		StepID:       LoginStepComplete,
-		Instructions: fmt.Sprintf("Successfully logged in as %s / %s", provData.Number, provData.ACI),
+		Instructions: msgStepCompleteInstructions.Render(l10n.Params{"phone": provData.Number, "aci": provData.ACI.String()}),
 		CompleteParams: &bridgev2.LoginCompleteParams{
 			UserLoginID: ul.ID,
 			UserLogin:   ul,

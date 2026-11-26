@@ -48,7 +48,7 @@ func (s *SignalConnector) Download(ctx context.Context, mediaID networkid.MediaI
 					ctx, info.CDNID, info.CDNKey, info.CDNNumber, info.Key, info.Digest, info.PlaintextDigest, info.Size, w,
 				)
 				if err != nil {
-					return nil, err
+					return nil, wrapDirectMediaError(err)
 				}
 				return &mediaproxy.FileMeta{}, nil
 			},

@@ -122,7 +122,33 @@ func getTimestampForEvent(txnID networkid.RawTransactionID, evt *event.Event, or
 	return uint64(evt.Timestamp)
 }
 
+func (s *SignalClient) checkAnnouncementsOnly(ctx context.Context, portal *bridgev2.Portal) error {
+	_, groupID, err := signalid.ParsePortalID(portal.ID)
+	if err != nil || groupID == "" {
+		return nil
+	}
+	group, _, err := s.Client.RetrieveGroupByID(ctx, groupID, portal.Metadata.(*signalid.PortalMetadata).Revision)
+	if err != nil {
+		zerolog.Ctx(ctx).Warn().Err(err).Msg("Failed to get group info to check announcement-only mode")
+		return nil
+	} else if !group.AnnouncementsOnly {
+		return nil
+	}
+	for _, member := range group.Members {
+		if member.ACI == s.Client.Store.ACI {
+			if member.Role == signalmeow.GroupMember_ADMINISTRATOR {
+				return nil
+			}
+			break
+		}
+	}
+	return errAnnouncementsOnly
+}
+
 func (s *SignalClient) HandleMatrixMessage(ctx context.Context, msg *bridgev2.MatrixMessage) (message *bridgev2.MatrixMessageResponse, err error) {
+	if err = s.checkAnnouncementsOnly(ctx, msg.Portal); err != nil {
+		return nil, err
+	}
 	converted, err := s.Main.MsgConv.ToSignal(
 		ctx, s.Client, msg.Portal, msg.Event, msg.Content, msg.OrigSender != nil, msg.ReplyTo,
 	)
@@ -192,6 +218,9 @@ func (s *SignalClient) HandleMatrixEdit(ctx context.Context, msg *bridgev2.Matri
 		return fmt.Errorf("failed to parse target message ID: %w", err)
 	} else if msg.EditTarget.SenderID != signalid.MakeUserID(s.Client.Store.ACI) {
 		return errEditOthersMessage
+	}
+	if err = s.checkAnnouncementsOnly(ctx, msg.Portal); err != nil {
+		return err
 	}
 	var replyTo *database.Message
 	if msg.EditTarget.ReplyTo.MessageID != "" {
@@ -630,7 +659,15 @@ func (s *SignalClient) HandleMatrixMembership(ctx context.Context, msg *bridgev2
 	gc.Revision = msg.Portal.Metadata.(*signalid.PortalMetadata).Revision + 1
 	revision, err := s.Client.UpdateGroup(ctx, gc, groupID)
 	if err != nil {
+		if msg.Type == bridgev2.Leave && (errors.Is(err, signalmeow.AuthorizationFailedError) || errors.Is(err, signalmeow.NotFoundError)) {
+			log.Debug().Err(err).Msg("Ignoring authorization/not-found error when leaving group")
+			s.Client.GroupCache.Delete(groupID)
+			return nil, nil
+		}
 		return nil, wrapSendError(err)
+	}
+	if msg.Type == bridgev2.Leave {
+		s.Client.GroupCache.Delete(groupID)
 	}
 	if (msg.Type == bridgev2.Invite || msg.Type == bridgev2.AcceptKnock) && targetSignalID.Type != libsignalgo.ServiceIDTypePNI {
 		err = targetIntent.EnsureJoined(ctx, msg.Portal.MXID)
@@ -733,6 +770,14 @@ func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev
 				ghost.UpdateInfo(ctx, info)
 			}
 		}
+	} else if _, groupID, err := signalid.ParsePortalID(msg.Portal.ID); err == nil && groupID != "" {
+		if group, _, ok := s.Client.GroupCache.Get(groupID); ok {
+			for _, member := range group.Members {
+				if member.ACI != s.Client.Store.ACI && s.Client.IsProfileStale(member.ACI, signalmeow.DefaultProfileRefreshAfter) {
+					s.queueProfileRefresh(member.ACI)
+				}
+			}
+		}
 	}
 
 	// always resync the portal if its stale
@@ -803,11 +848,15 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 				DeleteMembers: []*uuid.UUID{&ownACI},
 				Revision:      portalMeta.Revision + 1,
 			}, groupID)
-			if err != nil {
+			if errors.Is(err, signalmeow.AuthorizationFailedError) || errors.Is(err, signalmeow.NotFoundError) {
+				zerolog.Ctx(ctx).Debug().Err(err).Msg("Ignoring authorization/not-found error when leaving group before deleting chat")
+			} else if err != nil {
 				return wrapSendError(fmt.Errorf("failed to leave group before deleting chat: %w", err))
+			} else {
+				portalMeta.Revision = revision
 			}
-			portalMeta.Revision = revision
 		}
+		s.Client.GroupCache.Delete(groupID)
 	}
 
 	if msg.Content.FromMessageRequest {
@@ -899,6 +948,9 @@ func (s *SignalClient) HandleMatrixDeleteChat(ctx context.Context, msg *bridgev2
 }
 
 func (s *SignalClient) HandleMatrixPollStart(ctx context.Context, msg *bridgev2.MatrixPollStart) (*bridgev2.MatrixMessageResponse, error) {
+	if err := s.checkAnnouncementsOnly(ctx, msg.Portal); err != nil {
+		return nil, err
+	}
 	optionNames := make([]string, len(msg.Content.PollStart.Answers))
 	optionIDs := make([]string, len(msg.Content.PollStart.Answers))
 	for i, option := range msg.Content.PollStart.Answers {

@@ -739,11 +739,18 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 				log.Err(err).Msg("Failed to derive master key from account entropy pool")
 			} else if cli.Store.MasterKey == nil {
 				cli.Store.MasterKey = aepMasterKey
+				cli.storageKeyRequested.Store(false)
 				log.Debug().Msg("Derived master key from account entropy pool (no master key in sync message)")
 			} else if !bytes.Equal(aepMasterKey, cli.Store.MasterKey) {
-				log.Warn().Msg("Derived master key doesn't match one in sync message")
+				cli.Store.MasterKey = aepMasterKey
+				cli.storageKeyRequested.Store(false)
+				cli.storageResetPending.Store(true)
+				log.Info().Msg("Replaced stored master key with one derived from new account entropy pool")
 			} else {
 				log.Debug().Msg("Derived master key matches one in sync message")
+			}
+			if err == nil {
+				cli.Store.AccountEntropyPool = aep
 			}
 		} else {
 			log.Debug().Msg("No account entropy pool in sync message")
@@ -870,6 +877,32 @@ func (cli *Client) handleSyncMessage(ctx context.Context, msg *signalpb.SyncMess
 		handlerSuccess = cli.handleEvent(&events.DeleteForMe{
 			Timestamp:               envelope.GetClientTimestamp(),
 			SyncMessage_DeleteForMe: content.DeleteForMe,
+		})
+	case *signalpb.SyncMessage_CallEvent_:
+		callEvent := content.CallEvent
+		callType := callEvent.GetType()
+		if callEvent.GetDirection() != signalpb.SyncMessage_CallEvent_OUTGOING ||
+			(callType != signalpb.SyncMessage_CallEvent_AUDIO_CALL && callType != signalpb.SyncMessage_CallEvent_VIDEO_CALL) ||
+			(callEvent.GetEvent() != signalpb.SyncMessage_CallEvent_ACCEPTED && callEvent.GetEvent() != signalpb.SyncMessage_CallEvent_NOT_ACCEPTED) {
+			break
+		}
+		peer, err := libsignalgo.ServiceIDFromBytes(callEvent.GetConversationId())
+		if err != nil {
+			log.Err(err).Msg("Failed to parse conversation ID in call event sync message")
+			break
+		} else if peer.IsEmpty() || (peer.Type != libsignalgo.ServiceIDTypeACI && peer.Type != libsignalgo.ServiceIDTypePNI) {
+			log.Warn().Hex("conversation_id", callEvent.GetConversationId()).Msg("Invalid conversation ID in call event sync message")
+			break
+		}
+		handlerSuccess = cli.handleEvent(&events.Call{
+			Info: events.MessageInfo{
+				Sender:          cli.Store.ACI,
+				ChatID:          peer.String(),
+				ServerTimestamp: envelope.GetServerTimestamp(),
+			},
+			Timestamp: callEvent.GetTimestamp(),
+			Outgoing:  true,
+			IsVideo:   callType == signalpb.SyncMessage_CallEvent_VIDEO_CALL,
 		})
 	case *signalpb.SyncMessage_MessageRequestResponse_:
 		aciUUID, _ := ParseStringOrBinaryUUID(content.MessageRequestResponse.GetThreadAci(), content.MessageRequestResponse.GetThreadAciBinary())
@@ -1042,7 +1075,7 @@ func (cli *Client) incomingDataMessage(
 	// If there's a profile key, save it
 	if len(dataMessage.ProfileKey) == libsignalgo.ProfileKeyLength {
 		profileKey := libsignalgo.ProfileKey(dataMessage.ProfileKey)
-		err := cli.Store.RecipientStore.StoreProfileKey(ctx, messageSenderACI, profileKey)
+		err := cli.storeProfileKey(ctx, messageSenderACI, profileKey)
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("StoreProfileKey error")
 			return

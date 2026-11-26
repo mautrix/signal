@@ -49,6 +49,9 @@ import (
 func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 	switch evt := rawEvt.(type) {
 	case *events.ChatEvent:
+		if evt.Info.Sender != s.Client.Store.ACI && s.Client.IsProfileStale(evt.Info.Sender, signalmeow.DefaultProfileRefreshAfter) {
+			s.queueProfileRefresh(evt.Info.Sender)
+		}
 		wrapped := &Bv2ChatEvent{ChatEvent: evt, s: s}
 		if msg, ok := evt.Event.(*signalpb.DataMessage); ok && msg.GetIsViewOnce() {
 			s.recentMessageRooms.Push(wrapped.GetID(), wrapped.GetPortalKey())
@@ -84,6 +87,10 @@ func (s *SignalClient) handleSignalEvent(rawEvt events.SignalEvent) bool {
 		return s.handleSignalStory(evt)
 	case *events.IdentityChange:
 		s.handleSignalIdentityChange(evt)
+	case *events.ProfileKeyChanged:
+		if evt.ACI != s.Client.Store.ACI {
+			s.queueProfileRefresh(evt.ACI)
+		}
 	default:
 		s.UserLogin.Log.Warn().Type("event_type", evt).Msg("Unrecognized signalmeow event type")
 	}
@@ -115,7 +122,19 @@ func convertCallEvent(ctx context.Context, portal *bridgev2.Portal, intent bridg
 	content := &event.MessageEventContent{
 		MsgType: event.MsgNotice,
 	}
-	if data.IsRinging {
+	if data.Outgoing {
+		content.MsgType = event.MsgText
+		content.Body = "Started a call"
+		callType := event.BeeperActionMessageCallTypeVoice
+		if data.IsVideo {
+			content.Body = "Started a video call"
+			callType = event.BeeperActionMessageCallTypeVideo
+		}
+		content.BeeperActionMessage = &event.BeeperActionMessage{
+			Type:     event.BeeperActionMessageCall,
+			CallType: callType,
+		}
+	} else if data.IsRinging {
 		content.Body = "Incoming call"
 		if userID, _, _ := signalid.ParsePortalID(portal.ID); !userID.IsEmpty() {
 			content.MsgType = event.MsgText
@@ -342,7 +361,7 @@ func (evt *Bv2ChatEvent) PreHandle(ctx context.Context, portal *bridgev2.Portal)
 			toRevision--
 		}
 		evt.s.catchUpGroup(ctx, portal, portalRev, toRevision, dataMsg.GetTimestamp())
-	} else if portalMeta.InfoVersion < currentPortalInfoVersion && portal.MXID != "" {
+	} else if portalMeta.InfoVersion < currentPortalInfoVersion && portal.MXID != "" && evt.GetType() != bridgev2.RemoteEventChatInfoChange {
 		evt.s.catchUpGroup(ctx, portal, 0, portalRev, dataMsg.GetTimestamp())
 	}
 }

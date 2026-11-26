@@ -71,10 +71,12 @@ type Client struct {
 	cdAuth          *basicExpiringCredentials
 	cdToken         []byte
 
-	storageSyncLock   sync.Mutex
-	storageSyncQueued atomic.Bool
-	storageVersion    uint64
-	storageRecords    []string
+	storageSyncLock     sync.Mutex
+	storageSyncQueued   atomic.Bool
+	storageKeyRequested atomic.Bool
+	storageResetPending atomic.Bool
+	storageVersion      uint64
+	storageRecords      []string
 
 	writeCallbackCounter chan time.Time
 }
@@ -94,6 +96,7 @@ func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.
 			profiles:    make(map[string]*types.Profile),
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
+			generation:  make(map[string]uint64),
 		},
 		sendCache: exsync.NewRingBuffer[sendCacheKey, *signalpb.Content](InMemorySendCacheSize),
 	}

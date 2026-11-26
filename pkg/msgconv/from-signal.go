@@ -509,6 +509,21 @@ func (mc *MessageConverter) convertAttachmentToMatrix(ctx context.Context, index
 	return part
 }
 
+const SignalStickerSize = 200
+
+func fixStickerDimensions(info *event.FileInfo) {
+	if info.Width == info.Height || info.Width <= 0 || info.Height <= 0 {
+		info.Width = SignalStickerSize
+		info.Height = SignalStickerSize
+	} else if info.Width > info.Height {
+		info.Height = max(info.Height*SignalStickerSize/info.Width, 1)
+		info.Width = SignalStickerSize
+	} else {
+		info.Width = max(info.Width*SignalStickerSize/info.Height, 1)
+		info.Height = SignalStickerSize
+	}
+}
+
 func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker *signalpb.DataMessage_Sticker, attMap AttachmentMap) *bridgev2.ConvertedMessagePart {
 	converted, err := mc.reuploadAttachment(ctx, sticker.GetData(), attMap)
 	hasPack := len(sticker.GetPackId()) == PackIDLength && len(sticker.GetPackKey()) == PackKeyLength && !bytes.Equal(sticker.GetPackId(), zeroPackID)
@@ -526,12 +541,9 @@ func (mc *MessageConverter) convertStickerToMatrix(ctx context.Context, sticker 
 			},
 		}
 	}
-	// Signal stickers are 512x512, so tell Matrix clients to render them as 200x200 to match Signal
+	// Signal renders stickers in a 200x200 box, so tell Matrix clients to fit them in the same box
 	// https://github.com/signalapp/Signal-Desktop/blob/v7.77.0-beta.1/ts/components/conversation/Message.dom.tsx#L135
-	if converted.Content.Info.Width == 512 && converted.Content.Info.Height == 512 {
-		converted.Content.Info.Width = 200
-		converted.Content.Info.Height = 200
-	}
+	fixStickerDimensions(converted.Content.Info)
 	converted.Content.Body = sticker.GetEmoji()
 	if hasPack {
 		converted.Content.Info.BridgedSticker = &event.BridgedSticker{
@@ -752,12 +764,17 @@ func (mc *MessageConverter) actuallyReuploadAttachment(
 			if err != nil {
 				return nil, fmt.Errorf("failed to convert audio to ogg/opus: %w", err)
 			}
+			info, err := os.Stat(replFile)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get info of converted file: %w", err)
+			}
 			if content.Body == "" {
 				content.Body = "Voice message.ogg"
 			} else {
 				content.Body += ".ogg"
 			}
 			content.Info.MimeType = "audio/ogg"
+			content.Info.Size = int(info.Size())
 			content.MSC3245Voice = &event.MSC3245Voice{}
 			// TODO include duration here (and in info) if there's some easy way to extract it with ffmpeg
 			//content.MSC1767Audio = &event.MSC1767Audio{}

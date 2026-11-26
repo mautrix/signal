@@ -19,10 +19,13 @@ package connector
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
+	"go.mau.fi/util/exmaps"
 	"go.mau.fi/util/exsync"
 	"maunium.net/go/mautrix/bridgev2"
 	"maunium.net/go/mautrix/bridgev2/networkid"
@@ -43,6 +46,10 @@ type SignalClient struct {
 	recentMessageRooms *exsync.RingBuffer[networkid.MessageID, networkid.PortalKey]
 	queueEmptyWaiter   *exsync.Event
 	cancelChatSync     atomic.Pointer[context.CancelFunc]
+
+	profileRefreshLock    sync.Mutex
+	profileRefreshQueue   exmaps.Set[uuid.UUID]
+	profileRefreshRunning bool
 }
 
 var (
