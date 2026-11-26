@@ -1163,7 +1163,7 @@ func (cli *Client) incomingStoryMessage(
 		return true
 	}
 	if len(story.ProfileKey) == libsignalgo.ProfileKeyLength && senderACI != cli.Store.ACI {
-		err := cli.Store.RecipientStore.StoreProfileKey(ctx, senderACI, libsignalgo.ProfileKey(story.ProfileKey))
+		err := cli.storeProfileKey(ctx, senderACI, libsignalgo.ProfileKey(story.ProfileKey))
 		if err != nil {
 			zerolog.Ctx(ctx).Err(err).Msg("Failed to store profile key from story")
 		}
