@@ -696,13 +696,13 @@ func (cli *Client) parseGroupResponse(ctx context.Context, response *http.Respon
 
 	// Store the profile keys in case they're new
 	for _, member := range group.Members {
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, member.ACI, member.ProfileKey)
+		err = cli.storeProfileKey(ctx, member.ACI, member.ProfileKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store profile key: %w", err)
 		}
 	}
 	for _, requestingMember := range group.RequestingMembers {
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, requestingMember.ACI, requestingMember.ProfileKey)
+		err = cli.storeProfileKey(ctx, requestingMember.ACI, requestingMember.ProfileKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to store profile key: %w", err)
 		}
@@ -866,7 +866,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			GroupMember:        *decryptedMember,
 			JoinFromInviteLink: addMember.JoinFromInviteLink,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, decryptedMember.ACI, decryptedMember.ProfileKey)
+		err = cli.storeProfileKey(ctx, decryptedMember.ACI, decryptedMember.ProfileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -920,7 +920,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			ACI:        *aci,
 			ProfileKey: *profileKey,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, *aci, *profileKey)
+		err = cli.storeProfileKey(ctx, *aci, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -965,7 +965,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			ACI:        *aci,
 			ProfileKey: *profileKey,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, *aci, *profileKey)
+		err = cli.storeProfileKey(ctx, *aci, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -995,7 +995,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			ProfileKey: *profileKey,
 			PNI:        pniServiceID.UUID,
 		})
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, *aci, *profileKey)
+		err = cli.storeProfileKey(ctx, *aci, *profileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err
@@ -1011,7 +1011,7 @@ func (cli *Client) decryptGroupChange(ctx context.Context, encryptedGroupChange 
 			return nil, err
 		}
 		decryptedGroupChange.AddRequestingMembers = append(decryptedGroupChange.AddRequestingMembers, decryptedRequestingMember)
-		err = cli.Store.RecipientStore.StoreProfileKey(ctx, decryptedRequestingMember.ACI, decryptedRequestingMember.ProfileKey)
+		err = cli.storeProfileKey(ctx, decryptedRequestingMember.ACI, decryptedRequestingMember.ProfileKey)
 		if err != nil {
 			log.Err(err).Msg("failed to store profile key")
 			return nil, err

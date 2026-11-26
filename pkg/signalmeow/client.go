@@ -95,6 +95,7 @@ func NewClient(device *store.Device, log zerolog.Logger, evtHandler func(events.
 			profiles:    make(map[string]*types.Profile),
 			errors:      make(map[string]*error),
 			lastFetched: make(map[string]time.Time),
+			generation:  make(map[string]uint64),
 		},
 		sendCache: exsync.NewRingBuffer[sendCacheKey, *signalpb.Content](InMemorySendCacheSize),
 	}

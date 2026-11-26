@@ -764,6 +764,14 @@ func (s *SignalClient) HandleMatrixViewingChat(ctx context.Context, msg *bridgev
 				ghost.UpdateInfo(ctx, info)
 			}
 		}
+	} else if _, groupID, err := signalid.ParsePortalID(msg.Portal.ID); err == nil && groupID != "" {
+		if group, _, ok := s.Client.GroupCache.Get(groupID); ok {
+			for _, member := range group.Members {
+				if member.ACI != s.Client.Store.ACI && s.Client.IsProfileStale(member.ACI, signalmeow.DefaultProfileRefreshAfter) {
+					s.queueProfileRefresh(member.ACI)
+				}
+			}
+		}
 	}
 
 	// always resync the portal if its stale
