@@ -776,31 +776,31 @@ func (s *SignalClient) handleSignalDeleteForMe(evt *events.DeleteForMe) bool {
 			continue
 		}
 
+		deletedAt := evt.Timestamp
+		for _, msg := range conv.GetMostRecentMessages() {
+			deletedAt = max(deletedAt, msg.GetSentTimestamp())
+		}
+		for _, msg := range conv.GetMostRecentNonExpiringMessages() {
+			deletedAt = max(deletedAt, msg.GetSentTimestamp())
+		}
 		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
 			EventMeta: simplevent.EventMeta{
 				Type:        bridgev2.RemoteEventChatDelete,
 				PortalKey:   portalKey,
 				Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
 				StreamOrder: int64(evt.Timestamp),
-			},
-			OnlyForMe: true,
-		})
-		if !res.Success {
-			return false
-		}
-	}
-	for _, conv := range evt.GetLocalOnlyConversationDeletes() {
-		portalKey, ok := s.conversationIDToPortalKey(ctx, conv.GetConversation())
-		if !ok {
-			continue
-		}
-
-		res := s.UserLogin.QueueRemoteEvent(&simplevent.ChatDelete{
-			EventMeta: simplevent.EventMeta{
-				Type:        bridgev2.RemoteEventChatDelete,
-				PortalKey:   portalKey,
-				Timestamp:   time.UnixMilli(int64(evt.Timestamp)),
-				StreamOrder: int64(evt.Timestamp),
+				PreHandleWithResultFunc: func(ctx context.Context, portal *bridgev2.Portal) *bridgev2.EventHandlingResult {
+					lastMessage, err := s.Main.Bridge.DB.Message.GetLastNInPortal(ctx, portal.PortalKey, 1)
+					if err != nil {
+						zerolog.Ctx(ctx).Err(err).Msg("Failed to get last message to check if chat delete is outdated")
+					} else if len(lastMessage) == 1 && lastMessage[0].Timestamp.UnixMilli() > int64(deletedAt) {
+						zerolog.Ctx(ctx).Debug().
+							Time("last_message_ts", lastMessage[0].Timestamp).
+							Msg("Ignoring chat delete that is older than the last message")
+						return ptr.Ptr(bridgev2.EventHandlingResultIgnored)
+					}
+					return nil
+				},
 			},
 			OnlyForMe: true,
 		})
