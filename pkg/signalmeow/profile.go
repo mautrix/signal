@@ -79,6 +79,7 @@ type ProfileResponse struct {
 type ProfileCache struct {
 	profiles    map[string]*types.Profile
 	errors      map[string]*error
+	errorKeys   map[string]libsignalgo.ProfileKey
 	lastFetched map[string]time.Time
 	generation  map[string]uint64
 	lock        sync.RWMutex
@@ -154,6 +155,7 @@ func (cli *Client) storeProfileKey(ctx context.Context, signalID uuid.UUID, prof
 	cli.ProfileCache.lock.Lock()
 	delete(cli.ProfileCache.profiles, signalID.String())
 	delete(cli.ProfileCache.errors, signalID.String())
+	delete(cli.ProfileCache.errorKeys, signalID.String())
 	delete(cli.ProfileCache.lastFetched, signalID.String())
 	cli.ProfileCache.generation[signalID.String()]++
 	cli.ProfileCache.lock.Unlock()
@@ -161,9 +163,31 @@ func (cli *Client) storeProfileKey(ctx context.Context, signalID uuid.UUID, prof
 	return nil
 }
 
+func (cli *Client) dropCachedProfileIfKeyChanged(ctx context.Context, signalID uuid.UUID, currentKey libsignalgo.ProfileKey) {
+	cacheKey := signalID.String()
+	cli.ProfileCache.lock.Lock()
+	defer cli.ProfileCache.lock.Unlock()
+	profile, hasProfile := cli.ProfileCache.profiles[cacheKey]
+	errorKey, hasError := cli.ProfileCache.errorKeys[cacheKey]
+	if (hasProfile && profile.Key != currentKey) || (hasError && errorKey != currentKey) {
+		zerolog.Ctx(ctx).Debug().
+			Stringer("profile_aci", signalID).
+			Msg("Profile key changed since cached profile was fetched, refetching")
+		delete(cli.ProfileCache.profiles, cacheKey)
+		delete(cli.ProfileCache.errors, cacheKey)
+		delete(cli.ProfileCache.errorKeys, cacheKey)
+		delete(cli.ProfileCache.lastFetched, cacheKey)
+		cli.ProfileCache.generation[cacheKey]++
+	}
+}
+
 func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID, refreshAfter time.Duration) (*types.Profile, error) {
 	// Check if we have a cached profile that is less than an hour old
 	// or if we have a cached error that is less than an hour old
+	currentKey, keyErr := cli.ProfileKeyForSignalID(ctx, signalID)
+	if keyErr == nil && currentKey != nil {
+		cli.dropCachedProfileIfKeyChanged(ctx, signalID, *currentKey)
+	}
 	profile, err := cli.getCachedProfileByID(signalID, refreshAfter)
 	if err != nil || profile != nil {
 		return profile, err
@@ -181,6 +205,9 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID, 
 			defer cli.ProfileCache.lock.Unlock()
 			if cli.ProfileCache.generation[signalID.String()] == generation {
 				cli.ProfileCache.errors[signalID.String()] = &err
+				if currentKey != nil {
+					cli.ProfileCache.errorKeys[signalID.String()] = *currentKey
+				}
 				cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 			}
 		}
@@ -194,6 +221,8 @@ func (cli *Client) RetrieveProfileByID(ctx context.Context, signalID uuid.UUID, 
 		return profile, nil
 	}
 	cli.ProfileCache.profiles[signalID.String()] = profile
+	delete(cli.ProfileCache.errors, signalID.String())
+	delete(cli.ProfileCache.errorKeys, signalID.String())
 	cli.ProfileCache.lastFetched[signalID.String()] = time.Now()
 
 	return profile, nil
@@ -219,6 +248,7 @@ var (
 	ErrProfileUnauthorized  = errors.New("profile get returned 401")
 	ErrProfileNotFound      = errors.New("profile get returned 404")
 	ErrProfileInternalError = errors.New("profile get returned")
+	ErrAvatarDecryptFailed  = errors.New("failed to decrypt avatar")
 )
 
 func (cli *Client) fetchProfileWithRequestAndKey(ctx context.Context, signalID uuid.UUID, credentialRequest []byte, profileKey *libsignalgo.ProfileKey) (*types.Profile, error) {
@@ -333,7 +363,7 @@ func (cli *Client) DownloadUserAvatar(ctx context.Context, avatarPath string, pr
 	}
 	avatar, err := decryptBytes(profileKey[:], encryptedAvatar)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt response: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrAvatarDecryptFailed, err)
 	}
 	return avatar, nil
 }
