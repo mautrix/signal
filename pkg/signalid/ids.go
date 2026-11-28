@@ -127,6 +127,12 @@ func MakeUserIDFromServiceID(user libsignalgo.ServiceID) networkid.UserID {
 	}
 }
 
+const StoriesPortalID networkid.PortalID = "stories"
+
+func MakeStoriesPortalKey(login networkid.UserLoginID) networkid.PortalKey {
+	return networkid.PortalKey{ID: StoriesPortalID, Receiver: login}
+}
+
 func MakeUserLoginID(user uuid.UUID) networkid.UserLoginID {
 	return networkid.UserLoginID(user.String())
 }
